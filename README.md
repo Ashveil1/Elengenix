@@ -1,61 +1,64 @@
-# 🛡️ ELENGENIX AI AGENT
+# Elengenix
 
-**Elengenix** is a modern, AI-powered Bug Bounty Framework designed for autonomous security research. It bridges the gap between classic automation and intelligent decision-making, providing a personal "Bug Hunter Partner" right in your terminal and Telegram.
+An AI-powered framework for automated bug bounty hunting and security research.
+Autonomous reconnaissance, multi-model LLM support, and real-time reporting via Telegram and CLI.
 
----
-
-## ✨ Key Features
-
-- **🧠 Multi-Model AI Partner**: Support for Gemini, OpenAI, Claude, Groq, OpenRouter, and **Local LLMs (Ollama)**.
-- **🚀 Autonomous Pipeline**: Recon -> Scan -> Deep JS Analysis -> Parameter Mining -> Reporting.
-- **📱 Telegram Command Center**: Control your scans and receive real-time alerts with detailed findings directly to your phone.
-- **🛠️ Self-Healing Dependencies**: Automatically detects and offers to install missing tools like `subfinder`, `nuclei`, `httpx`, `katana`, and `waybackurls`.
-- **🔑 Real-time Secret Discovery**: Extracts API keys and secrets from JavaScript files and notifies you instantly with beautiful Terminal panels.
-- **💾 Continuous Learning**: AI remembers previous findings and improves its strategy every time it hunts.
+> **Status**: Active development. Core pipeline works. AI agent loop and memory system being improved.
 
 ---
 
-## 🚀 Quick Start
+## Features
 
-### For Linux / macOS / WSL:
-1. **Clone and Install:**
+- **Multi-Model AI**: Gemini, OpenAI, Claude, Groq, OpenRouter, and local LLMs via Ollama
+- **Autonomous Pipeline**: Recon → Scan → JS Analysis → Parameter Mining → Reporting
+- **Telegram Integration**: Control scans and receive findings directly on your phone
+- **Self-Healing**: Auto-detects and installs missing tools
+- **Secret Discovery**: Extracts API keys and secrets from JavaScript files in real time
+- **Continuous Learning**: Remembers findings per target to improve future scans
+
+---
+
+## Quick Start
+
+### Linux / macOS / WSL
+
 ```bash
 git clone https://github.com/Ashveil1/Elengenix.git
 cd Elengenix
 bash setup.sh
-```
-2. **Start Hunting:**
-```bash
 elengenix
 ```
 
-### For Termux (Android):
-1. **Clone and Install:**
+### Termux (Android)
+
 ```bash
 git clone https://github.com/Ashveil1/Elengenix.git
 cd Elengenix
 bash termux_setup.sh
-```
-2. **Start Hunting:**
-```bash
 python main.py
 ```
 
 ---
 
-## 🛠️ Built-in Tools & Arsenal
-- **Vertical Recon**: `subfinder`
-- **Live Host Discovery**: `httpx`
-- **Vulnerability Scanner**: `nuclei` (5,000+ templates)
-- **Advanced Crawling**: `katana`, `waybackurls`
-- **Specialized Analysis**: `js_analyzer`, `api_finder`, `param_miner`, `cors_checker`
+## Built-in Tools
+
+| Tool | Purpose |
+|------|---------|
+| subfinder | Subdomain enumeration |
+| httpx | Live host discovery |
+| nuclei | Vulnerability scanning (5,000+ templates) |
+| katana / waybackurls | Advanced crawling |
+| js_analyzer, param_miner, cors_checker | Deep analysis |
 
 ---
 
-## 📚 Knowledge Base
-Elengenix comes with a built-in `knowledge/` directory. Add any bug bounty write-ups or methodologies, and the AI will learn and apply them to future scans.
+## Knowledge Base
+
+Drop any bug bounty write-ups or methodology files into the `knowledge/` directory.
+The AI will load and apply them during future scans.
 
 ---
 
-## ⚖️ License
-Distributed under the MIT License. See `LICENSE` for more information.
+## License
+
+MIT — see `LICENSE` for details.
