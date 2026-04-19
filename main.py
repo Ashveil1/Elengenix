@@ -1,9 +1,46 @@
-import argparse
 import sys
+import subprocess
+
+# 🚀 Bulletproof Dependency Checker
+def ensure_dependencies():
+    required_libs = {
+        "yaml": "pyyaml",
+        "rich": "rich",
+        "questionary": "questionary",
+        "requests": "requests",
+        "google.generativeai": "google-generativeai",
+        "openai": "openai",
+        "trafilatura": "trafilatura"
+    }
+    
+    missing = []
+    for module, package in required_libs.items():
+        try:
+            __import__(module)
+        except ImportError:
+            missing.append(package)
+    
+    if missing:
+        print(f"[*] Missing libraries detected: {', '.join(missing)}")
+        print("[*] Attempting to install missing dependencies automatically...")
+        try:
+            subprocess.run([sys.executable, "-m", "pip", "install"] + missing, check=True)
+            print("[*] Successfully installed dependencies. Restarting...\n")
+            # Restart the script after successful installation
+            os.execv(sys.executable, ['python'] + sys.argv)
+        except Exception as e:
+            print(f"[❌] Auto-installation failed: {e}")
+            print(f"[❌] Please run manually: pip install {' '.join(missing)}")
+            sys.exit(1)
+
 import os
+# Run check before anything else
+ensure_dependencies()
+
+# Now it's safe to import everything else
+import argparse
 import yaml
 import questionary
-import subprocess
 from rich.console import Console
 from rich.panel import Panel
 from dependency_manager import check_and_install_dependencies
@@ -13,6 +50,7 @@ from tools.omni_scan import run_omni_scan
 
 console = Console()
 
+# (Rest of main.py content follows...)
 def show_banner():
     banner = """
     [bold cyan]
