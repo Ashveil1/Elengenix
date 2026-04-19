@@ -5,10 +5,10 @@ __pycache__/
 venv/
 .env
 
-# BugSentinel Specific
-BugSentinel/config.yaml
-BugSentinel/reports/
-BugSentinel/custom_scripts/
+# Elengenix Specific
+Elengenix/config.yaml
+Elengenix/reports/
+Elengenix/custom_scripts/
 reports/
 
 # Tools logs

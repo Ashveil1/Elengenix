@@ -1,4 +1,4 @@
-# Bug Bounty Hunting Methodology for BugSentinel
+# Bug Bounty Hunting Methodology for Elengenix
 
 ## 1. Reconnaissance (Mapping the Surface)
 - **Vertical Discovery**: Find subdomains using subfinder.
