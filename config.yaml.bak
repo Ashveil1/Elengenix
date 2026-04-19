@@ -1,0 +1,40 @@
+# Elengenix AI Framework Configuration
+
+# Interface Settings
+interfaces:
+  cli_enabled: true
+  telegram_enabled: false
+
+# Telegram Settings
+telegram:
+  token: "YOUR_TELEGRAM_BOT_TOKEN"
+  chat_id: "YOUR_CHAT_ID"
+
+# AI LLM Settings
+ai:
+  active_provider: "gemini" 
+  providers:
+    gemini:
+      api_key: "YOUR_GEMINI_API_KEY"
+      model: "gemini-1.5-pro"
+    openai:
+      api_key: "YOUR_OPENAI_API_KEY"
+      model: "gpt-4o"
+    anthropic:
+      api_key: "YOUR_ANTHROPIC_API_KEY"
+      model: "claude-3-5-sonnet-20240620"
+    groq:
+      api_key: "YOUR_GROQ_API_KEY"
+      model: "llama3-70b-8192"
+    openrouter:
+      api_key: "YOUR_OPENROUTER_API_KEY"
+      model: "anthropic/claude-3.5-sonnet"
+    local:
+      base_url: "http://localhost:11434/v1"
+      model: "llama3"
+
+# Tool Settings
+tools:
+  base_dir: "./tools"
+  reports_dir: "./reports"
+  history_dir: "data/history"

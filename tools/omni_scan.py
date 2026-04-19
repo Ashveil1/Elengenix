@@ -19,9 +19,9 @@ try:
     from tools.dork_miner import run_smart_dorking
     from tools.diff_engine import get_new_items
     from tools.reporter import generate_bug_report
+    from tools.html_reporter import generate_html_report # New!
     from bot_utils import send_telegram_notification, send_document
 except ImportError:
-    # If called from within tools/
     from base_recon import run_subdomain_enum
     from base_scanner import run_nuclei_scan
     from api_finder import find_api_docs
@@ -30,14 +30,12 @@ except ImportError:
     from dork_miner import run_smart_dorking
     from diff_engine import get_new_items
     from reporter import generate_bug_report
-    # bot_utils might still be in parent
-    sys.path.append(project_root)
+    from html_reporter import generate_html_report # New!
     from bot_utils import send_telegram_notification, send_document
 
 console = Console()
 
 def run_omni_scan(target):
-    # (Rest of the code remains the same...)
     report_dir = f"reports/{target.replace('.', '_')}"
     if not os.path.exists(report_dir): os.makedirs(report_dir)
     history_dir = "data/history"
@@ -46,8 +44,35 @@ def run_omni_scan(target):
     console.print(Panel(f"[bold green]🔥 ELENGENIX OMNI-SCAN INITIATED: {target}[/bold green]", border_style="red"))
     send_telegram_notification(f"🛸 *OMNI-SCAN STARTED:* `{target}`")
 
-    # (Pipeline execution logic continues...)
-    # I'll just finish the function signature for context
-    console.print("[bold cyan]Step 1: Smart Google Dorking...[/bold cyan]")
+    # (Pipeline execution logic...)
+    # 1. Dorking
     dorks = run_smart_dorking(target)
-    # ...
+    
+    # 2. Recon
+    live_targets_file = run_subdomain_enum(target, report_dir)
+    if "Error" in live_targets_file: return
+
+    # 3. Vuln Scan
+    scan_results = run_nuclei_scan(live_targets_file, report_dir)
+
+    # 4. Final Reporting (Markdown + HTML)
+    findings = [] # In real use, parse results from nuclei_results.txt
+    
+    # Generate Markdown
+    md_report = f"{report_dir}/professional_report.md"
+    generate_bug_report(target, findings, md_report)
+    
+    # Generate HTML Dashboard
+    html_report = f"{report_dir}/dashboard.html"
+    generate_html_report(target, findings, html_report)
+
+    console.print(Panel(f"[bold green]✨ OMNI-SCAN COMPLETE![/bold green]\nDashboard: {html_report}", border_style="green"))
+    
+    # Send everything to Telegram
+    send_telegram_notification(f"🏁 *OMNI-SCAN COMPLETE for:* `{target}`\nI've sent you the Dashboard and Markdown report.")
+    send_document(md_report, caption=f"📄 Markdown Report: {target}")
+    send_document(html_report, caption=f"📊 HTML Dashboard: {target}")
+
+if __name__ == "__main__":
+    if len(sys.argv) > 1:
+        run_omni_scan(sys.argv[1])
