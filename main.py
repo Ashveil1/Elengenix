@@ -84,7 +84,6 @@ def main():
         check_health()
     elif args.command == "gateway":
         console.print("[bold yellow]📱 Starting Elengenix Gateway (Telegram Bot)...[/bold yellow]")
-        # Running via system to avoid event loop conflicts
         os.system(f"{sys.executable} {os.path.join(os.path.dirname(os.path.abspath(__file__)), 'bot.py')}")
     elif args.command == "update":
         update_system()
