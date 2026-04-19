@@ -12,7 +12,7 @@ sudo apt-get update && sudo apt-get install -y python3 python3-pip golang git cu
 echo "[*] Installing Python libraries for Elengenix..."
 # Using --upgrade and --no-cache-dir to ensure clean install
 python3 -m pip install --upgrade pip --quiet
-python3 -m pip install -r requirements.txt --quiet
+python3 -m for req in $(cat requirements.txt); do echo "[*] Installing $req..."; pip install $req --quiet; done
 
 # 3. Security Tools Setup
 echo ""

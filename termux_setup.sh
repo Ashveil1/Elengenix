@@ -13,7 +13,7 @@ pkg install -y python golang git curl libpcap make clang libyaml
 echo ""
 echo "[*] Installing Python libraries for Elengenix..."
 # We remove the pip upgrade line as it's forbidden, and add --break-system-packages
-pip install -r requirements.txt --quiet --break-system-packages
+for req in $(cat requirements.txt); do echo "[*] Installing $req..."; pip install $req --quiet --break-system-packages; done
 echo "  ✅ Python libraries installed."
 
 # 3. Security Tools Setup
