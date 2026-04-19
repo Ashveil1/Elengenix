@@ -1,6 +1,8 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-# Resolve the absolute path of the project directory, even if called via symlink
+# Elengenix Universal Launcher
+# Works on Linux, macOS, and Termux
+
 SOURCE="${BASH_SOURCE[0]}"
 while [ -h "$SOURCE" ]; do 
   DIR="$( cd -P "$( dirname "$SOURCE" )" >/dev/null 2>&1 && pwd )"
@@ -9,5 +11,11 @@ while [ -h "$SOURCE" ]; do
 done
 PROJECT_ROOT="$( cd -P "$( dirname "$SOURCE" )" >/dev/null 2>&1 && pwd )"
 
-# Run the main program from its true home
-python3 "$PROJECT_ROOT/main.py" "$@"
+# Ensure we use the correct python version
+if command -v python3 >/dev/null 2>&1; then
+    PYTHON_CMD="python3"
+else
+    PYTHON_CMD="python"
+fi
+
+$PYTHON_CMD "$PROJECT_ROOT/main.py" "$@"
