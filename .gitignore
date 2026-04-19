@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.env
+
+# BugSentinel Specific
+BugSentinel/config.yaml
+BugSentinel/reports/
+BugSentinel/custom_scripts/
+reports/
+
+# Tools logs
+*.log
+nuclei_results.txt
+*_subs.txt
+*_live.txt
+
+# OS
+.DS_Store

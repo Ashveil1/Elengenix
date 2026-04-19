@@ -1,0 +1,8 @@
+#!/bin/bash
+
+# Get the directory where this script is located
+BASE_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
+# Run the main program using the absolute path
+# This allows the command to be run from anywhere
+python3 "$BASE_DIR/main.py" "$@"

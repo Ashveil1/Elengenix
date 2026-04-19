@@ -1,0 +1,10 @@
+python-telegram-bot
+google-generativeai
+openai
+anthropic
+pyyaml
+rich
+requests
+questionary
+googlesearch-python
+trafilatura
