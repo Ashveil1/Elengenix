@@ -1,0 +1,61 @@
+import os
+import sys
+from rich.console import Console
+from rich.table import Table
+from rich.panel import Panel
+
+console = Console()
+
+def show_tools_menu():
+    console.print(Panel("[bold cyan]⚔️  Elengenix Interactive Arsenal ⚔️[/bold cyan]\n[dim]Select a specialized tool to execute manually.[/dim]", border_style="cyan"))
+# Define tools and their descriptions
+tools = [
+    {"name": "OMNI-SCAN (Full Chaos)", "desc": "Run EVERYTHING: Dorking -> Recon -> API -> Nuclei -> JS -> Params -> Report.", "file": "omni_scan.py"},
+    {"name": "Recon & Discovery", "desc": "Find subdomains and check for live web servers (Subfinder + httpx).", "file": "base_recon.py"},
+    {"name": "Vulnerability Scanner", "desc": "Run Nuclei with 5,000+ templates to find CVEs and misconfigs.", "file": "base_scanner.py"},
+...
+
+        {"name": "API Hunter", "desc": "Search for Swagger, OpenAPI, and hidden API documentation endpoints.", "file": "api_finder.py"},
+        {"name": "JS Secrets Analyzer", "desc": "Extract API keys, tokens, and hidden paths from JavaScript files.", "file": "js_analyzer.py"},
+        {"name": "Hidden Param Miner", "desc": "Fuzz and discover hidden URL parameters that lead to bugs.", "file": "param_miner.py"},
+        {"name": "CORS Misconfig Checker", "desc": "Verify if the target is vulnerable to CORS attacks.", "file": "cors_checker.py"},
+        {"name": "Smart Google Dorking", "desc": "Search Google for exposed sensitive files (.env, .sql, config).", "file": "dork_miner.py"},
+        {"name": "AI Web Research", "desc": "Let AI search the web for latest CVEs and technical write-ups.", "file": "research_tool.py"},
+    ]
+
+    # Build Table
+    table = Table(show_header=True, header_style="bold magenta")
+    table.add_column("No.", style="dim", width=4)
+    table.add_column("Tool Name", style="cyan", width=25)
+    table.add_column("Capabilities (What it does)", style="green")
+
+    for idx, tool in enumerate(tools, 1):
+        table.add_row(str(idx), tool["name"], tool["desc"])
+
+    console.print(table)
+    console.print("[dim]Press '0' to return to Main Menu[/dim]\n")
+
+    try:
+        choice = input("🏹 Select Tool Number: ")
+        if choice == "0":
+            return
+        
+        selected_idx = int(choice) - 1
+        if 0 <= selected_idx < len(tools):
+            selected_tool = tools[selected_idx]
+            target = input(f"🎯 Enter Target for {selected_tool['name']}: ")
+            if target:
+                console.print(f"\n[bold yellow]⚡ Executing {selected_tool['name']} on {target}...[/bold yellow]\n")
+                # Run the selected tool script
+                os.system(f"python3 tools/{selected_tool['file']} {target}")
+            else:
+                console.print("[red]Target is required![/red]")
+        else:
+            console.print("[red]Invalid selection![/red]")
+    except ValueError:
+        console.print("[red]Please enter a valid number![/red]")
+    except KeyboardInterrupt:
+        pass
+
+if __name__ == "__main__":
+    show_tools_menu()
