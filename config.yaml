@@ -1,54 +1,29 @@
-# config.yaml — Elengenix Configuration
-# เปลี่ยน active_provider และใส่ api_key ของคุณ
-
-ai:
-  # ── เลือก provider หลัก ──────────────────────
-  # ตัวเลือก: gemini | anthropic | openai | groq | openrouter | local
-  active_provider: gemini
-
-  providers:
-
-    # ── Gemini (Primary) ──────────────────────
-    gemini:
-      api_key: "YOUR_GEMINI_API_KEY_HERE"
-      model: "gemini-2.0-flash"          # เร็ว ฟรี (ภายใน quota)
-      # model: "gemini-2.5-pro-preview-05-06"  # ฉลาดที่สุด (มี limit)
-      # model: "gemini-1.5-flash"              # fallback ถ้า quota เต็ม
-
-    # ── Claude (Anthropic) ───────────────────
-    anthropic:
-      api_key: "YOUR_ANTHROPIC_API_KEY_HERE"
-      model: "claude-sonnet-4-5"         # อัปเดตแล้ว (เดิมชื่อ claude-3-5-sonnet)
-      # model: "claude-haiku-4-5-20251001"   # เร็ว+ถูก
-
-    # ── OpenAI ───────────────────────────────
-    openai:
-      api_key: "YOUR_OPENAI_API_KEY_HERE"
-      model: "gpt-4o-mini"
-
-    # ── Groq (เร็วมาก ฟรี) ──────────────────
-    groq:
-      api_key: "YOUR_GROQ_API_KEY_HERE"
-      model: "llama-3.3-70b-versatile"
-
-    # ── OpenRouter (access หลาย model) ───────
-    openrouter:
-      api_key: "YOUR_OPENROUTER_API_KEY_HERE"
-      model: "google/gemini-2.0-flash-exp:free"
-
-    # ── Local / Ollama ────────────────────────
-    local:
-      api_key: "ollama"
-      base_url: "http://localhost:11434/v1"
-      model: "llama3.2"
-
-# ── Telegram ───────────────────────────────────
-telegram:
-  bot_token: "YOUR_BOT_TOKEN_HERE"
-  chat_id: "YOUR_CHAT_ID_HERE"
-
-# ── Agent Settings ─────────────────────────────
 agent:
-  max_steps: 20        # autonomous loop สูงสุด
-  timeout_seconds: 90  # timeout ต่อ shell command
-  max_output_chars: 4000  # ตัด output ยาวๆ
+  max_output_chars: 4000
+  max_steps: 20
+  timeout_seconds: 90
+ai:
+  active_provider: gemini
+  providers:
+    anthropic:
+      api_key: YOUR_ANTHROPIC_API_KEY_HERE
+      model: claude-sonnet-4-5
+    gemini:
+      api_key: AIzaSyBj4LM7yZWfraHFqgcLGtL_4IG4r4DrzOI
+      model: gemini-2.5-flash
+    groq:
+      api_key: YOUR_GROQ_API_KEY_HERE
+      model: llama-3.3-70b-versatile
+    local:
+      api_key: ollama
+      base_url: http://localhost:11434/v1
+      model: llama3.2
+    openai:
+      api_key: YOUR_OPENAI_API_KEY_HERE
+      model: gpt-4o-mini
+    openrouter:
+      api_key: YOUR_OPENROUTER_API_KEY_HERE
+      model: google/gemini-2.0-flash-exp:free
+telegram:
+  bot_token: YOUR_BOT_TOKEN_HERE
+  chat_id: YOUR_CHAT_ID_HERE

@@ -1,6 +1,6 @@
+import os
 import sys
 import subprocess
-import os
 
 # 🚀 Bulletproof Dependency Checker
 def ensure_dependencies():
@@ -26,40 +26,125 @@ def ensure_dependencies():
         print(f"[*] Missing libraries detected: {', '.join(missing)}")
         print("[*] Attempting to install missing dependencies automatically...")
         try:
-            # Added --break-system-packages for Termux compatibility
             cmd = [sys.executable, "-m", "pip", "install"] + missing + ["--break-system-packages"]
             subprocess.run(cmd, check=True)
             print("[*] Successfully installed dependencies. Restarting...\n")
             os.execv(sys.executable, [sys.executable] + sys.argv)
-        except Exception as e:
-            # Fallback if the flag itself is not supported in older pip versions
+        except Exception:
             try:
                 cmd = [sys.executable, "-m", "pip", "install"] + missing
                 subprocess.run(cmd, check=True)
                 os.execv(sys.executable, [sys.executable] + sys.argv)
-            except:
-                print(f"[❌] Auto-installation failed. Please run manually: pip install {' '.join(missing)} --break-system-packages")
+            except Exception as e:
+                print(f"[❌] Auto-installation failed: {e}")
                 sys.exit(1)
+
+# Get current script directory
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+# Set project root
+os.chdir(CURRENT_DIR)
+sys.path.append(CURRENT_DIR)
 
 ensure_dependencies()
 
-# (Rest of main.py content follows...)
+# Standard Library Imports
 import argparse
 import yaml
 import questionary
 from rich.console import Console
 from rich.panel import Panel
 
-# Safety imports
-try:
-    from dependency_manager import check_and_install_dependencies
-    from tools.doctor import check_health
-    from tools_menu import show_tools_menu
-    from tools.omni_scan import run_omni_scan
-except ImportError:
-    sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-    from dependency_manager import check_and_install_dependencies
-    from tools.doctor import check_health
-    from tools_menu import show_tools_menu
-    from tools.omni_scan import run_omni_scan
-...
+# Local Imports
+from dependency_manager import check_and_install_dependencies
+from tools.doctor import check_health
+from tools_menu import show_tools_menu
+from tools.omni_scan import run_omni_scan
+
+console = Console()
+
+def show_banner():
+    banner = """
+    [bold cyan]
+     _____ _                               _      
+    | ____| | ___ _ __   __ _  ___ _ __ (_)_  __
+    |  _| | |/ _ \\ '_ \\ / _` |/ _ \\ '_ \\| \\ \\/ /
+    | |___| |  __/ | | | (_| |  __/ | | | |>  < 
+    |_____|_|\\___|_| |_|\\__, |\\___|_| |_|_/_/\\_\\
+                        |___/                   
+    [/bold cyan]
+    [dim]The Ultimate AI-Powered Bug Bounty Framework[/dim]
+    """
+    console.print(banner)
+
+def update_system():
+    console.print("[bold cyan]🔄 Updating Elengenix & Security Tools...[/bold cyan]")
+    try:
+        subprocess.run("git pull", shell=True)
+        subprocess.run("nuclei -update-templates", shell=True)
+        console.print("[bold green]✅ Everything is up to date![/bold green]")
+    except Exception as e:
+        console.print(f"[bold red]❌ Update failed: {e}[/bold red]")
+
+def main():
+    show_banner()
+    parser = argparse.ArgumentParser(description="Elengenix CLI", add_help=False)
+    parser.add_argument("command", nargs="?", default="menu", choices=["ai", "scan", "gateway", "configure", "update", "doctor", "arsenal", "menu"])
+    parser.add_argument("target", nargs="?", help="Target domain")
+    
+    args, unknown = parser.parse_known_args()
+
+    if args.command == "menu":
+        try:
+            choice = questionary.select(
+                "Welcome, Hunter! What would you like to do?",
+                choices=[
+                    "🤖 Chat with AI Partner (Unified Brain)",
+                    "🚀 Run Advanced Omni-Scan (Everything)",
+                    "⚔️  Open Tools Arsenal (Select by Number)",
+                    "📱 Start Telegram Gateway",
+                    "🏥 Run System Doctor (Check/Repair)",
+                    "⚙️  Configure AI & Settings",
+                    "🔄 Update Framework",
+                    "❌ Exit"
+                ]
+            ).ask()
+        except Exception:
+            return
+
+        if not choice or "Exit" in choice: return
+        elif "AI Partner" in choice: args.command = "ai"
+        elif "Omni-Scan" in choice: args.command = "scan"
+        elif "Arsenal" in choice: args.command = "arsenal"
+        elif "Telegram" in choice: args.command = "gateway"
+        elif "Doctor" in choice: args.command = "doctor"
+        elif "Configure" in choice: args.command = "configure"
+        elif "Update" in choice: args.command = "update"
+
+    if args.command == "doctor":
+        check_health()
+    elif args.command == "update":
+        update_system()
+    elif args.command == "scan":
+        target = args.target if args.target else questionary.text("Target:").ask()
+        if target: run_omni_scan(target)
+    elif args.command == "ai":
+        import cli
+        cli.main()
+    elif args.command == "arsenal":
+        show_tools_menu()
+    elif args.command == "gateway":
+        os.system(f"{sys.executable} {os.path.join(CURRENT_DIR, 'bot.py')}")
+    elif args.command == "configure":
+        import wizard
+        wizard.main()
+
+if __name__ == "__main__":
+    try:
+        main()
+    except Exception as e:
+        console.print(f"\n[bold red]🚨 CRITICAL ERROR DETECTED: {e}[/bold red]")
+        if questionary.confirm("Would you like Elengenix to attempt an Auto-Repair?", default=True).ask():
+            check_health(fix=True)
+    except KeyboardInterrupt:
+        console.print("\n[yellow]👋 Happy Hunting![/yellow]")
+        sys.exit(0)
