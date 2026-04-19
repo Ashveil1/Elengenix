@@ -1,7 +1,7 @@
 #!/data/data/com.termux/files/usr/bin/bash
 
 clear
-echo "📱 Elengenix AI - Termux Mobile Hunter Setup"
+echo "📱 Elengenix AI - Termux Mobile Hunter Setup (Fixed)"
 echo "------------------------------------------"
 
 # 1. Essential Core Dependencies
@@ -9,11 +9,12 @@ echo "[*] Installing core dependencies (Termux)..."
 pkg update && pkg upgrade -y
 pkg install -y python golang git curl libpcap make clang libyaml
 
-# 2. Python Requirements (Crucial Fix for Termux)
+# 2. Python Requirements (Fixed for Termux Policy)
 echo ""
 echo "[*] Installing Python libraries for Elengenix..."
-pip install --upgrade pip --quiet
-pip install -r requirements.txt --quiet
+# We remove the pip upgrade line as it's forbidden, and add --break-system-packages
+pip install -r requirements.txt --quiet --break-system-packages
+echo "  ✅ Python libraries installed."
 
 # 3. Security Tools Setup
 export GOPATH=$HOME/go
