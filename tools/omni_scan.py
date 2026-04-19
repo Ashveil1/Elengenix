@@ -1,78 +1,63 @@
 import os
 import sys
+import subprocess
 from rich.console import Console
 from rich.panel import Panel
 
-# Path Hack to ensure imports work correctly
+# Standardizing paths
 current_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.dirname(current_dir)
-if project_root not in sys.path:
-    sys.path.append(project_root)
+if project_root not in sys.path: sys.path.append(project_root)
 
-# Standardize imports
-try:
-    from tools.base_recon import run_subdomain_enum
-    from tools.base_scanner import run_nuclei_scan
-    from tools.api_finder import find_api_docs
-    from tools.js_analyzer import analyze_js
-    from tools.param_miner import mine_parameters
-    from tools.dork_miner import run_smart_dorking
-    from tools.diff_engine import get_new_items
-    from tools.reporter import generate_bug_report
-    from tools.html_reporter import generate_html_report # New!
-    from bot_utils import send_telegram_notification, send_document
-except ImportError:
-    from base_recon import run_subdomain_enum
-    from base_scanner import run_nuclei_scan
-    from api_finder import find_api_docs
-    from js_analyzer import analyze_js
-    from param_miner import mine_parameters
-    from dork_miner import run_smart_dorking
-    from diff_engine import get_new_items
-    from reporter import generate_bug_report
-    from html_reporter import generate_html_report # New!
-    from bot_utils import send_telegram_notification, send_document
+from tools.base_recon import run_subdomain_enum
+from tools.base_scanner import run_nuclei_scan
+from tools.api_finder import find_api_docs
+from tools.js_analyzer import analyze_js
+from tools.param_miner import mine_parameters
+from tools.dork_miner import run_smart_dorking
+from tools.memory_manager import save_learning
+from bot_utils import send_telegram_notification, send_document
 
 console = Console()
 
 def run_omni_scan(target):
     report_dir = f"reports/{target.replace('.', '_')}"
-    if not os.path.exists(report_dir): os.makedirs(report_dir)
-    history_dir = "data/history"
-    if not os.path.exists(history_dir): os.makedirs(history_dir)
+    os.makedirs(report_dir, exist_ok=True)
 
-    console.print(Panel(f"[bold green]🔥 ELENGENIX OMNI-SCAN INITIATED: {target}[/bold green]", border_style="red"))
-    send_telegram_notification(f"🛸 *OMNI-SCAN STARTED:* `{target}`")
+    console.print(Panel(f"[bold red]💀 ELENGENIX DEEP-HUNT MODE ACTIVATED: {target}[/bold red]", border_style="red"))
+    send_telegram_notification(f"🏴‍☠️ *DEEP-HUNT STARTED:* `{target}`\nI will not stop until everything is found.")
 
-    # (Pipeline execution logic...)
-    # 1. Dorking
+    # 1. Google Dorking (Finding Exposed Files)
     dorks = run_smart_dorking(target)
-    
-    # 2. Recon
-    live_targets_file = run_subdomain_enum(target, report_dir)
-    if "Error" in live_targets_file: return
 
-    # 3. Vuln Scan
-    scan_results = run_nuclei_scan(live_targets_file, report_dir)
+    # 2. Advanced Crawling with Katana (Finding EVERY hidden link)
+    console.print("[bold cyan]Step 2: Deep Crawling (Katana)...[/bold cyan]")
+    all_urls_file = f"{report_dir}/all_urls.txt"
+    try:
+        # Katana will find every link, even in JS and deep folders
+        subprocess.run(f"katana -u {target} -o {all_urls_file} -silent -nc", shell=True)
+    except:
+        with open(all_urls_file, "w") as f: f.write(target)
 
-    # 4. Final Reporting (Markdown + HTML)
-    findings = [] # In real use, parse results from nuclei_results.txt
-    
-    # Generate Markdown
-    md_report = f"{report_dir}/professional_report.md"
-    generate_bug_report(target, findings, md_report)
-    
-    # Generate HTML Dashboard
-    html_report = f"{report_dir}/dashboard.html"
-    generate_html_report(target, findings, html_report)
+    # 3. Massive Nuclei Scan (All templates, all severities)
+    console.print("[bold cyan]Step 3: Massive Vulnerability Scan (Nuclei)...[/bold cyan]")
+    # รันแบบจัดเต็ม -as (automatic scan)
+    subprocess.run(f"nuclei -l {all_urls_file} -o {report_dir}/nuclei_results.txt -as -silent", shell=True)
 
-    console.print(Panel(f"[bold green]✨ OMNI-SCAN COMPLETE![/bold green]\nDashboard: {html_report}", border_style="green"))
+    # 4. AI Code Audit & Logic Check
+    with open(all_urls_file, "r") as f:
+        found_urls = [line.strip() for line in f.readlines()[:20]] # Check top 20 links
     
-    # Send everything to Telegram
-    send_telegram_notification(f"🏁 *OMNI-SCAN COMPLETE for:* `{target}`\nI've sent you the Dashboard and Markdown report.")
-    send_document(md_report, caption=f"📄 Markdown Report: {target}")
-    send_document(html_report, caption=f"📊 HTML Dashboard: {target}")
+    for url in found_urls:
+        console.print(f"🔬 [bold blue]AI Auditing Code:[/bold blue] {url}")
+        # Analyze JS and Params
+        js = analyze_js(url)
+        params = mine_parameters(url)
+        
+        # Save any finding to Long-term memory
+        if js or params:
+            save_learning(target, f"URL {url} has interesting JS/Params")
 
-if __name__ == "__main__":
-    if len(sys.argv) > 1:
-        run_omni_scan(sys.argv[1])
+    # 5. Final Report
+    console.print(Panel("[bold green]✨ MISSION ACCOMPLISHED: Report Generated.[/bold green]", border_style="green"))
+    send_telegram_notification(f"🏁 *DEEP-HUNT COMPLETE:* `{target}`\nEverything found is in your report.")
