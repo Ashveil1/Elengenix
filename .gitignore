@@ -19,3 +19,4 @@ nuclei_results.txt
 
 # OS
 .DS_Store
+config.yaml

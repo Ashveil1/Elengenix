@@ -1,0 +1,29 @@
+agent:
+  max_output_chars: 4000
+  max_steps: 20
+  timeout_seconds: 90
+ai:
+  active_provider: gemini
+  providers:
+    anthropic:
+      api_key: "YOUR_API_KEY_HERE"
+      model: claude-sonnet-4-5
+    gemini:
+      api_key: "YOUR_API_KEY_HERE"
+      model: gemini-2.5-flash
+    groq:
+      api_key: "YOUR_API_KEY_HERE"
+      model: llama-3.3-70b-versatile
+    local:
+      api_key: "YOUR_API_KEY_HERE"
+      base_url: http://localhost:11434/v1
+      model: llama3.2
+    openai:
+      api_key: "YOUR_API_KEY_HERE"
+      model: gpt-4o-mini
+    openrouter:
+      api_key: "YOUR_API_KEY_HERE"
+      model: google/gemini-2.0-flash-exp:free
+telegram:
+  bot_token: "YOUR_BOT_TOKEN_HERE"
+  chat_id: "YOUR_CHAT_ID_HERE"
