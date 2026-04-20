@@ -1,64 +1,53 @@
-# Elengenix
+# ELENGENIX (v1.2)
 
-An AI-powered framework for automated bug bounty hunting and security research.
-Autonomous reconnaissance, multi-model LLM support, and real-time reporting via Telegram and CLI.
-
-> **Status**: Active development. Core pipeline works. AI agent loop and memory system being improved.
+Elengenix is a command-line AI agent designed to assist in bug bounty hunting and security research. It orchestrates established security tools with large language models (LLMs) to perform automated reconnaissance and assisted vulnerability analysis.
 
 ---
 
-## Features
+## LEGAL AND ETHICAL DISCLAIMER
 
-- **Multi-Model AI**: Gemini, OpenAI, Claude, Groq, OpenRouter, and local LLMs via Ollama
-- **Autonomous Pipeline**: Recon → Scan → JS Analysis → Parameter Mining → Reporting
-- **Telegram Integration**: Control scans and receive findings directly on your phone
-- **Self-Healing**: Auto-detects and installs missing tools
-- **Secret Discovery**: Extracts API keys and secrets from JavaScript files in real time
-- **Continuous Learning**: Remembers findings per target to improve future scans
+IMPORTANT: THIS SOFTWARE IS FOR EDUCATIONAL AND AUTHORIZED SECURITY TESTING PURPOSES ONLY.
+
+The use of Elengenix for interacting with targets without prior explicit and mutual consent is strictly prohibited. The end user is solely responsible for compliance with all applicable laws. The developers assume no liability for misuse or damage caused by this program.
 
 ---
 
-## Quick Start
+## CORE CAPABILITIES
 
-### Linux / macOS / WSL
-
-```bash
-git clone https://github.com/Ashveil1/Elengenix.git
-cd Elengenix
-bash setup.sh
-elengenix
-```
-
-### Termux (Android)
-
-```bash
-git clone https://github.com/Ashveil1/Elengenix.git
-cd Elengenix
-bash termux_setup.sh
-python main.py
-```
+- Tool Orchestration: Automates the execution of subfinder, nuclei, katana, and other security utilities.
+- LLM-Assisted Analysis: Uses AI reasoning to interpret tool outputs and suggest potential attack vectors.
+- Multi-Model Support: Compatible with Claude 3.5, Gemini 2.5, GPT-4o, Groq, and local models.
+- Real-time Notifications: Delivers findings and status updates via Telegram bot integration.
+- Persistent Memory: SQLite-backed system to track discoveries and improve strategy across sessions.
+- Security Hardening: Command allowlisting and argument validation for safer autonomous execution.
 
 ---
 
-## Built-in Tools
+## QUICK START
 
-| Tool | Purpose |
-|------|---------|
-| subfinder | Subdomain enumeration |
-| httpx | Live host discovery |
-| nuclei | Vulnerability scanning (5,000+ templates) |
-| katana / waybackurls | Advanced crawling |
-| js_analyzer, param_miner, cors_checker | Deep analysis |
+### For Linux / macOS / WSL
+1. git clone https://github.com/Ashveil1/Elengenix.git
+2. cd Elengenix
+3. bash setup.sh
+4. elengenix
 
----
-
-## Knowledge Base
-
-Drop any bug bounty write-ups or methodology files into the `knowledge/` directory.
-The AI will load and apply them during future scans.
+### For Termux (Android)
+1. git clone https://github.com/Ashveil1/Elengenix.git
+2. cd Elengenix
+3. bash termux_setup.sh
+4. elengenix
 
 ---
 
-## License
+## ARSENAL OVERVIEW
 
-MIT — see `LICENSE` for details.
+- Reconnaissance: subfinder, httpx, katana, waybackurls
+- Scanning: nuclei (comprehensive vulnerability templates)
+- Analysis: js_analyzer, api_finder, param_miner
+- Research: Integrated web search and documentation retrieval
+
+---
+
+## LICENSE
+
+This project is licensed under the MIT License. See the LICENSE file for details.
