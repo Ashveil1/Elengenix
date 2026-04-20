@@ -4,6 +4,19 @@ Elengenix is a command-line AI agent designed to assist in bug bounty hunting an
 
 ---
 
+## 🛑 IMPORTANT: ETHICAL USAGE WARNING
+
+**DO NOT USE THIS TOOL FOR ILLEGAL PURPOSES.**
+
+Elengenix is created for **Educational** and **Authorized Security Testing** only. Unauthorized access to computer systems is a crime.
+- **NEVER** use this tool on a target without explicit written permission.
+- **NEVER** use this tool for cyber-attacks or data theft.
+- **ALWAYS** act within the laws of your jurisdiction and the scope of the bug bounty program.
+
+**คำเตือน:** ห้ามนำเครื่องมือนี้ไปใช้ในทางที่ผิดกฎหมายเด็ดขาด! ใช้เพื่อการศึกษาและการทดสอบระบบที่ได้รับอนุญาตอย่างเป็นทางการเท่านั้น ผู้พัฒนาไม่ขอรับผิดชอบต่อการกระทำผิดใดๆ ที่เกิดขึ้นจากการใช้เครื่องมือนี้
+
+---
+
 ## LEGAL AND ETHICAL DISCLAIMER
 
 IMPORTANT: THIS SOFTWARE IS FOR EDUCATIONAL AND AUTHORIZED SECURITY TESTING PURPOSES ONLY.
