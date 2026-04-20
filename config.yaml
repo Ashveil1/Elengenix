@@ -9,7 +9,7 @@ ai:
       api_key: YOUR_ANTHROPIC_API_KEY_HERE
       model: claude-sonnet-4-5
     gemini:
-      api_key: AIzaSyBj4LM7yZWfraHFqgcLGtL_4IG4r4DrzOI
+      api_key: YOUR_ANTHROPIC_API_KEY_HERE
       model: gemini-2.5-flash
     groq:
       api_key: YOUR_GROQ_API_KEY_HERE
