@@ -16,7 +16,7 @@ def main():
     with open(config_path, "r") as f:
         config = yaml.safe_load(f)
 
-    console.print("[bold cyan]🤖 AI Engine Multi-Provider Wizard[/bold cyan]")
+    console.print("[bold cyan] AI Engine Multi-Provider Wizard[/bold cyan]")
     
     provider = questionary.select(
         "Select your AI Provider:",
