@@ -17,14 +17,14 @@ def run_standard_scan(target, report_dir_base="reports"):
     if not os.path.exists(report_dir): os.makedirs(report_dir)
 
     # Status Update
-    msg = f"🚀 *Scan Started for:* `{target}`\nMode: `Standard Pipeline`"
+    msg = f"*Scan Started for:* `{target}`\nMode: `Standard Pipeline`"
     send_telegram_notification(msg)
-    console.print(Panel(f"🚀 Starting Standard Scan on: {target}", border_style="cyan"))
+    console.print(Panel(f"Starting Standard Scan on: {target}", border_style="cyan"))
 
     # 1. Recon
     live_targets_file = run_subdomain_enum(target, report_dir)
     if "Error" in live_targets_file:
-        send_telegram_notification(f"❌ *Recon Failed for:* `{target}`")
+        send_telegram_notification(f"*Recon Failed for:* `{target}`")
         return None
 
     # 2. Nuclei Scan
@@ -40,20 +40,20 @@ def run_standard_scan(target, report_dir_base="reports"):
         # JS Analysis
         js_findings = analyze_js(url)
         if js_findings and "error" not in js_findings:
-            finding_msg = f"🔑 *Secrets Found on:* `{url}`\n"
+            finding_msg = f"*Secrets Found on:* `{url}`\n"
             for k, v in js_findings.items(): finding_msg += f"- {k}: `{', '.join(v[:3])}`\n"
             send_telegram_notification(finding_msg)
-            console.print(f"[bold yellow]🔥 HIT! Secrets on {url}[/bold yellow]")
+            console.print(f"[bold yellow]HIT! Secrets on {url}[/bold yellow]")
 
         # Param Mining
         params = mine_parameters(url)
         if params and "error" not in params:
-            param_msg = f"🎯 *Params Found on:* `{url}`\n- `{', '.join(params)}`"
+            param_msg = f"*Params Found on:* `{url}`\n- `{', '.join(params)}`"
             send_telegram_notification(param_msg)
-            console.print(f"[bold green]🎯 HIT! Params on {url}[/bold green]")
+            console.print(f"[bold green]HIT! Params on {url}[/bold green]")
 
     # Final Report
-    send_telegram_notification(f"✨ *Scan Complete for:* `{target}`")
+    send_telegram_notification(f"*Scan Complete for:* `{target}`")
     if os.path.exists(scan_results):
         send_document(scan_results, caption=f"📄 Nuclei Report: {target}")
     

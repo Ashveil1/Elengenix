@@ -17,9 +17,9 @@ BOLD='\033[1m'
 NC='\033[0m'
 
 info()    { echo -e "${CYAN}[*]${NC} $1"; }
-success() { echo -e "${GREEN}[✓]${NC} $1"; }
+success() { echo -e "${GREEN}[]${NC} $1"; }
 warning() { echo -e "${YELLOW}[!]${NC} $1"; }
-error()   { echo -e "${RED}[✗]${NC} $1"; exit 1; }
+error()   { echo -e "${RED}[]${NC} $1"; exit 1; }
 
 # ── Header ───────────────────────────────────────────────────
 clear
@@ -31,7 +31,7 @@ echo "  ██╔══╝  ██║     ██╔══╝  ██║╚██
 echo "  ███████╗███████╗███████╗██║ ╚████║╚██████╔╝███████╗██║ ╚████║██║██╔╝ ██╗"
 echo "  ╚══════╝╚══════╝╚══════╝╚═╝  ╚═══╝ ╚═════╝ ╚══════╝╚═╝  ╚═══╝╚═╝╚═╝  ╚═╝"
 echo -e "${NC}"
-echo -e "  ${BOLD}🛡️  Professional Installation — Linux / macOS${NC}"
+echo -e "  ${BOLD}Professional Installation — Linux / macOS${NC}"
 echo "  ──────────────────────────────────────────────"
 echo ""
 
@@ -131,7 +131,7 @@ while IFS= read -r line; do
     pkg_display=$(echo "$line" | sed 's/[>=<!].*//')
     info "  กำลังติดตั้ง $pkg_display..."
     if $PIP install "$line" --quiet $PIP_ARGS 2>/dev/null; then
-        success "  $pkg_display ✓"
+        success "  $pkg_display "
     else
         warning "  $pkg_display ติดตั้งไม่สำเร็จ"
         FAILED_PKGS+=("$pkg_display")
@@ -251,7 +251,7 @@ fi
 # ── Done ─────────────────────────────────────────────────────
 echo ""
 echo -e "${GREEN}══════════════════════════════════════════${NC}"
-echo -e "${GREEN}  ✅ Setup เสร็จสมบูรณ์!${NC}"
+echo -e "${GREEN}  Setup เสร็จสมบูรณ์!${NC}"
 echo -e "${GREEN}══════════════════════════════════════════${NC}"
 echo ""
 echo "  วิธีใช้:"
@@ -263,7 +263,7 @@ echo -e "    ${CYAN}source $SHELL_RC${NC}"
 echo ""
 
 if [ ${#FAILED_PKGS[@]} -gt 0 ]; then
-    echo -e "  ${YELLOW}⚠️  Python packages ที่ยังติดตั้งไม่สำเร็จ:${NC}"
+    echo -e "  ${YELLOW} Python packages ที่ยังติดตั้งไม่สำเร็จ:${NC}"
     echo -e "    ${YELLOW}$PIP install ${FAILED_PKGS[*]}${NC}"
     echo ""
 fi

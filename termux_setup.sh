@@ -15,9 +15,9 @@ CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
 info()    { echo -e "${CYAN}[*]${NC} $1"; }
-success() { echo -e "${GREEN}[✓]${NC} $1"; }
+success() { echo -e "${GREEN}[]${NC} $1"; }
 warning() { echo -e "${YELLOW}[!]${NC} $1"; }
-error()   { echo -e "${RED}[✗]${NC} $1"; }
+error()   { echo -e "${RED}[]${NC} $1"; }
 
 # ── Header ───────────────────────────────────────────────────
 clear
@@ -165,7 +165,7 @@ fi
 # ── Done ─────────────────────────────────────────────────────
 echo ""
 echo -e "${GREEN}══════════════════════════════════════════${NC}"
-echo -e "${GREEN}  ✅ Setup เสร็จสมบูรณ์!${NC}"
+echo -e "${GREEN}  Setup เสร็จสมบูรณ์!${NC}"
 echo -e "${GREEN}══════════════════════════════════════════${NC}"
 echo ""
 echo "  วิธีใช้:"

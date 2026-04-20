@@ -80,12 +80,12 @@ def get_learnings(target: str, limit: int = 30) -> str:
         grouped.setdefault(category, []).append(f"  • [{date}] {learning}")
 
     category_emoji = {
-        "endpoint": "🔗",
-        "secret":   "🔑",
-        "bypass":   "🚪",
-        "vuln":     "🐛",
-        "recon":    "🔭",
-        "general":  "📌",
+        "endpoint": "",
+        "secret":   "",
+        "bypass":   "",
+        "vuln":     "",
+        "recon":    "",
+        "general":  "",
     }
 
     lines = []

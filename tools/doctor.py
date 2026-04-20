@@ -12,7 +12,7 @@ def repair_system():
     """
     Attempts to fix missing tools and configurations.
     """
-    console.print("[bold yellow]🛠️  Initiating Auto-Repair...[/bold yellow]")
+    console.print("[bold yellow] Initiating Auto-Repair...[/bold yellow]")
     
     # Fix tools
     missing_tools = []
@@ -36,7 +36,7 @@ def repair_system():
             from wizard import main as run_wizard
             run_wizard()
 
-    console.print("[bold green]✅ Repair process finished.[/bold green]")
+    console.print("[bold green]Repair process finished.[/bold green]")
 
 def check_health(fix=False):
     """
@@ -45,7 +45,7 @@ def check_health(fix=False):
     if fix:
         repair_system()
         
-    console.print("[bold cyan]🏥 Elengenix Doctor - System Health Check[/bold cyan]\n")
+    console.print("[bold cyan]Elengenix Doctor - System Health Check[/bold cyan]\n")
     
     # 1. Config Check
     try:
@@ -56,7 +56,7 @@ def check_health(fix=False):
 
     config_table = Table(title="Configuration")
     config_table.add_column("Service", style="cyan")
-    config_table.add_row("Config File", "✅ Exists" if config else "❌ Broken/Missing")
+    config_table.add_row("Config File", "Exists" if config else "Broken/Missing")
     console.print(config_table)
 
     # 2. Tools Check
@@ -66,14 +66,14 @@ def check_health(fix=False):
     
     all_ok = True
     for tool in ["subfinder", "nuclei", "httpx", "katana", "waybackurls"]:
-        status = "✅ OK" if shutil.which(tool) else "❌ Missing"
+        status = "OK" if shutil.which(tool) else "Missing"
         if "Missing" in status: all_ok = False
         tools_table.add_row(tool, status)
     
     console.print(tools_table)
 
     if not all_ok:
-        console.print("\n[bold red]⚠️  System is NOT healthy![/bold red]")
+        console.print("\n[bold red] System is NOT healthy![/bold red]")
         if not fix and questionary.confirm("Would you like to run the Repair tool?").ask():
             repair_system()
             check_health(fix=False) # Re-check after repair

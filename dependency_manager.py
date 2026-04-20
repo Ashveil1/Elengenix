@@ -23,10 +23,10 @@ def check_and_install_dependencies():
             missing_tools.append(tool)
     
     if not missing_tools:
-        console.print("[bold green]✅ All core tools are installed![/bold green]")
+        console.print("[bold green]All core tools are installed![/bold green]")
         return True
 
-    console.print(f"[bold yellow]⚠️ Missing tools detected: {', '.join(missing_tools)}[/bold yellow]")
+    console.print(f"[bold yellow]Missing tools detected: {', '.join(missing_tools)}[/bold yellow]")
     
     for tool in missing_tools:
         install = questionary.confirm(
@@ -35,13 +35,13 @@ def check_and_install_dependencies():
         ).ask()
         
         if install:
-            console.print(f"[bold blue]⏳ Installing {tool}... (This may take a minute)[/bold blue]")
+            console.print(f"[bold blue]Installing {tool}... (This may take a minute)[/bold blue]")
             try:
                 # Assuming Go is installed since these are Go tools
                 subprocess.run(TOOLS[tool], shell=True, check=True)
-                console.print(f"[bold green]✅ Successfully installed {tool}![/bold green]")
+                console.print(f"[bold green]Successfully installed {tool}![/bold green]")
             except Exception as e:
-                console.print(f"[bold red]❌ Failed to install {tool}: {e}[/bold red]")
+                console.print(f"[bold red]Failed to install {tool}: {e}[/bold red]")
         else:
             console.print(f"[dim]Skipping {tool}. Some features might not work.[/dim]")
     

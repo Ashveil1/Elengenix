@@ -2,7 +2,7 @@ import os
 import sys
 import subprocess
 
-# 🚀 Bulletproof Dependency Checker
+# Bulletproof Dependency Checker
 def ensure_dependencies():
     required_libs = {
         "yaml": "pyyaml",
@@ -98,14 +98,14 @@ def main():
             choice = questionary.select(
                 "Welcome, Hunter! What would you like to do?",
                 choices=[
-                    "🤖 Chat with AI Partner (Unified Brain)",
-                    "🚀 Run Advanced Omni-Scan (Everything)",
-                    "⚔️  Open Tools Arsenal (Select by Number)",
-                    "📱 Start Telegram Gateway",
-                    "🏥 Run System Doctor (Check/Repair)",
-                    "⚙️  Configure AI & Settings",
-                    "🔄 Update Framework",
-                    "❌ Exit"
+                    "Chat with AI Partner (Unified Brain)",
+                    "Run Advanced Omni-Scan (Everything)",
+                    "Open Tools Arsenal (Select by Number)",
+                    "Start Telegram Gateway",
+                    "Run System Doctor (Check/Repair)",
+                    "Configure AI & Settings",
+                    "Update Framework",
+                    "Exit"
                 ]
             ).ask()
         except Exception:
@@ -142,9 +142,9 @@ if __name__ == "__main__":
     try:
         main()
     except Exception as e:
-        console.print(f"\n[bold red]🚨 CRITICAL ERROR DETECTED: {e}[/bold red]")
+        console.print(f"\n[bold red]CRITICAL ERROR DETECTED: {e}[/bold red]")
         if questionary.confirm("Would you like Elengenix to attempt an Auto-Repair?", default=True).ask():
             check_health(fix=True)
     except KeyboardInterrupt:
-        console.print("\n[yellow]👋 Happy Hunting![/yellow]")
+        console.print("\n[yellow]Happy Hunting![/yellow]")
         sys.exit(0)

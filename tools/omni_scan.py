@@ -25,7 +25,7 @@ def run_omni_scan(target):
     os.makedirs(report_dir, exist_ok=True)
 
     console.print(Panel(f"[bold red]💀 ELENGENIX DEEP-HUNT MODE ACTIVATED: {target}[/bold red]", border_style="red"))
-    send_telegram_notification(f"🏴‍☠️ *DEEP-HUNT STARTED:* `{target}`\nI will not stop until everything is found.")
+    send_telegram_notification(f"*DEEP-HUNT STARTED:* `{target}`\nI will not stop until everything is found.")
 
     # 1. Google Dorking (Finding Exposed Files)
     dorks = run_smart_dorking(target)
@@ -49,7 +49,7 @@ def run_omni_scan(target):
         found_urls = [line.strip() for line in f.readlines()[:20]] # Check top 20 links
     
     for url in found_urls:
-        console.print(f"🔬 [bold blue]AI Auditing Code:[/bold blue] {url}")
+        console.print(f"[bold blue]AI Auditing Code:[/bold blue] {url}")
         # Analyze JS and Params
         js = analyze_js(url)
         params = mine_parameters(url)
@@ -59,5 +59,5 @@ def run_omni_scan(target):
             save_learning(target, f"URL {url} has interesting JS/Params")
 
     # 5. Final Report
-    console.print(Panel("[bold green]✨ MISSION ACCOMPLISHED: Report Generated.[/bold green]", border_style="green"))
-    send_telegram_notification(f"🏁 *DEEP-HUNT COMPLETE:* `{target}`\nEverything found is in your report.")
+    console.print(Panel("[bold green]MISSION ACCOMPLISHED: Report Generated.[/bold green]", border_style="green"))
+    send_telegram_notification(f"*DEEP-HUNT COMPLETE:* `{target}`\nEverything found is in your report.")

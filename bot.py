@@ -82,9 +82,9 @@ async def safe_reply(update: Update, text: str, parse_mode: str = "Markdown"):
 async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """/start — แสดงหน้าต้อนรับ"""
     welcome = (
-        "🛡️ *Elengenix AI Bug Hunter*\n\n"
+        "*Elengenix AI Bug Hunter*\n\n"
         "ยินดีต้อนรับสู่ระบบ Bug Bounty อัตโนมัติ\n\n"
-        "📋 *คำสั่งที่ใช้ได้:*\n"
+        "*คำสั่งที่ใช้ได้:*\n"
         "🔍 `/scan <domain>` — สแกนเป้าหมาย\n"
         "🤖 `/ask <query>` — ถาม AI Agent\n"
         "📊 `/status` — ตรวจสอบ tools\n"
@@ -96,7 +96,7 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def cmd_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """/help — แสดงวิธีใช้ละเอียด"""
     help_text = (
-        "📖 *วิธีใช้ Elengenix*\n\n"
+        "*วิธีใช้ Elengenix*\n\n"
         "*🔍 สแกนเป้าหมาย:*\n"
         "`/scan example.com`\n"
         "→ รัน Recon → Nuclei → JS Analysis → Param Mining\n\n"
@@ -106,7 +106,7 @@ async def cmd_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "*📊 ตรวจสอบ tools:*\n"
         "`/status`\n"
         "→ ดูว่า subfinder, nuclei, httpx พร้อมหรือเปล่า\n\n"
-        "⚠️ *ใช้เฉพาะกับ domain ที่ได้รับอนุญาตเท่านั้น*"
+        "*ใช้เฉพาะกับ domain ที่ได้รับอนุญาตเท่านั้น*"
     )
     await safe_reply(update, help_text)
 
@@ -139,7 +139,7 @@ async def cmd_scan(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not context.args:
         await safe_reply(
             update,
-            "⚠️ กรุณาระบุ domain\nตัวอย่าง: `/scan example.com`"
+            "กรุณาระบุ domain\nตัวอย่าง: `/scan example.com`"
         )
         return
 
@@ -151,7 +151,7 @@ async def cmd_scan(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await safe_reply(update, "❌ Domain มีอักขระที่ไม่อนุญาต")
         return
 
-    await safe_reply(update, f"🚀 *กำลังสแกน:* `{target}`\nอาจใช้เวลาสักครู่...")
+    await safe_reply(update, f"*กำลังสแกน:* `{target}`\nอาจใช้เวลาสักครู่...")
 
     try:
         from orchestrator import run_standard_scan
@@ -162,9 +162,9 @@ async def cmd_scan(update: Update, context: ContextTypes.DEFAULT_TYPE):
         result = await run_in_thread(do_scan)
 
         if result:
-            await safe_reply(update, f"✅ *สแกนเสร็จสิ้น:* `{target}`\nรายงานถูกส่งไปแล้ว")
+            await safe_reply(update, f"*สแกนเสร็จสิ้น:* `{target}`\nรายงานถูกส่งไปแล้ว")
         else:
-            await safe_reply(update, f"⚠️ สแกน `{target}` เสร็จแต่ไม่พบ findings")
+            await safe_reply(update, f"สแกน `{target}` เสร็จแต่ไม่พบ findings")
 
     except Exception as e:
         logger.error(f"scan error: {e}")
@@ -185,7 +185,7 @@ async def cmd_ask(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await safe_reply(update, "🤖 กรุณาระบุคำถาม\nตัวอย่าง: `/ask find subdomains of example.com`")
         return
 
-    await safe_reply(update, "🤔 *Sentinel กำลังคิด...*")
+    await safe_reply(update, "*Sentinel กำลังคิด...*")
 
     # callback สำหรับส่ง status update ระหว่าง agent ทำงาน
     # แก้: ใช้ asyncio.get_running_loop() แทน get_event_loop()
@@ -210,7 +210,7 @@ async def cmd_ask(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 response = response[:3800] + "\n\n_...ข้อความยาวเกินไป ดูรายละเอียดใน report_"
             await safe_reply(update, f"🤖 *Sentinel:*\n\n{response}")
         else:
-            await safe_reply(update, "⚠️ AI ไม่มีคำตอบ — ลองใหม่อีกครั้ง")
+            await safe_reply(update, "AI ไม่มีคำตอบ — ลองใหม่อีกครั้ง")
 
     except Exception as e:
         logger.error(f"ask error: {e}")

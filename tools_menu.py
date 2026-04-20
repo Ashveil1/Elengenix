@@ -97,7 +97,7 @@ def _run_tool(tool_file: str, target: str) -> int:
 
     # ตรวจว่า script มีอยู่จริง
     if not os.path.exists(script_path):
-        console.print(f"[bold red]❌ ไม่พบ script: tools/{tool_file}[/bold red]")
+        console.print(f"[bold red]ไม่พบ script: tools/{tool_file}[/bold red]")
         return 1
 
     try:
@@ -108,14 +108,14 @@ def _run_tool(tool_file: str, target: str) -> int:
         )
         return result.returncode
     except FileNotFoundError:
-        console.print(f"[bold red]❌ รัน {tool_file} ไม่ได้[/bold red]")
+        console.print(f"[bold red]รัน {tool_file} ไม่ได้[/bold red]")
         return 1
     except KeyboardInterrupt:
         console.print("\n[yellow]⚠️ หยุดโดยผู้ใช้[/yellow]")
         return 0
     except Exception as e:
         logger.error(f"_run_tool error ({tool_file}): {e}")
-        console.print(f"[bold red]❌ Error: {e}[/bold red]")
+        console.print(f"[bold red]Error: {e}[/bold red]")
         return 1
 
 
@@ -124,7 +124,7 @@ def show_tools_menu():
 
     while True:
         console.print(Panel(
-            "[bold cyan]⚔️  Elengenix Interactive Arsenal  ⚔️[/bold cyan]\n"
+            "[bold cyan]Elengenix Interactive Arsenal  ⚔️[/bold cyan]\n"
             "[dim]เลือก tool ที่ต้องการรัน หรือกด 0 เพื่อกลับ[/dim]",
             border_style="cyan"
         ))
@@ -142,7 +142,7 @@ def show_tools_menu():
         console.print("[dim]กด '0' เพื่อกลับ Main Menu[/dim]\n")
 
         try:
-            choice = input("🏹 เลือก Tool Number: ").strip()
+            choice = input("เลือก Tool Number: ").strip()
         except (KeyboardInterrupt, EOFError):
             console.print("\n[yellow]กลับ Main Menu[/yellow]")
             return
@@ -163,7 +163,7 @@ def show_tools_menu():
         selected_tool = TOOLS[selected_idx]
 
         try:
-            target = input(f"🎯 Target สำหรับ {selected_tool['name']}: ").strip()
+            target = input(f"Target สำหรับ {selected_tool['name']}: ").strip()
         except (KeyboardInterrupt, EOFError):
             console.print("\n[yellow]ยกเลิก[/yellow]")
             continue
@@ -171,20 +171,20 @@ def show_tools_menu():
         # แก้: validate target ก่อนส่งเป็น argument
         if not _validate_target(target):
             console.print(
-                "[red]❌ Target ไม่ถูกต้อง — ห้ามมีอักขระพิเศษ "
+                "[red]Target ไม่ถูกต้อง — ห้ามมีอักขระพิเศษ "
                 "เช่น ; | & ` $ ( )[/red]\n"
             )
             continue
 
         console.print(
-            f"\n[bold yellow]⚡ กำลังรัน {selected_tool['name']} "
+            f"\n[bold yellow]กำลังรัน {selected_tool['name']} "
             f"บน {target}...[/bold yellow]\n"
         )
 
         returncode = _run_tool(selected_tool["file"], target)
 
         if returncode == 0:
-            console.print(f"\n[bold green]✅ {selected_tool['name']} เสร็จสิ้น[/bold green]\n")
+            console.print(f"\n[bold green]{selected_tool['name']} เสร็จสิ้น[/bold green]\n")
         else:
             console.print(f"\n[bold red]⚠️ {selected_tool['name']} จบด้วย exit code {returncode}[/bold red]\n")
 

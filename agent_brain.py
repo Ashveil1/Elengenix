@@ -59,7 +59,7 @@ class ElengenixAgent:
         if target:
             learnings = get_learnings(target)
             if learnings and "No prior memory" not in learnings:
-                memory_context = f"\n### 🧠 YOUR MEMORY OF {target}:\n{learnings}\n"
+                memory_context = f"\n### YOUR MEMORY OF {target}:\n{learnings}\n"
 
         tools_desc = f"""
 ### 🛠️ YOUR TOOLSET
@@ -98,7 +98,7 @@ Respond ONLY with a single JSON object to use a tool. Think out loud BEFORE the 
 
             elif action == "run_standard_scan":
                 target = action_data.get("target")
-                if callback: callback(f"🚀 AI Action: Running standard scan on {target}")
+                if callback: callback(f"AI Action: Running standard scan on {target}")
                 results = run_standard_scan(target)
                 return f"✅ Scan complete."
 
@@ -127,7 +127,7 @@ Respond ONLY with a single JSON object to use a tool. Think out loud BEFORE the 
         except Exception as e: return f"❌ Error: {str(e)}"
 
     def process_query(self, user_input: str, callback=None, target: str = "") -> str:
-        send_telegram_notification(f"🧠 *Elengenix AI v1.2 started*\nTarget: `{target or 'N/A'}`")
+        send_telegram_notification(f"*Elengenix AI v1.2 started*\nTarget: `{target or 'N/A'}`")
         history = [{"role": "user", "content": user_input}]
         final_answer = "⚠️ Agent stopped."
 
@@ -139,7 +139,7 @@ Respond ONLY with a single JSON object to use a tool. Think out loud BEFORE the 
             if callback: callback(f"[{step_label}] {response_text[:300]}")
 
             if '"action": "finish"' in response_text:
-                send_telegram_notification(f"✅ *Mission Completed*")
+                send_telegram_notification(f"*Mission Completed*")
                 return response_text
 
             if "{" in response_text and "}" in response_text:
@@ -147,7 +147,7 @@ Respond ONLY with a single JSON object to use a tool. Think out loud BEFORE the 
                     json_start = response_text.find("{")
                     action_data = json.loads(response_text[json_start:response_text.rfind("}")+1])
                     thought = response_text[:json_start].strip()
-                    if thought: send_telegram_notification(f"💭 {step_label}: {thought[:300]}")
+                    if thought: send_telegram_notification(f"{step_label}: {thought[:300]}")
                     
                     obs = self._execute_tool(action_data, callback)
                     history.append({"role": "assistant", "content": response_text})
