@@ -11,7 +11,7 @@ def start_watching(target_list_path):
     messages the user PROACTIVELY if something is found.
     """
     agent = ElengenixAgent()
-    send_telegram_notification("🛡️ *Watchman Mode:* Activated. I am now monitoring your targets 24/7.")
+    send_telegram_notification(" *Watchman Mode:* Activated. I am now monitoring your targets 24/7.")
 
     while True:
         if not os.path.exists(target_list_path):
