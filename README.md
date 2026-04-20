@@ -13,8 +13,6 @@ Elengenix is created for **Educational** and **Authorized Security Testing** onl
 - **NEVER** use this tool for cyber-attacks or data theft.
 - **ALWAYS** act within the laws of your jurisdiction and the scope of the bug bounty program.
 
-**คำเตือน:** ห้ามนำเครื่องมือนี้ไปใช้ในทางที่ผิดกฎหมายเด็ดขาด! ใช้เพื่อการศึกษาและการทดสอบระบบที่ได้รับอนุญาตอย่างเป็นทางการเท่านั้น ผู้พัฒนาไม่ขอรับผิดชอบต่อการกระทำผิดใดๆ ที่เกิดขึ้นจากการใช้เครื่องมือนี้
-
 ---
 
 ## LEGAL AND ETHICAL DISCLAIMER
