@@ -8,7 +8,7 @@ from rich.console import Console
 console = Console()
 logger = logging.getLogger(__name__)
 
-# Standard security tool commands in list format for safety
+# Security: Define commands as lists for shell=False execution
 TOOLS = {
     "subfinder": ["go", "install", "-v", "github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest"],
     "nuclei": ["go", "install", "-v", "github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest"],
@@ -19,47 +19,38 @@ TOOLS = {
 
 def check_and_install_dependencies(check_only=False):
     """
-    Check if required tools are installed. 
-    If not check_only, ask the user to install them.
+    Checks for required security binaries. 
+    If not found and not in check_only mode, prompts for installation.
     """
-    missing_tools = []
-    for tool in TOOLS:
-        if not shutil.which(tool):
-            missing_tools.append(tool)
+    missing_tools = [tool for tool in TOOLS if not shutil.which(tool)]
     
     if not missing_tools:
         if not check_only:
-            console.print("[bold green]System Health: All core security tools are present.[/bold green]")
+            console.print("[bold green][System Health] All core security tools are present.[/bold green]")
         return True
 
     if check_only:
-        console.print(f"[bold red]System Health: Missing tools -> {', '.join(missing_tools)}[/bold red]")
+        console.print(f"[bold red][System Health] Missing tools: {', '.join(missing_tools)}[/bold red]")
         return False
 
-    console.print(f"[bold yellow]Attention: Missing security tools -> {', '.join(missing_tools)}[/bold yellow]")
+    console.print(f"[bold yellow]Security Warning: The following tools are missing: {', '.join(missing_tools)}[/bold yellow]")
+    console.print("Elengenix requires these for full reconnaissance and vulnerability scanning.")
     
     for tool in missing_tools:
-        install = questionary.confirm(
-            f"Would you like to install '{tool}' using Go?",
-            default=True
-        ).ask()
-        
+        install = questionary.confirm(f"Install '{tool}' now?", default=True).ask()
         if install:
-            console.print(f"[*] Installing {tool} (this may take a few minutes)...")
+            console.print(f"[*] Executing install command for {tool}...")
             try:
-                # 🛡️ SECURITY: shell=False with list-based arguments
+                # 🛡️ SECURITY: shell=False is enforced. No command injection possible.
                 subprocess.run(TOOLS[tool], check=True, capture_output=True)
                 console.print(f"[bold green]Successfully installed {tool}.[/bold green]")
             except subprocess.CalledProcessError as e:
                 logger.error(f"Failed to install {tool}: {e}")
-                console.print(f"[bold red]Installation failed. Please run manually: {' '.join(TOOLS[tool])}[/bold red]")
-        else:
-            console.print(f"[dim]Skipping {tool}. Proceeding with caution.[/dim]")
+                console.print(f"[bold red]Installation failed. Run manually: {' '.join(TOOLS[tool])}[/bold red]")
     
     return True
 
 if __name__ == "__main__":
-    # Allow running as a standalone check tool
     if "--check-only" in sys.argv:
         sys.exit(0 if check_and_install_dependencies(check_only=True) else 1)
     else:

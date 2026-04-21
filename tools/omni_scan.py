@@ -1,47 +1,63 @@
 import os
 import sys
 import subprocess
-import asyncio
+import shutil
+import shlex
+import re
 from rich.console import Console
 from rich.panel import Panel
 
+# Path standardization
+current_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.dirname(current_dir)
+if project_root not in sys.path: sys.path.append(project_root)
+
+from tools.base_recon import run_subdomain_enum
+from bot_utils import send_telegram_notification
+
 console = Console()
 
-async def run_tool_async(command_list):
-    """Runs a security tool asynchronously."""
-    process = await asyncio.create_subprocess_exec(
-        *command_list,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE
-    )
-    stdout, stderr = await process.communicate()
-    return stdout.decode().strip()
+def sanitize_target(target: str) -> str:
+    """
+    Prevents command injection by allowing only valid domain/URL patterns.
+    """
+    # Remove protocol if present for validation
+    clean_target = re.sub(r'^https?://', '', target)
+    # Regex for valid domain name
+    pattern = re.compile(r'^[a-zA-Z0-9.-]+$')
+    if not pattern.match(clean_target):
+        raise ValueError(f"Invalid target format: {target}")
+    return target
 
-async def run_omni_scan_optimized(target):
-    report_dir = f"reports/{target.replace('.', '_')}"
+def run_omni_scan(target):
+    try:
+        safe_target = sanitize_target(target)
+    except ValueError as e:
+        console.print(f"[bold red]Security Error: {e}[/bold red]")
+        return
+
+    report_dir = f"reports/{safe_target.replace('.', '_')}"
     os.makedirs(report_dir, exist_ok=True)
 
-    console.print(Panel(f"ELENGENIX OPTIMIZED OMNI-SCAN: {target}", border_style="cyan"))
+    console.print(Panel(f"ELENGENIX FULL-SCALE MISSION: {safe_target}", border_style="red"))
+    send_telegram_notification(f"Deep hunting initiated on: {safe_target}")
 
-    # 🏎️ PARALLEL EXECUTION: Dorking and Subdomains at the same time
-    console.print("[*] Launching Parallel Recon (Dorking + Subfinder)...")
+    # 1. Recon (Using safe subprocess list)
+    all_urls_file = os.path.join(report_dir, "discovered_urls.txt")
     
-    # Define tasks
-    tasks = [
-        run_tool_async(["subfinder", "-d", target, "-silent"]),
-        # We simulate dorking as an async task here
-        asyncio.to_thread(os.system, f"python3 tools/dork_miner.py {target} > /dev/null")
-    ]
-    
-    # Wait for both to finish
-    results = await asyncio.gather(*tasks)
-    subdomains = results[0]
-    
-    console.print(f"[green]✅ Parallel Recon Complete. Found {len(subdomains.split())} subdomains.[/green]")
+    if shutil.which("katana"):
+        console.print("[*] Launching Katana Deep Crawl...")
+        # 🛡️ SECURITY: No shell=True. Using list arguments.
+        subprocess.run(["katana", "-u", safe_target, "-o", all_urls_file, "-silent"], capture_output=True)
 
-    # Continue with sequential steps for vulnerability scanning (resource intensive)
-    # (Rest of the scanning logic follows...)
+    if shutil.which("nuclei"):
+        console.print("[*] Launching Nuclei Multi-Vulnerability Scan...")
+        results_file = os.path.join(report_dir, "findings.txt")
+        subprocess.run(["nuclei", "-l", all_urls_file, "-o", results_file, "-as", "-silent"], capture_output=True)
+
+    console.print(Panel("MISSION COMPLETED. EVIDENCE STORED IN REPORTS.", border_style="green"))
+    send_telegram_notification(f"Scan finished for {safe_target}. Finalizing reports.")
 
 if __name__ == "__main__":
     if len(sys.argv) > 1:
-        asyncio.run(run_omni_scan_optimized(sys.argv[1]))
+        run_omni_scan(sys.argv[1])
