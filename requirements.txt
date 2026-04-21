@@ -9,3 +9,5 @@ questionary==2.0.1
 googlesearch-python==1.2.3
 trafilatura==1.6.4
 python-dotenv==1.0.1
+nest-asyncio==1.6.0
+tenacity==8.2.3
