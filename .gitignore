@@ -1,22 +1,29 @@
-# Python
+# ═══════════════════════════════════════════════════════
+# Elengenix Git Ignore Configuration
+# ═══════════════════════════════════════════════════════
+
+# User-specific config (NEVER COMMIT)
+config.yaml
+.env
+.env.*
+
+# But track the examples
+!config.yaml.example
+!.env.example
+
+# Reports and discovered data
+reports/
+data/elengenix.db
+data/*.log
+
+# Python artifacts
 __pycache__/
 *.py[cod]
 *$py.class
 venv/
+.venv/
 .env
 
-# Elengenix Specific
-Elengenix/config.yaml
-Elengenix/reports/
-Elengenix/custom_scripts/
-reports/
-
-# Tools logs
-*.log
-nuclei_results.txt
-*_subs.txt
-*_live.txt
-
-# OS
+# OS files
 .DS_Store
-config.yaml
+Thumbs.db
