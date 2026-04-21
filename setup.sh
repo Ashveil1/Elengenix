@@ -1,67 +1,128 @@
 #!/bin/bash
 
 # ============================================================
-#   Elengenix - Universal Setup Script
-#   Supports: Debian, Arch, Fedora, macOS, Termux
+#   Elengenix - Professional Universal Installer
+#   Supports: Debian, Arch, Fedora, macOS
 # ============================================================
 
 set -e
 
-echo "Professional Installation for Elengenix"
-echo "------------------------------------------"
-echo "NOTE: System packages may be installed. You might be prompted for your password."
+# --- Color definitions ---
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+CYAN='\033[0;36m'
+BOLD='\033[1m'
+NC='\033[0m'
+
+info()    { echo -e "${CYAN}[*]${NC} $1"; }
+success() { echo -e "${GREEN}[✓]${NC} $1"; }
+warning() { echo -e "${YELLOW}[!]${NC} $1"; }
+error()   { echo -e "${RED}[✗]${NC} $1"; exit 1; }
+
+clear
+echo -e "${CYAN}"
+echo "  ███████╗██╗     ███████╗███╗   ██╗ ██████╗ ███████╗███╗   ██╗██╗██╗  ██╗"
+echo "  ██╔════╝██║     ██╔════╝████╗  ██║██╔════╝ ██╔════╝████╗  ██║██║╚██╗██╔╝"
+echo "  █████╗  ██║     █████╗  ██╔██╗ ██║██║  ███╗█████╗  ██╔██╗ ██║██║ ╚███╔╝ "
+echo "  ██╔══╝  ██║     ██╔══╝  ██║╚██╗██║██║   ██║██╔══╝  ██║╚██╗██║██║ ██╔██╗ "
+echo "  ███████╗███████╗███████╗██║ ╚████║╚██████╔╝███████╗██║ ╚████║██║██╔╝ ██╗"
+echo "  ╚══════╝╚══════╝╚══════╝╚═╝  ╚═══╝ ╚═════╝ ╚══════╝╚═╝  ╚═══╝╚═╝╚═╝  ╚═╝"
+echo -e "${NC}"
+echo -e "  ${BOLD}Professional Installation Hub${NC}"
+echo "  ──────────────────────────────────────────────"
 echo ""
 
-# 1. Platform Detection
-if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+# 1. Privilege & Platform Detection
+OS="$(uname -s)"
+info "Detecting Platform: ${BOLD}$OS${NC}"
+
+if [[ "$OS" == "Linux" ]]; then
+    if [[ "$EUID" -ne 0 ]]; then
+        info "Checking sudo access..."
+        if ! sudo -v; then
+            error "This script requires sudo privileges to install system dependencies."
+        fi
+    fi
+fi
+
+# 2. System Dependencies
+info "STEP 1/5: Installing system dependencies..."
+if [[ "$OS" == "Linux" ]]; then
     if [ -f /etc/debian_version ]; then
-        INSTALL_CMD="sudo apt-get install -y"
-        UPDATE_CMD="sudo apt-get update"
+        sudo apt-get update -qq
+        sudo apt-get install -y python3 python3-pip python3-venv golang git curl libyaml-dev build-essential
     elif [ -f /etc/arch-release ]; then
-        INSTALL_CMD="sudo pacman -S --noconfirm"
-        UPDATE_CMD="sudo pacman -Sy"
+        sudo pacman -Sy --noconfirm python python-pip go git curl libyaml base-devel
     elif [ -f /etc/fedora-release ]; then
-        INSTALL_CMD="sudo dnf install -y"
-        UPDATE_CMD="sudo dnf check-update"
+        sudo dnf install -y python3 python3-pip golang git curl libyaml-devel gcc
     fi
-elif [[ "$OSTYPE" == "darwin"* ]]; then
+elif [[ "$OS" == "Darwin" ]]; then
     if ! command -v brew >/dev/null 2>&1; then
-        echo "[!] Homebrew not found. Please install it from https://brew.sh/"
-        exit 1
+        error "Homebrew not found. Please install it from https://brew.sh/"
     fi
-    INSTALL_CMD="brew install"
-    UPDATE_CMD="brew update"
-elif [ -d "/data/data/com.termux" ]; then
-    INSTALL_CMD="pkg install -y"
-    UPDATE_CMD="pkg update"
+    brew install python go git curl libyaml
 fi
+success "System dependencies installed."
 
-# 2. Run Updates and Core Install
-echo "[*] Updating system repositories..."
-$UPDATE_CMD > /dev/null 2>&1
-
-echo "[*] Installing core dependencies..."
-$INSTALL_CMD python3 python3-pip golang git curl libyaml-dev > /dev/null 2>&1
-
-# 3. Python Venv & Requirements
-echo "[*] Setting up Python environment..."
-python3 -m pip install --upgrade pip --quiet --break-system-packages 2>/dev/null || true
-python3 -m pip install -r requirements.txt --quiet --break-system-packages
-
-# 4. Config Safety Check
-if [ -f "config.yaml" ]; then
-    echo "[*] Hardening config.yaml permissions (chmod 600)..."
-    chmod 600 config.yaml
+# 3. Virtual Environment (Security Fix)
+info "STEP 2/5: Setting up isolated Virtual Environment..."
+if [ ! -d "venv" ]; then
+    python3 -m venv venv
+    success "Created venv"
 fi
+source venv/bin/activate
+pip install --upgrade pip --quiet
+pip install -r requirements.txt --quiet
+success "Python environment secured and libraries installed."
 
-# 5. Global Command Creation
-chmod +x sentinel
-if [[ "$OSTYPE" != "darwin"* ]] && [ ! -d "/data/data/com.termux" ]; then
-    sudo ln -sf "$PWD/sentinel" /usr/local/bin/elengenix
-else
-    # Mac/Termux often handle symlinks differently
-    ln -sf "$PWD/sentinel" /usr/local/bin/elengenix 2>/dev/null || true
-fi
+# 4. Security Tools (Verification Fix)
+info "STEP 3/5: Installing Go-based Security Tools..."
+export GOPATH="$HOME/go"
+export PATH="$PATH:$GOPATH/bin"
 
-echo "------------------------------------------"
-echo "Setup Complete! Start hunting with: elengenix"
+declare -A TOOLS=(
+    ["subfinder"]="github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest"
+    ["nuclei"]="github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest"
+    ["httpx"]="github.com/projectdiscovery/httpx/cmd/httpx@latest"
+)
+
+for tool in "${!TOOLS[@]}"; do
+    if ! command -v "$tool" >/dev/null 2>&1; then
+        info "Installing $tool..."
+        go install -v "${TOOLS[$tool]}"
+    fi
+    # Verification
+    if command -v "$tool" >/dev/null 2>&1 || [ -f "$GOPATH/bin/$tool" ]; then
+        success "$tool verified."
+    else
+        warning "Failed to verify $tool. You may need to add $GOPATH/bin to your PATH."
+    fi
+done
+
+# 5. Global Command Creation (Path Logic Fix)
+info "STEP 4/5: Creating global command 'elengenix'..."
+PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+WRAPPER_PATH="/usr/local/bin/elengenix"
+
+cat > sentinel_wrapper << EOF
+#!/bin/bash
+source $PROJECT_DIR/venv/bin/activate
+python3 $PROJECT_DIR/main.py "\$@"
+EOF
+
+chmod +x sentinel_wrapper
+sudo mv sentinel_wrapper "$WRAPPER_PATH"
+success "Command 'elengenix' created at $WRAPPER_PATH"
+
+# 6. Configuration
+info "STEP 5/5: Running Configuration Wizard..."
+python3 wizard.py
+
+echo ""
+echo -e "${GREEN}══════════════════════════════════════════${NC}"
+echo -e "${GREEN}  ✅ INSTALLATION SUCCESSFUL!${NC}"
+echo -e "${GREEN}══════════════════════════════════════════${NC}"
+echo ""
+echo "  Usage: elengenix"
+echo ""
