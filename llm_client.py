@@ -2,7 +2,7 @@ import yaml
 import os
 import asyncio
 import google.generativeai as genai
-from openai import OpenAI
+from openai import AsyncOpenAI # 🚀 Full Async Client
 from dotenv import load_dotenv
 from pathlib import Path
 
@@ -11,7 +11,7 @@ load_dotenv()
 
 class LLMClient:
     """
-    Advanced LLM Client with Native Async support and high security standards.
+    High-efficiency LLM Client with native async support for all providers.
     """
     def __init__(self, config_path="config.yaml"):
         base_dir = Path(__file__).parent.absolute()
@@ -20,12 +20,12 @@ class LLMClient:
         self.config = self._load_ai_config()
         self.active_provider = self.config.get("active_provider", "gemini")
         
-        # 🔒 SECURITY: Environment Variable Priority
+        # Priority: Environment Variable > config.yaml
         self.api_key = os.getenv(f"{self.active_provider.upper()}_API_KEY") or \
                        self.config.get("providers", {}).get(self.active_provider, {}).get("api_key", "")
 
         if not self.api_key or "YOUR" in str(self.api_key):
-            raise ValueError(f"API Key for {self.active_provider} is missing. Please set the {self.active_provider.upper()}_API_KEY environment variable.")
+            raise ValueError(f"API Key for {self.active_provider} is missing.")
 
         self.setup()
 
@@ -44,55 +44,42 @@ class LLMClient:
         if self.active_provider == "gemini":
             genai.configure(api_key=self.api_key)
             self.model = genai.GenerativeModel(self.model_name)
-        elif self.active_provider == "anthropic":
-            import anthropic
-            self.client = anthropic.AsyncAnthropic(api_key=self.api_key)
         else:
-            # OpenAI compatible
+            # OpenAI compatible providers (Groq, OpenRouter, etc.)
             base_urls = {
                 "openai": None,
                 "groq": "https://api.groq.com/openai/v1",
                 "openrouter": "https://openrouter.ai/api/v1",
                 "local": "http://localhost:11434/v1"
             }
-            # Note: For true 10/10 we should use an async OpenAI client
-            self.client = OpenAI(api_key=self.api_key, base_url=base_urls.get(self.active_provider))
+            # 🚀 Native Async OpenAI Client
+            self.async_client = AsyncOpenAI(
+                api_key=self.api_key, 
+                base_url=base_urls.get(self.active_provider)
+            )
 
     async def chat_async(self, system_prompt: str, user_message: str):
-        """
-        🚀 PERFORMANCE: Native Async completion.
-        """
         try:
             if self.active_provider == "gemini":
-                # Gemini's Python SDK uses its own async implementation
                 response = await self.model.generate_content_async(f"{system_prompt}\n\nUser: {user_message}")
                 return response.text
             
-            elif self.active_provider == "anthropic":
-                response = await self.client.messages.create(
-                    model=self.model_name,
-                    max_tokens=4096,
-                    system=system_prompt,
-                    messages=[{"role": "user", "content": user_message}]
-                )
-                return response.content[0].text
-
             else:
-                # Fallback to thread pool for standard OpenAI client until async client is integrated
-                loop = asyncio.get_running_loop()
-                response = await loop.run_in_executor(None, self._sync_openai_call, system_prompt, user_message)
-                return response
+                # 🚀 Full Non-blocking Async Call
+                response = await self.async_client.chat.completions.create(
+                    model=self.model_name,
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_message}
+                    ],
+                    timeout=60.0
+                )
+                return response.choices[0].message.content
 
         except Exception as e:
-            return f"LLM Error: {str(e)}"
-
-    def _sync_openai_call(self, system, user):
-        response = self.client.chat.completions.create(
-            model=self.model_name,
-            messages=[{"role": "system", "content": system}, {"role": "user", "content": user}]
-        )
-        return response.choices[0].message.content
+            # Structured logging would go here
+            return f"LLM Execution Error: {str(e)}"
 
     def chat(self, system_prompt: str, user_message: str):
-        """Synchronous wrapper for CLI/Legacy support."""
+        """Synchronous bridge for CLI."""
         return asyncio.run(self.chat_async(system_prompt, user_message))
