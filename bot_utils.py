@@ -1,52 +1,62 @@
 import requests
 import yaml
 import os
+import logging
+
+logger = logging.getLogger(__name__)
 
 def get_config():
-    """
-    Helper to get the absolute path to config.yaml.
-    """
+    """Helper to get absolute path to config.yaml."""
     base_dir = os.path.dirname(os.path.abspath(__file__))
     config_path = os.path.join(base_dir, "config.yaml")
     
     if not os.path.exists(config_path):
-        # Try one level up (if called from tools/)
         config_path = os.path.join(os.path.dirname(base_dir), "config.yaml")
         
-    with open(config_path, "r") as f:
-        return yaml.safe_load(f)
+    try:
+        with open(config_path, "r") as f:
+            return yaml.safe_load(f)
+    except FileNotFoundError:
+        logger.error(f"Config file not found at {config_path}")
+        return None
+    except yaml.YAMLError as e:
+        logger.error(f"Syntax error in config.yaml: {e}")
+        return None
 
 def send_telegram_notification(message):
-    """
-    Sends a message to the configured Telegram chat.
-    """
-    try:
-        config = get_config()
-        token = config["telegram"]["token"]
-        chat_id = config["telegram"]["chat_id"]
+    """Sends a message to the configured Telegram chat."""
+    config = get_config()
+    if not config: return
 
-        if token == "YOUR_TELEGRAM_BOT_TOKEN" or not token:
-            return
+    try:
+        token = config.get("telegram", {}).get("token") or config.get("telegram", {}).get("bot_token")
+        chat_id = config.get("telegram", {}).get("chat_id")
+
+        if not token or "YOUR" in token: return
 
         url = f"https://api.telegram.org/bot{token}/sendMessage"
         data = {"chat_id": chat_id, "text": message, "parse_mode": "Markdown"}
-        requests.post(url, data=data)
-    except:
-        pass
+        response = requests.post(url, data=data, timeout=10)
+        response.raise_for_status()
+    except requests.exceptions.RequestException as e:
+        logger.warning(f"Telegram notification failed: {e}")
 
 def send_document(file_path, caption=""):
-    """
-    Sends a file to Telegram.
-    """
+    """Sends a file to Telegram."""
+    config = get_config()
+    if not config: return
+
     try:
-        config = get_config()
-        token = config["telegram"]["token"]
-        chat_id = config["telegram"]["chat_id"]
+        token = config.get("telegram", {}).get("token") or config.get("telegram", {}).get("bot_token")
+        chat_id = config.get("telegram", {}).get("chat_id")
+
+        if not token or "YOUR" in token: return
 
         url = f"https://api.telegram.org/bot{token}/sendDocument"
         with open(file_path, "rb") as f:
             files = {"document": f}
             data = {"chat_id": chat_id, "caption": caption}
-            requests.post(url, data=data, files=files)
-    except:
-        pass
+            response = requests.post(url, data=data, files=files, timeout=30)
+            response.raise_for_status()
+    except (requests.exceptions.RequestException, IOError) as e:
+        logger.warning(f"Telegram document delivery failed: {e}")
