@@ -1,110 +1,107 @@
-"""
-agent_brain.py — Elengenix Upgraded Agent (v1.3)
-- Relentless Hunting Logic
-- Autonomous loop up to 20 rounds
-- Deep Search and Tool Chaining
-"""
-
 import os
 import json
 import subprocess
 import shlex
-import sys
+import logging
+from pathlib import Path
 from llm_client import LLMClient
 from knowledge_loader import load_knowledge_base
 from orchestrator import run_standard_scan
 from tools.memory_manager import save_learning, get_learnings
-from tools.reporter import generate_bug_report
-from bot_utils import send_telegram_notification, send_document
+from bot_utils import send_telegram_notification
+
+# Setup logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
+# 🛡️ RESTRICTED ALLOWLIST: Removed python/python3 to prevent sandbox escape
+ALLOWED_COMMANDS = [
+    "subfinder", "httpx", "nuclei", "katana",
+    "waybackurls", "curl", "nmap", "ffuf", "gau",
+    "grep", "cat", "ls", "echo"
+]
 
 class ElengenixAgent:
     MAX_STEPS = 20
 
-    ALLOWED_COMMANDS = [
-        "subfinder", "httpx", "nuclei", "katana",
-        "waybackurls", "curl", "nmap", "ffuf", "gau",
-        "python3", "python", "grep", "cat", "ls", "echo"
-    ]
-
     def __init__(self):
         self.client = LLMClient()
-        self.base_dir = os.path.dirname(os.path.abspath(__file__))
-        prompt_path = os.path.join(self.base_dir, "prompts", "system_prompt.txt")
-        with open(prompt_path, "r") as f:
-            self.base_prompt = f.read()
+        self.base_dir = Path(__file__).parent.absolute()
+        prompt_path = self.base_dir / "prompts" / "system_prompt.txt"
+        
+        try:
+            with open(prompt_path, "r") as f:
+                self.base_prompt = f.read()
+        except FileNotFoundError:
+            logger.error(f"System prompt not found at {prompt_path}")
+            self.base_prompt = "You are a security assistant."
+            
         self.knowledge = load_knowledge_base()
 
-    def _build_prompt(self, target: str = "") -> str:
-        memory_context = ""
-        if target:
-            learnings = get_learnings(target)
-            if learnings and "No prior memory" not in learnings:
-                memory_context = f"\n### MEMORY OF PREVIOUS ATTEMPTS ON {target}:\n{learnings}\n"
-
-        tools_desc = f"""
-### AVAILABLE TOOLS
-You must respond with a JSON object. Always think about the technical impact before choosing an action.
-
-{{"action": "run_shell", "command": "subfinder -d example.com -silent"}}
-{{"action": "run_standard_scan", "target": "example.com"}}
-{{"action": "search_web", "query": "CVE-2024 target-technology exploit"}}
-{{"action": "read_web_page", "url": "https://example.com/api/v1"}}
-{{"action": "save_memory", "target": "example.com", "category": "vuln|recon|bypass", "learning": "..."}}
-{{"action": "finish", "summary": "Detailed technical report of the hunt..."}}
-
-### PERSISTENCE RULES:
-1. If 'run_standard_scan' finds nothing, use 'search_web' to find custom endpoints or specific technology vulnerabilities.
-2. Chain your actions: search for secrets -> find endpoint -> try access bypass.
-3. You have 20 steps. Do not waste them on simple greetings. Focus on the target.
-"""
-        return f"{self.base_prompt}\n{self.knowledge}\n{memory_context}\n{tools_desc}"
+    def _is_safe_command(self, cmd: str) -> bool:
+        try:
+            parts = shlex.split(cmd)
+            if not parts: return False
+            binary = os.path.basename(parts[0])
+            
+            # Strict check against allowlist
+            if binary not in ALLOWED_COMMANDS:
+                logger.warning(f"Blocked unauthorized command: {binary}")
+                return False
+                
+            # Block shell redirection and piping in arguments
+            forbidden_chars = [">", ">>", "|", "&", ";", "`", "$"]
+            if any(char in cmd for char in forbidden_chars):
+                logger.warning(f"Blocked command with dangerous characters: {cmd}")
+                return False
+                
+            return True
+        except ValueError as e:
+            logger.error(f"Command parsing error: {e}")
+            return False
 
     def _execute_tool(self, action_data: dict, callback=None) -> str:
         action = action_data.get("action", "")
         try:
             if action == "run_shell":
-                cmd = action_data.get("command", "")
-                args = shlex.split(cmd)
-                if args[0] not in self.ALLOWED_COMMANDS: return "Command not allowed."
-                if callback: callback(f"Executing: {cmd}")
-                result = subprocess.run(args, capture_output=True, text=True, timeout=120)
+                cmd_raw = action_data.get("command", "")
+                if not self._is_safe_command(cmd_raw):
+                    return f"Error: Command '{cmd_raw}' is not allowed or contains forbidden characters."
+                
+                if callback: callback(f"Executing: {cmd_raw}")
+                # shell=False is strictly enforced here
+                result = subprocess.run(shlex.split(cmd_raw), capture_output=True, text=True, timeout=180)
                 return (result.stdout + result.stderr)[:4000]
 
             elif action == "run_standard_scan":
                 target = action_data.get("target")
-                if callback: callback(f"Initiating full Elengenix pipeline on {target}")
+                if callback: callback(f"Starting standard pipeline on {target}")
                 run_standard_scan(target)
-                return "Full scan finished. Check local reports for deep details."
-
-            elif action == "search_web":
-                from tools.research_tool import search_web
-                query = action_data.get("query", "")
-                if callback: callback(f"Searching web for intelligence: {query}")
-                return str(search_web(query))
-
-            elif action == "read_web_page":
-                from tools.research_tool import extract_web_content
-                return extract_web_content(action_data.get("url", ""))[:4000]
+                return "Full scan finished."
 
             elif action == "save_memory":
                 save_learning(action_data["target"], action_data["learning"], action_data.get("category", "general"))
-                return "Learning recorded in SQLite database."
+                return "Technical discovery saved to memory."
 
             elif action == "finish": return "__FINISH__"
-            return "Invalid action."
+            return "Unknown action."
 
-        except Exception as e: return f"Error: {str(e)}"
+        except subprocess.TimeoutExpired:
+            return "Error: Execution timed out (180s)."
+        except Exception as e:
+            logger.error(f"Tool execution error: {e}")
+            return f"Error: {str(e)}"
 
     def process_query(self, user_input: str, callback=None, target: str = "") -> str:
-        send_telegram_notification(f"Analysis Started: \"{user_input}\"")
+        send_telegram_notification(f"Task Started: \"{user_input}\"")
         history = [{"role": "user", "content": user_input}]
         
         for step in range(self.MAX_STEPS):
-            history_text = "\n".join([f"{'User' if m['role'] == 'user' else 'Agent'}: {m['content']}" for m in history[-10:]])
-            response_text = self.client.chat(self._build_prompt(target or user_input), history_text)
+            history_text = "\n".join([f"{m['role']}: {m['content']}" for m in history[-10:]])
+            system_prompt = f"{self.base_prompt}\n{self.knowledge}\n{self.get_tool_desc(target)}"
             
-            if callback: callback(f"Step {step+1}: Analyzing...")
-
+            response_text = self.client.chat(system_prompt, history_text)
+            
             if "{" in response_text and "}" in response_text:
                 try:
                     json_start = response_text.find("{")
@@ -112,13 +109,17 @@ You must respond with a JSON object. Always think about the technical impact bef
                     
                     obs = self._execute_tool(action_data, callback)
                     if obs == "__FINISH__":
-                        send_telegram_notification("Hunt Completed Successfully.")
-                        return action_data.get("summary", "Task finished.")
+                        return action_data.get("summary", "Mission completed.")
                     
                     history.append({"role": "assistant", "content": response_text})
                     history.append({"role": "user", "content": f"Observation: {obs}"})
                     continue
-                except: pass
+                except json.JSONDecodeError:
+                    pass
             
             return response_text
-        return "Reached maximum steps without conclusion."
+        return "Max steps reached."
+
+    def get_tool_desc(self, target):
+        memory = get_learnings(target) if target else ""
+        return f"\n### MEMORY:\n{memory}\n\n### TOOLS:\n- run_shell(command)\n- run_standard_scan(target)\n- save_memory(target, learning, category)\n- finish(summary)"

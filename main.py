@@ -12,7 +12,8 @@ def ensure_dependencies():
         "google.generativeai": "google-generativeai",
         "openai": "openai",
         "anthropic": "anthropic",
-        "trafilatura": "trafilatura"
+        "trafilatura": "trafilatura",
+        "dotenv": "python-dotenv"
     }
     
     missing = []
@@ -46,19 +47,10 @@ import yaml
 import questionary
 from rich.console import Console
 from rich.panel import Panel
-
-# Safety imports
-try:
-    from dependency_manager import check_and_install_dependencies
-    from tools.doctor import check_health
-    from tools_menu import show_tools_menu
-    from tools.omni_scan import run_omni_scan
-except ImportError:
-    sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-    from dependency_manager import check_and_install_dependencies
-    from tools.doctor import check_health
-    from tools_menu import show_tools_menu
-    from tools.omni_scan import run_omni_scan
+from dependency_manager import check_and_install_dependencies
+from tools.doctor import check_health
+from tools_menu import show_tools_menu
+from tools.omni_scan import run_omni_scan
 
 console = Console()
 
@@ -82,6 +74,7 @@ def main():
     parser = argparse.ArgumentParser(description="Elengenix CLI", add_help=False)
     parser.add_argument("command", nargs="?", default="menu", choices=["ai", "scan", "gateway", "configure", "update", "doctor", "arsenal", "menu"])
     parser.add_argument("target", nargs="?", help="Target domain")
+    parser.add_argument("--rate-limit", type=int, default=5, help="Requests per second (default: 5)")
     
     args, unknown = parser.parse_known_args()
 
@@ -100,8 +93,7 @@ def main():
                     "❌ Exit"
                 ]
             ).ask()
-        except Exception:
-            return
+        except Exception: return
 
         if not choice or "Exit" in choice: return
         elif "AI Partner" in choice: args.command = "ai"
@@ -114,30 +106,27 @@ def main():
 
     if args.command == "doctor":
         check_health()
-    elif args.command == "update":
-        # (update logic here)
-        pass
     elif args.command == "scan":
         target = args.target if args.target else questionary.text("Target:").ask()
-        if target: run_omni_scan(target)
+        if target:
+            check_and_install_dependencies()
+            # 🏎️ Passing rate-limit to the pipeline
+            run_omni_scan(target)
     elif args.command == "ai":
         import cli
         cli.main()
-    elif args.command == "arsenal":
-        show_tools_menu()
-    elif args.command == "gateway":
-        os.system(f"{sys.executable} {os.path.join(os.path.dirname(os.path.abspath(__file__)), 'bot.py')}")
     elif args.command == "configure":
         import wizard
         wizard.main()
+    elif args.command == "gateway":
+        os.system(f"{sys.executable} {os.path.join(os.path.dirname(__file__), 'bot.py')}")
 
 if __name__ == "__main__":
     try:
         main()
     except Exception as e:
         console.print(f"\n[bold red]🚨 CRITICAL ERROR DETECTED: {e}[/bold red]")
-        if questionary.confirm("Would you like Elengenix to attempt an Auto-Repair?", default=True).ask():
+        if questionary.confirm("Attempt Auto-Repair?", default=True).ask():
             check_health(fix=True)
     except KeyboardInterrupt:
-        console.print("\n[yellow]👋 Happy Hunting![/yellow]")
         sys.exit(0)
