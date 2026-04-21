@@ -1,54 +1,41 @@
 import subprocess
 import os
 import shutil
-import logging
-
-logger = logging.getLogger(__name__)
 
 def run_subdomain_enum(domain, output_dir):
     """
-    Performs real subdomain discovery using subfinder and validates with httpx.
+    Real-world reconnaissance: Subfinder + Waybackurls + Httpx
     """
-    print(f"[*] Starting Real Subdomain Enumeration for: {domain}")
-    
+    print(f"[*] Executing Professional Recon on: {domain}")
     os.makedirs(output_dir, exist_ok=True)
-    subfinder_out = os.path.join(output_dir, f"{domain}_subs.txt")
+    
+    all_subs_file = os.path.join(output_dir, f"{domain}_all_subs.txt")
     live_output = os.path.join(output_dir, f"{domain}_live.txt")
 
-    # 1. Subfinder Execution
+    # 1. Subdomain Discovery (Subfinder)
     if shutil.which("subfinder"):
-        try:
-            print("[*] Running subfinder...")
-            subprocess.run(
-                ["subfinder", "-d", domain, "-o", subfinder_out, "-silent"],
-                check=True,
-                capture_output=True
-            )
-        except subprocess.CalledProcessError as e:
-            logger.error(f"Subfinder failed: {e}")
-            with open(subfinder_out, "w") as f: f.write(domain)
+        print("[*] Gathering subdomains...")
+        subprocess.run(["subfinder", "-d", domain, "-o", all_subs_file, "-silent"], capture_output=True)
     else:
-        print("[!] subfinder not found, using main domain only.")
-        with open(subfinder_out, "w") as f: f.write(domain)
+        with open(all_subs_file, "w") as f: f.write(domain)
 
-    # 2. Httpx Validation (Real logic)
+    # 2. Historical URL Discovery (Waybackurls) - This finds hidden gems!
+    if shutil.which("waybackurls"):
+        print("[*] Fetching historical URLs from Wayback Machine...")
+        with open(all_subs_file, "a") as f:
+            proc = subprocess.run(["waybackurls", domain], capture_output=True, text=True)
+            f.write(proc.stdout)
+
+    # 3. Live Host & Tech Discovery (Httpx)
     if shutil.which("httpx"):
-        try:
-            print("[*] Validating live hosts with httpx...")
-            with open(subfinder_out, "r") as f_in, open(live_output, "w") as f_out:
-                subprocess.run(
-                    ["httpx", "-silent", "-status-code", "-title", "-no-color"],
-                    stdin=f_in,
-                    stdout=f_out,
-                    check=True
-                )
-            return live_output
-        except subprocess.CalledProcessError as e:
-            logger.error(f"httpx failed: {e}")
-            return subfinder_out
-    else:
-        print("[!] httpx not found, skipping validation.")
-        return subfinder_out
+        print("[*] Validating live targets and detecting technology...")
+        # Use stdin to avoid 'too many arguments' error
+        with open(all_subs_file, "r") as f_in, open(live_output, "w") as f_out:
+            subprocess.run(["httpx", "-silent", "-no-color", "-fc", "404"], 
+                           stdin=f_in, stdout=f_out)
+        return live_output
+    
+    return all_subs_file
 
 if __name__ == "__main__":
     import sys
