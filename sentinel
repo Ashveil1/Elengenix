@@ -1,8 +1,13 @@
 #!/usr/bin/env bash
+# =============================================================================
+# Elengenix - Universal Production Launcher
+# Works on: Linux, macOS, Termux
+# Version: 1.5.0 (High-Efficiency Edition)
+# =============================================================================
 
-# Elengenix Universal Launcher
-# Works on Linux, macOS, and Termux
+set -euo pipefail  # Exit on error, undefined var, or pipe failure
 
+# ── Resolve Script Path (Handle Symlinks) ─────────────────────────────────────
 SOURCE="${BASH_SOURCE[0]}"
 while [ -h "$SOURCE" ]; do 
   DIR="$( cd -P "$( dirname "$SOURCE" )" >/dev/null 2>&1 && pwd )"
@@ -11,11 +16,55 @@ while [ -h "$SOURCE" ]; do
 done
 PROJECT_ROOT="$( cd -P "$( dirname "$SOURCE" )" >/dev/null 2>&1 && pwd )"
 
-# Ensure we use the correct python version
+# ── Configuration ─────────────────────────────────────────────────────────────
+VENV_DIR="$PROJECT_ROOT/venv"
+MAIN_SCRIPT="$PROJECT_ROOT/main.py"
+REQUIREMENTS="$PROJECT_ROOT/requirements.txt"
+
+# ── Helper Functions ──────────────────────────────────────────────────────────
+die() {
+    echo -e "\033[0;31m[✗] $1\033[0m" >&2
+    exit "${2:-1}"
+}
+
+info() {
+    echo -e "\033[0;36m[*] $1\033[0m"
+}
+
+# ── Python Detection ──────────────────────────────────────────────────────────
 if command -v python3 >/dev/null 2>&1; then
     PYTHON_CMD="python3"
-else
+elif command -v python >/dev/null 2>&1; then
     PYTHON_CMD="python"
+else
+    die "Python is not installed. Please install Python 3.10+ first."
 fi
 
-$PYTHON_CMD "$PROJECT_ROOT/main.py" "$@"
+# ── Pre-flight Checks ─────────────────────────────────────────────────────────
+# 1. Check if main.py exists
+if [[ ! -f "$MAIN_SCRIPT" ]]; then
+    die "Critical file not found: $MAIN_SCRIPT\n💡 Hint: Reinstall Elengenix or check your installation directory."
+fi
+
+# 2. Check and Activate Virtual Environment
+if [[ -d "$VENV_DIR" ]] && [[ -f "$VENV_DIR/bin/activate" ]]; then
+    source "$VENV_DIR/bin/activate"
+    info "Virtual environment activated."
+elif [[ -z "${VIRTUAL_ENV:-}" ]]; then
+    echo -e "\033[1;33m[!] Warning: Virtual environment not found.\033[0m"
+    echo -e "    Run: ./setup.sh to install dependencies properly."
+    echo ""
+fi
+
+# 3. Canary Dependency Check
+if [[ -f "$REQUIREMENTS" ]] && ! $PYTHON_CMD -c "import rich" >/dev/null 2>&1; then
+    echo -e "\033[1;33m[!] Warning: Core dependencies (rich) missing.\033[0m"
+    echo -e "    💡 Run: pip install -r $REQUIREMENTS"
+    echo ""
+fi
+
+# ── Execution ─────────────────────────────────────────────────────────────────
+info "Starting Elengenix v1.5.0 from: $PROJECT_ROOT"
+
+# Use 'exec' to replace the shell process with python (Memory efficient)
+exec "$PYTHON_CMD" "$MAIN_SCRIPT" "$@"
