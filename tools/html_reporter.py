@@ -1,106 +1,137 @@
+"""
+tools/html_reporter.py — Interactive HTML Dashboard Generator (v2.0.0)
+- Dark-mode Bootstrap 5 UI
+- Severity badge system
+- Summary cards + detailed findings table
+- Self-contained (CDN only)
+"""
+
+from __future__ import annotations
+
+import html
 import os
 from datetime import datetime
+from pathlib import Path
+from typing import Dict, List
 
-def generate_html_report(target, findings, output_path):
-    """
-    Generates a beautiful, professional HTML dashboard for scan results.
-    """
-    now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    
-    # Calculate stats
-    total = len(findings)
-    critical = len([f for f in findings if f.get('severity') == 'CRITICAL'])
-    high = len([f for f in findings if f.get('severity') == 'HIGH'])
-    
-    html_content = f"""
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Elengenix Scan Report - {target}</title>
-        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-        <style>
-            body {{ background-color: #0f172a; color: #e2e8f0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }}
-            .card {{ background-color: #1e293b; border: none; border-radius: 15px; margin-bottom: 20px; }}
-            .header-banner {{ background: linear-gradient(90deg, #06b6d4, #3b82f6); padding: 40px 0; border-radius: 0 0 30px 30px; margin-bottom: 40px; }}
-            .severity-critical {{ color: #ef4444; font-weight: bold; }}
-            .severity-high {{ color: #f97316; font-weight: bold; }}
-            .badge-critical {{ background-color: #ef4444; }}
-            .badge-high {{ background-color: #f97316; }}
-            .badge-medium {{ background-color: #eab308; }}
-        </style>
-    </head>
-    <body>
-        <div class="header-banner text-center">
-            <h1 class="display-4 fw-bold">🛡️ ELENGENIX AI REPORT</h1>
-            <p class="lead">Target: <span class="badge bg-dark">{target}</span></p>
-            <p>Scan Date: {now}</p>
+
+def _badge(severity: str) -> str:
+    colors = {
+        "CRITICAL": "danger",
+        "HIGH":     "warning",
+        "MEDIUM":   "primary",
+        "LOW":      "success",
+        "INFO":     "secondary",
+    }
+    return colors.get(severity.upper(), "secondary")
+
+
+def generate_html_report(
+    target: str,
+    findings: List[Dict],
+    output_path: str,
+) -> str:
+    now      = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    total    = len(findings)
+    critical = sum(1 for f in findings if f.get("severity", "").upper() == "CRITICAL")
+    high     = sum(1 for f in findings if f.get("severity", "").upper() == "HIGH")
+    medium   = sum(1 for f in findings if f.get("severity", "").upper() == "MEDIUM")
+
+    rows = ""
+    for f in findings:
+        sev  = html.escape(str(f.get("severity", "INFO")))
+        name = html.escape(str(f.get("name",     "–")))
+        url  = html.escape(str(f.get("url",      "–")))
+        det  = html.escape(str(f.get("details",  "–"))[:150])
+        rows += f"""
+            <tr>
+              <td>{name}</td>
+              <td><span class="badge bg-{_badge(sev)}">{sev}</span></td>
+              <td><code class="text-info">{url}</code></td>
+              <td class="text-muted small">{det}</td>
+            </tr>"""
+
+    if not rows:
+        rows = "<tr><td colspan='4' class='text-center text-muted'>No vulnerabilities found by automated scan.</td></tr>"
+
+    html_content = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Elengenix Report — {html.escape(target)}</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <style>
+    body          {{ background:#0f172a; color:#e2e8f0; font-family:'Segoe UI',system-ui,sans-serif; }}
+    .hero         {{ background:linear-gradient(135deg,#0ea5e9,#6366f1); padding:60px 0 40px; border-radius:0 0 40px 40px; margin-bottom:40px; }}
+    .stat-card    {{ background:#1e293b; border-radius:16px; padding:28px; border:1px solid #334155; }}
+    .stat-num     {{ font-size:2.5rem; font-weight:800; }}
+    .table-dark   {{ --bs-table-bg:#1e293b; }}
+    code          {{ background:#0f172a; padding:2px 6px; border-radius:4px; }}
+    .badge        {{ font-size:.8rem; padding:.45em .75em; }}
+    footer        {{ color:#64748b; }}
+  </style>
+</head>
+<body>
+  <div class="hero text-center text-white">
+    <h1 class="display-5 fw-bold">🛡️ ELENGENIX AI REPORT</h1>
+    <p class="lead mb-1">Target: <span class="badge bg-dark fs-6">{html.escape(target)}</span></p>
+    <p class="opacity-75 small">{now}</p>
+  </div>
+
+  <div class="container pb-5">
+    <div class="row g-4 mb-5 text-center">
+      <div class="col-md-3">
+        <div class="stat-card">
+          <div class="stat-num text-info">{total}</div>
+          <div class="text-muted">Total Findings</div>
         </div>
-
-        <div class="container">
-            <div class="row text-center mb-4">
-                <div class="col-md-4">
-                    <div class="card p-3">
-                        <h3>{{total}}</h3>
-                        <p class="text-muted">Total Findings</p>
-                    </div>
-                </div>
-                <div class="col-md-4">
-                    <div class="card p-3">
-                        <h3 class="severity-critical">{{critical}}</h3>
-                        <p class="text-muted">Critical</p>
-                    </div>
-                </div>
-                <div class="col-md-4">
-                    <div class="card p-3">
-                        <h3 class="severity-high">{{high}}</h3>
-                        <p class="text-muted">High Severity</p>
-                    </div>
-                </div>
-            </div>
-
-            <div class="card p-4">
-                <h2 class="mb-4">🔍 Detailed Vulnerabilities</h2>
-                <table class="table table-dark table-hover">
-                    <thead>
-                        <tr>
-                            <th>Finding</th>
-                            <th>Severity</th>
-                            <th>URL</th>
-                            <th>Status</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-    """
-    
-    if findings:
-        for f in findings:
-            sev_class = f"badge-{f.get('severity', 'low').lower()}"
-            html_content += f"""
-                <tr>
-                    <td>{f.get('name')}</td>
-                    <td><span class="badge {sev_class}">{f.get('severity')}</span></td>
-                    <td><code>{f.get('url')}</code></td>
-                    <td><span class="text-success">Vulnerable</span></td>
-                </tr>
-            """
-    else:
-        html_content += "<tr><td colspan='4' class='text-center'>No vulnerabilities found yet.</td></tr>"
-
-    html_content += """
-                    </tbody>
-                </table>
-            </div>
-            
-            <div class="footer text-center mt-5 mb-5 text-muted">
-                <p>Generated by Elengenix AI Framework &copy; 2026</p>
-            </div>
+      </div>
+      <div class="col-md-3">
+        <div class="stat-card">
+          <div class="stat-num text-danger">{critical}</div>
+          <div class="text-muted">Critical</div>
         </div>
-    </body>
-    </html>
-    """
-    
-    with open(output_path, "w") as f:
-        f.write(html_content)
+      </div>
+      <div class="col-md-3">
+        <div class="stat-card">
+          <div class="stat-num text-warning">{high}</div>
+          <div class="text-muted">High</div>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="stat-card">
+          <div class="stat-num text-primary">{medium}</div>
+          <div class="text-muted">Medium</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="stat-card">
+      <h4 class="mb-4">🔍 Detailed Findings</h4>
+      <div class="table-responsive">
+        <table class="table table-dark table-hover align-middle">
+          <thead class="table-primary">
+            <tr>
+              <th>Finding</th>
+              <th>Severity</th>
+              <th>URL</th>
+              <th>Details</th>
+            </tr>
+          </thead>
+          <tbody>{rows}</tbody>
+        </table>
+      </div>
+    </div>
+
+    <footer class="text-center mt-5">
+      <p>Generated by <strong>Elengenix AI Framework v2.0.0</strong> &copy; 2026 — Authorized Testing Only</p>
+    </footer>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>"""
+
+    Path(output_path).write_text(html_content, encoding="utf-8")
     return output_path

@@ -2,7 +2,7 @@
 # =============================================================================
 # Elengenix - Universal Production Launcher
 # Works on: Linux, macOS, Termux
-# Version: 1.5.0 (High-Efficiency Edition)
+# Version: 2.0.0 (Ultimate Edition)
 # =============================================================================
 
 set -euo pipefail  # Exit on error, undefined var, or pipe failure

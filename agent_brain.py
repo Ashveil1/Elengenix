@@ -1,5 +1,5 @@
 """
-agent_brain.py — Elengenix Intelligent Hunting Engine (v1.5.0)
+agent_brain.py — Elengenix Intelligent Hunting Engine (v2.0.0)
 - Improved State Management (Reset per query)
 - Robust JSON Extraction (Regex-based)
 - High-security Subprocess Execution (Shell=False + Strict Allowlist)

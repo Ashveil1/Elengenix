@@ -1,62 +1,147 @@
-import sqlite3
+"""
+tools/memory_manager.py — Persistent SQLite Memory Store (v2.0.0)
+- Thread-safe via WAL mode
+- Per-target summarization with token budget
+- Category-based storage
+- Pruning to prevent unbounded growth
+"""
+
+from __future__ import annotations
+
+import logging
 import os
-from datetime import datetime
+import sqlite3
+from contextlib import contextmanager
+from datetime import datetime, timedelta
+from pathlib import Path
+from typing import Generator, List, Tuple
 
-DB_FILE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "elengenix.db")
+logger = logging.getLogger("elengenix.memory")
 
-def _get_conn():
-    os.makedirs(os.path.dirname(DB_FILE), exist_ok=True)
-    return sqlite3.connect(DB_FILE)
+_DB_PATH = Path(__file__).parent.parent / "data" / "elengenix.db"
+_MAX_LEARNING_LEN = 500   # chars per learning
+_SUMMARY_SNIPPET  = 400   # chars per category in summary
+_MAX_AGE_DAYS     = 90    # auto-prune learnings older than this
 
-def init_db():
-    conn = _get_conn()
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS learnings (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            target TEXT NOT NULL,
-            category TEXT NOT NULL,
-            learning TEXT NOT NULL,
-            date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    """)
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_target ON learnings (target)")
-    conn.commit()
-    conn.close()
 
-def save_learning(target: str, learning: str, category: str = "general"):
+def _db_path() -> Path:
+    _DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    return _DB_PATH
+
+
+@contextmanager
+def _get_conn() -> Generator[sqlite3.Connection, None, None]:
+    conn = sqlite3.connect(str(_db_path()), timeout=10)
+    conn.execute("PRAGMA journal_mode=WAL")  # concurrent read safety
+    conn.execute("PRAGMA foreign_keys=ON")
+    try:
+        yield conn
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+def init_db() -> None:
+    with _get_conn() as conn:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS learnings (
+                id        INTEGER PRIMARY KEY AUTOINCREMENT,
+                target    TEXT    NOT NULL,
+                category  TEXT    NOT NULL DEFAULT 'general',
+                learning  TEXT    NOT NULL,
+                created   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_target   ON learnings (target)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_category ON learnings (category)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_created  ON learnings (created)")
+
+
+def save_learning(target: str, learning: str, category: str = "general") -> None:
+    """Persist a finding. Truncates if too long."""
+    if not target or not learning:
+        return
     init_db()
-    conn = _get_conn()
-    conn.execute(
-        "INSERT INTO learnings (target, category, learning) VALUES (?, ?, ?)",
-        (target.lower().strip(), category.lower(), learning)
-    )
-    conn.commit()
-    conn.close()
+    learning = learning.strip()[:_MAX_LEARNING_LEN]
+    with _get_conn() as conn:
+        conn.execute(
+            "INSERT INTO learnings (target, category, learning) VALUES (?, ?, ?)",
+            (target.lower().strip(), category.lower().strip(), learning),
+        )
+    logger.debug(f"Memory saved [{category}] for {target}")
 
-def get_summarized_learnings(target: str) -> str:
+
+def get_summarized_learnings(target: str, max_chars: int = 2000) -> str:
     """
-    🎯 PERFORMANCE: Returns a summarized version of findings to save LLM tokens.
+    Returns a compact, LLM-friendly summary of prior findings for this target.
+    Groups by category and truncates to stay within token budget.
     """
-    if not os.path.exists(DB_FILE):
+    if not _db_path().exists():
         return "No prior memory."
 
-    conn = _get_conn()
-    cursor = conn.execute(
-        "SELECT category, COUNT(*), GROUP_CONCAT(learning, ' | ') FROM learnings WHERE target = ? GROUP BY category",
-        (target.lower().strip(),)
-    )
-    rows = cursor.fetchall()
-    conn.close()
+    init_db()
+    with _get_conn() as conn:
+        rows: List[Tuple] = conn.execute(
+            """
+            SELECT category, COUNT(*) AS cnt, GROUP_CONCAT(learning, ' || ')
+            FROM learnings
+            WHERE target = ?
+            GROUP BY category
+            ORDER BY cnt DESC
+            """,
+            (target.lower().strip(),),
+        ).fetchall()
 
     if not rows:
-        return "No prior memory."
+        return "No prior memory for this target."
 
-    summary = []
-    for cat, count, details in rows:
-        # Keep only a snippet of the first few items to save space
-        short_details = details[:300] + "..." if len(details) > 300 else details
-        summary.append(f"Category {cat}: Found {count} items. Snippet: {short_details}")
+    parts: List[str] = []
+    used = 0
+    for cat, cnt, details in rows:
+        snippet = (details[:_SUMMARY_SNIPPET] + "...") if len(details) > _SUMMARY_SNIPPET else details
+        line = f"[{cat.upper()}] ({cnt} items): {snippet}"
+        if used + len(line) > max_chars:
+            break
+        parts.append(line)
+        used += len(line)
 
-    return "\n".join(summary)
+    return "\n".join(parts)
 
-# Keep other functions like delete_target_memory...
+
+def get_all_targets() -> List[str]:
+    if not _db_path().exists():
+        return []
+    init_db()
+    with _get_conn() as conn:
+        rows = conn.execute(
+            "SELECT DISTINCT target FROM learnings ORDER BY target"
+        ).fetchall()
+    return [r[0] for r in rows]
+
+
+def delete_target_memory(target: str) -> int:
+    """Delete all learnings for a target. Returns number of rows deleted."""
+    init_db()
+    with _get_conn() as conn:
+        cursor = conn.execute(
+            "DELETE FROM learnings WHERE target = ?",
+            (target.lower().strip(),),
+        )
+        return cursor.rowcount
+
+
+def prune_old_learnings(days: int = _MAX_AGE_DAYS) -> int:
+    """Remove learnings older than `days`. Returns count pruned."""
+    init_db()
+    cutoff = (datetime.utcnow() - timedelta(days=days)).isoformat()
+    with _get_conn() as conn:
+        cursor = conn.execute(
+            "DELETE FROM learnings WHERE created < ?", (cutoff,)
+        )
+        pruned = cursor.rowcount
+    if pruned:
+        logger.info(f"Pruned {pruned} old learnings (>{days} days).")
+    return pruned

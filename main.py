@@ -94,7 +94,7 @@ def show_banner():
                         |___/                   
     [/bold cyan]
     [bold red]⚠️  FOR AUTHORIZED SECURITY TESTING ONLY[/bold red]
-    [dim]The Ultimate AI-Powered Bug Bounty Framework v1.5.0[/dim]
+    [dim]The Ultimate AI-Powered Bug Bounty Framework v2.0.0[/dim]
     """
     console.print(banner)
 

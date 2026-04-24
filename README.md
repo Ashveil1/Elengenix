@@ -1,64 +1,73 @@
-# ELENGENIX (v1.2)
+<div align="center">
 
-Elengenix is a command-line AI agent designed to assist in bug bounty hunting and security research. It orchestrates established security tools with large language models (LLMs) to perform automated reconnaissance and assisted vulnerability analysis.
+# 🛡️ ELENGENIX AI
+### The Professional AI-Powered Bug Bounty Framework
 
----
+![Version](https://img.shields.io/badge/version-2.0.0-cyan)
+![Python](https://img.shields.io/badge/python-3.10+-blue)
+![License](https://img.shields.io/badge/license-MIT-green)
 
-## 🛑 IMPORTANT: ETHICAL USAGE WARNING
+**The ultimate autonomous security hunting framework.**
 
-**DO NOT USE THIS TOOL FOR ILLEGAL PURPOSES.**
-
-Elengenix is created for **Educational** and **Authorized Security Testing** only. Unauthorized access to computer systems is a crime.
-- **NEVER** use this tool on a target without explicit written permission.
-- **NEVER** use this tool for cyber-attacks or data theft.
-- **ALWAYS** act within the laws of your jurisdiction and the scope of the bug bounty program.
+</div>
 
 ---
 
-## LEGAL AND ETHICAL DISCLAIMER
+## 🚀 Welcome to v2.0.0 (Ultimate Edition)
 
-IMPORTANT: THIS SOFTWARE IS FOR EDUCATIONAL AND AUTHORIZED SECURITY TESTING PURPOSES ONLY.
+Elengenix v2.0.0 is the culmination of architectural hardening and high-intensity security logic. It combines a robust, async-safe core with specialized tools for deep reconnaissance and vulnerability analysis.
 
-The use of Elengenix for interacting with targets without prior explicit and mutual consent is strictly prohibited. The end user is solely responsible for compliance with all applicable laws. The developers assume no liability for misuse or damage caused by this program.
-
----
-
-## CORE CAPABILITIES
-
-- Tool Orchestration: Automates the execution of subfinder, nuclei, katana, and other security utilities.
-- LLM-Assisted Analysis: Uses AI reasoning to interpret tool outputs and suggest potential attack vectors.
-- Multi-Model Support: Compatible with Claude 3.5, Gemini 2.5, GPT-4o, Groq, and local models.
-- Real-time Notifications: Delivers findings and status updates via Telegram bot integration.
-- Persistent Memory: SQLite-backed system to track discoveries and improve strategy across sessions.
-- Security Hardening: Command allowlisting and argument validation for safer autonomous execution.
+### 🌟 Key Upgrades in v2.0:
+- **🧠 Intelligent Brain:** Isolated mission states and robust JSON extraction.
+- **🛡️ Secure Core:** No `shell=True`, strict binary allowlisting, and PII scrubbing.
+- **🏎️ High-Intensity Tools:** Sophisticated logic for `api_finder`, `js_analyzer`, and `reporter`.
+- **👁️ Watchman Daemon:** 24/7 monitoring with SHA256 change detection.
+- **📱 Universal Support:** Indestructible installers for Linux, macOS, and Termux.
 
 ---
 
-## QUICK START
+## 📦 Installation
 
-### For Linux / macOS / WSL
-1. git clone https://github.com/Ashveil1/Elengenix.git
-2. cd Elengenix
-3. bash setup.sh
-4. elengenix
+### Automatic Install (Recommended)
+```bash
+chmod +x setup.sh && ./setup.sh
+```
 
-### For Termux (Android)
-1. git clone https://github.com/Ashveil1/Elengenix.git
-2. cd Elengenix
-3. bash termux_setup.sh
-4. elengenix
+### Mobile (Termux)
+```bash
+chmod +x termux_setup.sh && ./termux_setup.sh
+```
 
 ---
 
-## ARSENAL OVERVIEW
+## 📖 Quick Start
 
-- Reconnaissance: subfinder, httpx, katana, waybackurls
-- Scanning: nuclei (comprehensive vulnerability templates)
-- Analysis: js_analyzer, api_finder, param_miner
-- Research: Integrated web search and documentation retrieval
+1. **Configure:** Create a `.env` file with your API keys (see `.env.example`).
+2. **Launch:** Use the global command or the local launcher:
+   ```bash
+   elengenix
+   # OR
+   ./sentinel
+   ```
 
 ---
 
-## LICENSE
+## 🔧 Tools Arsenal
 
-This project is licensed under the MIT License. See the LICENSE file for details.
+| Tool | Capability |
+|------|------------|
+| **Omni-Scan** | Full-scale automated mission (Dorking -> Recon -> Nuclei). |
+| **API Hunter** | Concurrent probing for Swagger/OpenAPI endpoints. |
+| **JS Analyzer** | Regex-based secret extraction (AWS, Google, GitHub, etc.). |
+| **Watchman** | 24/7 target monitoring and AI-assisted alerting. |
+
+---
+
+## ⚖️ Ethics & Legal
+
+This framework is for **authorized security testing only**. The user is responsible for obtaining all necessary permissions. Unauthorized use is strictly prohibited.
+
+---
+<div align="center">
+Built for hunters, by hunters.
+</div>
