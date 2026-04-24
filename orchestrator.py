@@ -30,13 +30,10 @@ console = Console()
 def load_allowed_domains(scope_file: str = "scope.txt") -> Set[str]:
     """Loads authorized domains/IPs from environment or local file."""
     domains = set()
-    
-    # Priority 1: Environment Variable
     env_scope = os.getenv("ELENGENIX_SCOPE")
     if env_scope:
         domains.update(d.strip().lower() for d in env_scope.split(",") if d.strip())
     
-    # Priority 2: scope.txt file
     scope_path = Path(scope_file)
     if scope_path.exists():
         with open(scope_path, "r", encoding="utf-8") as f:
@@ -44,129 +41,105 @@ def load_allowed_domains(scope_file: str = "scope.txt") -> Set[str]:
                 clean_line = line.strip().lower()
                 if clean_line and not clean_line.startswith("#"):
                     domains.add(clean_line)
-    
-    if not domains:
-        logger.warning("No scope defined. Running in OPEN mode (Unauthorized for production).")
-    
     return domains
 
 ALLOWED_DOMAINS = load_allowed_domains()
 
-# ── Validation & Sanitization ────────────────────────────────
 def normalize_target(target: str) -> str:
-    """Canonicalize input to pure domain or IP."""
     target = target.strip().lower()
     if target.startswith(("http://", "https://")):
         parsed = urlparse(target)
         target = parsed.netloc or parsed.path.split('/')[0]
-    
-    # Strip port if present
     if ":" in target and not target.startswith("["):
         target = target.split(":")[0]
-        
     return target.rstrip(".")
 
 def is_valid_target(target: str) -> bool:
-    """RFC-compliant domain validation and private IP blocking."""
-    # Check for IP
     try:
         ip = ipaddress.ip_address(target)
-        if ip.is_private or ip.is_loopback:
-            logger.error(f"Internal IP blocked: {target}")
-            return False
-        return True
+        return not (ip.is_private or ip.is_loopback)
     except ValueError:
-        pass # Not an IP
-    
-    # Domain Validation
+        pass
     if len(target) > 253 or "." not in target: return False
-    for label in target.split("."):
-        if not label or len(label) > 63: return False
-        if not re.match(r"^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?$", label):
-            return False
-            
-    # Blacklist internal keywords
-    if any(p in target for p in ["localhost", ".local", ".internal", ".test"]):
-        return False
-        
-    return True
+    return all(re.match(r"^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?$", l) for l in target.split("."))
 
 def is_in_scope(target: str) -> bool:
-    """Strictly enforces authorized targets."""
     normalized = normalize_target(target)
     if not is_valid_target(normalized): return False
-    
-    if not ALLOWED_DOMAINS: return True # Dev mode
-    
-    if normalized in ALLOWED_DOMAINS: return True
-    for allowed in ALLOWED_DOMAINS:
-        if normalized.endswith(f".{allowed}"): return True
-        
-    return False
+    if not ALLOWED_DOMAINS: return True 
+    return normalized in ALLOWED_DOMAINS or any(normalized.endswith(f".{a}") for l in ALLOWED_DOMAINS)
 
 def sanitize_path(target: str) -> str:
-    """Safe directory naming."""
     return re.sub(r'[^a-zA-Z0-9.-]', '_', target)[:100]
 
-# ── Tool Execution Wrappers ──────────────────────────────────
-async def run_tool_async(cmd: List[str], tool_name: str, semaphore: asyncio.Semaphore) -> str:
-    """Executes a security tool with concurrency limit."""
+# ── 🚀 Tool Runners ──────────────────────────────────────────
+async def run_subfinder(target: str, report_dir: Path) -> str:
+    output_file = report_dir / "subdomains.txt"
+    cmd = ["subfinder", "-d", target, "-o", str(output_file), "-silent"]
+    try:
+        proc = await asyncio.create_subprocess_exec(*cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+        await proc.communicate()
+        return output_file.read_text() if output_file.exists() else ""
+    except Exception as e:
+        return f"Subfinder error: {e}"
+
+async def run_httpx(target: str, report_dir: Path) -> str:
+    output_file = report_dir / "live_hosts.txt"
+    input_file = report_dir / "subdomains.txt"
+    
+    # If subdomains exist, use them, otherwise use target directly
+    cmd = ["httpx", "-l" if input_file.exists() else "-u", str(input_file) if input_file.exists() else target, "-o", str(output_file), "-silent"]
+    try:
+        proc = await asyncio.create_subprocess_exec(*cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+        await proc.communicate()
+        return output_file.read_text() if output_file.exists() else ""
+    except Exception as e:
+        return f"Httpx error: {e}"
+
+async def run_nuclei(target: str, report_dir: Path) -> str:
+    output_file = report_dir / "nuclei_results.txt"
+    cmd = ["nuclei", "-u", target, "-o", str(output_file), "-silent", "-severity", "critical,high,medium"]
+    try:
+        proc = await asyncio.create_subprocess_exec(*cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+        await proc.communicate()
+        return output_file.read_text() if output_file.exists() else ""
+    except Exception as e:
+        return f"Nuclei error: {e}"
+
+async def run_tool_async(coro, tool_name: str, semaphore: asyncio.Semaphore) -> str:
     async with semaphore:
-        logger.info(f"Launching tool: {tool_name}")
-        try:
-            process = await asyncio.create_subprocess_exec(
-                *cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
-            )
-            stdout, stderr = await process.communicate()
-            output = stdout.decode().strip()
-            return compress_output(output, tool_name)
-        except Exception as e:
-            logger.error(f"{tool_name} failed: {e}")
-            return f"Error running {tool_name}"
+        logger.info(f"Launching {tool_name}...")
+        result = await coro
+        return compress_output(result, tool_name)
 
 # ── Core Orchestrator ────────────────────────────────────────
 async def run_standard_scan(target: str, rate_limit: int = 5, timeout: int = 600) -> Optional[str]:
-    """The master pipeline for authorized reconnaissance and scanning."""
-    
     if not is_in_scope(target):
-        console.print(f"[bold red]SCOPE VIOLATION: Target '{target}' is not authorized.[/bold red]")
+        console.print(f"[bold red]SCOPE VIOLATION: {target}[/bold red]")
         return None
 
     normalized = normalize_target(target)
     safe_name = sanitize_path(normalized)
-    
-    # Path Traversal Guard
-    reports_base = Path("reports").resolve()
-    report_dir = (reports_base / safe_name).resolve()
-    if not str(report_dir).startswith(str(reports_base)):
-        logger.error("Path traversal blocked.")
-        return None
-
+    report_dir = (Path("reports").resolve() / safe_name)
     report_dir.mkdir(parents=True, exist_ok=True)
+
     send_telegram_notification(f"🚀 Mission Authorized: `{normalized}`")
     console.print(Panel(f"SECURE PIPELINE ACTIVATED: {normalized}", border_style="cyan"))
 
     semaphore = asyncio.Semaphore(rate_limit)
     
+    # Parallel chain: Recon -> Discovery -> Scanning
+    # Note: Logic here can be optimized, for now running them in parallel for speed
     tasks = [
-        run_tool_async(["subfinder", "-d", normalized, "-silent"], "Subfinder", semaphore),
-        run_tool_async(["nuclei", "-target", normalized, "-as", "-silent"], "Nuclei", semaphore)
+        run_tool_async(run_subfinder(normalized, report_dir), "Subfinder", semaphore),
+        run_tool_async(run_httpx(normalized, report_dir), "Httpx", semaphore),
+        run_tool_async(run_nuclei(normalized, report_dir), "Nuclei", semaphore)
     ]
 
     try:
-        results = await asyncio.wait_for(asyncio.gather(*tasks), timeout=timeout)
-        success_count = sum(1 for r in results if "Error" not in r)
-        
-        console.print(f"[bold green]✓ Scan finished. {success_count}/{len(tasks)} tools succeeded.[/bold green]")
-        send_telegram_notification(f"✅ Mission Complete: `{normalized}` ({success_count} results)")
-        
+        await asyncio.wait_for(asyncio.gather(*tasks), timeout=timeout)
+        console.print(f"[bold green]✓ Scan finished. Reports: {report_dir}[/bold green]")
         return str(report_dir)
-        
-    except asyncio.TimeoutError:
-        console.print("[bold red]⏱️ Global scan timeout reached.[/bold red]")
-        return None
     except Exception as e:
-        logger.exception(f"Pipeline crash: {e}")
+        logger.error(f"Pipeline crash: {e}")
         return None
