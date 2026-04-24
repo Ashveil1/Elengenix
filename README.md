@@ -1,67 +1,115 @@
 # ELENGENIX AI
 ### The Professional AI-Powered Bug Bounty Framework
 
-Version: 2.0.0
-Python: 3.10+
-License: MIT
-
-The ultimate autonomous security hunting framework.
+Version: 2.0.0 (Ultimate Edition)
+Platform Support: Linux, macOS, Android (Termux)
 
 ---
 
-## Welcome to v2.0.0 (Ultimate Edition)
+## 1. Prerequisites
 
-Elengenix v2.0.0 is the culmination of architectural hardening and high-intensity security logic. It combines a robust, async-safe core with specialized tools for deep reconnaissance and vulnerability analysis.
+Before installing Elengenix, ensure your system meets the following requirements:
 
-### Key Upgrades in v2.0:
-- Intelligent Brain: Isolated mission states and robust JSON extraction.
-- Secure Core: No shell=True, strict binary allowlisting, and PII scrubbing.
-- High-Intensity Tools: Sophisticated logic for api_finder, js_analyzer, and reporter.
-- Watchman Daemon: 24/7 monitoring with SHA256 change detection.
-- Universal Support: Indestructible installers for Linux, macOS, and Termux.
+- Python: 3.10 or higher
+- Go: Required for compiling security tools (subfinder, nuclei, etc.)
+- Git: Required for cloning and updating the framework
+- Virtual Environment: Python 'venv' module must be available
 
 ---
 
-## Installation
+## 2. Installation Instructions
 
-### Automatic Install (Recommended)
-```bash
-chmod +x setup.sh && ./setup.sh
-```
+### A. Desktop / Server (Linux and macOS)
+The professional installer handles system dependencies, creates a virtual environment, and links the global 'elengenix' command.
 
-### Mobile (Termux)
-```bash
-chmod +x termux_setup.sh && ./termux_setup.sh
-```
-
----
-
-## Quick Start
-
-1. Configure: Create a .env file with your API keys (see .env.example).
-2. Launch: Use the global command or the local launcher:
+1. Clone the repository:
    ```bash
-   elengenix
-   # OR
-   ./sentinel
+   git clone https://github.com/Ashveil1/Elengenix.git
+   cd Elengenix
+   ```
+
+2. Run the indestructible installer:
+   ```bash
+   chmod +x setup.sh
+   ./setup.sh
+   ```
+
+### B. Mobile (Android via Termux)
+Optimized for mobile environments with automatic PATH verification.
+
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/Ashveil1/Elengenix.git
+   cd Elengenix
+   ```
+
+2. Run the mobile-specific installer:
+   ```bash
+   chmod +x termux_setup.sh
+   ./termux_setup.sh
    ```
 
 ---
 
-## Tools Arsenal
+## 3. Configuration
 
-| Tool | Capability |
-|------|------------|
-| Omni-Scan | Full-scale automated mission (Dorking -> Recon -> Nuclei). |
-| API Hunter | Concurrent probing for Swagger/OpenAPI endpoints. |
-| JS Analyzer | Regex-based secret extraction (AWS, Google, GitHub, etc.). |
-| Watchman | 24/7 target monitoring and AI-assisted alerting. |
+Elengenix prioritizes security by using Environment Variables for API keys.
+
+1. Create your environment file:
+   ```bash
+   cp .env.example .env
+   ```
+
+2. Edit the `.env` file with your preferred text editor and fill in your keys:
+   - GEMINI_API_KEY
+   - TELEGRAM_BOT_TOKEN
+   - TELEGRAM_CHAT_ID
+
+3. (Optional) Configure advanced settings in `config.yaml`.
 
 ---
 
-## Ethics and Legal
+## 4. Usage and Verification
 
-This framework is for authorized security testing only. The user is responsible for obtaining all necessary permissions. Unauthorized use is strictly prohibited.
+### Launching the Framework
+Once installed, you can launch Elengenix from any directory:
+```bash
+elengenix
+```
+
+### System Health Check
+Use the built-in doctor tool to verify that all tools and dependencies are correctly installed and configured:
+```bash
+elengenix doctor
+```
+
+### Quick Commands
+- AI Mission: `elengenix ai`
+- Automated Scan: `elengenix scan example.com`
+- Tools Arsenal: `elengenix arsenal`
+- Remote Gateway: `elengenix gateway`
 
 ---
-Built for hunters, by hunters.
+
+## 5. Troubleshooting PATH Issues
+
+If the 'elengenix' command is not recognized after installation:
+
+1. Ensure the project directory is in your PATH. Add the following to your ~/.bashrc or ~/.zshrc:
+   ```bash
+   export PATH="$PATH:/path/to/your/Elengenix"
+   ```
+
+2. For Termux users, ensure your environment is refreshed:
+   ```bash
+   source ~/.bashrc
+   ```
+
+---
+
+## Ethics and Legal Notice
+
+This framework is for authorized security testing and ethical research only. Users must obtain written permission from target organizations before performing any security assessment. Unauthorized use of this tool is strictly prohibited and may be illegal.
+
+---
+Developed for professional security researchers.
