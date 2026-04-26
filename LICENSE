@@ -20,37 +20,86 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 ADDITIONAL TERMS FOR ELENGENIX SECURITY FRAMEWORK:
 
-1. ETHICAL USE REQUIREMENT:
-   This software is designed for authorized security testing and ethical
-   research only. By using this software, you agree to:
-   - Obtain written permission before testing any systems you do not own
-   - Follow responsible disclosure practices for any vulnerabilities found
-   - Comply with all applicable laws in your jurisdiction
-   - Use this tool only for defensive security purposes
+ETHICAL USE REQUIREMENTS:
 
-2. PROHIBITED USES:
-   You may NOT use this software for:
-   - Unauthorized access to any systems or networks
-   - Any illegal activities or cybercrime
-   - Destructive testing (DoS, data deletion, ransomware)
-   - Developing malware or exploits for malicious purposes
-   - Any activities that violate computer fraud and abuse laws
+1. AUTHORIZATION REQUIREMENT:
+   You must obtain explicit written authorization before testing any systems,
+   networks, or applications you do not own or have explicit permission to test.
 
-3. ATTRIBUTION REQUIREMENT:
-   Any derivative works or distributions must include:
-   - This license file unchanged
-   - Attribution to the original author (Ashveil1)
-   - Notice that the tool is for authorized testing only
+2. SCOPE COMPLIANCE:
+   All testing must remain strictly within the defined scope provided by the
+   system owner. Do not test outside authorized boundaries.
 
-4. LIABILITY:
-   The author(s) of this software accept NO LIABILITY for:
-   - Misuse of this software
-   - Damages caused by unauthorized testing
-   - Legal consequences of improper use
-   - Any criminal activities performed using this tool
+3. RESPONSIBLE DISCLOSURE:
+   Any vulnerabilities discovered must be reported to the system owner first
+   and given reasonable time for remediation before public disclosure.
+
+4. DATA PROTECTION:
+   Any data accessed during testing must be kept confidential, secured, and
+   deleted after the engagement unless otherwise agreed in writing.
+
+5. NO HARM PRINCIPLE:
+   Testing activities must not cause damage, service disruption, or data loss
+   to target systems or third parties.
+
+6. LAW COMPLIANCE:
+   You must comply with all applicable local, national, and international laws
+   regarding computer security, privacy, and data protection.
+
+PROHIBITED USES:
+
+7. NO UNAUTHORIZED ACCESS:
+   Using this tool to access systems without explicit permission is strictly
+   prohibited and may violate computer fraud and abuse laws.
+
+8. NO CYBERCRIME:
+   This tool may not be used for any illegal activities including but not limited
+   to: unauthorized data theft, financial fraud, identity theft, or espionage.
+
+9. NO DESTRUCTIVE TESTING:
+   Do not use this tool for denial-of-service attacks, data destruction,
+   ransomware deployment, or any activity designed to harm systems or data.
+
+10. NO MALWARE DEVELOPMENT:
+    Creating, distributing, or improving malware, viruses, worms, trojans,
+    or other malicious software using this tool is strictly forbidden.
+
+11. NO EXPLOIT SALES:
+    Selling or commercially distributing vulnerabilities or exploits discovered
+    using this tool without proper disclosure is prohibited.
+
+12. NO PRIVACY VIOLATIONS:
+    Do not use this tool to harvest, store, or analyze personal data of
+    individuals without their explicit consent and legal basis.
+
+ATTRIBUTION AND DISTRIBUTION:
+
+13. PRESERVE LICENSE:
+    Any derivative works, forks, or distributions must include this entire
+    license file unchanged and prominently displayed.
+
+14. ATTRIBUTION:
+    All derivative works must clearly attribute the original author:
+    "Based on Elengenix by Ashveil1" with link to original repository.
+
+15. NOTICE REQUIREMENT:
+    All distributions must include a visible notice stating:
+    "This tool is for authorized security testing only. Use responsibly."
+
+16. COPYLEFT COMPLIANCE:
+    Any modifications or derivative works must be distributed under the
+    same GNU GPL v3 license terms with these additional ethical terms.
+
+LIABILITY AND DISCLAIMER:
+
+17. NO LIABILITY FOR MISUSE:
+    The author(s) expressly disclaim all liability for any misuse of this
+    software. You are solely responsible for ensuring your use complies
+    with all applicable laws. Any legal consequences of improper use are
+    entirely your responsibility.
 
 By using, modifying, or distributing this software, you acknowledge that
-you understand these terms and agree to use it responsibly and legally.
+you understand these 17 terms and agree to use it responsibly and legally.
 
 THE AUTHORS EXPRESSLY DISCLAIM ALL LIABILITY FOR MISUSE OF THIS SOFTWARE.
 YOU ARE SOLELY RESPONSIBLE FOR ENSURING YOUR USE COMPLIES WITH ALL APPLICABLE
