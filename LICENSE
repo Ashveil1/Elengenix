@@ -1,21 +1,62 @@
-MIT License
+GNU GENERAL PUBLIC LICENSE
+Version 3, 29 June 2007
 
-Copyright (c) 2026 Ashveil1 
+Copyright (C) 2026 Ashveil1
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU General Public License for more details.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+You should have received a copy of the GNU General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+================================================================================
+
+ADDITIONAL TERMS FOR ELENGENIX SECURITY FRAMEWORK:
+
+1. ETHICAL USE REQUIREMENT:
+   This software is designed for authorized security testing and ethical
+   research only. By using this software, you agree to:
+   - Obtain written permission before testing any systems you do not own
+   - Follow responsible disclosure practices for any vulnerabilities found
+   - Comply with all applicable laws in your jurisdiction
+   - Use this tool only for defensive security purposes
+
+2. PROHIBITED USES:
+   You may NOT use this software for:
+   - Unauthorized access to any systems or networks
+   - Any illegal activities or cybercrime
+   - Destructive testing (DoS, data deletion, ransomware)
+   - Developing malware or exploits for malicious purposes
+   - Any activities that violate computer fraud and abuse laws
+
+3. ATTRIBUTION REQUIREMENT:
+   Any derivative works or distributions must include:
+   - This license file unchanged
+   - Attribution to the original author (Ashveil1)
+   - Notice that the tool is for authorized testing only
+
+4. LIABILITY:
+   The author(s) of this software accept NO LIABILITY for:
+   - Misuse of this software
+   - Damages caused by unauthorized testing
+   - Legal consequences of improper use
+   - Any criminal activities performed using this tool
+
+By using, modifying, or distributing this software, you acknowledge that
+you understand these terms and agree to use it responsibly and legally.
+
+THE AUTHORS EXPRESSLY DISCLAIM ALL LIABILITY FOR MISUSE OF THIS SOFTWARE.
+YOU ARE SOLELY RESPONSIBLE FOR ENSURING YOUR USE COMPLIES WITH ALL APPLICABLE
+LAWS AND REGULATIONS.
+
+================================================================================
+
+For the full GNU GPL v3 license text, visit:
+https://www.gnu.org/licenses/gpl-3.0.txt
