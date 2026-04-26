@@ -84,26 +84,16 @@ def validate_target(target: str) -> bool:
 
 # ── Main Logic ────────────────────────────────────────────────────────────────
 def show_banner():
-    banner = """
-    [bold cyan]
-     _____ _                               _      
-    | ____| | ___ _ __   __ _  ___ _ __ (_)_  __
-    |  _| | |/ _ \\ '_ \\ / _` |/ _ \\ '_ \\| \\ \\/ /
-    | |___| |  __/ | | | (_| |  __/ | | | |>  < 
-    |_____|_|\\___|_| |_|\\__, |\\___|_| |_|_/_/\\_\\
-                        |___/                   
-    [/bold cyan]
-    [bold red]⚠️  FOR AUTHORIZED SECURITY TESTING ONLY[/bold red]
-    [dim]The Ultimate AI-Powered Bug Bounty Framework v2.0.0[/dim]
-    """
-    console.print(banner)
+    """Clean minimal banner."""
+    from ui_components import show_main_banner
+    show_main_banner()
 
 def main():
     show_banner()
     
     parser = argparse.ArgumentParser(description="Elengenix CLI", add_help=False)
     parser.add_argument("command", nargs="?", default="menu", 
-                        choices=["ai", "scan", "gateway", "configure", "update", "doctor", "arsenal", "menu"])
+                        choices=["ai", "scan", "gateway", "configure", "update", "doctor", "arsenal", "memory", "menu"])
     parser.add_argument("target", nargs="?", help="Target domain or IP")
     parser.add_argument("--rate-limit", type=int, default=5, help="Max requests per second")
     
@@ -112,57 +102,78 @@ def main():
     # Interactive Menu
     if args.command == "menu":
         try:
-            choice = questionary.select(
-                "Hunter Station: Choose your operation",
-                choices=[
-                    "🤖 Chat with AI Partner (Intelligent Mode)",
-                    "🚀 Run Advanced Omni-Scan (Automated)",
-                    "⚔️  Open Tools Arsenal (Manual Select)",
-                    "📱 Start Telegram Gateway (Remote Control)",
-                    "🏥 Run System Doctor (Audit/Repair)",
-                    "⚙️  Configure AI & Settings",
-                    "🔄 Update Framework",
-                    "❌ Exit"
-                ]
-            ).ask()
-            if not choice or "Exit" in choice: sys.exit(0)
+            # Use clean menu from ui_components
+            from ui_components import create_main_menu, format_menu_item, console
+            menu_items = create_main_menu()
             
-            mapping = {"AI Partner": "ai", "Omni-Scan": "scan", "Arsenal": "arsenal", 
-                       "Telegram": "gateway", "Doctor": "doctor", "Configure": "configure", "Update": "update"}
-            args.command = next((v for k, v in mapping.items() if k in choice), "menu")
+            console.print("\n[bold cyan]Main Menu[/bold cyan]\n")
+            for i, (title, desc, _) in enumerate(menu_items, 1):
+                console.print(format_menu_item(i, title, desc))
+            console.print()
+            
+            
+            choice_num = console.input("[cyan]Select[/cyan] [dim](1-9)[/dim]: ")
+            try:
+                idx = int(choice_num) - 1
+                if 0 <= idx < len(menu_items):
+                    choice_key = menu_items[idx][2]
+                else:
+                    continue
+            except ValueError:
+                continue
+            
+            # Handle exit
+            if choice_key == "exit":
+                sys.exit(0)
+            
+            args.command = choice_key
+            
         except KeyboardInterrupt: sys.exit(0)
 
     # Command Router
     try:
         if args.command == "scan":
-            target = args.target or questionary.text("Enter Target (e.g., example.com):").ask()
+            from ui_components import prompt_target, print_error, show_spinner
+            
+            target = args.target or prompt_target()
             if not target: return
             if not validate_target(target):
-                console.print("[bold red]❌ SECURITY ERROR: Invalid target format.[/bold red]")
+                print_error("SECURITY ERROR: Invalid target format")
                 return
             
             from dependency_manager import check_and_install_dependencies
             from tools.omni_scan import run_omni_scan
             
             check_and_install_dependencies()
-            console.print(f"[cyan]🎯 Initiating scan on: {target} (Rate: {args.rate_limit} req/s)[/cyan]")
+            
+            with show_spinner(f"Initiating scan on {target}..."):
+                pass  # Spinner shows while loading
+            
+            console.print(f"[cyan]Target:[/cyan] {target}  [dim]Rate: {args.rate_limit} req/s[/dim]")
             run_omni_scan(target, rate_limit=args.rate_limit)
 
         elif args.command == "ai":
             import cli
             cli.main()
 
+        elif args.command == "universal":
+            from ui_components import show_cli_banner
+            show_cli_banner("universal")
+            
+            import cli
+            cli.main(mode="universal")
+
         elif args.command == "gateway":
             bot_path = Path(__file__).parent / "bot.py"
             if not bot_path.exists():
-                console.print("[bold red]❌ bot.py missing.[/bold red]")
+                print_error("bot.py not found")
                 return
-            console.print("[bold cyan]📱 Activating Telegram Gateway...[/bold cyan]")
-            # 🛡️ Using subprocess for controlled execution
+            console.print("[cyan]Starting Telegram Gateway...[/cyan]")
             subprocess.run([sys.executable, str(bot_path)])
 
         elif args.command == "doctor":
             from tools.doctor import check_health
+            console.print("[cyan]Running system health check...[/cyan]")
             check_health()
 
         elif args.command == "configure":
@@ -174,15 +185,86 @@ def main():
             show_tools_menu()
 
         elif args.command == "update":
-            console.print("[yellow][*] Checking for updates... Run: git pull && ./setup.sh[/yellow]")
+            console.print("[dim]To update, run:[/dim]")
+            console.print("  [cyan]git pull && ./setup.sh[/cyan]")
+
+        elif args.command == "memory":
+            from ui_components import console, show_section, print_info, create_status_table
+            
+            try:
+                from tools.vector_memory import get_vector_memory, get_vector_memory as vm_get
+                
+                show_section("AI Memory System")
+                
+                vm = vm_get()
+                stats = vm.get_memory_stats()
+                
+                # Display stats table
+                table = create_status_table("Memory Statistics")
+                table.add_column("Metric", style="cyan")
+                table.add_column("Value", style="white")
+                
+                table.add_row("Status", stats.get("status", "unknown"))
+                table.add_row("Total memories", str(stats.get("total_memories", 0)))
+                table.add_row("Unique targets", str(stats.get("unique_targets", 0)))
+                
+                console.print(table)
+                
+                # Memory management menu
+                console.print("\n[dim]Options:[/dim]")
+                console.print("  1. Search memories")
+                console.print("  2. List all targets")
+                console.print("  3. Clear target memory")
+                console.print("  4. Back")
+                
+                mem_choice = console.input("\n[cyan]Select[/cyan] [dim](1-4)[/dim]: ")
+                
+                if mem_choice == "1":
+                    query = console.input("[cyan]Search query[/cyan]: ")
+                    target = console.input("[dim]Target filter (optional)[/dim]: ")
+                    if query:
+                        from tools.vector_memory import recall
+                        results = recall(query, target or None, n_results=10)
+                        
+                        if results:
+                            console.print(f"\n[cyan]Found {len(results)} memories:[/cyan]\n")
+                            for i, mem in enumerate(results, 1):
+                                content = mem['content'][:80]
+                                sim = mem.get('similarity', 0)
+                                console.print(f"  {i}. {content}... [dim]({sim:.0%})[/dim]")
+                        else:
+                            print_info("No matching memories found")
+                            
+                elif mem_choice == "2":
+                    targets = vm.get_all_targets()
+                    if targets:
+                        console.print(f"\n[cyan]Known Targets ({len(targets)}):[/cyan]\n")
+                        for t in targets[:20]:
+                            console.print(f"  • {t}")
+                        if len(targets) > 20:
+                            print_info(f"... and {len(targets) - 20} more")
+                    else:
+                        print_info("No targets in memory")
+                        
+                elif mem_choice == "3":
+                    target = console.input("[cyan]Target to clear[/cyan]: ")
+                    if target:
+                        from ui_components import confirm
+                        if confirm(f"Delete all memories for '{target}'?", default=False):
+                            vm.delete_target_memories(target)
+                            print_success(f"Deleted memories for {target}")
+                            
+            except Exception as e:
+                print_error(f"Memory system error: {e}")
 
     except KeyboardInterrupt:
-        console.print("\n[yellow]⛔ Operation canceled by Hunter.[/yellow]")
+        console.print("\n[dim]Operation canceled[/dim]")
         sys.exit(0)
     except Exception as e:
         logger.exception("Operational breakdown")
-        console.print(f"\n[bold red]🚨 SYSTEM FAILURE: {e}[/bold red]")
-        if questionary.confirm("Attempt emergency repair?", default=True).ask():
+        print_error(f"SYSTEM FAILURE: {e}")
+        from ui_components import confirm
+        if confirm("Attempt emergency repair?", default=True):
             from tools.doctor import check_health
             check_health(fix=True)
 

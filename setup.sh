@@ -3,7 +3,7 @@
 # ============================================================
 #   Elengenix - Indestructible Professional Installer
 #   Supports: Debian, Arch, Fedora, macOS
-#   Version: 1.5.1
+#   Version: 2.0.0 (Universal Agent Edition)
 # ============================================================
 
 set -e
@@ -24,6 +24,11 @@ error()   { echo -e "${RED}[✗]${NC} $1"; exit 1; }
 # 🛡️ ERROR TRAP
 trap 'echo -e "\n${RED}[!] Error occurred at line $LINENO. Installation failed.${NC}";' ERR
 
+# Verify we're in the right directory
+if [ ! -f "sentinel" ] && [ ! -f "main.py" ]; then
+    error "Please run this script from the Elengenix project directory (where 'sentinel' or 'main.py' is located)"
+fi
+
 clear
 echo -e "${CYAN}"
 echo "  ███████╗██╗     ███████╗███╗   ██╗ ██████╗ ███████╗███╗   ██╗██╗██╗  ██╗"
@@ -33,7 +38,8 @@ echo "  ██╔══╝  ██║     ██╔══╝  ██║╚██
 echo "  ███████╗███████╗███████╗██║ ╚████║╚██████╔╝███████╗██║ ╚████║██║██╔╝ ██╗"
 echo "  ╚══════╝╚══════╝╚══════╝╚═╝  ╚═══╝ ╚═════╝ ╚══════╝╚═╝  ╚═══╝╚═╝╚═╝  ╚═╝"
 echo -e "${NC}"
-echo -e "  ${BOLD}Professional Installation Hub v1.5.1${NC}"
+echo -e "  ${BOLD}Professional Installation Hub v2.0.0${NC}"
+echo -e "  ${CYAN}Universal Agent + Bug Bounty Specialist${NC}"
 echo "  ──────────────────────────────────────────────"
 echo ""
 
@@ -78,33 +84,116 @@ if [ ! -d "venv" ]; then
 fi
 source venv/bin/activate
 info "Installing Python requirements..."
+if [ ! -f "requirements.txt" ]; then
+    error "requirements.txt not found. Ensure you're in the Elengenix directory."
+fi
 if ! pip install --upgrade pip --quiet; then error "Failed to upgrade pip"; fi
 if ! pip install -r requirements.txt --quiet; then error "Failed to install requirements.txt"; fi
+
+# 3.5 Vector Memory Dependencies (ChromaDB + Sentence Transformers)
+info "Installing Vector Memory system (ChromaDB)..."
+if pip install chromadb sentence-transformers --quiet 2>/dev/null; then
+    success "Vector Memory system installed"
+else
+    warning "ChromaDB installation had issues (optional - will use SQLite fallback)"
+fi
+
 success "Python environment secured."
 
 # 4. Security Tools
-info "STEP 3/5: Installing Go-based Security Tools..."
+info "STEP 3/5: Installing Security Tools..."
 export GOPATH="$HOME/go"
-export PATH="$PATH:$GOPATH/bin"
+export PATH="$PATH:$GOPATH/bin:/usr/local/bin"
 
-declare -A TOOLS=(
+# 4.1 Go-based Tools (ProjectDiscovery + Additional)
+declare -A GO_TOOLS=(
     ["subfinder"]="github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest"
     ["nuclei"]="github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest"
     ["httpx"]="github.com/projectdiscovery/httpx/cmd/httpx@latest"
+    ["naabu"]="github.com/projectdiscovery/naabu/v2/cmd/naabu@latest"
+    ["katana"]="github.com/projectdiscovery/katana/cmd/katana@latest"
+    ["dalfox"]="github.com/hahwul/dalfox/v2@latest"
+    ["ffuf"]="github.com/ffuf/ffuf@latest"
 )
 
-for tool in "${!TOOLS[@]}"; do
+info "Installing Go-based security tools..."
+for tool in "${!GO_TOOLS[@]}"; do
     if ! command -v "$tool" >/dev/null 2>&1; then
-        info "Installing $tool..."
-        go install -v "${TOOLS[$tool]}" > /dev/null 2>&1 || warning "Could not install $tool"
-    fi
-    if command -v "$tool" >/dev/null 2>&1 || [ -f "$GOPATH/bin/$tool" ]; then
-        success "$tool verified."
+        info "  Installing $tool..."
+        if go install -v "${GO_TOOLS[$tool]}" 2>/dev/null; then
+            success "  $tool installed"
+        else
+            warning "  Could not install $tool (may require manual installation)"
+        fi
+    else
+        success "  $tool already installed"
     fi
 done
 
+# Ensure Go bin is in PATH for tool verification
+export PATH="$PATH:$GOPATH/bin"
+
+# 4.2 Python-based Tools
+info "Installing Python-based security tools..."
+
+# Arjun - Parameter discovery
+if ! command -v arjun >/dev/null 2>&1; then
+    info "  Installing arjun..."
+    if pip install arjun 2>/dev/null; then
+        success "  arjun installed"
+    else
+        warning "  Could not install arjun"
+    fi
+else
+    success "  arjun already installed"
+fi
+
+# 4.3 TruffleHog - Secret Detection
+if ! command -v trufflehog >/dev/null 2>&1; then
+    info "Installing TruffleHog (secret scanner)..."
+    info "  Downloading TruffleHog installer..."
+    
+    # Try official installer first
+    if curl -sSfL https://raw.githubusercontent.com/trufflesecurity/trufflehog/main/scripts/install.sh | sh -s -- -b /usr/local/bin 2>/dev/null; then
+        success "  TruffleHog installed to /usr/local/bin"
+    else
+        # Fallback: manual download latest release
+        info "  Trying manual download..."
+        TRUFFLE_URL=$(curl -s https://api.github.com/repos/trufflesecurity/trufflehog/releases/latest | grep "browser_download_url.*linux_amd64" | cut -d '"' -f 4)
+        if [ -n "$TRUFFLE_URL" ]; then
+            curl -sL "$TRUFFLE_URL" -o /tmp/trufflehog.tar.gz
+            tar -xzf /tmp/trufflehog.tar.gz -C /tmp/
+            sudo mv /tmp/trufflehog /usr/local/bin/trufflehog 2>/dev/null || mv /tmp/trufflehog "$GOPATH/bin/trufflehog"
+            chmod +x /usr/local/bin/trufflehog 2>/dev/null || chmod +x "$GOPATH/bin/trufflehog"
+            success "  TruffleHog installed"
+        else
+            warning "  Could not install TruffleHog (manual installation required)"
+        fi
+    fi
+else
+    success "  TruffleHog already installed"
+fi
+
+# 4.4 Verify all critical tools
+info "Verifying tool installation..."
+MISSING_TOOLS=()
+for tool in subfinder httpx nuclei naabu katana dalfox ffuf; do
+    if command -v "$tool" >/dev/null 2>&1 || [ -f "$GOPATH/bin/$tool" ]; then
+        success "  ✓ $tool"
+    else
+        MISSING_TOOLS+=("$tool")
+        warning "  ✗ $tool not in PATH"
+    fi
+done
+
+if [ ${#MISSING_TOOLS[@]} -gt 0 ]; then
+    warning "Some tools may need manual installation or PATH configuration"
+    info "Add this to your ~/.bashrc or ~/.zshrc:"
+    echo "export PATH=\"\$PATH:$GOPATH/bin\""
+fi
+
 # 5. Global Command Creation
-info "STEP 4/5: Integrating global command 'elengenix'..."
+info "STEP 4/5: Creating global command 'elengenix'..."
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SENTINEL_PATH="$PROJECT_DIR/sentinel"
 
@@ -131,9 +220,28 @@ echo -e "${GREEN}═════════════════════
 echo -e "${GREEN}  ✅ INSTALLATION SUCCESSFUL!${NC}"
 echo -e "${GREEN}══════════════════════════════════════════${NC}"
 echo ""
+echo -e "  🛠️  ${BOLD}Installed Security Tools:${NC}"
+echo ""
+
+# Show installed tools status
+for tool in subfinder httpx nuclei naabu dalfox ffuf katana arjun trufflehog; do
+    if command -v "$tool" >/dev/null 2>&1 || [ -f "$GOPATH/bin/$tool" ] || [ -f "$HOME/.local/bin/$tool" ]; then
+        echo -e "    ${GREEN}✓${NC} $tool"
+    else
+        echo -e "    ${YELLOW}○${NC} $tool (optional/manual install)"
+    fi
+done
+
+echo ""
+echo -e "  🚀 ${BOLD}Start hunting with:${NC}"
 if command -v elengenix >/dev/null 2>&1; then
-    echo -e "  🚀 Start hunting with: ${BOLD}elengenix${NC}"
+    echo -e "      elengenix           - Launch interactive menu"
+    echo -e "      elengenix doctor    - Check tool installation"
+    echo -e "      elengenix scan <target>  - Run full scan"
 else
-    echo -e "  🚀 Run manually: ${BOLD}./sentinel${NC}"
+    echo -e "      ./sentinel          - Launch manually"
 fi
+echo ""
+echo -e "  ${CYAN}Note:${NC} If tools are not found, restart your terminal or run:"
+echo -e "      source ~/.bashrc"
 echo ""

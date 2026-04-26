@@ -60,11 +60,12 @@ def _run_tool(tool_file: str, target: str) -> int:
     script_path = base_dir / "tools" / tool_file
 
     if not script_path.is_file():
-        console.print(f"[bold red]❌ Tool missing: {script_path.relative_to(base_dir.parent)}[/bold red]")
+        print_error(f"Tool missing: {script_path.relative_to(base_dir.parent)}")
         return 1
 
     try:
-        console.print(f"[dim]⚡ Running with 10min timeout. Control+C to cancel.[/dim]\n")
+        from ui_components import console
+        console.print(f"[dim]Running with 10min timeout. Press Ctrl+C to cancel.[/dim]\n")
         
         # Use current sys.executable to maintain virtual environment
         result = subprocess.run(
@@ -78,10 +79,10 @@ def _run_tool(tool_file: str, target: str) -> int:
         return result.returncode
         
     except subprocess.TimeoutExpired:
-        console.print(f"\n[bold red]⏱️  Process timed out after 10 minutes.[/bold red]")
+        print_error("Process timed out after 10 minutes")
         return 124
     except KeyboardInterrupt:
-        console.print("\n[yellow]⛔ Operation suspended by user.[/yellow]")
+        console.print("\n[dim]Operation suspended by user[/dim]")
         return 130
     except Exception as e:
         logger.error(f"Execution Error ({tool_file}): {e}")
@@ -89,24 +90,15 @@ def _run_tool(tool_file: str, target: str) -> int:
 
 def show_tools_menu():
     """Main Interactive Arsenal Loop."""
+    from ui_components import show_arsenal_banner, create_tools_table, prompt_target, print_error, console
+    
     while True:
         console.clear()
-        console.print(Panel(
-            "[bold cyan]⚔️ ELENGENIX INTERACTIVE ARSENAL (v1.5.0)[/bold cyan]\n"
-            "[dim]Select a specialized tool to begin the mission[/dim]",
-            border_style="cyan"
-        ))
+        show_arsenal_banner()
 
-        table = Table(show_header=True, header_style="bold magenta", show_lines=True)
-        table.add_column("No.", style="dim", width=4, justify="right")
-        table.add_column("Hunter Vector", style="cyan", width=30)
-        table.add_column("Capabilities", style="green")
-
-        for idx, tool in enumerate(TOOLS, 1):
-            table.add_row(str(idx), tool["name"], tool["desc"])
-
+        table = create_tools_table(TOOLS)
         console.print(table)
-        console.print("[dim]Enter '0' to return to Main Menu[/dim]\n")
+        console.print("\n[dim]Enter 0 to return to Main Menu[/dim]")
 
         try:
             choice = input("Select Vector [0-{}]: ".format(len(TOOLS))).strip()
@@ -116,17 +108,19 @@ def show_tools_menu():
                 continue
 
             selected = TOOLS[int(choice) - 1]
-            target = input(f"🎯 Enter Target for {selected['name']}: ").strip()
+            console.print(f"\n[bold cyan]{selected['name']}[/bold cyan]")
+            target = prompt_target()
             
             if not _validate_target(target):
-                console.print("[bold red]❌ Security Violation: Target format not allowed.[/bold red]\n")
-                input("Press Enter to continue...")
+                print_error("Security Violation: Target format not allowed")
+                console.input("\n[dim]Press Enter to continue...[/dim]")
                 continue
 
-            console.print(f"\n[bold yellow]🚀 Deploying {selected['name']} on {target}[/bold yellow]\n")
+            console.print(f"\n[cyan]Deploying {selected['name']} on {target}...[/cyan]\n")
             _run_tool(selected["file"], target)
             
-            if input("\nRun another mission? [Y/n]: ").lower() in ("n", "no"):
+            from ui_components import confirm
+            if not confirm("\nRun another mission?", default=True):
                 break
 
         except (KeyboardInterrupt, EOFError):

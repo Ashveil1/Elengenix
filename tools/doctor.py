@@ -15,13 +15,7 @@ import yaml
 from pathlib import Path
 from typing import List, Tuple
 
-import questionary
-from rich.console import Console
-from rich.table import Table
-from rich import box
-
-logger  = logging.getLogger("elengenix.doctor")
-console = Console()
+logger = logging.getLogger("elengenix.doctor")
 
 SECURITY_TOOLS: List[str] = [
     "subfinder", "nuclei", "httpx", "katana",
@@ -68,36 +62,26 @@ def check_health(fix: bool = False) -> bool:
     If fix=True, attempts repair.
     Returns True if system is healthy.
     """
-    console.print("\n[bold cyan]🏥 ELENGENIX SYSTEM DOCTOR v2.0.0[/bold cyan]\n")
+    from ui_components import console, print_error, print_success, print_warning, confirm, create_status_table
+    
+    console.print("\n[bold cyan]System Health Check[/bold cyan] [dim]v2.0.0[/dim]\n")
     all_ok = True
 
     # ── Python Version ─────────────────────────────────────────────────────────
     py_ok, py_ver = _check_python()
-    t = Table(title="Python Runtime", box=box.ROUNDED, border_style="cyan")
-    t.add_column("Check", style="cyan")
-    t.add_column("Status")
-    t.add_column("Value")
-    t.add_row(
-        "Python version",
-        "[green]OK[/green]" if py_ok else "[red]FAIL[/red]",
-        py_ver + (f" (need >={PYTHON_MIN[0]}.{PYTHON_MIN[1]})" if not py_ok else ""),
-    )
-    console.print(t)
+    console.print("[cyan]Python Runtime[/cyan]")
+    status = "[green]OK[/green]" if py_ok else "[red]FAIL[/red]"
+    detail = py_ver + (f" (need >={PYTHON_MIN[0]}.{PYTHON_MIN[1]})" if not py_ok else "")
+    console.print(f"  Version: {status} {detail}")
     if not py_ok:
         all_ok = False
+    console.print()
 
     # ── Config ─────────────────────────────────────────────────────────────────
     cfg_ok, cfg_msg = _check_config()
-    t2 = Table(title="Configuration", box=box.ROUNDED, border_style="cyan")
-    t2.add_column("Check", style="cyan")
-    t2.add_column("Status")
-    t2.add_column("Details")
-    t2.add_row(
-        "config.yaml",
-        "[green]OK[/green]" if cfg_ok else "[red]FAIL[/red]",
-        cfg_msg,
-    )
-    console.print(t2)
+    console.print("[cyan]Configuration[/cyan]")
+    status = "[green]OK[/green]" if cfg_ok else "[red]FAIL[/red]"
+    console.print(f"  config.yaml: {status} {cfg_msg}")
     if not cfg_ok:
         all_ok = False
         if fix:
@@ -107,41 +91,38 @@ def check_health(fix: bool = False) -> bool:
                 wizard.main()
             except Exception as e:
                 logger.error(f"Wizard failed: {e}")
+    console.print()
 
     # ── Security Tools ─────────────────────────────────────────────────────────
-    t3 = Table(title="Security Tools", box=box.ROUNDED, border_style="cyan")
-    t3.add_column("Tool", style="cyan")
-    t3.add_column("Status")
-    t3.add_column("Path")
-
+    console.print("[cyan]Security Tools[/cyan]")
+    
     missing: List[str] = []
     for tool in SECURITY_TOOLS:
         ok, info = _check_tool(tool)
-        t3.add_row(
-            tool,
-            "[green]✅ Found[/green]" if ok else "[red]❌ Missing[/red]",
-            info,
-        )
+        status = "[green]OK[/green]" if ok else "[red]Missing[/red]"
+        console.print(f"  {tool}: {status}")
         if not ok:
             missing.append(tool)
             all_ok = False
-
-    console.print(t3)
+    console.print()
 
     if missing:
-        console.print(f"\n[bold red]Missing tools: {', '.join(missing)}[/bold red]")
-        console.print("[yellow]💡 Run: [bold]./setup.sh[/bold] to install all tools.[/yellow]\n")
-        if fix and questionary.confirm("Try to install missing tools now via setup.sh?", default=True).ask():
+        print_error(f"Missing tools: {', '.join(missing)}")
+        console.print("[dim]Run: ./setup.sh to install all tools[/dim]\n")
+        if fix and confirm("Install missing tools now?", default=True):
             import subprocess
             subprocess.run(["bash", "./setup.sh"], check=False)
 
     # ── Final Verdict ──────────────────────────────────────────────────────────
+    console.print()
     if all_ok:
-        console.print("\n[bold green]🌟 System is healthy and ready for battle![/bold green]\n")
+        print_success("System is healthy and ready for use")
     else:
-        console.print("\n[bold red]⚠️  System has issues. Run: [bold]python main.py doctor[/bold] --fix[/bold red]\n")
-        if not fix and questionary.confirm("Run auto-repair now?", default=True).ask():
+        print_error("System has issues")
+        console.print("[dim]Run: python main.py doctor --fix[/dim]")
+        if not fix and confirm("Run auto-repair now?", default=True):
             check_health(fix=True)
+    console.print()
 
     return all_ok
 
