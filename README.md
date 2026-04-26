@@ -3,7 +3,7 @@
 
 **Version:** 2.0.0 (Universal Agent Edition)  
 **Platforms:** Linux, macOS, Android (Termux)  
-**License:** MIT (Ethical Use Only)
+**License:** GNU GPL v3 (Ethical Use Only)
 
 ---
 
