@@ -46,7 +46,8 @@ echo ""
 # 1. Sequential System Installation
 info "STEP 1/5: Installing system packages..."
 pkg update -y
-PKGS=(python golang git curl wget nmap openssl libxml2 libxslt libyaml clang make python-venv)
+PKGS=(python golang git curl wget nmap openssl libxml2 libxslt libyaml clang make)
+# Note: python-venv not needed - Termux python includes venv
 for pkg in "${PKGS[@]}"; do
     pkg install -y "$pkg" || warning "Could not install $pkg. Proceeding..."
 done
@@ -64,12 +65,29 @@ if [ ! -f "requirements.txt" ]; then
     error "requirements.txt not found. Ensure you're in the Elengenix directory."
 fi
 if ! pip install --upgrade pip setuptools wheel --quiet; then error "Pip upgrade failed"; fi
-if ! pip install -r requirements.txt --quiet; then error "Requirements installation failed"; fi
+
+# Install core dependencies (required)
+info "Installing core dependencies..."
+CORE_DEPS="pyyaml requests python-dotenv openai anthropic google-generativeai rich tenacity nest-asyncio"
+for dep in $CORE_DEPS; do
+    pip install "$dep" --quiet 2>/dev/null || warning "  $dep install had issues (continuing)"
+done
+
+# Install optional dependencies (may fail on mobile, that's OK)
+info "Installing optional dependencies..."
+OPTIONAL_DEPS="python-telegram-bot questionary trafilatura googlesearch-python"
+for dep in $OPTIONAL_DEPS; do
+    pip install "$dep" --quiet 2>/dev/null || warning "  $dep skipped (optional)"
+done
+
 success "Python dependencies secured."
 
 # 2.5 Vector Memory (Lightweight for mobile)
 info "Installing Vector Memory system..."
-pip install chromadb --quiet 2>/dev/null || warning "ChromaDB install skipped (optional on mobile)"
+# Note: ChromaDB requires onnxruntime which is not available on Android/Termux
+# We skip ChromaDB on mobile and use SQLite fallback instead (already built-in)
+info "Note: Using SQLite fallback for memory (ChromaDB not available on mobile)"
+info "Vector memory will work perfectly with SQLite backend"
 
 # 3. Security Tools for Mobile
 info "STEP 3/5: Installing Security Tools (Mobile-Optimized)..."

@@ -215,7 +215,7 @@ def main(mode: str = None, target: str = None):
                     console.print("  Ctrl+B ←   - Focus left pane (chat)")
                     console.print("  Ctrl+B →   - Focus right pane (logs)")
                     console.print("  Ctrl+B %   - Split window vertically")
-                    console.print("  Ctrl+B "   - Split window horizontally")
+                    console.print('  Ctrl+B "   - Split window horizontally')
                     console.print("  Ctrl+B x   - Close current pane")
                 console.print()
                 continue

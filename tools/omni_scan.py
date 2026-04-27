@@ -16,6 +16,13 @@ import sys
 from pathlib import Path
 from typing import List, Dict, Any
 
+# Safe import for nest_asyncio (for async compatibility)
+try:
+    import nest_asyncio
+    nest_asyncio.apply()
+except ImportError:
+    pass  # nest_asyncio not available, but not critical for omni_scan
+
 from rich.console import Console
 from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn

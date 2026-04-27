@@ -17,6 +17,13 @@ from pathlib import Path
 from urllib.parse import urlparse
 from typing import Optional, List, Set
 
+# Safe import for nest_asyncio (for async compatibility)
+try:
+    import nest_asyncio
+    nest_asyncio.apply()
+except ImportError:
+    pass  # nest_asyncio not available, but not critical for orchestrator
+
 from rich.console import Console
 from rich.panel import Panel
 from tools.tool_registry import registry, ToolCategory, ToolResult

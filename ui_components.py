@@ -26,7 +26,7 @@ COLORS = {
     "success": "green",       # Success states
     "warning": "yellow",      # Warnings
     "error": "red",           # Errors
-    "info": "dim cyan",       # Info text
+    "info": "cyan",           # Info text
     "text": "white",          # Normal text
     "muted": "dim",           # Muted/secondary text
     "accent": "magenta",      # Highlights
@@ -42,7 +42,7 @@ STYLES = {
     "success": Style(color="green", bold=True),
     "error": Style(color="red", bold=True),
     "warning": Style(color="yellow"),
-    "info": Style(color="dim cyan"),
+    "info": Style(color="cyan", dim=True),
     "command": Style(color="cyan", bgcolor="black"),
 }
 

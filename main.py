@@ -93,7 +93,7 @@ def main():
     
     parser = argparse.ArgumentParser(description="Elengenix CLI", add_help=False)
     parser.add_argument("command", nargs="?", default="menu", 
-                        choices=["ai", "scan", "gateway", "configure", "update", "doctor", "arsenal", "memory", "menu"])
+                        choices=["ai", "scan", "gateway", "configure", "update", "doctor", "arsenal", "memory", "cve-update", "menu"])
     parser.add_argument("target", nargs="?", help="Target domain or IP")
     parser.add_argument("--rate-limit", type=int, default=5, help="Max requests per second")
     
@@ -101,34 +101,37 @@ def main():
 
     # Interactive Menu
     if args.command == "menu":
-        try:
-            # Use clean menu from ui_components
-            from ui_components import create_main_menu, format_menu_item, console
-            menu_items = create_main_menu()
-            
-            console.print("\n[bold cyan]Main Menu[/bold cyan]\n")
-            for i, (title, desc, _) in enumerate(menu_items, 1):
-                console.print(format_menu_item(i, title, desc))
-            console.print()
-            
-            
-            choice_num = console.input("[cyan]Select[/cyan] [dim](1-9)[/dim]: ")
+        from ui_components import create_main_menu, format_menu_item, console
+        menu_items = create_main_menu()
+        
+        while True:
             try:
-                idx = int(choice_num) - 1
-                if 0 <= idx < len(menu_items):
-                    choice_key = menu_items[idx][2]
-                else:
+                console.print("\n[bold cyan]Main Menu[/bold cyan]\n")
+                for i, (title, desc, _) in enumerate(menu_items, 1):
+                    console.print(format_menu_item(i, title, desc))
+                console.print()
+                
+                choice_num = console.input("[cyan]Select[/cyan] [dim](1-9)[/dim]: ")
+                try:
+                    idx = int(choice_num) - 1
+                    if 0 <= idx < len(menu_items):
+                        choice_key = menu_items[idx][2]
+                    else:
+                        console.print("[red]Invalid selection[/red]")
+                        continue
+                except ValueError:
+                    console.print("[red]Invalid input[/red]")
                     continue
-            except ValueError:
-                continue
-            
-            # Handle exit
-            if choice_key == "exit":
+                
+                # Handle exit
+                if choice_key == "exit":
+                    sys.exit(0)
+                
+                args.command = choice_key
+                break
+                
+            except KeyboardInterrupt:
                 sys.exit(0)
-            
-            args.command = choice_key
-            
-        except KeyboardInterrupt: sys.exit(0)
 
     # Command Router
     try:
@@ -256,6 +259,30 @@ def main():
                             
             except Exception as e:
                 print_error(f"Memory system error: {e}")
+
+        elif args.command == "cve-update":
+            from ui_components import show_section, print_info, print_success, print_error, console
+            from tools.cve_database import get_cve_database
+            
+            show_section("CVE Database Update")
+            print_info("Fetching latest CVEs from NVD (National Vulnerability Database)...")
+            print_info("This may take a few minutes depending on your connection.")
+            
+            try:
+                db = get_cve_database(auto_update=False)
+                result = db.update_database(days_back=30)
+                
+                if result.get("status") == "success":
+                    print_success(f"CVE database updated successfully!")
+                    console.print(f"  [green]Added:[/green] {result['added']} new CVEs")
+                    console.print(f"  [green]Updated:[/green] {result['updated']} existing CVEs")
+                    console.print(f"  [cyan]Total in database:[/cyan] {result['total']} CVEs")
+                else:
+                    print_error(f"Update failed: {result.get('error', 'Unknown error')}")
+                    console.print("[dim]Note: You can still use Elengenix without CVE database updates.[/dim]")
+            except Exception as e:
+                print_error(f"CVE update error: {e}")
+                console.print("[dim]Run 'elengenix doctor' to check system status.[/dim]")
 
     except KeyboardInterrupt:
         console.print("\n[dim]Operation canceled[/dim]")

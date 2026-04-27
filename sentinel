@@ -64,7 +64,7 @@ if [[ -f "$REQUIREMENTS" ]] && ! $PYTHON_CMD -c "import rich" >/dev/null 2>&1; t
 fi
 
 # ── Execution ─────────────────────────────────────────────────────────────────
-info "Starting Elengenix v1.5.0 from: $PROJECT_ROOT"
+info "Starting Elengenix v2.0.0 from: $PROJECT_ROOT"
 
 # Use 'exec' to replace the shell process with python (Memory efficient)
 exec "$PYTHON_CMD" "$MAIN_SCRIPT" "$@"

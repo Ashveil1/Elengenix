@@ -25,6 +25,7 @@ from tools.tool_registry import registry, ToolCategory, ToolResult
 from tools.cvss_calculator import CVSSCalculator, Severity
 from tools.vector_memory import remember, recall, get_context_for_ai, get_vector_memory
 from tools.universal_executor import UniversalExecutor, get_universal_executor
+from tools.cve_database import get_cve_database, format_cve_for_ai, CVEEntry
 from live_display import get_activity_logger, display_in_chat_mode
 from bot_utils import send_telegram_notification
 
@@ -378,8 +379,36 @@ class ElengenixAgent:
         # � Live Activity Display
         self.activity_logger = get_activity_logger()
         
-        # � CVSS Calculator
+        # 🛡️ CVSS Calculator
         self.cvss_calc = CVSSCalculator(use_ai=True)
+        
+        # 📚 CVE Database
+        self.cve_db = get_cve_database(auto_update=False)
+        
+        # 📖 System Prompt Enhancement with CVE context
+        self._enhance_prompt_with_cve_context()
+
+    def _enhance_prompt_with_cve_context(self):
+        """Enhance system prompt with CVE database capabilities."""
+        cve_context = """
+You have access to a local CVE (Common Vulnerabilities and Exposures) database with the following capabilities:
+
+1. CVE Search: You can search for specific CVEs by ID (e.g., CVE-2021-44228)
+2. Vulnerability Lookup: Find historical vulnerabilities by type (XSS, SQLi, RCE, etc.)
+3. CVSS Comparison: Compare findings against known CVEs with similar CVSS scores
+4. Exploit Availability: Check if public exploits exist for specific CVEs
+5. CWE Categories: Use CWE (Common Weakness Enumeration) to categorize findings
+
+When analyzing vulnerabilities:
+- Compare findings against similar CVEs in the database
+- Reference CVSS scores from historical data
+- Identify if the vulnerability type is well-documented
+- Check for existing exploits or proof-of-concepts
+- Use CWE categories to properly classify the weakness
+
+To use the CVE database, reference vulnerability types and ask for similar CVEs.
+"""
+        self.base_prompt = f"{self.base_prompt}\n\n{cve_context}"
 
     def _extract_json(self, text: str) -> Optional[Dict[str, Any]]:
         """🛠️ Extract JSON from LLM response, supporting Markdown and raw blocks."""
@@ -670,9 +699,18 @@ Use JSON format: {{"action": "run_shell|save_memory|finish", "command": "...", "
                         finding.get("url", target),
                         finding.get("evidence", str(finding))
                     )
+                    
+                    # 📚 CVE Lookup: Find similar historical vulnerabilities
+                    finding_type = finding.get("type", "unknown")
+                    similar_cves = self.cve_db.find_similar_vulns(
+                        finding_type=finding_type,
+                        cvss_range=(max(0, score.base_score - 1.0), min(10, score.base_score + 1.0))
+                    )
+                    
                     cvss_results.append({
                         "finding": finding,
-                        "cvss": score
+                        "cvss": score,
+                        "similar_cves": similar_cves
                     })
                 
                 # 💾 REMEMBER: Store mission completion
@@ -712,10 +750,23 @@ Use JSON format: {{"action": "run_shell|save_memory|finish", "command": "...", "
                     cot_file = self.cot_logger.save_session(target or user_input)
                     summary += f"\n\n📊 Chain of Thought: {cot_file}"
                 
-                # Generate findings report
+                # Generate findings report with CVE references
                 if cvss_results:
                     summary += f"\n\n🎯 CRITICAL FINDINGS: {critical_count}"
                     summary += f"\n🔴 HIGH: {high_count}"
+                    
+                    # Add CVE references for top findings
+                    summary += "\n\n📚 SIMILAR HISTORICAL VULNERABILITIES:"
+                    for cvss_item in cvss_results[:3]:  # Top 3
+                        finding = cvss_item['finding']
+                        similar_cves = cvss_item.get('similar_cves', [])
+                        if similar_cves:
+                            finding_type = finding.get('type', 'unknown')
+                            summary += f"\n  • {finding_type.upper()}:"
+                            for cve in similar_cves[:3]:  # Top 3 similar CVEs
+                                summary += f"\n    - {cve.cve_id} (CVSS: {cve.cvss_score})"
+                                if cve.exploit_available:
+                                    summary += " [EXPLOIT AVAILABLE]"
                 
                 send_telegram_notification(f"🏁 Mission Accomplished: {user_input}")
                 return summary

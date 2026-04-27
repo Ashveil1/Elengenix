@@ -12,7 +12,11 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 from enum import Enum
 
-from llm_client import LLMClient
+# Safe import for LLMClient (may require nest_asyncio)
+try:
+    from llm_client import LLMClient
+except ImportError:
+    LLMClient = None  # Fallback for environments without full dependencies
 
 logger = logging.getLogger("elengenix.cvss")
 
@@ -61,8 +65,8 @@ class CVSSCalculator:
     """CVSS 3.1 Score Calculator with AI enhancement."""
     
     def __init__(self, use_ai: bool = True):
-        self.use_ai = use_ai
-        self.client = LLMClient() if use_ai else None
+        self.use_ai = use_ai and LLMClient is not None
+        self.client = LLMClient() if self.use_ai else None
     
     def calculate(
         self, 
