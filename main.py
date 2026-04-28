@@ -93,7 +93,7 @@ def main():
     
     parser = argparse.ArgumentParser(description="Elengenix CLI", add_help=False)
     parser.add_argument("command", nargs="?", default="menu", 
-                        choices=["ai", "scan", "gateway", "configure", "update", "doctor", "arsenal", "memory", "cve-update", "bola", "waf", "recon", "soc", "mobile", "cloud", "sast", "proto", "menu"])
+                        choices=["ai", "scan", "gateway", "configure", "update", "doctor", "arsenal", "memory", "cve-update", "bola", "waf", "recon", "soc", "mobile", "cloud", "sast", "proto", "dashboard", "menu"])
     parser.add_argument("target", nargs="?", help="Target domain or IP")
     parser.add_argument("--rate-limit", type=int, default=5, help="Max requests per second")
     
@@ -693,6 +693,52 @@ def main():
             except Exception as e:
                 print_error(f"Protocol analysis failed: {e}")
                 logger.exception("Protocol analysis failed")
+
+        elif args.command == "dashboard":
+            from ui_components import show_section, print_info, print_success, print_error, console
+            from tools.dashboard_server import start_dashboard
+            from tools.mission_state import MissionState
+
+            show_section("Interactive Web Dashboard")
+            
+            port = 0
+            if args.target and args.target.isdigit():
+                port = int(args.target)
+            
+            print_info("Starting web dashboard server...")
+            print_info("Dashboard will show real-time findings, mission state, and statistics")
+            
+            try:
+                # Create or load mission state
+                mission_key = f"dashboard:{int(time.time())}"
+                mission_state = MissionState(mission_id=mission_key, target="dashboard")
+                
+                # Start dashboard
+                actual_port, thread = start_dashboard(
+                    mission_state=mission_state,
+                    port=port,
+                    open_browser=True
+                )
+                
+                print_success(f"Dashboard started at http://localhost:{actual_port}")
+                console.print(f"\n[cyan]📊 Dashboard Features:[/cyan]")
+                console.print("  • Real-time findings view with filtering")
+                console.print("  • Severity statistics (Critical/High/Medium/Low)")
+                console.print("  • Mission state visualization")
+                console.print("  • Export to JSON and HTML")
+                console.print("  • Auto-refresh every 5 seconds")
+                console.print(f"\n[yellow]Press Ctrl+C to stop the dashboard[/yellow]")
+                
+                # Keep running until interrupted
+                try:
+                    while True:
+                        time.sleep(1)
+                except KeyboardInterrupt:
+                    console.print("\n[dim]Dashboard stopped[/dim]")
+                    
+            except Exception as e:
+                print_error(f"Failed to start dashboard: {e}")
+                logger.exception("Dashboard failed")
 
     except KeyboardInterrupt:
         console.print("\n[dim]Operation canceled[/dim]")
