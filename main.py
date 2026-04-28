@@ -93,7 +93,7 @@ def main():
     
     parser = argparse.ArgumentParser(description="Elengenix CLI", add_help=False)
     parser.add_argument("command", nargs="?", default="menu", 
-                        choices=["ai", "scan", "gateway", "configure", "update", "doctor", "arsenal", "memory", "cve-update", "bola", "waf", "recon", "soc", "mobile", "cloud", "sast", "proto", "dashboard", "menu"])
+                        choices=["ai", "scan", "gateway", "configure", "update", "doctor", "arsenal", "memory", "cve-update", "bola", "waf", "recon", "soc", "mobile", "cloud", "sast", "proto", "dashboard", "chain", "menu"])
     parser.add_argument("target", nargs="?", help="Target domain or IP")
     parser.add_argument("--rate-limit", type=int, default=5, help="Max requests per second")
     
@@ -739,6 +739,52 @@ def main():
             except Exception as e:
                 print_error(f"Failed to start dashboard: {e}")
                 logger.exception("Dashboard failed")
+
+        elif args.command == "chain":
+            from ui_components import show_section, print_info, print_success, print_error, console
+            from tools.exploit_chain_builder import analyze_findings_for_chains, format_chain_report
+            from pathlib import Path
+            import json
+
+            show_section("Exploit Chain Builder - Attack Path Discovery")
+            
+            findings_file = args.target or console.input("[cyan]Findings JSON file path[/cyan] (from previous scans): ").strip()
+            if not findings_file:
+                print_error("Findings file path is required")
+                return
+            
+            file_path = Path(findings_file)
+            if not file_path.exists():
+                print_error(f"File not found: {findings_file}")
+                return
+            
+            print_info("Loading findings and building attack chains...")
+            
+            try:
+                with open(file_path, 'r') as f:
+                    data = json.load(f)
+                
+                # Support both direct findings list and nested format
+                findings = data if isinstance(data, list) else data.get('findings', [])
+                
+                print_info(f"Loaded {len(findings)} findings, analyzing for exploit chains...")
+                
+                report = analyze_findings_for_chains(findings)
+                output = format_chain_report(report.get('chains', []))
+                console.print(output)
+                
+                # Summary
+                print_success(f"Analysis complete! Found {report.get('total_chains', 0)} chains, {report.get('high_value_chains', 0)} high-value")
+                
+                if report.get('high_value_chains', 0) > 0:
+                    console.print(f"\n[red]🎯 {report['high_value_chains']} high-value exploit chains discovered![/red]")
+                    console.print("\n[cyan]💰 These chains have high bounty potential - consider submitting as combined impact![/cyan]")
+                else:
+                    console.print("\n[yellow]⚠️ No high-value chains found. Try running more diverse scans.[/yellow]")
+                    
+            except Exception as e:
+                print_error(f"Chain analysis failed: {e}")
+                logger.exception("Chain analysis failed")
 
     except KeyboardInterrupt:
         console.print("\n[dim]Operation canceled[/dim]")

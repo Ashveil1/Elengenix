@@ -1441,6 +1441,73 @@ Use JSON format: {{"action": "run_shell|save_memory|finish", "command": "...", "
                             )
                 except Exception as e:
                     logger.debug(f"Protocol analyzer integration failed: {e}")
+
+                # Exploit Chain Builder: Analyze for multi-stage attack paths
+                try:
+                    from tools.exploit_chain_builder import ExploitChainBuilder, format_chain_report
+                    
+                    # Check if we have diverse findings (at least 3 different types)
+                    all_facts = mission_state.list_facts(limit=50)
+                    all_hyps = mission_state.list_hypotheses(limit=30)
+                    
+                    # Convert to findings format
+                    all_findings = []
+                    for fact in all_facts:
+                        all_findings.append({
+                            'finding_id': fact.get('fact_id', ''),
+                            'type': fact.get('category', 'finding'),
+                            'severity': fact.get('evidence', {}).get('severity', 'medium'),
+                            'target': fact.get('statement', '')[:100],
+                            'description': fact.get('statement', ''),
+                            'confidence': fact.get('confidence', 0.5),
+                        })
+                    
+                    # Only analyze if we have diverse findings
+                    if len(all_findings) >= 3:
+                        # Check for diversity
+                        finding_types = set(f.get('type', '') for f in all_findings)
+                        
+                        if len(finding_types) >= 2:  # At least 2 different types
+                            builder = ExploitChainBuilder()
+                            builder.process_findings(all_findings)
+                            chains = builder.build_chains()
+                            high_value = builder.get_high_value_chains(min_probability=0.4)
+                            
+                            if high_value:
+                                # Store top chain as hypothesis
+                                top_chain = high_value[0]
+                                mission_state.upsert_hypothesis(
+                                    hyp_id=f"exploit_chain:{target}",
+                                    title=f"Multi-stage Attack: {top_chain.name}",
+                                    description=f"{top_chain.description}. Probability: {top_chain.total_probability:.0%}, Impact: {top_chain.total_impact}",
+                                    confidence=top_chain.total_probability,
+                                    status="open",
+                                    tags=["exploit_chain", "multi_stage", top_chain.total_impact],
+                                    evidence={
+                                        "chain_id": top_chain.chain_id,
+                                        "stages": len(top_chain.nodes),
+                                        "probability": top_chain.total_probability,
+                                        "impact": top_chain.total_impact,
+                                        "complexity": top_chain.complexity,
+                                        "time_estimate": top_chain.time_estimate,
+                                        "poc_steps": top_chain.poc_steps,
+                                        "mitigations": top_chain.mitigations,
+                                    },
+                                )
+                                
+                                display_in_chat_mode(
+                                    f"🎯 Exploit Chain Discovered: {top_chain.name} ({len(top_chain.nodes)} stages, {top_chain.total_probability:.0%} success rate)",
+                                    "critical" if top_chain.total_impact == "critical" else "warning"
+                                )
+                                
+                                # Add specific bounty recommendation
+                                if top_chain.total_impact in ["critical", "high"]:
+                                    display_in_chat_mode(
+                                        "💰 High-value chain detected! Consider submitting as combined impact for increased bounty.",
+                                        "result"
+                                    )
+                except Exception as e:
+                    logger.debug(f"Exploit chain analysis failed: {e}")
                 
                 # Mark step as completed in attack tree
                 if self.current_tree and step < len(self.current_tree.steps):
