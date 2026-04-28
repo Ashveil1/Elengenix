@@ -1310,6 +1310,91 @@ Use JSON format: {{"action": "run_shell|save_memory|finish", "command": "...", "
                                     
                 except Exception as e:
                     logger.debug(f"SOC analyzer integration failed: {e}")
+
+                # SAST Integration: If we have source code path, run static analysis
+                try:
+                    from tools.sast_engine import SASTEngine
+                    
+                    # Check if target is a code repository
+                    target_path = Path(target or ".")
+                    if target_path.exists() and target_path.is_dir():
+                        # Look for code files
+                        code_extensions = {'.py', '.js', '.java', '.go'}
+                        has_code = any(f.suffix in code_extensions for f in target_path.rglob('*') if f.is_file())
+                        
+                        if has_code:
+                            # Governance gate for SAST
+                            sast_gate = self.governance.gate(
+                                mission_id=mission_key,
+                                target=target or "global",
+                                action={
+                                    "action": "run_sast",
+                                    "tool": "sast_engine",
+                                    "command": f"scan_repository({target})",
+                                    "purpose": "Static analysis for security vulnerabilities",
+                                },
+                                callback=callback,
+                            )
+                            
+                            if sast_gate.allowed or sast_gate.decision == "needs_approval":
+                                sast = SASTEngine()
+                                sast_report = sast.scan_repository(target_path)
+                                
+                                if sast_report.get('total_vulnerabilities', 0) > 0:
+                                    # Add findings to MissionState
+                                    for vuln in sast_report.get('critical_vulnerabilities', [])[:5]:
+                                        mission_state.add_fact(
+                                            fact_id=f"sast:{vuln['id']}",
+                                            category="vulnerability",
+                                            statement=f"SAST: {vuln['type']} in {vuln['file']}:{vuln['line']}",
+                                            confidence=0.8,
+                                            evidence=vuln,
+                                        )
+                                    
+                                    display_in_chat_mode(f"[SAST] Found {sast_report['total_vulnerabilities']} code vulnerabilities", "warning")
+                except Exception as e:
+                    logger.debug(f"SAST integration failed: {e}")
+
+                # Cloud Scanner Integration: Check for cloud config files
+                try:
+                    from tools.cloud_scanner import CloudScanner
+                    
+                    target_path = Path(target or ".")
+                    if target_path.exists() and target_path.is_dir():
+                        # Check for cloud config files
+                        cloud_files = list(target_path.rglob("*.tf")) + list(target_path.rglob("*template*.json")) + list(target_path.rglob("*template*.yaml"))
+                        
+                        if cloud_files:
+                            # Governance gate for cloud scan
+                            cloud_gate = self.governance.gate(
+                                mission_id=mission_key,
+                                target=target or "global",
+                                action={
+                                    "action": "run_cloud_scan",
+                                    "tool": "cloud_scanner",
+                                    "command": f"scan_directory({target})",
+                                    "purpose": "Cloud security posture assessment",
+                                },
+                                callback=callback,
+                            )
+                            
+                            if cloud_gate.allowed or cloud_gate.decision == "needs_approval":
+                                cloud_scanner = CloudScanner()
+                                cloud_report = cloud_scanner.scan_directory(target_path)
+                                
+                                if cloud_report.get('total_findings', 0) > 0:
+                                    for finding in cloud_report.get('critical_findings', [])[:5]:
+                                        mission_state.add_fact(
+                                            fact_id=f"cloud:{finding['id']}",
+                                            category="misconfiguration",
+                                            statement=f"Cloud: {finding['type']} in {finding['resource']}",
+                                            confidence=0.85,
+                                            evidence=finding,
+                                        )
+                                    
+                                    display_in_chat_mode(f"[Cloud] Found {cloud_report['total_findings']} misconfigurations", "warning")
+                except Exception as e:
+                    logger.debug(f"Cloud scanner integration failed: {e}")
                 
                 # Mark step as completed in attack tree
                 if self.current_tree and step < len(self.current_tree.steps):

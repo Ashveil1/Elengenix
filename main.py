@@ -93,7 +93,7 @@ def main():
     
     parser = argparse.ArgumentParser(description="Elengenix CLI", add_help=False)
     parser.add_argument("command", nargs="?", default="menu", 
-                        choices=["ai", "scan", "gateway", "configure", "update", "doctor", "arsenal", "memory", "cve-update", "bola", "waf", "recon", "soc", "menu"])
+                        choices=["ai", "scan", "gateway", "configure", "update", "doctor", "arsenal", "memory", "cve-update", "bola", "waf", "recon", "soc", "mobile", "cloud", "sast", "menu"])
     parser.add_argument("target", nargs="?", help="Target domain or IP")
     parser.add_argument("--rate-limit", type=int, default=5, help="Max requests per second")
     
@@ -520,6 +520,128 @@ def main():
             except Exception as e:
                 print_error(f"SOC analysis failed: {e}")
                 logger.exception("SOC analysis failed")
+
+        elif args.command == "mobile":
+            from ui_components import show_section, print_info, print_success, print_error, console
+            from tools.mobile_api_tester import MobileAPITester, format_mobile_report
+            from pathlib import Path
+
+            show_section("Mobile API Security Testing")
+            
+            input_path = args.target or console.input("[cyan]Burp export or manifest file path[/cyan]: ").strip()
+            if not input_path:
+                print_error("File path is required")
+                return
+            
+            file_path = Path(input_path)
+            if not file_path.exists():
+                print_error(f"File not found: {input_path}")
+                return
+            
+            print_info("Initializing mobile API tester...")
+            tester = MobileAPITester()
+            
+            try:
+                if file_path.suffix == '.json':
+                    endpoints = tester.parse_burp_export(file_path)
+                    print_info(f"Parsed {len(endpoints)} endpoints from Burp export")
+                    
+                    report = tester.run_full_analysis(endpoints)
+                    output = format_mobile_report(report)
+                    console.print(output)
+                    
+                    print_success(f"Analysis complete! Found {report.get('total_findings', 0)} issues")
+                    
+                    if report.get('critical_findings'):
+                        console.print(f"\n[red]🚨 {len(report['critical_findings'])} critical/high findings![/red]")
+                else:
+                    # Assume manifest file
+                    with open(file_path, 'r') as f:
+                        manifest = f.read()
+                    findings = tester.check_deep_links(manifest)
+                    print_success(f"Found {len(findings)} deep link issues")
+                    
+            except Exception as e:
+                print_error(f"Mobile API analysis failed: {e}")
+                logger.exception("Mobile analysis failed")
+
+        elif args.command == "cloud":
+            from ui_components import show_section, print_info, print_success, print_error, console
+            from tools.cloud_scanner import CloudScanner, format_cloud_report
+            from pathlib import Path
+
+            show_section("Cloud Security Posture Scan")
+            
+            scan_path = args.target or console.input("[cyan]Path to scan[/cyan] (CloudFormation/Terraform files): ").strip()
+            if not scan_path:
+                print_error("Path is required")
+                return
+            
+            path = Path(scan_path)
+            if not path.exists():
+                print_error(f"Path not found: {scan_path}")
+                return
+            
+            print_info("Initializing cloud scanner...")
+            scanner = CloudScanner()
+            
+            try:
+                report = scanner.scan_directory(path)
+                output = format_cloud_report(report)
+                console.print(output)
+                
+                print_success(f"Scan complete! Found {report.get('total_findings', 0)} misconfigurations")
+                
+                if report.get('critical_findings'):
+                    console.print(f"\n[red]🚨 {len(report['critical_findings'])} critical/high findings![/red]")
+                    
+            except Exception as e:
+                print_error(f"Cloud scan failed: {e}")
+                logger.exception("Cloud scan failed")
+
+        elif args.command == "sast":
+            from ui_components import show_section, print_info, print_success, print_error, console
+            from tools.sast_engine import SASTEngine, format_sast_report
+            from pathlib import Path
+
+            show_section("Static Application Security Testing (SAST)")
+            
+            repo_path = args.target or console.input("[cyan]Repository path to scan[/cyan]: ").strip()
+            if not repo_path:
+                print_error("Repository path is required")
+                return
+            
+            path = Path(repo_path)
+            if not path.exists():
+                print_error(f"Path not found: {repo_path}")
+                return
+            
+            print_info("Initializing SAST engine...")
+            print_info("Scanning for: SQL injection, XSS, hardcoded secrets, weak crypto, command injection...")
+            
+            engine = SASTEngine()
+            
+            try:
+                report = engine.scan_repository(path)
+                output = format_sast_report(report)
+                console.print(output)
+                
+                print_success(f"Scan complete! Scanned {report.get('files_scanned', 0)} files")
+                
+                if report.get('total_vulnerabilities', 0) > 0:
+                    sev_dist = report.get('severity_distribution', {})
+                    crit_count = sev_dist.get('critical', 0)
+                    high_count = sev_dist.get('high', 0)
+                    if crit_count > 0 or high_count > 0:
+                        console.print(f"\n[red]🚨 Found {crit_count} critical and {high_count} high severity vulnerabilities![/red]")
+                    else:
+                        console.print(f"\n[yellow]⚠️ Found {report['total_vulnerabilities']} vulnerabilities (medium/low)[/yellow]")
+                else:
+                    console.print("\n[green]✅ No vulnerabilities found in scanned files[/green]")
+                    
+            except Exception as e:
+                print_error(f"SAST scan failed: {e}")
+                logger.exception("SAST failed")
 
     except KeyboardInterrupt:
         console.print("\n[dim]Operation canceled[/dim]")
