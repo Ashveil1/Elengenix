@@ -93,7 +93,7 @@ def main():
     
     parser = argparse.ArgumentParser(description="Elengenix CLI", add_help=False)
     parser.add_argument("command", nargs="?", default="menu", 
-                        choices=["ai", "scan", "gateway", "configure", "update", "doctor", "arsenal", "memory", "cve-update", "bola", "waf", "menu"])
+                        choices=["ai", "scan", "gateway", "configure", "update", "doctor", "arsenal", "memory", "cve-update", "bola", "waf", "recon", "menu"])
     parser.add_argument("target", nargs="?", help="Target domain or IP")
     parser.add_argument("--rate-limit", type=int, default=5, help="Max requests per second")
     
@@ -382,6 +382,48 @@ def main():
             for i, r in enumerate(results[:10], 1):
                 status_color = "red" if r.blocked else "green"
                 console.print(f"{i}. [{status_color}]{'BLOCKED' if r.blocked else 'BYPASS'}[/{status_color}] {r.payload[:50]}... (tech: {', '.join(r.techniques)})")
+
+        elif args.command == "recon":
+            from ui_components import show_section, print_info, print_success, print_warning, print_error, console
+            from tools.smart_recon import SmartReconEngine, format_recon_for_display
+
+            show_section("Smart Reconnaissance - Asset Correlation Engine")
+            target = args.target or console.input("[cyan]Target domain[/cyan] (e.g., example.com): ").strip()
+            if not target:
+                print_error("Target domain is required")
+                return
+
+            print_info(f"Starting smart recon for {target}...")
+            print_info("This will discover subdomains, resolve IPs, fingerprint services, and correlate assets.")
+            
+            try:
+                engine = SmartReconEngine(
+                    target_domain=target,
+                    rate_limit_rps=max(1.0, float(args.rate_limit) / 2),
+                    max_workers=10,
+                )
+                result = engine.run_full_recon()
+                
+                # Display formatted results
+                output = format_recon_for_display(result)
+                console.print(output)
+                
+                # Summary
+                print_success(f"Recon complete! Found {result.stats.get('domains', 0)} domains, {result.stats.get('ips', 0)} IPs, {result.stats.get('endpoints', 0)} endpoints")
+                
+                # Priority targets
+                priority_count = len([f for f in result.findings if f.get("type") == "priority"])
+                if priority_count > 0:
+                    console.print(f"\n[yellow]📌 {priority_count} high-priority targets identified[/yellow]")
+                
+                # Correlation findings
+                corr_count = len([f for f in result.findings if f.get("type") == "correlation"])
+                if corr_count > 0:
+                    console.print(f"[cyan]🔗 {corr_count} asset correlations discovered[/cyan]")
+                    
+            except Exception as e:
+                print_error(f"Recon failed: {e}")
+                logger.exception("Smart recon failed")
 
         elif args.command == "cve-update":
             from ui_components import show_section, print_info, print_success, print_error, console

@@ -1165,6 +1165,71 @@ Use JSON format: {{"action": "run_shell|save_memory|finish", "command": "...", "
                 except Exception as e:
                     logger.debug(f"WAF evasion integration failed: {e}")
 
+                # Smart Recon correlation (build asset graph from findings)
+                try:
+                    from tools.smart_recon import SmartReconEngine
+                    
+                    # Extract domains/endpoints from findings for correlation
+                    domains_found = set()
+                    endpoints_found = set()
+                    
+                    for finding in result.findings:
+                        url = finding.get("url", "")
+                        if url:
+                            try:
+                                parsed = urlparse(url)
+                                if parsed.netloc:
+                                    domains_found.add(parsed.netloc)
+                                endpoints_found.add(url)
+                            except Exception:
+                                pass
+                    
+                    # If we found new domains, add to mission graph
+                    for domain in domains_found:
+                        mission_state.upsert_node(
+                            GraphNode(
+                                node_id=f"domain:{domain}",
+                                node_type="domain",
+                                props={"discovered_by": tool_name, "source": "tool_finding"},
+                            )
+                        )
+                        mission_state.upsert_edge(
+                            GraphEdge(
+                                edge_id=f"edge:{mission_state.target}:domain:{domain}",
+                                src_id=mission_state.target,
+                                dst_id=f"domain:{domain}",
+                                edge_type="has_domain",
+                            )
+                        )
+                    
+                    # If we found interesting endpoints, prioritize them
+                    for endpoint in endpoints_found[:5]:  # Limit to first 5
+                        mission_state.add_fact(
+                            fact_id=f"endpoint:{tool_name}:{endpoint}",
+                            category="endpoint",
+                            statement=f"Endpoint discovered: {endpoint}",
+                            confidence=0.8,
+                            evidence={"tool": tool_name, "endpoint": endpoint},
+                        )
+                    
+                    # Propose deep recon if many domains found and governance approves
+                    if len(domains_found) >= 3 and tool_name in ("subfinder", "httpx"):
+                        recon_gate = self.governance.gate(
+                            mission_id=mission_key,
+                            target=target or "global",
+                            action={
+                                "action": "run_smart_recon",
+                                "tool": "smart_recon",
+                                "command": f"deep_recon({target})",
+                                "purpose": f"Deep asset correlation for {len(domains_found)} discovered domains",
+                            },
+                            callback=callback,
+                        )
+                        if recon_gate.allowed:
+                            display_in_chat_mode(f"[Recon] Deep asset correlation available for {len(domains_found)} domains", "info")
+                except Exception as e:
+                    logger.debug(f"Smart recon integration failed: {e}")
+
                 # 💾 REMEMBER: Store tool result in vector memory
                 remember(
                     f"Tool {tool_name} executed on {target}: {len(result.findings)} findings. "
