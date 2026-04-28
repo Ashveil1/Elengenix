@@ -305,39 +305,38 @@ Language: Respond in the same language as the user's query (Thai or English)."""
     
     WELCOME_MESSAGES = {
         "th": """
-╔══════════════════════════════════════════════════════════════╗
-║  🔐 ELENGENIX AI - Professional Security Assistant          ║
-╠══════════════════════════════════════════════════════════════╣
-║  สวัสดีครับ/ค่ะ ยินดีให้บริการด้านการทดสอบความปลอดภัย         ║
-║                                                              ║
-║  บริการที่ให้:                                                ║
-║  • วิเคราะห์เป้าหมายเพื่อหาช่องโหว่ความปลอดภัย               ║
-║  • ทดสอบการเข้าถึงข้อมูลโดยไม่ได้รับอนุญาต (BOLA/IDOR)       ║
-║  • ตรวจสอบการ bypass ระบบป้องกัน (WAF)                        ║
-║  • สร้างรายงานสำหรับการส่ง bug bounty                         ║
-║                                                              ║
-║  พิมพ์ /help เพื่อดูคำสั่ง หรือบอกเป้าหมายที่ต้องการ          ║
-║  ตรวจสอบความปลอดภัยได้เลยครับ/ค่ะ                            ║
-╚══════════════════════════════════════════════════════════════╝
++==============================================================+
+|         ELENGENIX AI - Professional Security Assistant       |
++==============================================================+
 
-🤖 กรุณาระบุเป้าหมายที่ต้องการทดสอบความปลอดภัยครับ/ค่ะ:
+Hello! Ready to provide security testing assistance.
+
+Services offered:
+  • Security vulnerability assessment
+  • Access control testing (BOLA/IDOR)
+  • Security control effectiveness review
+  • Professional report generation
+
+Type /help for commands or specify your target.
+
+Please specify the target you would like to assess:
 """,
         "en": """
-╔══════════════════════════════════════════════════════════════╗
-║  🔐 ELENGENIX AI - Professional Security Assistant          ║
-╠══════════════════════════════════════════════════════════════╣
-║  Welcome! Ready to assist with authorized security testing. ║
-║                                                              ║
-║  Services offered:                                          ║
-║  • Security vulnerability assessment                        ║
-║  • Access control testing (BOLA/IDOR)                       ║
-║  • Security control effectiveness review                    ║
-║  • Professional report generation                           ║
-║                                                              ║
-║  Type /help for commands or specify your target.          ║
-╚══════════════════════════════════════════════════════════════╝
++==============================================================+
+|         ELENGENIX AI - Professional Security Assistant       |
++==============================================================+
 
-🤖 Please specify the target you would like to assess:
+Welcome! Ready to assist with authorized security testing.
+
+Services offered:
+  • Security vulnerability assessment
+  • Access control testing (BOLA/IDOR)
+  • Security control effectiveness review
+  • Professional report generation
+
+Type /help for commands or specify your target.
+
+Please specify the target you would like to assess:
 """
     }
     

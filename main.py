@@ -225,25 +225,25 @@ def main():
             # Main chat loop
             while True:
                 try:
-                    user_input = console.input("🧑 ").strip()
+                    user_input = console.input("[bold]>[/bold] ").strip()
                     
                     if not user_input:
                         continue
                     
                     # Special commands
                     if user_input in ["/exit", "/quit", "exit", "quit"]:
-                        console.print("[dim]บันทึกบทสนทนาและออกจากระบบ...[/dim]")
+                        console.print("[dim]Saving conversation and exiting...[/dim]")
                         break
                     
                     if user_input == "/help":
                         console.print("""
-[bold]คำสั่งที่ใช้ได้:[/bold]
-  /exit, /quit, exit, quit  - ออกจากระบบ
-  /save                     - บันทึกบทสนทนา
-  /summary                  - แสดงสรุปบทสนทนา
-  /target <url>             - ตั้งค่าเป้าหมาย
-  /clear                    - ล้างหน้าจอ
-  (พิมพ์อะไรก็ได้ ถามเป็นธรรมชาติ)
+[bold]Available commands:[/bold]
+  /exit, /quit, exit, quit  - Exit
+  /save                     - Save conversation
+  /summary                  - Show conversation summary
+  /target <url>             - Set target
+  /clear                    - Clear screen
+  (Type anything naturally)
 """)
                         continue
                     
@@ -255,15 +255,15 @@ def main():
                     if user_input == "/save":
                         export_path = memory.export_session(session_id, "markdown")
                         if export_path:
-                            print_success(f"บันทึกบทสนทนา: {export_path}")
+                            print_success(f"Saved conversation: {export_path}")
                         else:
-                            print_error("ไม่สามารถบันทึกได้")
+                            print_error("Could not save")
                         continue
                     
                     if user_input.startswith("/target "):
                         new_target = user_input[8:].strip()
                         args.target = new_target
-                        print_success(f"ตั้งค่าเป้าหมาย: {new_target}")
+                        print_success(f"Set target: {new_target}")
                         continue
                     
                     if user_input == "/clear":
@@ -285,7 +285,7 @@ def main():
                     )
                     
                     # Call AI using Universal Client (OpenClaw-style)
-                    console.print("[dim]🤖 AI กำลังคิด...[/dim]")
+                    console.print("[dim]AI is thinking...[/dim]")
                     
                     try:
                         from tools.universal_ai_client import AIClientManager, AIMessage
@@ -294,11 +294,11 @@ def main():
                         ai_manager = AIClientManager(preferred_order=["gemini", "openai", "groq", "ollama"])
                         
                         if not ai_manager.active_client:
-                            console.print("[yellow]⚠ ไม่พบ AI provider[/yellow]")
-                            console.print("[dim]กรุณาตั้งค่าหนึ่งในนี้:[/dim]")
-                            console.print("  • GEMINI_API_KEY (ฟรี) - https://aistudio.google.com/app/apikey")
+                            console.print("[yellow]No AI provider found[/yellow]")
+                            console.print("[dim]Please configure one of these:[/dim]")
+                            console.print("  • GEMINI_API_KEY (free) - https://aistudio.google.com/app/apikey")
                             console.print("  • OPENAI_API_KEY - https://platform.openai.com/api-keys")
-                            console.print("  • หรือติดตั้ง Ollama (ไม่ต้อง API key)")
+                            console.print("  • Or install Ollama (no API key needed)")
                             continue
                         
                         # Build messages with context
@@ -323,17 +323,17 @@ def main():
                     except Exception as e:
                         logger.error(f"AI error: {e}")
                         console.print(f"[red]AI Error: {str(e)[:100]}[/red]")
-                        console.print("[dim]ลองตรวจสอบ API key หรือใช้ Ollama (local) แทน[/dim]")
+                        console.print("[dim]Check API key or use Ollama (local) instead[/dim]")
                         
                 except KeyboardInterrupt:
-                    console.print("\n[dim]กำลังออก...[/dim]")
+                    console.print("\n[dim]Exiting...[/dim]")
                     break
                 except EOFError:
                     break
             
             # Show summary on exit
             console.print("\n" + memory.get_conversation_summary(session_id))
-            console.print("[dim]บทสนทนาถูกบันทึกไว้ ใช้ elengenix ai อีกครั้งเพื่อดำเนินการต่อ[/dim]")
+            console.print("[dim]Conversation saved. Use 'elengenix ai' again to continue[/dim]")
 
         elif args.command == "universal":
             from ui_components import show_cli_banner

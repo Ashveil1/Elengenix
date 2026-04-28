@@ -40,7 +40,7 @@ class ConfigWizard:
             base_url="https://generativelanguage.googleapis.com/v1beta/openai",
             signup_url="https://aistudio.google.com/app/apikey",
             is_free=True,
-            notes="ฟรี, เร็ว, ดีภาษาไทย (recommended)",
+            notes="Free, fast, good Thai support (recommended)",
         ),
         AIProviderConfig(
             name="OpenAI (GPT-4)",
@@ -48,7 +48,7 @@ class ConfigWizard:
             base_url="https://api.openai.com/v1",
             signup_url="https://platform.openai.com/api-keys",
             is_free=False,
-            notes="แม่นยำแต่เสียตัง, ต้องมี credit card",
+            notes="Most accurate but paid, requires credit card",
         ),
         AIProviderConfig(
             name="Groq",
@@ -56,7 +56,7 @@ class ConfigWizard:
             base_url="https://api.groq.com/openai/v1",
             signup_url="https://console.groq.com/keys",
             is_free=True,
-            notes="เร็วมาก, Llama 3.1 ฟรี",
+            notes="Very fast, Llama 3.1 free",
         ),
         AIProviderConfig(
             name="Ollama (Local)",
@@ -64,7 +64,7 @@ class ConfigWizard:
             base_url="http://localhost:11434/v1",
             signup_url="https://ollama.com/download",
             is_free=True,
-            notes="ไม่ต้อง API key, รันบนเครื่องตัวเอง",
+            notes="No API key needed, runs locally",
         ),
     ]
     
@@ -82,15 +82,15 @@ class ConfigWizard:
         
         # Main menu
         while True:
-            console.print("\n[bold]เลือกการตั้งค่า:[/bold]")
-            console.print("  [1] 🤖 ตั้งค่า AI Provider (API Keys)")
-            console.print("  [2] 🎯 ตั้งค่า Default Target")
-            console.print("  [3] ⚡ ตั้งค่า Rate Limits")
-            console.print("  [4] 📊 ดูสถานะการตั้งค่า")
-            console.print("  [5] ✅ ตรวจสอบระบบ (Health Check)")
-            console.print("  [0] 🚪 ออก")
+            console.print("\n[bold]Select configuration:[/bold]")
+            console.print("  [1] Configure AI Provider (API Keys)")
+            console.print("  [2] Configure Default Target")
+            console.print("  [3] Configure Rate Limits")
+            console.print("  [4] View configuration status")
+            console.print("  [5] Check system (Health Check)")
+            console.print("  [0] Exit")
             
-            choice = console.input("\nเลือก [0-5]: ").strip()
+            choice = console.input("\nSelect [0-5]: ").strip()
             
             if choice == "1":
                 self._setup_ai_provider()
@@ -103,24 +103,24 @@ class ConfigWizard:
             elif choice == "5":
                 self._health_check()
             elif choice == "0":
-                console.print("\n[dim]บันทึกการตั้งค่า...[/dim]")
+                console.print("\n[dim]Saving configuration...[/dim]")
                 break
             else:
-                print_warning("กรุณาเลือก 0-5")
+                print_warning("Please select 0-5")
     
     def _setup_ai_provider(self) -> None:
         """Setup AI provider and API key."""
-        console.print("\n[bold cyan]🤖 AI Provider Setup[/bold cyan]\n")
+        console.print("\n[bold cyan]AI Provider Setup[/bold cyan]\n")
         
         # Show available providers
-        console.print("เลือก AI Provider:\n")
+        console.print("Select AI Provider:\n")
         for i, provider in enumerate(self.AI_PROVIDERS, 1):
-            free_badge = "[green]ฟรี[/green]" if provider.is_free else "[yellow]เสียตัง[/yellow]"
+            free_badge = "[green]Free[/green]" if provider.is_free else "[yellow]Paid[/yellow]"
             console.print(f"  [{i}] {provider.name}")
             console.print(f"      {free_badge} - {provider.notes}")
             console.print()
         
-        choice = console.input("เลือก provider [1-4]: ").strip()
+        choice = console.input("Select provider [1-4]: ").strip()
         
         try:
             idx = int(choice) - 1
@@ -128,19 +128,19 @@ class ConfigWizard:
                 provider = self.AI_PROVIDERS[idx]
                 self._configure_provider(provider)
             else:
-                print_warning("กรุณาเลือก 1-4")
+                print_warning("Please select 1-4")
         except ValueError:
-            print_warning("กรุณาใส่ตัวเลข")
+            print_warning("Please enter a number")
     
     def _configure_provider(self, provider: AIProviderConfig) -> None:
         """Configure specific provider."""
         console.print(f"\n[bold]{provider.name}[/bold]")
-        console.print(f"[dim]สมัครที่: {provider.signup_url}[/dim]\n")
+        console.print(f"[dim]Sign up: {provider.signup_url}[/dim]\n")
         
         if provider.name == "Ollama (Local)":
             # Ollama special setup
-            print_info("Ollama ไม่ต้องใช้ API key")
-            console.print("\nติดตั้ง Ollama:")
+            print_info("Ollama requires no API key")
+            console.print("\nInstall Ollama:")
             console.print("  [cyan]curl -fsSL https://ollama.com/install.sh | sh[/cyan]")
             console.print("  [cyan]ollama pull llama3.1:8b[/cyan]")
             
@@ -149,11 +149,11 @@ class ConfigWizard:
             try:
                 resp = requests.get("http://localhost:11434/api/tags", timeout=2)
                 if resp.status_code == 200:
-                    print_success("✓ Ollama กำลังรันอยู่!")
+                    print_success("[green]OK[/green] Ollama is running!")
                 else:
-                    print_warning("⚠ Ollama ไม่ตอบสนอง")
+                    print_warning("Ollama not responding")
             except:
-                print_warning("⚠ Ollama ยังไม่ได้เปิด รัน 'ollama serve' ก่อน")
+                print_warning("Ollama not running, run 'ollama serve' first")
             
             # Save to .env
             self._save_env_var("OLLAMA_URL", "http://localhost:11434")
@@ -161,23 +161,23 @@ class ConfigWizard:
         
         # Get API key
         current_key = os.getenv(provider.env_key, "")
-        masked = f"{current_key[:8]}..." if len(current_key) > 10 else "(ไม่มี)"
+        masked = f"{current_key[:8]}..." if len(current_key) > 10 else "(none)"
         
-        console.print(f"API Key ปัจจุบัน: [dim]{masked}[/dim]")
-        new_key = console.input(f"ใส่ {provider.env_key} (Enter เพื่อข้าม): ").strip()
+        console.print(f"Current API Key: [dim]{masked}[/dim]")
+        new_key = console.input(f"Enter {provider.env_key} (Enter to skip): ").strip()
         
         if new_key:
             self._save_env_var(provider.env_key, new_key)
-            print_success(f"✓ บันทึก {provider.env_key}")
+            print_success(f"Saved {provider.env_key}")
             
             # Test connection
-            console.print("[dim]ทดสอบการเชื่อมต่อ...[/dim]")
+            console.print("[dim]Testing connection...[/dim]")
             if self._test_provider(provider, new_key):
-                print_success("✓ เชื่อมต่อสำเร็จ!")
+                print_success("Connection successful!")
             else:
-                print_warning("⚠ เชื่อมต่อไม่สำเร็จ กรุณาตรวจสอบ API key")
+                print_warning("Connection failed, please check API key")
         else:
-            print_info("ข้ามการตั้งค่า API key")
+            print_info("Skipped API key configuration")
     
     def _test_provider(self, provider: AIProviderConfig, api_key: str) -> bool:
         """Test provider connection."""
@@ -210,57 +210,57 @@ class ConfigWizard:
     
     def _setup_default_target(self) -> None:
         """Setup default target."""
-        console.print("\n[bold cyan]🎯 Default Target Setup[/bold cyan]\n")
+        console.print("\n[bold cyan]Default Target Setup[/bold cyan]\n")
         
         current = os.getenv("ELENGENIX_DEFAULT_TARGET", "")
         if current:
-            console.print(f"เป้าหมายเริ่มต้นปัจจุบัน: [cyan]{current}[/cyan]")
+            console.print(f"Current default target: [cyan]{current}[/cyan]")
         
-        target = console.input("ใส่ default target (เว้นว่างเพื่อลบ): ").strip()
+        target = console.input("Enter default target (empty to remove): ").strip()
         
         if target:
             self._save_env_var("ELENGENIX_DEFAULT_TARGET", target)
-            print_success("✓ บันทึก default target")
+            print_success("Saved default target")
         else:
             self._remove_env_var("ELENGENIX_DEFAULT_TARGET")
-            print_info("ลบ default target")
+            print_info("Removed default target")
     
     def _setup_rate_limits(self) -> None:
         """Setup rate limits."""
-        console.print("\n[bold cyan]⚡ Rate Limit Setup[/bold cyan]\n")
+        console.print("\n[bold cyan]Rate Limit Setup[/bold cyan]\n")
         
         current = os.getenv("ELENGENIX_RATE_LIMIT", "5")
-        console.print(f"Rate limit ปัจจุบัน: [cyan]{current} req/s[/cyan]")
-        console.print("[dim]คำแนะนำ: 5 สำหรับ production, 10 สำหรับ testing[/dim]\n")
+        console.print(f"Current rate limit: [cyan]{current} req/s[/cyan]")
+        console.print("[dim]Recommended: 5 for production, 10 for testing[/dim]\n")
         
-        limit = console.input("ใส่ rate limit (req/s, Enter เพื่อค่าเดิม): ").strip()
+        limit = console.input("Enter rate limit (req/s, Enter to keep current): ").strip()
         
         if limit:
             try:
                 int(limit)
                 self._save_env_var("ELENGENIX_RATE_LIMIT", limit)
-                print_success(f"✓ บันทึก rate limit: {limit} req/s")
+                print_success(f"Saved rate limit: {limit} req/s")
             except ValueError:
-                print_warning("กรุณาใส่ตัวเลข")
+                print_warning("Please enter a number")
     
     def _show_status(self) -> None:
         """Show configuration status."""
-        console.print("\n[bold cyan]📊 Configuration Status[/bold cyan]\n")
+        console.print("\n[bold cyan]Configuration Status[/bold cyan]\n")
         
         # AI Providers
-        console.print("[bold]🤖 AI Providers:[/bold]")
+        console.print("[bold]AI Providers:[/bold]")
         for provider in self.AI_PROVIDERS:
             key = os.getenv(provider.env_key, "")
-            status = "[green]✓ พร้อมใช้[/green]" if key else "[red]✗ ไม่มี API key[/red]"
+            status = "[green]Ready[/green]" if key else "[red]No API key[/red]"
             console.print(f"  {provider.name}: {status}")
         
         # Ollama check
         try:
             import requests
             resp = requests.get("http://localhost:11434/api/tags", timeout=2)
-            ollama_status = "[green]✓ กำลังรัน[/green]" if resp.status_code == 200 else "[yellow]⚠ ไม่พบ[/yellow]"
+            ollama_status = "[green]Running[/green]" if resp.status_code == 200 else "[yellow]Not responding[/yellow]"
         except:
-            ollama_status = "[yellow]⚠ ไม่พบ[/yellow]"
+            ollama_status = "[yellow]Not found[/yellow]"
         console.print(f"  Ollama (Local): {ollama_status}")
         
         # Active provider
@@ -270,17 +270,17 @@ class ConfigWizard:
         console.print(f"\n[bold]Active Provider:[/bold] [cyan]{active}[/cyan]")
         
         # Other settings
-        console.print("\n[bold]⚙️ Other Settings:[/bold]")
-        default_target = os.getenv("ELENGENIX_DEFAULT_TARGET", "(ไม่มี)")
+        console.print("\n[bold]Other Settings:[/bold]")
+        default_target = os.getenv("ELENGENIX_DEFAULT_TARGET", "(none)")
         rate_limit = os.getenv("ELENGENIX_RATE_LIMIT", "5")
         console.print(f"  Default Target: {default_target}")
         console.print(f"  Rate Limit: {rate_limit} req/s")
         
         # .env file status
         if self.env_file.exists():
-            console.print(f"\n[green]✓ .env file มีอยู่[/green]: {self.env_file.absolute()}")
+            console.print(f"\n[green].env file exists:[/green] {self.env_file.absolute()}")
         else:
-            console.print(f"\n[yellow]⚠ .env file ยังไม่มี[/yellow]")
+            console.print(f"\n[yellow].env file not found[/yellow]")
     
     def _health_check(self) -> None:
         """Run health check."""

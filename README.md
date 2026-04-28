@@ -1,13 +1,13 @@
 # ELENGENIX AI v2.0.0
 ## Universal AI Agent for Bug Bounty & Security Research
 
-**Version:** 2.0.0 (Universal Agent Edition)  
-**Platforms:** Linux, macOS, Android (Termux)  
+**Version:** 2.0.0 (Universal Agent Edition) 
+**Platforms:** Linux, macOS, Android (Termux) 
 **License:** GNU GPL v3 (Ethical Use Only)
 
 ---
 
-## 🎯 What is Elengenix?
+## What is Elengenix?
 
 Elengenix is a **Universal AI Agent** that combines the flexibility of Claude Code with deep penetration testing expertise. It doesn't just run tools—it **thinks strategically**, adapts to findings, and remembers everything across sessions.
 
@@ -23,9 +23,9 @@ Elengenix is a **Universal AI Agent** that combines the flexibility of Claude Co
 
 ---
 
-## ✨ What's New in v2.0.0
+## What's New in v2.0.0
 
-### 🆕 11 Specialized Tracks (v2.0 Complete!)
+### 11 Specialized Tracks (v2.0 Complete!)
 
 | Track | Command | Killer Feature |
 |-------|---------|----------------|
@@ -41,49 +41,49 @@ Elengenix is a **Universal AI Agent** that combines the flexibility of Claude Co
 | **10. Exploit Chains** | `chain` | Multi-stage attack path discovery |
 | **11. Bounty Predictor** | `predict` | ML-based bounty potential scoring |
 
-### 🆕 Universal Agent Mode
+### Universal Agent Mode
 - Read/write/edit files like Claude Code
 - Install packages (pip, npm, apt, go, gem)
 - Execute shell commands with safety filtering
 - Search web for CVEs and exploits
 - Generate custom exploit scripts
 
-### 🆕 Strategic Planning Engine
+### Strategic Planning Engine
 - AI generates Attack Trees automatically
 - Multi-phase methodology across all 11 tracks
 - Adaptive strategy that adds steps based on findings
 - Chain of Thought logging for full audit trail
 
-### 🆕 Mission State System
+### Mission State System
 - **Graph-based:** Nodes and edges for target relationships
 - **Facts & Hypotheses:** Structured security knowledge
 - **Action Ledger:** Complete audit trail
 - **SQLite-backed:** Termux compatible
 
-### 🆕 Governance Layer
+### Governance Layer
 - **Permission Gates:** Risk classification (low/medium/high)
 - **HITL Approval:** Interactive prompts for dangerous actions
 - **Audit Logging:** Every decision recorded
 - **Safety First:** No automatic exploitation
 
-### 🆕 Vector Memory System
+### Vector Memory System
 - **ChromaDB** for semantic memory (remembers meaning, not just words)
 - Cross-session persistence (restart and continue)
 - SQLite fallback for lightweight environments
 - Recall related memories automatically
 
-### 🆕 Tmux Split-Screen Mode
+### Tmux Split-Screen Mode
 - Left pane: Chat with AI
 - Right pane: Real-time activity monitor
 - See every tool execution, thought, and result live
 - Auto-detection with user prompt
 
-### 🆕 CVSS Calculator
+### CVSS Calculator
 - Automatic severity scoring (CVSS 3.1/4.0)
 - AI-assisted impact analysis
 - Priority-based exploitation paths
 
-### 🆕 Web Dashboard
+### Web Dashboard
 - Real-time findings view
 - Filter by severity, type, target
 - Export to JSON/HTML
@@ -92,7 +92,7 @@ Elengenix is a **Universal AI Agent** that combines the flexibility of Claude Co
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Installation
 
@@ -124,31 +124,31 @@ cp .env.example .env
 ### Launch
 ```bash
 # 11 Core Testing Tracks
-elengenix bola <url>              # BOLA/IDOR differential testing
-elengenix waf <url>               # WAF detection & bypass
-elengenix recon <domain>          # Smart reconnaissance
-elengenix soc <log_file>          # SOC alert analysis
-elengenix mobile <burp_export>    # Mobile API testing
-elengenix cloud <path>            # Cloud misconfig scan
-elengenix sast <repo>             # Static code analysis
-elengenix proto <hex_data>        # Protocol analysis (IoT/ICS)
-elengenix dashboard [port]        # Launch web dashboard
-elengenix chain <findings.json>   # Exploit chain analysis
+elengenix bola <url> # BOLA/IDOR differential testing
+elengenix waf <url> # WAF detection & bypass
+elengenix recon <domain> # Smart reconnaissance
+elengenix soc <log_file> # SOC alert analysis
+elengenix mobile <burp_export> # Mobile API testing
+elengenix cloud <path> # Cloud misconfig scan
+elengenix sast <repo> # Static code analysis
+elengenix proto <hex_data> # Protocol analysis (IoT/ICS)
+elengenix dashboard [port] # Launch web dashboard
+elengenix chain <findings.json> # Exploit chain analysis
 elengenix predict <findings.json> # Bounty prediction
 
 # Other Commands
-elengenix ai                      # AI Partner (auto tmux)
-elengenix universal               # Universal Agent (auto tmux)
-elengenix scan example.com        # Automated scan
-elengenix cve-update              # Update CVE database
-elengenix doctor                  # Health check
-elengenix memory                  # Memory management
-elengenix arsenal                 # Tool selection
+elengenix ai # AI Partner (auto tmux)
+elengenix universal # Universal Agent (auto tmux)
+elengenix scan example.com # Automated scan
+elengenix cve-update # Update CVE database
+elengenix doctor # Health check
+elengenix memory # Memory management
+elengenix arsenal # Tool selection
 ```
 
 ---
 
-## 📖 Usage Guide
+## Usage Guide
 
 ### 1. AI Partner Mode (Recommended)
 ```bash
@@ -157,10 +157,10 @@ elengenix ai
 - **Auto-detects tmux:** Asks if you want split-screen
 - **Auto-selects mode:** Universal for general tasks, Bug Bounty for security
 - **Commands:**
-  - `/help` - Show commands
-  - `/mode` - Switch agent type
-  - `/target example.com` - Set target
-  - `/exit` - Quit
+ - `/help` - Show commands
+ - `/mode` - Switch agent type
+ - `/target example.com` - Set target
+ - `/exit` - Quit
 
 ### 2. Universal Agent Mode
 ```bash
@@ -223,7 +223,7 @@ elengenix doctor --fix
 
 ---
 
-## 🛠️ Integrated Security Tools
+## Integrated Security Tools
 
 | Tool | Purpose | Category |
 |------|---------|----------|
@@ -241,7 +241,7 @@ All tools auto-install via `setup.sh` or `termux_setup.sh`.
 
 ---
 
-## 🧠 Memory System
+## Memory System
 
 ### How It Works
 1. **Every interaction stored:** Questions, findings, strategies, decisions
@@ -258,7 +258,7 @@ Session 2: You ask "check that admin panel I found before"
 
 ---
 
-## 📺 Tmux Split-Screen
+## Tmux Split-Screen
 
 When you run `elengenix ai` or `elengenix universal`:
 
@@ -269,17 +269,17 @@ Use split-screen mode? (y/N): y
 
 **Result:**
 ```
-┌────────────────────────┬────────────────────────┐
-│  [Left] Chat           │  [Right] Live Monitor  │
-│                        │                        │
-│  You: scan example.com │  Step 2/25             │
-│  → Running: subfinder  │  Tool: httpx           │
-│  ✓ 10 findings         │  [████░░░░] 40%        │
-│                        │                        │
-│  Response:             │  14:32:01 ▶ subfinder  │
-│  Found 10 subdomains   │  14:32:05 ✓ 10 found   │
-│  ...                   │  14:32:06 → httpx      │
-└────────────────────────┴────────────────────────┘
+
+ [Left] Chat [Right] Live Monitor 
+ 
+ You: scan example.com Step 2/25 
+ → Running: subfinder Tool: httpx 
+ 10 findings [] 40% 
+ 
+ Response: 14:32:01 subfinder 
+ Found 10 subdomains 14:32:05 10 found 
+ ... 14:32:06 → httpx 
+
 ```
 
 **Navigation:**
@@ -289,53 +289,53 @@ Use split-screen mode? (y/N): y
 
 ---
 
-## 📊 Architecture
+## Architecture
 
 ```
 Elengenix v2.0.0
-├── Core Systems
-│   ├── Strategic Planner (Attack Tree generation)
-│   ├── Tool Registry (Plugin system)
-│   ├── Vector Memory (ChromaDB + SQLite)
-│   ├── CVSS Calculator (AI-assisted scoring)
-│   └── Chain of Thought (Audit logging)
-├── AI Modes
-│   ├── Universal Agent (Claude Code style)
-│   └── Bug Bounty Specialist (Security focused)
-├── UI/UX
-│   ├── Clean CLI (minimal emojis)
-│   ├── Tmux Integration (split-screen)
-│   └── Live Display (real-time monitor)
-└── 11 Tracks (17 commands)
-    ├── Offensive: bola, waf, mobile, proto
-    ├── Coverage: recon, sast, cloud
-    ├── Defensive: soc, dashboard
-    ├── Intelligence: chain, predict
-    └── Core: ai, universal, scan, cve-update, doctor, memory, arsenal
-    
-    Mission State: Graph + Facts + Hypotheses + Ledger
-    Governance: Permission Gates + HITL + Audit Trail
+ Core Systems
+ Strategic Planner (Attack Tree generation)
+ Tool Registry (Plugin system)
+ Vector Memory (ChromaDB + SQLite)
+ CVSS Calculator (AI-assisted scoring)
+ Chain of Thought (Audit logging)
+ AI Modes
+ Universal Agent (Claude Code style)
+ Bug Bounty Specialist (Security focused)
+ UI/UX
+ Clean CLI (minimal emojis)
+ Tmux Integration (split-screen)
+ Live Display (real-time monitor)
+ 11 Tracks (17 commands)
+ Offensive: bola, waf, mobile, proto
+ Coverage: recon, sast, cloud
+ Defensive: soc, dashboard
+ Intelligence: chain, predict
+ Core: ai, universal, scan, cve-update, doctor, memory, arsenal
+ 
+ Mission State: Graph + Facts + Hypotheses + Ledger
+ Governance: Permission Gates + HITL + Audit Trail
 ```
 
 ---
 
-## 🔧 Advanced Configuration
+## Advanced Configuration
 
 ### `config.yaml` Example
 ```yaml
 ai:
-  active_provider: gemini  # or openai, anthropic, groq
-  max_steps: 25
-  enable_planning: true
-  enable_cot_logging: true
+ active_provider: gemini # or openai, anthropic, groq
+ max_steps: 25
+ enable_planning: true
+ enable_cot_logging: true
 
 providers:
-  gemini:
-    model: gemini-1.5-flash-latest
-    api_key: ${GEMINI_API_KEY}
-  openai:
-    model: gpt-4
-    api_key: ${OPENAI_API_KEY}
+ gemini:
+ model: gemini-1.5-flash-latest
+ api_key: ${GEMINI_API_KEY}
+ openai:
+ model: gpt-4
+ api_key: ${OPENAI_API_KEY}
 ```
 
 ### Environment Variables
@@ -352,7 +352,7 @@ export TELEGRAM_CHAT_ID="your-chat-id"
 
 ---
 
-## 📝 Example Workflows
+## Example Workflows
 
 ### Workflow 1: Quick Scan
 ```bash
@@ -384,11 +384,11 @@ elengenix scan example.com --rate-limit 10
 
 ---
 
-## 🐛 Troubleshooting
+## Troubleshooting
 
 ### "elengenix: command not found"
 ```bash
-source ~/.bashrc  # or ~/.zshrc
+source ~/.bashrc # or ~/.zshrc
 # Or add to PATH manually:
 export PATH="$PATH:/path/to/Elengenix"
 ```
@@ -403,20 +403,20 @@ elengenix doctor --fix
 ### "API key not set"
 ```bash
 cp .env.example .env
-nano .env  # Add your keys
+nano .env # Add your keys
 ```
 
 ### Tmux issues
 ```bash
 # Ensure tmux is installed
-apt install tmux  # Debian/Ubuntu
+apt install tmux # Debian/Ubuntu
 brew install tmux # macOS
-pkg install tmux  # Termux
+pkg install tmux # Termux
 ```
 
 ---
 
-## 🎓 Best Practices
+## Best Practices
 
 1. **Always verify target scope** before scanning
 2. **Use rate limiting** (`--rate-limit 5`) for production targets
@@ -426,7 +426,7 @@ pkg install tmux  # Termux
 
 ---
 
-## ⚖️ Legal & Ethics
+## Legal & Ethics
 
 **Elengenix is for authorized security testing only.**
 
@@ -442,7 +442,7 @@ pkg install tmux  # Termux
 
 ---
 
-## 🤝 Contributing
+## Contributing
 
 We welcome contributions! Please:
 1. Fork the repository
@@ -458,7 +458,7 @@ We welcome contributions! Please:
 
 ---
 
-## 📞 Support
+## Support
 
 - **Issues:** [GitHub Issues](https://github.com/Ashveil1/Elengenix/issues)
 - **Discussions:** [GitHub Discussions](https://github.com/Ashveil1/Elengenix/discussions)
@@ -466,7 +466,7 @@ We welcome contributions! Please:
 
 ---
 
-## 🌟 Acknowledgments
+## Acknowledgments
 
 Built with:
 - [ProjectDiscovery](https://projectdiscovery.io/) tools (subfinder, httpx, nuclei, naabu, katana)
@@ -476,7 +476,7 @@ Built with:
 
 ---
 
-## 📜 Changelog
+## Changelog
 
 ### v2.0.0 (Universal Agent Edition) - 2024
 - **NEW:** Universal Agent Mode (file editing, package mgmt, shell exec)
@@ -497,7 +497,7 @@ Built with:
 
 ---
 
-**Made with ❤️ for the security community.**
+**Made with for the security community.**
 
 Developed by: Ashveil1
 Version: 2.0.0 (Universal Agent Edition)

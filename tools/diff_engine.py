@@ -13,57 +13,55 @@ from typing import Dict, List, Set
 
 logger = logging.getLogger("elengenix.diff_engine")
 
-
 def compute_diff(
-    current_items: List[str],
-    history_file: str,
+ current_items: List[str],
+ history_file: str,
 ) -> Dict[str, List[str]]:
-    """
-    Compare current list against history file.
+ """
+ Compare current list against history file.
 
-    Returns:
-        {
-          "new":       [...],   # items not seen before
-          "removed":   [...],   # items that disappeared
-          "unchanged": [...],   # items in both
-        }
-    """
-    history_path = Path(history_file)
-    current_set: Set[str] = {i.strip().lower() for i in current_items if i.strip()}
+ Returns:
+ {
+ "new": [...], # items not seen before
+ "removed": [...], # items that disappeared
+ "unchanged": [...], # items in both
+ }
+ """
+ history_path = Path(history_file)
+ current_set: Set[str] = {i.strip().lower() for i in current_items if i.strip()}
 
-    if not history_path.exists():
-        # First scan — everything is new; write baseline
-        history_path.parent.mkdir(parents=True, exist_ok=True)
-        history_path.write_text("\n".join(sorted(current_set)), encoding="utf-8")
-        logger.info(f"Baseline created ({len(current_set)} items): {history_file}")
-        return {"new": list(current_set), "removed": [], "unchanged": []}
+ if not history_path.exists():
+ # First scan — everything is new; write baseline
+ history_path.parent.mkdir(parents=True, exist_ok=True)
+ history_path.write_text("\n".join(sorted(current_set)), encoding="utf-8")
+ logger.info(f"Baseline created ({len(current_set)} items): {history_file}")
+ return {"new": list(current_set), "removed": [], "unchanged": []}
 
-    old_set: Set[str] = {
-        l.strip().lower()
-        for l in history_path.read_text(encoding="utf-8").splitlines()
-        if l.strip()
-    }
+ old_set: Set[str] = {
+ l.strip().lower()
+ for l in history_path.read_text(encoding="utf-8").splitlines()
+ if l.strip()
+ }
 
-    new_items       = sorted(current_set - old_set)
-    removed_items   = sorted(old_set - current_set)
-    unchanged_items = sorted(current_set & old_set)
+ new_items = sorted(current_set - old_set)
+ removed_items = sorted(old_set - current_set)
+ unchanged_items = sorted(current_set & old_set)
 
-    # Update history (merge)
-    merged = old_set | current_set
-    history_path.write_text("\n".join(sorted(merged)), encoding="utf-8")
+ # Update history (merge)
+ merged = old_set | current_set
+ history_path.write_text("\n".join(sorted(merged)), encoding="utf-8")
 
-    logger.info(
-        f"Diff: +{len(new_items)} new, -{len(removed_items)} removed, "
-        f"{len(unchanged_items)} unchanged"
-    )
+ logger.info(
+ f"Diff: +{len(new_items)} new, -{len(removed_items)} removed, "
+ f"{len(unchanged_items)} unchanged"
+ )
 
-    return {
-        "new":       new_items,
-        "removed":   removed_items,
-        "unchanged": unchanged_items,
-    }
-
+ return {
+ "new": new_items,
+ "removed": removed_items,
+ "unchanged": unchanged_items,
+ }
 
 def get_new_items(current_list: List[str], history_file: str) -> List[str]:
-    """Backward-compatible alias — returns only new items."""
-    return compute_diff(current_list, history_file)["new"]
+ """Backward-compatible alias — returns only new items."""
+ return compute_diff(current_list, history_file)["new"]
