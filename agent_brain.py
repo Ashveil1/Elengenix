@@ -1508,6 +1508,70 @@ Use JSON format: {{"action": "run_shell|save_memory|finish", "command": "...", "
                                     )
                 except Exception as e:
                     logger.debug(f"Exploit chain analysis failed: {e}")
+
+                # Bounty Predictor: Score new findings for bounty potential
+                try:
+                    from tools.bounty_predictor import BountyPredictor
+                    
+                    predictor = BountyPredictor()
+                    high_value_findings = []
+                    
+                    for finding in result.findings:
+                        # Convert finding to prediction format
+                        pred_finding = {
+                            'finding_id': finding.get('finding_id', str(hash(str(finding)))),
+                            'type': finding.get('type', 'unknown'),
+                            'severity': finding.get('severity', 'info'),
+                            'target': finding.get('target', finding.get('url', 'unknown')),
+                            'description': finding.get('description', finding.get('evidence', '')),
+                            'confidence': finding.get('confidence', 0.5),
+                            'cwe_id': finding.get('cwe_id'),
+                            'evidence': finding.get('evidence', {}),
+                        }
+                        
+                        prediction = predictor.predict(pred_finding)
+                        
+                        # Store high-value predictions as facts
+                        if prediction.bounty_score >= 70:
+                            high_value_findings.append(prediction)
+                            mission_state.add_fact(
+                                fact_id=f"bounty_predict:{prediction.finding_id}",
+                                category="bounty_prediction",
+                                statement=f"High bounty potential ({prediction.bounty_score:.0f}/100): {prediction.payout_range}",
+                                confidence=prediction.confidence,
+                                evidence={
+                                    "bounty_score": prediction.bounty_score,
+                                    "payout_range": prediction.payout_range,
+                                    "triage_speed": prediction.triage_speed,
+                                    "factors": prediction.factors,
+                                },
+                            )
+                    
+                    # Notify about high-value findings
+                    if high_value_findings:
+                        top = high_value_findings[0]
+                        display_in_chat_mode(
+                            f"💰 Bounty Prediction: {top.bounty_score:.0f}/100 score, est. {top.payout_range} - Submit this first!",
+                            "result"
+                        )
+                        
+                        # Add actionable suggestions as hypothesis
+                        if top.suggestions:
+                            mission_state.upsert_hypothesis(
+                                hyp_id=f"bounty_improve:{target}",
+                                title=f"Improve bounty potential for {top.finding_id[:40]}",
+                                description=f"Current score: {top.bounty_score:.0f}/100. Suggestions: {', '.join(top.suggestions[:3])}",
+                                confidence=top.confidence,
+                                status="open",
+                                tags=["bounty_optimization", "reporting"],
+                                evidence={
+                                    "suggestions": top.suggestions,
+                                    "report_template": top.report_template[:500],
+                                    "similar_cves": top.similar_cves,
+                                },
+                            )
+                except Exception as e:
+                    logger.debug(f"Bounty prediction failed: {e}")
                 
                 # Mark step as completed in attack tree
                 if self.current_tree and step < len(self.current_tree.steps):

@@ -93,7 +93,7 @@ def main():
     
     parser = argparse.ArgumentParser(description="Elengenix CLI", add_help=False)
     parser.add_argument("command", nargs="?", default="menu", 
-                        choices=["ai", "scan", "gateway", "configure", "update", "doctor", "arsenal", "memory", "cve-update", "bola", "waf", "recon", "soc", "mobile", "cloud", "sast", "proto", "dashboard", "chain", "menu"])
+                        choices=["ai", "scan", "gateway", "configure", "update", "doctor", "arsenal", "memory", "cve-update", "bola", "waf", "recon", "soc", "mobile", "cloud", "sast", "proto", "dashboard", "chain", "predict", "menu"])
     parser.add_argument("target", nargs="?", help="Target domain or IP")
     parser.add_argument("--rate-limit", type=int, default=5, help="Max requests per second")
     
@@ -785,6 +785,68 @@ def main():
             except Exception as e:
                 print_error(f"Chain analysis failed: {e}")
                 logger.exception("Chain analysis failed")
+
+        elif args.command == "predict":
+            from ui_components import show_section, print_info, print_success, print_error, console
+            from tools.bounty_predictor import predict_bounty_for_findings, format_prediction_report
+            from pathlib import Path
+            import json
+
+            show_section("ML-Based Bounty Predictor")
+            
+            findings_file = args.target or console.input("[cyan]Findings JSON file path[/cyan]: ").strip()
+            if not findings_file:
+                print_error("Findings file path is required")
+                return
+            
+            file_path = Path(findings_file)
+            if not file_path.exists():
+                print_error(f"File not found: {findings_file}")
+                return
+            
+            print_info("Loading findings and analyzing bounty potential...")
+            print_info("Using statistical feature extraction + industry patterns...")
+            
+            try:
+                with open(file_path, 'r') as f:
+                    data = json.load(f)
+                
+                # Support both direct findings list and nested format
+                findings = data if isinstance(data, list) else data.get('findings', [])
+                
+                if not findings:
+                    print_error("No findings found in file")
+                    return
+                
+                print_info(f"Analyzing {len(findings)} findings for bounty potential...")
+                
+                report = predict_bounty_for_findings(findings)
+                output = format_prediction_report(report.get('predictions', []))
+                console.print(output)
+                
+                # Summary
+                high = report.get('high_value_count', 0)
+                med = report.get('medium_value_count', 0)
+                low = report.get('low_value_count', 0)
+                
+                print_success(f"Analysis complete! {high} high-value, {med} medium, {low} low")
+                
+                if high > 0:
+                    console.print(f"\n[green]💰 Submit these {high} findings first for best results![/green]")
+                
+                # Export prioritized list
+                if report.get('prioritized_list'):
+                    priority_file = file_path.parent / f"{file_path.stem}_prioritized.txt"
+                    with open(priority_file, 'w') as f:
+                        f.write("# Elengenix Bounty Prediction - Prioritized List\n")
+                        f.write(f"# Generated: {__import__('datetime').datetime.utcnow().isoformat()}\n\n")
+                        for i, fid in enumerate(report['prioritized_list'][:10], 1):
+                            f.write(f"{i}. {fid}\n")
+                    print_success(f"Prioritized list saved to: {priority_file}")
+                    
+            except Exception as e:
+                print_error(f"Bounty prediction failed: {e}")
+                logger.exception("Bounty prediction failed")
 
     except KeyboardInterrupt:
         console.print("\n[dim]Operation canceled[/dim]")
