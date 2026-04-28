@@ -356,8 +356,8 @@ def main():
             check_health()
 
         elif args.command == "configure":
-            import wizard
-            wizard.main()
+            from tools.config_wizard import run_config_wizard
+            run_config_wizard()
 
         elif args.command == "arsenal":
             from tools_menu import show_tools_menu
