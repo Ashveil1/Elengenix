@@ -93,14 +93,46 @@ def main():
     show_banner()
     
     parser = argparse.ArgumentParser(description="Elengenix CLI", add_help=False)
-    parser.add_argument("command", nargs="?", default="menu", 
-                        choices=["ai", "scan", "gateway", "configure", "update", "doctor", "arsenal", "memory", "cve-update", "bola", "waf", "recon", "evasion", "report", "menu"])
+    parser.add_argument("command", nargs="?", default="auto", 
+                        choices=["ai", "scan", "gateway", "configure", "update", "doctor", "arsenal", "memory", "cve-update", "bola", "waf", "recon", "evasion", "report", "menu", "auto", "help", "bb", "check", "test", "red", "pdf", "hack"])
     parser.add_argument("target", nargs="?", help="Target domain or IP")
     parser.add_argument("--rate-limit", type=int, default=5, help="Max requests per second")
     
     args, _ = parser.parse_known_args()
 
-    # Interactive Menu
+    # Help shortcut
+    if args.command == "help":
+        from tools.auto_detector import CommandSimplifier
+        console.print(CommandSimplifier.get_help_text())
+        return
+    
+    # Auto-detect mode (default) - Smart routing based on target
+    if args.command == "auto" or (args.command and args.target):
+        # If we have both command and target, or just target without specific command
+        effective_target = args.target or args.command
+        
+        # Check if command is actually a shortcut
+        from tools.auto_detector import CommandSimplifier, AutoDetector
+        simplified = CommandSimplifier.simplify(args.command)
+        
+        if simplified != args.command:
+            # It's a shortcut, use the simplified command
+            args.command = simplified
+        elif effective_target and effective_target != "auto":
+            # Auto-detect what to do with this target
+            detection = AutoDetector.detect(effective_target)
+            console.print(f"[dim]🔍 {detection['explanation']}[/dim]")
+            
+            # Route to detected module
+            if detection['confidence'] > 0.7:
+                args.command = detection['action']
+                args.target = effective_target
+            else:
+                console.print("[yellow]Not sure what to do. Starting AI assistant...[/yellow]")
+                args.command = "ai"
+                args.target = effective_target
+    
+    # Interactive Menu (Wizard)
     if args.command == "menu":
         from ui_components import create_main_menu, format_menu_item, console
         menu_items = create_main_menu()
