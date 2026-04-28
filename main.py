@@ -881,12 +881,31 @@ def main():
             from tools.bola_harness import parse_headers_input
             headers = parse_headers_input("\n".join(lines))
 
+            template_vars = {}
+            try:
+                from tools.bola_harness import BOLAHarness
+                use_auto = console.input("[cyan]Auto-fill {id}/{user_id}/{account_id} from session identity?[/cyan] (Y/n): ").strip().lower()
+                if use_auto not in ("n", "no"):
+                    harness = BOLAHarness(base_url=base_url, rate_limit_rps=max(0.3, float(args.rate_limit) / 5))
+                    ids_a, _, notes = harness.discover_identities(headers, headers)
+                    for n in notes[:5]:
+                        console.print(f"[dim]- {n}[/dim]")
+                    # best-effort mapping
+                    if ids_a.get("id"):
+                        template_vars["id"] = ids_a.get("id")
+                    if ids_a.get("user_id"):
+                        template_vars["user_id"] = ids_a.get("user_id")
+                    if ids_a.get("account_id"):
+                        template_vars["account_id"] = ids_a.get("account_id")
+            except Exception as e:
+                logger.debug(f"Workflow identity auto-fill failed: {e}")
+
             dry = console.input("[cyan]Dry-run only?[/cyan] (Y/n): ").strip().lower()
             dry_run = False if dry in ("n", "no") else True
             if not dry_run:
                 print_warning("Execution is GET-only by default. Use this only on authorized targets.")
 
-            result = fuzzer.execute_plan(plan, headers=headers, allow_non_get=False, dry_run=dry_run)
+            result = fuzzer.execute_plan(plan, headers=headers, allow_non_get=False, dry_run=dry_run, template_vars=template_vars)
             if result.anomalies:
                 print_success(f"Anomalies detected: {len(result.anomalies)}")
                 for a in result.anomalies[:10]:
@@ -927,13 +946,62 @@ def main():
                 print_error("Both accounts headers are required")
                 return
 
-            print_info("Paste endpoints (paths or URLs) to test (empty line to finish)")
             eps = []
+
+            # (A) Load endpoints from katana/httpx output file
+            use_file = console.input("[cyan]Load endpoints from file (katana/httpx output)?[/cyan] (y/N): ").strip().lower()
+            if use_file in ("y", "yes"):
+                fp = console.input("[cyan]File path[/cyan]: ").strip()
+                try:
+                    p = Path(fp)
+                    raw = p.read_text(encoding="utf-8", errors="ignore").splitlines()
+                    for ln in raw:
+                        ln = ln.strip()
+                        if not ln:
+                            continue
+                        # Accept full URL or path
+                        if ln.startswith("http://") or ln.startswith("https://") or ln.startswith("/"):
+                            eps.append(ln)
+                    print_info(f"Loaded {len(eps)} endpoints from {p.name}")
+                except Exception as e:
+                    print_warning(f"Failed to load endpoints from file: {e}")
+
+            # (B) Load endpoints from OpenAPI schema
+            use_schema = console.input("[cyan]Load endpoints from OpenAPI schema?[/cyan] (y/N): ").strip().lower()
+            if use_schema in ("y", "yes"):
+                src = console.input("[cyan]OpenAPI path or URL[/cyan]: ").strip()
+                if src:
+                    try:
+                        from tools.api_schema_diff import OpenAPISchemaDiff
+                        sd = OpenAPISchemaDiff()
+                        if src.startswith("http://") or src.startswith("https://"):
+                            schema = sd.load_from_url(src, headers=headers_a)
+                        else:
+                            schema = sd.load_from_path(Path(src))
+                        surf = sd.surface(schema)
+                        # add GET only for safety
+                        for m, pth in surf.endpoints:
+                            if m == "GET":
+                                eps.append(pth)
+                        print_info(f"Loaded {len([1 for m,_ in surf.endpoints if m=='GET'])} GET endpoints from OpenAPI")
+                    except Exception as e:
+                        print_warning(f"Failed to load OpenAPI endpoints: {e}")
+
+            print_info("Paste endpoints (paths or URLs) to test (empty line to finish)")
             while True:
                 line = console.input("").rstrip("\n")
                 if not line.strip():
                     break
                 eps.append(line.strip())
+
+            # De-duplicate
+            seen = set()
+            eps2 = []
+            for e in eps:
+                if e not in seen:
+                    seen.add(e)
+                    eps2.append(e)
+            eps = eps2
             if not eps:
                 print_error("At least 1 endpoint is required")
                 return
