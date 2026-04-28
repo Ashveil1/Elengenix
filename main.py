@@ -126,6 +126,35 @@ def main():
         console.print(CommandSimplifier.get_help_text())
         return
     
+    # Handle unknown commands with smart suggestions
+    valid_commands = ["ai", "scan", "gateway", "configure", "update", "doctor", "arsenal", 
+                     "memory", "cve-update", "bola", "waf", "recon", "evasion", "report", 
+                     "menu", "auto", "bb", "check", "test", "red", "pdf", "hack", 
+                     "research", "poc", "autonomous", "welcome"]
+    
+    if args.command and args.command not in valid_commands and args.command != "auto":
+        from tools.command_suggest import handle_command_error, CommandSuggester
+        from ui_components import confirm
+        
+        suggester = CommandSuggester()
+        correction = suggester.suggest_correction(args.command)
+        
+        if correction:
+            console.print(f"\n[yellow]Unknown command: '{args.command}'[/yellow]")
+            console.print(f"[cyan]Did you mean:[/cyan] [bold]elengenix {correction}[/bold]")
+            
+            if confirm(f"Run 'elengenix {correction}' instead?", default=True):
+                args.command = correction
+                # Continue with corrected command
+            else:
+                # Show help
+                console.print(handle_command_error(args.command))
+                return
+        else:
+            # No suggestion found, show help
+            console.print(handle_command_error(args.command))
+            return
+    
     # Auto-detect mode (default) - Smart routing based on target
     if args.command == "auto" or (args.command and args.target):
         # If we have both command and target, or just target without specific command
@@ -143,30 +172,30 @@ def main():
             detection = AutoDetector.detect(effective_target)
             
             # Show clear module selection
-            console.print(f"[cyan]� Input detected:[/cyan] {detection['explanation']}")
+            console.print(f"[cyan]Input detected:[/cyan] {detection['explanation']}")
             
             if detection['confidence'] > 0.7:
                 module_name = {
-                    "bola": "🐛 BOLA/IDOR Tester",
-                    "waf": "🛡️ WAF/XSS Scanner", 
-                    "recon": "🔍 Reconnaissance",
-                    "predict": "💰 Bounty Predictor",
-                    "mobile": "📱 Mobile API Tester",
-                    "cloud": "☁️ Cloud Scanner",
-                    "sast": "💻 SAST Engine",
-                    "soc": "🚨 SOC Analyzer",
-                    "proto": "🔌 Protocol Analyzer",
-                    "schema": "📊 Schema Analyzer",
-                    "ai": "🤖 AI Assistant",
+                    "bola": "BOLA/IDOR Tester",
+                    "waf": "WAF/XSS Scanner",
+                    "recon": "Reconnaissance",
+                    "predict": "Bounty Predictor",
+                    "mobile": "Mobile API Tester",
+                    "cloud": "Cloud Scanner",
+                    "sast": "SAST Engine",
+                    "soc": "SOC Analyzer",
+                    "proto": "Protocol Analyzer",
+                    "schema": "Schema Analyzer",
+                    "ai": "AI Assistant",
                 }.get(detection['action'], detection['action'])
                 
-                console.print(f"[green]✓ Selected module:[/green] {module_name}")
+                console.print(f"[green]Selected module:[/green] {module_name}")
                 console.print(f"[dim]   (Use --manual to override)[/dim]\n")
                 
                 args.command = detection['action']
                 args.target = effective_target
             else:
-                console.print("[yellow]⚠ Low confidence detection. Starting AI assistant...[/yellow]")
+                console.print("[yellow]Low confidence detection. Starting AI assistant...[/yellow]")
                 args.command = "ai"
                 args.target = effective_target
     
