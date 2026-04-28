@@ -61,15 +61,15 @@ def ensure_dependencies():
             
     if not missing: return True
 
-    console.print(Panel(f"[yellow]⚠️  System update required. Missing: {', '.join(missing)}[/yellow]"))
+    console.print(Panel(f"[yellow]System update required. Missing: {', '.join(missing)}[/yellow]"))
     
     with Progress(SpinnerColumn(), TextColumn("[bold cyan]Updating Environment...[/]"), console=console) as progress:
         progress.add_task("install", total=None)
         try:
-            # 🛡️ SECURITY: Using --user instead of breaking system packages
+            # SECURITY: Using --user instead of breaking system packages
             cmd = [sys.executable, "-m", "pip", "install", "--quiet", "--user"] + missing
             subprocess.run(cmd, check=True, capture_output=True)
-            console.print("[bold green]✅ Environment ready. Restarting...[/bold green]\n")
+            console.print("[bold green]Environment ready. Restarting...[/bold green]\n")
             os.execv(sys.executable, [sys.executable] + sys.argv)
         except Exception as e:
             logger.error(f"Auto-update failed: {e}")
@@ -94,9 +94,11 @@ def main():
     
     parser = argparse.ArgumentParser(description="Elengenix CLI", add_help=False)
     parser.add_argument("command", nargs="?", default="auto", 
-                        choices=["ai", "scan", "gateway", "configure", "update", "doctor", "arsenal", "memory", "cve-update", "bola", "waf", "recon", "evasion", "report", "menu", "auto", "help", "bb", "check", "test", "red", "pdf", "hack"])
+                        choices=["ai", "scan", "gateway", "configure", "update", "doctor", "arsenal", "memory", "cve-update", "bola", "waf", "recon", "evasion", "report", "menu", "auto", "help", "bb", "check", "test", "red", "pdf", "hack", "research", "poc"])
     parser.add_argument("target", nargs="?", help="Target domain or IP")
     parser.add_argument("--rate-limit", type=int, default=5, help="Max requests per second")
+    parser.add_argument("--framework", type=str, default="generic", help="Target framework for PoC generation")
+    parser.add_argument("--version", type=str, default="", help="Target version for PoC generation")
     
     args, _ = parser.parse_known_args()
 
@@ -359,6 +361,106 @@ def main():
             from tools.config_wizard import run_config_wizard
             run_config_wizard()
 
+        elif args.command == "research":
+            """Vulnerability Research Engine - Research CVEs and generate PoCs."""
+            from tools.vuln_researcher import VulnerabilityResearcher
+            from ui_components import console, print_success, print_error
+
+            researcher = VulnerabilityResearcher()
+
+            if not args.target:
+                console.print("Usage: elengenix research <cve-id|vuln-type>")
+                console.print("Examples:")
+                console.print("  elengenix research CVE-2024-21626")
+                console.print("  elengenix research rce")
+                console.print("  elengenix research sqli")
+                return
+
+            target = args.target
+
+            # Check if CVE
+            if target.upper().startswith("CVE-"):
+                console.print(f"[bold]Researching {target}...[/bold]")
+                result = researcher.research_cve(target)
+
+                if result:
+                    console.print(f"\n[bold cyan]CVE Research: {result.cve_id}[/bold cyan]")
+                    console.print(f"CVSS Score: {result.cvss_score} ({result.severity})")
+                    console.print(f"\n[bold]Description:[/bold]\n{result.description[:400]}...")
+                    console.print(f"\n[bold]Prerequisites:[/bold] {', '.join(result.exploitation_requirements) or 'None listed'}")
+
+                    if result.available_pocs:
+                        console.print(f"\n[bold]Available PoCs:[/bold]")
+                        for poc in result.available_pocs[:5]:
+                            console.print(f"  • {poc.get('source', 'Unknown')}: {poc.get('url', 'N/A')[:60]}")
+
+                    print_success(f"Research complete (confidence: {result.confidence:.0%})")
+                else:
+                    print_error(f"No data found for {target}")
+            else:
+                # Exploitation guide
+                guide = researcher.get_exploitation_guide(target)
+
+                console.print(f"\n[bold cyan]Exploitation Guide: {target.upper()}[/bold cyan]")
+                console.print(f"{guide.get('description', 'N/A')}")
+                console.print(f"\n[bold]Impact:[/bold] {guide.get('impact', 'Unknown')}")
+                console.print(f"[bold]CVSS Base:[/bold] {guide.get('cvss_base', 'N/A')}")
+
+                console.print(f"\n[bold]Common Vectors:[/bold]")
+                for vector in guide.get('common_vectors', []):
+                    console.print(f"  • {vector}")
+
+                console.print(f"\n[bold]Detection Methods:[/bold]")
+                for method in guide.get('detection_methods', []):
+                    console.print(f"  • {method}")
+
+                # Generate PoC
+                poc = researcher.generate_custom_poc(
+                    vuln_type=target,
+                    target_context={
+                        "framework": "generic",
+                        "version": "",
+                        "language": "python",
+                    }
+                )
+
+                if poc:
+                    console.print(f"\n[bold]Generated PoC Template:[/bold]")
+                    console.print(f"[dim]Language: {poc.language}, Framework: {poc.target_framework}[/dim]")
+                    console.print(f"\n[dim]Save to file with: elengenix research {target} > poc.py[/dim]")
+
+        elif args.command == "poc":
+            """Generate custom PoC for vulnerability type."""
+            from tools.vuln_researcher import VulnerabilityResearcher
+            from ui_components import console, print_success, print_error
+
+            if not args.target:
+                console.print("Usage: elengenix poc <vuln-type> [--framework <name>] [--version <ver>]")
+                console.print("Examples:")
+                console.print("  elengenix poc rce --framework spring-boot")
+                console.print("  elengenix poc sqli --framework django")
+                console.print("  elengenix poc ssrf")
+                return
+
+            framework = getattr(args, 'framework', 'generic')
+            version = getattr(args, 'version', '')
+
+            researcher = VulnerabilityResearcher()
+            poc = researcher.generate_custom_poc(
+                vuln_type=args.target,
+                target_context={
+                    "framework": framework,
+                    "version": version,
+                    "language": "python",
+                }
+            )
+
+            if poc:
+                print_success(f"Generated {args.target.upper()} PoC for {framework}")
+                console.print(f"\n{poc.code}")
+            else:
+                print_error(f"Could not generate PoC for {args.target}")
+
         elif args.command == "arsenal":
             from tools_menu import show_tools_menu
             show_tools_menu()
@@ -590,12 +692,12 @@ def main():
                 # Priority targets
                 priority_count = len([f for f in result.findings if f.get("type") == "priority"])
                 if priority_count > 0:
-                    console.print(f"\n[yellow]📌 {priority_count} high-priority targets identified[/yellow]")
+                    console.print(f"\n[yellow]{priority_count} high-priority targets identified[/yellow]")
                 
                 # Correlation findings
                 corr_count = len([f for f in result.findings if f.get("type") == "correlation"])
                 if corr_count > 0:
-                    console.print(f"[cyan]🔗 {corr_count} asset correlations discovered[/cyan]")
+                    console.print(f"[cyan]{corr_count} asset correlations discovered[/cyan]")
                     
             except Exception as e:
                 print_error(f"Recon failed: {e}")
@@ -629,8 +731,8 @@ def main():
             from ui_components import show_section, print_info, print_success, print_warning, print_error, console
             from tools.edr_evasion import EDREvasionEngine, format_edr_report
 
-            show_section("🔴 EDR/AV Evasion - Red Team Payload Generator")
-            print_warning("⚠️ FOR AUTHORIZED RED TEAM USE ONLY - ALL ACTIVITY IS LOGGED")
+            show_section("EDR/AV Evasion - Red Team Payload Generator")
+            print_warning("FOR AUTHORIZED RED TEAM USE ONLY - ALL ACTIVITY IS LOGGED")
             
             engine = EDREvasionEngine()
             
@@ -646,8 +748,8 @@ def main():
                 
                 print_success(f"Found {len(techniques)} techniques:")
                 for t in techniques:
-                    risk_emoji = "🔴" if t.detection_risk == "high" else "🟡" if t.detection_risk == "medium" else "🟢"
-                    console.print(f"  {risk_emoji} [{t.difficulty}] {t.name} ({t.category}) - {t.platform}")
+                    risk_marker = "[H]" if t.detection_risk == "high" else "[M]" if t.detection_risk == "medium" else "[L]"
+                    console.print(f"  {risk_marker} [{t.difficulty}] {t.name} ({t.category}) - {t.platform}")
                     
             elif action == "generate":
                 tech_name = console.input("[cyan]Technique name[/cyan]: ").strip()
