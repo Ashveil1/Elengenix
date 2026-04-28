@@ -94,7 +94,7 @@ def main():
     
     parser = argparse.ArgumentParser(description="Elengenix CLI", add_help=False)
     parser.add_argument("command", nargs="?", default="auto", 
-                        choices=["ai", "scan", "gateway", "configure", "update", "doctor", "arsenal", "memory", "cve-update", "bola", "waf", "recon", "evasion", "report", "menu", "auto", "help", "bb", "check", "test", "red", "pdf", "hack", "research", "poc", "autonomous"])
+                        choices=["ai", "scan", "gateway", "configure", "update", "doctor", "arsenal", "memory", "cve-update", "bola", "waf", "recon", "evasion", "report", "menu", "auto", "help", "bb", "check", "test", "red", "pdf", "hack", "research", "poc", "autonomous", "welcome"])
     parser.add_argument("target", nargs="?", help="Target domain or IP")
     parser.add_argument("--rate-limit", type=int, default=5, help="Max requests per second")
     parser.add_argument("--framework", type=str, default="generic", help="Target framework for PoC generation")
@@ -103,6 +103,23 @@ def main():
     
     args, _ = parser.parse_known_args()
 
+    # Welcome wizard on first run (before processing command)
+    if args.command == "welcome":
+        from tools.welcome_wizard import WelcomeWizard
+        wizard = WelcomeWizard()
+        wizard.run_setup()
+        return
+    
+    # Auto-run welcome if first time (unless running specific commands)
+    skip_welcome_commands = ["doctor", "configure", "update", "welcome"]
+    if args.command not in skip_welcome_commands:
+        from tools.welcome_wizard import WelcomeWizard
+        wizard = WelcomeWizard()
+        config = wizard.run_if_first_time()
+        if config:
+            # First run completed, continue with user's command
+            pass
+    
     # Help shortcut
     if args.command == "help":
         from tools.auto_detector import CommandSimplifier
