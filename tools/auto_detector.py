@@ -233,44 +233,44 @@ class SmartWizard:
 
     QUESTIONS = {
         "start": {
-            "question": "What do you want to do?",
+            "question": "🚀 What do you want to do? (Select one)",
             "options": [
-                ("🔍 Scan a target (website/domain/IP)", "scan"),
-                ("🐛 Test for specific bug (BOLA, XSS, etc.)", "specific"),
-                ("📁 Analyze a file (logs, code, API export)", "file"),
-                ("🤖 AI assistant mode (ask anything)", "ai"),
-                ("📊 Generate report from findings", "report"),
+                ("🔍 Scan a website/domain for vulnerabilities", "scan"),
+                ("🐛 Test for specific bug (BOLA, XSS, WAF bypass)", "specific"),
+                ("📁 Analyze a file (logs, code, API export, findings)", "file"),
+                ("🤖 Chat with AI assistant", "ai"),
+                ("📊 Generate professional PDF report", "report"),
             ]
         },
         "scan_type": {
-            "question": "What type of scan?",
+            "question": "🔍 Choose scan type:",
             "options": [
-                ("🔎 Reconnaissance (discover assets)", "recon"),
-                ("🛡️ Web scan (find vulnerabilities)", "waf"),
-                ("🎯 Full bug bounty scan (comprehensive)", "bola"),
-                ("☁️ Cloud infrastructure scan", "cloud"),
-                ("💻 Source code scan (SAST)", "sast"),
+                ("🔎 Reconnaissance - Discover subdomains, ports, tech", "recon"),
+                ("🛡️ Web vulnerabilities - XSS, WAF bypass, injection", "waf"),
+                ("🎯 Bug bounty - BOLA/IDOR, access control testing", "bola"),
+                ("☁️ Cloud security - Terraform, AWS, config files", "cloud"),
+                ("💻 Source code - Python, JS, Java, Go vulnerabilities", "sast"),
             ]
         },
         "file_type": {
-            "question": "What type of file?",
+            "question": "📁 What type of file are you analyzing?",
             "options": [
-                ("📱 Mobile API export (Burp, etc.)", "mobile"),
-                ("🔐 Log file (SOC analysis)", "soc"),
-                ("☁️ Cloud config (Terraform, etc.)", "cloud"),
-                ("💻 Source code (Python, JS, etc.)", "sast"),
-                ("📊 Findings JSON (analyze/predict)", "predict"),
-                ("🔌 Protocol/hex dump", "proto"),
-                ("❓ Not sure, auto-detect", "auto"),
+                ("📱 Mobile API - Burp Suite export, API collection", "mobile"),
+                ("🔐 Security logs - SIEM, firewall, alerts (SOC analysis)", "soc"),
+                ("☁️ Cloud config - Terraform, CloudFormation, AWS", "cloud"),
+                ("💻 Source code - .py, .js, .java, .go files", "sast"),
+                ("📊 Findings/results - JSON scan results to analyze", "predict"),
+                ("🔌 Network data - PCAP, hex dump, protocol capture", "proto"),
+                ("❓ Not sure - Let Elengenix auto-detect", "auto"),
             ]
         },
         "specific_type": {
-            "question": "What vulnerability to test for?",
+            "question": "🐛 Which vulnerability type to test?",
             "options": [
-                ("🎯 BOLA/IDOR (broken access control)", "bola"),
-                ("🛡️ WAF bypass/XSS", "waf"),
-                ("🔌 Protocol analysis (MQTT, Modbus)", "proto"),
-                ("🔴 Red Team/EDR evasion", "evasion"),
+                ("🎯 BOLA/IDOR - Broken access control, ID enumeration", "bola"),
+                ("🛡️ WAF/XSS - Web firewall bypass, cross-site scripting", "waf"),
+                ("🔌 Protocols - MQTT, Modbus, gRPC, IoT/ICS", "proto"),
+                ("🔴 Red Team - EDR evasion, AV bypass (Auth only)", "evasion"),
             ]
         },
     }
@@ -314,31 +314,66 @@ class CommandSimplifier:
 
     @staticmethod
     def get_help_text() -> str:
-        """Get simplified help text."""
+        """Get organized help text by category."""
         return """
-🚀 ELENGENIX - Quick Start (Easiest Commands)
+╔══════════════════════════════════════════════════════════════════╗
+║                    🚀 ELENGENIX - COMMAND GUIDE                   ║
+╚══════════════════════════════════════════════════════════════════╝
 
-Just type what you want:
+┌──────────────────────────────────────────────────────────────────┐
+│  🎯 SMART MODE (Auto-Detect) - Just type anything!              │
+├──────────────────────────────────────────────────────────────────┤
+│  elengenix example.com              → Auto reconnaissance       │
+│  elengenix https://api.x.com        → Auto API testing          │
+│  elengenix findings.json            → Auto bounty analysis      │
+│  elengenix myapp.py                 → Auto code scan            │
+│  elengenix terraform/               → Auto cloud scan           │
+└──────────────────────────────────────────────────────────────────┘
 
-  elengenix <target>           Auto-detect and scan
-  elengenix <file>             Auto-detect file type and analyze
-  elengenix ai                 Ask the AI anything
-  elengenix menu               Interactive wizard
+┌──────────────────────────────────────────────────────────────────┐
+│  ⚡ QUICK SHORTCUTS (One word = One action)                      │
+├──────────────────────────────────────────────────────────────────┤
+│  elengenix bb <url>                 → Bug bounty (BOLA)         │
+│  elengenix check <domain>           → Quick recon               │
+│  elengenix test <url>               → Test WAF/XSS              │
+│  elengenix red                      → Red team tools            │
+│  elengenix pdf <file>               → Generate report           │
+│  elengenix ai                       → AI assistant                │
+└──────────────────────────────────────────────────────────────────┘
 
-Quick Shortcuts:
-  elengenix bb <url>           Bug bounty scan (BOLA)
-  elengenix scan <url>         Smart scan everything
-  elengenix check <domain>     Quick reconnaissance
-  elengenix test <url>         Test for WAF/XSS
-  elengenix red                Red team tools
-  elengenix pdf <findings>     Generate report
+┌──────────────────────────────────────────────────────────────────┐
+│  📋 FULL COMMANDS (Explicit control)                            │
+├──────────────────────────────────────────────────────────────────┤
+│  Offensive Testing:                                             │
+│    elengenix bola <url>             BOLA/IDOR testing           │
+│    elengenix waf <url>              WAF/XSS scanner           │
+│    elengenix evasion                EDR/AV evasion (Red Team) │
+│                                                                 │
+│  Reconnaissance:                                                │
+│    elengenix recon <domain>         Asset discovery             │
+│    elengenix scan <target>          Full scan pipeline          │
+│                                                                 │
+│  Analysis & Reports:                                            │
+│    elengenix report <findings>      Generate PDF report         │
+│    elengenix menu                   Interactive wizard          │
+└──────────────────────────────────────────────────────────────────┘
 
-Examples:
-  elengenix example.com
-  elengenix https://api.example.com/users
-  elengenix burp_export.json
-  elengenix terraform/
+┌──────────────────────────────────────────────────────────────────┐
+│  💡 EXAMPLES                                                      │
+├──────────────────────────────────────────────────────────────────┤
+│  # Quick start - just type the target                          │
+│  elengenix target.com                                             │
+│                                                                   │
+│  # Bug bounty mode                                               │
+│  elengenix bb https://api.target.com                            │
+│                                                                   │
+│  # Analyze file                                                  │
+│  elengenix burp_export.json                                     │
+│                                                                   │
+│  # Ask AI anything                                               │
+│  elengenix ai                                                     │
+│  > Help me scan target.com for vulnerabilities                 │
+└──────────────────────────────────────────────────────────────────┘
 
-For help: elengenix help
-For wizard: elengenix menu
+For detailed help: elengenix menu
 """

@@ -121,14 +121,32 @@ def main():
         elif effective_target and effective_target != "auto":
             # Auto-detect what to do with this target
             detection = AutoDetector.detect(effective_target)
-            console.print(f"[dim]🔍 {detection['explanation']}[/dim]")
             
-            # Route to detected module
+            # Show clear module selection
+            console.print(f"[cyan]� Input detected:[/cyan] {detection['explanation']}")
+            
             if detection['confidence'] > 0.7:
+                module_name = {
+                    "bola": "🐛 BOLA/IDOR Tester",
+                    "waf": "🛡️ WAF/XSS Scanner", 
+                    "recon": "🔍 Reconnaissance",
+                    "predict": "💰 Bounty Predictor",
+                    "mobile": "📱 Mobile API Tester",
+                    "cloud": "☁️ Cloud Scanner",
+                    "sast": "💻 SAST Engine",
+                    "soc": "🚨 SOC Analyzer",
+                    "proto": "🔌 Protocol Analyzer",
+                    "schema": "📊 Schema Analyzer",
+                    "ai": "🤖 AI Assistant",
+                }.get(detection['action'], detection['action'])
+                
+                console.print(f"[green]✓ Selected module:[/green] {module_name}")
+                console.print(f"[dim]   (Use --manual to override)[/dim]\n")
+                
                 args.command = detection['action']
                 args.target = effective_target
             else:
-                console.print("[yellow]Not sure what to do. Starting AI assistant...[/yellow]")
+                console.print("[yellow]⚠ Low confidence detection. Starting AI assistant...[/yellow]")
                 args.command = "ai"
                 args.target = effective_target
     
