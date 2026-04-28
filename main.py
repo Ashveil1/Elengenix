@@ -94,11 +94,12 @@ def main():
     
     parser = argparse.ArgumentParser(description="Elengenix CLI", add_help=False)
     parser.add_argument("command", nargs="?", default="auto", 
-                        choices=["ai", "scan", "gateway", "configure", "update", "doctor", "arsenal", "memory", "cve-update", "bola", "waf", "recon", "evasion", "report", "menu", "auto", "help", "bb", "check", "test", "red", "pdf", "hack", "research", "poc"])
+                        choices=["ai", "scan", "gateway", "configure", "update", "doctor", "arsenal", "memory", "cve-update", "bola", "waf", "recon", "evasion", "report", "menu", "auto", "help", "bb", "check", "test", "red", "pdf", "hack", "research", "poc", "autonomous"])
     parser.add_argument("target", nargs="?", help="Target domain or IP")
     parser.add_argument("--rate-limit", type=int, default=5, help="Max requests per second")
     parser.add_argument("--framework", type=str, default="generic", help="Target framework for PoC generation")
     parser.add_argument("--version", type=str, default="", help="Target version for PoC generation")
+    parser.add_argument("--mode", type=str, default="ask", choices=["strict", "ask", "auto"], help="Governance mode for autonomous operations")
     
     args, _ = parser.parse_known_args()
 
@@ -460,6 +461,53 @@ def main():
                 console.print(f"\n{poc.code}")
             else:
                 print_error(f"Could not generate PoC for {args.target}")
+
+        elif args.command == "autonomous":
+            """Fully autonomous AI mode - AI controls everything."""
+            from tools.autonomous_agent import AutonomousAgent
+            from ui_components import console, print_success, print_error, print_warning
+
+            if not args.target:
+                console.print("Usage: elengenix autonomous <target> [--mode {strict|ask|auto}]")
+                console.print("Examples:")
+                console.print("  elengenix autonomous https://target.com")
+                console.print("  elengenix autonomous https://api.target.com --mode auto")
+                console.print("")
+                console.print("Modes:")
+                console.print("  strict - Ask for every action (safest)")
+                console.print("  ask    - Ask for dangerous operations only (default)")
+                console.print("  auto   - Auto-approve everything (fastest, requires trust)")
+                return
+
+            # Parse mode from args
+            mode = "ask"
+            if hasattr(args, 'mode') and args.mode:
+                mode = args.mode
+
+            console.print(f"[bold]Elengenix Autonomous Mode[/bold]")
+            console.print(f"Target: [cyan]{args.target}[/cyan]")
+            console.print(f"Governance: [yellow]{mode}[/yellow]")
+            console.print("")
+
+            if mode == "auto":
+                print_warning("Auto mode: AI will create tools and install deps without asking!")
+                if not confirm("Continue?", default=False):
+                    return
+
+            agent = AutonomousAgent(governance_mode=mode)
+            result = agent.run_autonomous_scan(args.target)
+
+            console.print("\n" + "="*60)
+            console.print(result.summary)
+            console.print("="*60)
+
+            if result.report_path:
+                print_success(f"Report saved: {result.report_path}")
+
+            if result.success:
+                print_success("Autonomous scan complete!")
+            else:
+                print_error(f"Scan failed: {result.summary}")
 
         elif args.command == "arsenal":
             from tools_menu import show_tools_menu
