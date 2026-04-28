@@ -93,7 +93,7 @@ def main():
     
     parser = argparse.ArgumentParser(description="Elengenix CLI", add_help=False)
     parser.add_argument("command", nargs="?", default="menu", 
-                        choices=["ai", "scan", "gateway", "configure", "update", "doctor", "arsenal", "memory", "cve-update", "bola", "waf", "recon", "menu"])
+                        choices=["ai", "scan", "gateway", "configure", "update", "doctor", "arsenal", "memory", "cve-update", "bola", "waf", "recon", "soc", "menu"])
     parser.add_argument("target", nargs="?", help="Target domain or IP")
     parser.add_argument("--rate-limit", type=int, default=5, help="Max requests per second")
     
@@ -448,6 +448,78 @@ def main():
             except Exception as e:
                 print_error(f"CVE update error: {e}")
                 console.print("[dim]Run 'elengenix doctor' to check system status.[/dim]")
+
+        elif args.command == "soc":
+            from ui_components import show_section, print_info, print_success, print_warning, print_error, console
+            from tools.soc_analyzer import SOCAnalyzer, format_soc_report
+            from tools.threat_intel import ThreatIntelDB
+            from pathlib import Path
+
+            show_section("SOC Alert Analysis & Triage")
+            
+            log_file = args.target or console.input("[cyan]Log file path[/cyan] (e.g., /var/log/alerts.json): ").strip()
+            if not log_file:
+                print_error("Log file path is required")
+                return
+            
+            log_path = Path(log_file)
+            if not log_path.exists():
+                print_error(f"File not found: {log_file}")
+                return
+            
+            source_hint = console.input("[cyan]Source system[/cyan] [dim](e.g., suricata, wazuh, crowdsec)[/dim]: ").strip()
+            
+            print_info("Initializing SOC analyzer...")
+            
+            # Initialize with threat intel
+            ti_db = ThreatIntelDB()
+            builtin_count = ti_db.add_builtin_iocs()
+            print_info(f"Loaded {builtin_count} built-in IOCs")
+            
+            analyzer = SOCAnalyzer(ioc_db={
+                "ip": {}, "domain": {}, "hash": {}, "url": {}, "user_agent": {}, "process": {}
+            })
+            
+            print_info(f"Analyzing {log_path.name}...")
+            try:
+                report = analyzer.analyze_log_file(log_path, source_hint or None)
+                
+                if "error" in report:
+                    print_error(report["error"])
+                    return
+                
+                # Display formatted report
+                output = format_soc_report(report)
+                console.print(output)
+                
+                # Summary
+                print_success(f"Analysis complete! Processed {report.get('total_alerts', 0)} alerts")
+                
+                if report.get('ioc_matches_found', 0) > 0:
+                    console.print(f"\n[red]🚨 {report['ioc_matches_found']} IOC matches found![/red]")
+                
+                if report.get('threat_actors_identified'):
+                    console.print(f"\n[yellow]⚠️ Threat actors identified: {', '.join(report['threat_actors_identified'])}[/yellow]")
+                
+                # Export detection rules
+                if report.get('generated_rules'):
+                    rules_file = log_path.parent / f"{log_path.stem}_sigma_rules.yml"
+                    with open(rules_file, 'w') as f:
+                        f.write("# Auto-generated Sigma rules from Elengenix SOC Analyzer\n")
+                        f.write(f"# Source: {log_file}\n")
+                        f.write(f"# Generated: {__import__('datetime').datetime.utcnow().isoformat()}\n\n")
+                        for rule in report['generated_rules']:
+                            f.write(f"---\n")
+                            f.write(f"title: {rule['title']}\n")
+                            f.write(f"status: experimental\n")
+                            f.write(f"level: {rule['level']}\n")
+                            f.write(f"tags: {', '.join(rule['tags'])}\n")
+                            f.write(f"# Add logsource and detection sections manually\n\n")
+                    print_success(f"Sigma rules exported to: {rules_file}")
+                
+            except Exception as e:
+                print_error(f"SOC analysis failed: {e}")
+                logger.exception("SOC analysis failed")
 
     except KeyboardInterrupt:
         console.print("\n[dim]Operation canceled[/dim]")

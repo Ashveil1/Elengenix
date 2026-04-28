@@ -1257,6 +1257,60 @@ Use JSON format: {{"action": "run_shell|save_memory|finish", "command": "...", "
                         url=finding.get('url', '')
                     )
                 
+                # SOC Analysis: Generate detection rules from high-confidence findings
+                try:
+                    from tools.soc_analyzer import SOCAnalyzer
+                    from tools.threat_intel import ThreatIntelDB, Enricher
+                    
+                    ti_db = ThreatIntelDB()
+                    analyzer = SOCAnalyzer(ioc_db={})
+                    
+                    for finding in result.findings:
+                        # Only generate rules for interesting finding types
+                        if finding.get('type') in ['intrusion', 'malware', 'recon', 'xss', 'sqli']:
+                            # Create synthetic alert from finding
+                            alert = analyzer.parse_json_alert({
+                                'timestamp': datetime.utcnow().isoformat(),
+                                'source': tool_name,
+                                'severity': finding.get('severity', 'medium'),
+                                'signature': f"{finding.get('type')} detected by {tool_name}",
+                                'src_ip': finding.get('src_ip'),
+                                'dst_ip': finding.get('dst_ip'),
+                                'url': finding.get('url'),
+                                'confidence': 0.8 if finding.get('confirmed') else 0.6,
+                            }, tool_name)
+                            
+                            if alert:
+                                # Enrich with threat intel
+                                enricher = Enricher(ti_db)
+                                enriched_finding = enricher.enrich_finding(finding)
+                                
+                                if enriched_finding.get('threat_intel'):
+                                    alert.ioc_matches = [ioc['value'] for ioc in enriched_finding['threat_intel'].get('ioc_matches', [])]
+                                
+                                # Generate detection rule
+                                rule = analyzer.generate_sigma_rule(alert)
+                                if rule:
+                                    mission_state.upsert_hypothesis(
+                                        hyp_id=f"detection_rule:{finding.get('type')}:{finding.get('url', '')[:40]}",
+                                        title=f"Detection rule candidate: {rule.title}",
+                                        description=f"Auto-generated Sigma rule for {rule.level} severity",
+                                        confidence=0.7,
+                                        status="open",
+                                        tags=["detection_rule", "sigma", finding.get('type', 'unknown')],
+                                        evidence={
+                                            "rule_title": rule.title,
+                                            "level": rule.level,
+                                            "tags": rule.tags,
+                                            "logsource": rule.logsource,
+                                            "source_finding": finding,
+                                        },
+                                    )
+                                    display_in_chat_mode(f"[SOC] Detection rule generated for {finding.get('type')} finding", "info")
+                                    
+                except Exception as e:
+                    logger.debug(f"SOC analyzer integration failed: {e}")
+                
                 # Mark step as completed in attack tree
                 if self.current_tree and step < len(self.current_tree.steps):
                     self.current_tree.steps[step].completed = True
