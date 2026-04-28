@@ -94,7 +94,7 @@ def main():
     
     parser = argparse.ArgumentParser(description="Elengenix CLI", add_help=False)
     parser.add_argument("command", nargs="?", default="auto", 
-                        choices=["ai", "scan", "gateway", "configure", "update", "doctor", "arsenal", "memory", "cve-update", "bola", "waf", "recon", "evasion", "report", "menu", "auto", "help", "bb", "check", "test", "red", "pdf", "hack", "research", "poc", "autonomous", "welcome"])
+                        choices=["ai", "scan", "gateway", "configure", "update", "doctor", "arsenal", "memory", "cve-update", "bola", "waf", "recon", "evasion", "report", "menu", "auto", "help", "bb", "check", "test", "red", "pdf", "hack", "research", "poc", "autonomous", "welcome", "quick", "deep", "bounty", "stealth", "api", "web", "profile"])
     parser.add_argument("target", nargs="?", help="Target domain or IP")
     parser.add_argument("--rate-limit", type=int, default=5, help="Max requests per second")
     parser.add_argument("--framework", type=str, default="generic", help="Target framework for PoC generation")
@@ -934,6 +934,124 @@ def main():
             except Exception as e:
                 print_error(f"Report generation failed: {e}")
                 logger.exception("Report generation failed")
+
+        elif args.command == "profile":
+            """Profile management - list, create, delete profiles."""
+            from tools.profile_manager import ProfileManager
+            from ui_components import console, print_info, print_success, print_error
+            
+            manager = ProfileManager()
+            
+            if not args.target:
+                # List profiles
+                console.print(manager.format_profile_list())
+            else:
+                subcommand = args.target
+                
+                if subcommand == "list":
+                    console.print(manager.format_profile_list())
+                
+                elif subcommand == "create":
+                    console.print("[cyan]Create custom profile[/cyan]")
+                    name = console.input("Profile name: ").strip()
+                    if not name:
+                        print_error("Name required")
+                        return
+                    
+                    base = console.input("Base on profile [quick]: ").strip() or "quick"
+                    desc = console.input("Description: ").strip()
+                    
+                    # Collect options
+                    options = {}
+                    print_info("Add options (empty line to finish):")
+                    while True:
+                        opt = console.input("  Option (e.g., rate-limit 10): ").strip()
+                        if not opt:
+                            break
+                        parts = opt.split()
+                        if len(parts) >= 2:
+                            options[parts[0]] = parts[1]
+                        elif len(parts) == 1:
+                            options[parts[0]] = True
+                    
+                    success = manager.clone_profile(
+                        base, name,
+                        modifications={
+                            "description": desc or f"Custom {name}",
+                            "add_options": options,
+                            "tags": ["custom"],
+                        }
+                    )
+                    
+                    if success:
+                        print_success(f"Created profile: {name}")
+                    else:
+                        print_error("Failed to create profile")
+                
+                elif subcommand == "delete":
+                    name = console.input("Profile name to delete: ").strip()
+                    if manager.delete_profile(name):
+                        print_success(f"Deleted profile: {name}")
+                    else:
+                        print_error("Failed to delete profile")
+                
+                else:
+                    print_error(f"Unknown profile command: {subcommand}")
+                    console.print("Usage: elengenix profile [list|create|delete]")
+
+        elif args.command in ["quick", "deep", "bounty", "stealth", "api", "web"]:
+            """Profile shortcuts - one-command execution."""
+            from tools.profile_manager import ProfileManager
+            from ui_components import console, print_success, print_error
+            
+            manager = ProfileManager()
+            
+            if not args.target:
+                print_error(f"Usage: elengenix {args.command} <target>")
+                console.print(f"\nProfile: {args.command}")
+                profile = manager.get_profile(args.command)
+                if profile:
+                    console.print(f"Description: {profile.description}")
+                    console.print(f"Based on: {profile.base_command}")
+                return
+            
+            # Expand profile to actual command
+            expanded = manager.expand_profile(args.command, args.target)
+            
+            if not expanded:
+                print_error(f"Profile not found: {args.command}")
+                return
+            
+            cmd, cmd_args = expanded
+            print_success(f"Profile '{args.command}' → elengenix {cmd} {' '.join(cmd_args[:3])}...")
+            
+            # Re-route to actual command handler
+            args.command = cmd
+            # args._profile_expanded = True  # Mark as expanded to prevent recursion
+            
+            # Re-process with new command
+            # This is handled by falling through to the next elif blocks
+            # Store original args
+            original_target = args.target
+            args.target = None  # Will be set from cmd_args
+            
+            # Extract target from cmd_args if present
+            for arg in cmd_args:
+                if not arg.startswith("--"):
+                    args.target = arg
+                    break
+            
+            # Apply options
+            for i, arg in enumerate(cmd_args):
+                if arg.startswith("--"):
+                    key = arg[2:].replace("-", "_")
+                    if i + 1 < len(cmd_args) and not cmd_args[i + 1].startswith("--"):
+                        setattr(args, key, cmd_args[i + 1])
+                    else:
+                        setattr(args, key, True)
+            
+            # Now let the actual command handler run
+            # Fall through to the next matching elif
 
     except KeyboardInterrupt:
         console.print("\n[dim]Operation canceled[/dim]")
