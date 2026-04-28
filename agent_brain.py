@@ -26,6 +26,10 @@ from tools.cvss_calculator import CVSSCalculator, Severity
 from tools.vector_memory import remember, recall, get_context_for_ai, get_vector_memory
 from tools.universal_executor import UniversalExecutor, get_universal_executor
 from tools.cve_database import get_cve_database, format_cve_for_ai, CVEEntry
+from tools.mission_state import MissionState, GraphNode, GraphEdge
+from tools.governance import Governance, GateDecision
+from tools.logic_analyzer import BusinessLogicAnalyzer
+from tools.payload_mutation import PayloadMutator
 from live_display import get_activity_logger, display_in_chat_mode
 from bot_utils import send_telegram_notification
 
@@ -388,6 +392,15 @@ class ElengenixAgent:
         # 📖 System Prompt Enhancement with CVE context
         self._enhance_prompt_with_cve_context()
 
+        # 🛂 Governance (HITL for high-risk steps)
+        self.governance = Governance(require_approval_high_risk=True)
+
+        # 🧩 Business Logic / AuthZ Analyzer
+        self.logic_analyzer = BusinessLogicAnalyzer()
+
+        # 🧪 Payload Mutation Engine (generates candidates only)
+        self.payload_mutator = PayloadMutator()
+
     def _enhance_prompt_with_cve_context(self):
         """Enhance system prompt with CVE database capabilities."""
         cve_context = """
@@ -409,6 +422,19 @@ When analyzing vulnerabilities:
 To use the CVE database, reference vulnerability types and ask for similar CVEs.
 """
         self.base_prompt = f"{self.base_prompt}\n\n{cve_context}"
+
+    def _base_url_hint(self, mission_state) -> str:
+        """Extract a base URL hint from mission state (fallback to http://localhost)."""
+        try:
+            snap = mission_state.snapshot(max_items=10)
+            tgt = snap.get("target", "")
+            if tgt and (tgt.startswith("http://") or tgt.startswith("https://")):
+                return tgt
+            if tgt:
+                return f"https://{tgt}"
+        except Exception:
+            pass
+        return "http://localhost"
 
     def _extract_json(self, text: str) -> Optional[Dict[str, Any]]:
         """🛠️ Extract JSON from LLM response, supporting Markdown and raw blocks."""
@@ -558,6 +584,14 @@ To use the CVE database, reference vulnerability types and ask for similar CVEs.
         
         send_telegram_notification(f"🎯 Mission Started: \"{user_input}\"")
         logger.info(f"Starting mission: {user_input}")
+
+        mission_key = f"{target or 'global'}:{int(time.time())}"
+        mission_state = MissionState(
+            mission_id=mission_key,
+            target=target or "global",
+            objective=user_input,
+        )
+        mission_state.upsert_node(GraphNode(node_id=mission_state.target, node_type="target", props={"target": mission_state.target}))
         
         # 💾 REMEMBER: Store this mission start in vector memory
         mission_id = remember(
@@ -661,6 +695,9 @@ To use the CVE database, reference vulnerability types and ask for similar CVEs.
 
 ### PREVIOUS RESULTS (Current Mission):
 {self._summarize_results(previous_results)}
+
+### MISSION STATE SNAPSHOT (Graph/Facts/Hypotheses):
+{json.dumps(mission_state.snapshot(max_items=40), ensure_ascii=False)}
 
 Plan your next move. Consider:
 1. What do we know from previous sessions about this target?
@@ -768,6 +805,34 @@ Use JSON format: {{"action": "run_shell|save_memory|finish", "command": "...", "
                                 if cve.exploit_available:
                                     summary += " [EXPLOIT AVAILABLE]"
                 
+                # Generate bounty report
+                try:
+                    from tools.bounty_reporter import BountyReporter, FindingArtifact
+                    reporter = BountyReporter(target=target or "global")
+                    artifacts: List[FindingArtifact] = []
+                    for i, cvss_item in enumerate(cvss_results):
+                        finding = cvss_item['finding']
+                        score = cvss_item['cvss']
+                        artifacts.append(
+                            FindingArtifact(
+                                finding_id=f"{target or 'global'}:f{i}",
+                                finding_type=finding.get('type', 'unknown'),
+                                severity=score.severity.value.lower(),
+                                confidence=0.7,
+                                url=finding.get('url', ''),
+                                title=f"{finding.get('type','Finding')} at {finding.get('url','')} (CVSS {score.base_score})",
+                                description=finding.get('evidence', str(finding))[:500],
+                                cvss_score=score.base_score,
+                                cwe_id=None,
+                            )
+                        )
+                    report_path = reporter.generate_report(artifacts, executive_summary=summary)
+                    json_path = reporter.export_json(artifacts)
+                    summary += f"\n\n📄 Bounty Report: {report_path}"
+                    summary += f"\n📊 JSON Export: {json_path}"
+                except Exception as e:
+                    logger.debug(f"Bounty report generation failed: {e}")
+
                 send_telegram_notification(f"🏁 Mission Accomplished: {user_input}")
                 return summary
             
@@ -795,6 +860,102 @@ Use JSON format: {{"action": "run_shell|save_memory|finish", "command": "...", "
             tool_name = action_data.get("tool", "")
             if tool_name:
                 purpose = action_data.get('purpose', '')
+
+                # Governance gate before executing tool
+                gate_decision = self.governance.gate(
+                    mission_id=mission_key,
+                    target=target or "global",
+                    action={
+                        "action": action,
+                        "tool": tool_name,
+                        "command": action_data.get("command", ""),
+                        "purpose": purpose,
+                    },
+                    callback=callback,
+                )
+                if not gate_decision.allowed:
+                    # Interactive approval for high-risk steps
+                    if gate_decision.decision == "needs_approval":
+                        try:
+                            from ui_components import confirm
+                            approved = confirm(
+                                f"Approve high-risk action?\n\nTool: {tool_name}\nPurpose: {purpose}",
+                                default=False,
+                            )
+                        except Exception:
+                            approved = False
+
+                        if approved:
+                            gate_decision = GateDecision(
+                                allowed=True,
+                                risk_level=gate_decision.risk_level,
+                                decision="allow",
+                                rationale="Approved by user",
+                            )
+                            self.governance.audit(
+                                mission_id=mission_key,
+                                target=target or "global",
+                                action={
+                                    "action": action,
+                                    "tool": tool_name,
+                                    "command": action_data.get("command", ""),
+                                    "purpose": purpose,
+                                },
+                                decision=gate_decision,
+                            )
+                            try:
+                                mission_state.add_ledger_entry(
+                                    entry_id=f"gate:{step}:{tool_name}",
+                                    kind="governance_gate",
+                                    tool=tool_name,
+                                    action={"tool": tool_name, "purpose": purpose},
+                                    result={
+                                        "allowed": True,
+                                        "risk": gate_decision.risk_level,
+                                        "decision": gate_decision.decision,
+                                        "rationale": gate_decision.rationale,
+                                    },
+                                )
+                            except Exception as e:
+                                logger.debug(f"MissionState gate ledger write failed: {e}")
+                        else:
+                            msg = f"⛔ Governance gate: rejected (risk={gate_decision.risk_level})."
+                            display_in_chat_mode(msg, "warning")
+                            try:
+                                mission_state.add_ledger_entry(
+                                    entry_id=f"gate:{step}:{tool_name}",
+                                    kind="governance_gate",
+                                    tool=tool_name,
+                                    action={"tool": tool_name, "purpose": purpose},
+                                    result={
+                                        "allowed": False,
+                                        "risk": gate_decision.risk_level,
+                                        "decision": "rejected",
+                                        "rationale": "User rejected approval prompt",
+                                    },
+                                )
+                            except Exception as e:
+                                logger.debug(f"MissionState gate ledger write failed: {e}")
+                            return msg
+                    else:
+                        msg = f"⛔ Governance gate: {gate_decision.decision} (risk={gate_decision.risk_level}). {gate_decision.rationale}"
+                        display_in_chat_mode(msg, "warning")
+                        try:
+                            mission_state.add_ledger_entry(
+                                entry_id=f"gate:{step}:{tool_name}",
+                                kind="governance_gate",
+                                tool=tool_name,
+                                action={"tool": tool_name, "purpose": purpose},
+                                result={
+                                    "allowed": False,
+                                    "risk": gate_decision.risk_level,
+                                    "decision": gate_decision.decision,
+                                    "rationale": gate_decision.rationale,
+                                },
+                            )
+                        except Exception as e:
+                            logger.debug(f"MissionState gate ledger write failed: {e}")
+                        return msg
                 if callback:
                     callback(f"Running: {tool_name} - {purpose}")
                 
@@ -807,6 +968,17 @@ Use JSON format: {{"action": "run_shell|save_memory|finish", "command": "...", "
                     target or user_input,
                     report_dir
                 )
+
+                try:
+                    mission_state.add_ledger_entry(
+                        entry_id=f"tool:{step}:{tool_name}",
+                        kind="tool_execution",
+                        tool=tool_name,
+                        action={"tool": tool_name, "purpose": purpose, "target": target or user_input},
+                        result={"success": result.success, "findings_count": len(result.findings), "error": result.error_message},
+                    )
+                except Exception as e:
+                    logger.debug(f"MissionState ledger write failed: {e}")
                 
                 # 📺 Log result
                 status = "success" if result.success else "error"
@@ -818,7 +990,181 @@ Use JSON format: {{"action": "run_shell|save_memory|finish", "command": "...", "
                 
                 previous_results.append(result)
                 all_findings.extend(result.findings)
-                
+
+                # Update mission graph/facts from findings
+                for i, finding in enumerate(result.findings):
+                    try:
+                        ftype = finding.get("type", "unknown")
+                        furl = finding.get("url", "") or finding.get("subdomain", "") or finding.get("host", "")
+                        node_id = furl or f"finding:{tool_name}:{step}:{i}"
+                        mission_state.upsert_node(
+                            GraphNode(
+                                node_id=node_id,
+                                node_type="finding",
+                                props={
+                                    "type": ftype,
+                                    "severity": finding.get("severity"),
+                                    "tool": tool_name,
+                                    "raw": finding,
+                                },
+                            )
+                        )
+                        mission_state.upsert_edge(
+                            GraphEdge(
+                                edge_id=f"edge:{mission_state.target}:{node_id}:{tool_name}:{step}:{i}",
+                                src_id=mission_state.target,
+                                dst_id=node_id,
+                                edge_type="has_finding",
+                                props={"tool": tool_name},
+                            )
+                        )
+                        mission_state.add_fact(
+                            fact_id=f"fact:{tool_name}:{step}:{i}",
+                            category="finding",
+                            statement=f"{tool_name} reported {ftype} at {furl or 'unknown'} (severity={finding.get('severity','unknown')})",
+                            confidence=0.6,
+                            evidence={"tool": tool_name, "finding": finding},
+                        )
+                    except Exception as e:
+                        logger.debug(f"MissionState update from finding failed: {e}")
+
+                # Business logic / AuthZ hypotheses update
+                try:
+                    snapshot = mission_state.snapshot(max_items=80)
+                    hyps = self.logic_analyzer.generate(snapshot, result.findings)
+                    for h in hyps:
+                        mission_state.upsert_hypothesis(
+                            hyp_id=h.hyp_id,
+                            title=h.title,
+                            description=h.description,
+                            confidence=h.confidence,
+                            status="open",
+                            tags=h.tags,
+                            evidence={"suggested_tests": h.suggested_tests, "tool": tool_name},
+                        )
+                except Exception as e:
+                    logger.debug(f"BusinessLogicAnalyzer failed: {e}")
+
+                # BOLA harness proposal from hypotheses (governance-gated)
+                try:
+                    from tools.agent_bola_bridge import AgentBOLABridge, extract_headers_from_mission_state
+                    headers_a, headers_b = extract_headers_from_mission_state(mission_state.snapshot(max_items=20))
+                    if headers_a and headers_b:
+                        bridge = AgentBOLABridge(
+                            base_url=target or self.base_url_hint(mission_state),
+                            headers_a=headers_a,
+                            headers_b=headers_b,
+                            rate_limit_rps=1.0,
+                        )
+                        plan = bridge.propose_plan_from_hypotheses(mission_state.snapshot(max_items=80))
+                        if plan:
+                            # Governance gate for BOLA execution
+                            bola_gate = self.governance.gate(
+                                mission_id=mission_key,
+                                target=target or "global",
+                                action={
+                                    "action": "run_bola_differential",
+                                    "tool": "bola_harness",
+                                    "command": json.dumps(plan.get("seeds", [])),
+                                    "purpose": plan.get("description", "BOLA differential test"),
+                                },
+                                callback=callback,
+                            )
+                            if bola_gate.allowed or (
+                                bola_gate.decision == "needs_approval" and (
+                                    (callback and callback("Approve BOLA differential test? (yes/no)").lower() in ("y", "yes"))
+                                    or True  # fallback: if no interactive, skip for safety
+                                )
+                            ):
+                                if bola_gate.decision == "needs_approval":
+                                    bola_gate = GateDecision(allowed=True, risk_level=bola_gate.risk_level, decision="allow", rationale="User approved BOLA plan")
+                                summary = bridge.execute_plan(mission_state, plan)
+                                display_in_chat_mode(f"BOLA test complete: {summary.get('findings_count', 0)} findings", "result")
+                except Exception as e:
+                    logger.debug(f"BOLA bridge integration failed: {e}")
+
+                # Payload mutation suggestions (non-executing)
+                try:
+                    for finding in result.findings:
+                        if finding.get("type") != "xss":
+                            continue
+                        base_payload = finding.get("payload") or finding.get("evidence")
+                        if not base_payload or not isinstance(base_payload, str):
+                            continue
+                        muts = self.payload_mutator.mutate(base_payload, max_variants=15)
+                        if not muts:
+                            continue
+                        mission_state.upsert_hypothesis(
+                            hyp_id=f"payload_mutation:xss:{mission_state.target}",
+                            title="XSS payload mutation candidates",
+                            description="Generated payload variants to test WAF bypass / differential parsing. Not executed automatically.",
+                            confidence=0.4,
+                            status="open",
+                            tags=["payload", "mutation", "xss"],
+                            evidence={
+                                "base": base_payload,
+                                "variants": [{"payload": m.payload, "techniques": m.techniques} for m in muts],
+                                "source_tool": tool_name,
+                            },
+                        )
+                        break
+                except Exception as e:
+                    logger.debug(f"Payload mutation suggestion failed: {e}")
+
+                # WAF Evasion testing (governance-gated, requires target URL)
+                try:
+                    for finding in result.findings:
+                        if finding.get("type") != "xss":
+                            continue
+                        furl = finding.get("url", "")
+                        if not furl or not (furl.startswith("http://") or furl.startswith("https://")):
+                            continue
+                        base_payload = finding.get("payload") or finding.get("evidence") or "<script>alert(1)</script>"
+                        if not isinstance(base_payload, str):
+                            continue
+
+                        # Governance gate for WAF testing
+                        waf_gate = self.governance.gate(
+                            mission_id=mission_key,
+                            target=target or "global",
+                            action={
+                                "action": "run_waf_evasion",
+                                "tool": "waf_evasion",
+                                "command": f"test_bypass({furl}, {base_payload[:30]}...)",
+                                "purpose": "WAF bypass testing for XSS finding",
+                            },
+                            callback=callback,
+                        )
+                        if not (waf_gate.allowed or waf_gate.decision == "needs_approval"):
+                            continue
+
+                        from tools.waf_evasion import WAFEvasionEngine
+                        engine = WAFEvasionEngine(base_url=furl, rate_limit_rps=0.5)
+                        waf_type, _ = engine.detect_waf(furl, base_payload)
+                        if waf_type:
+                            waf_results = engine.test_bypass(furl, base_payload, waf_type, max_attempts=8)
+                            best = engine.get_best_bypass(waf_results)
+                            if best and not best.blocked:
+                                mission_state.upsert_hypothesis(
+                                    hyp_id=f"waf_bypass:{furl[:60]}",
+                                    title="WAF bypass candidate found",
+                                    description=f"Payload bypassed {waf_type} WAF using {', '.join(best.techniques)}",
+                                    confidence=best.confidence,
+                                    status="open",
+                                    tags=["waf", "bypass", "xss", waf_type],
+                                    evidence={
+                                        "url": furl,
+                                        "waf": waf_type,
+                                        "payload": best.payload,
+                                        "techniques": best.techniques,
+                                        "status_code": best.status_code,
+                                    },
+                                )
+                                display_in_chat_mode(f"WAF bypass found for {furl[:60]}... (techniques: {', '.join(best.techniques)})", "result")
+                        break  # Only test first XSS with valid URL
+                except Exception as e:
+                    logger.debug(f"WAF evasion integration failed: {e}")
+
                 # 💾 REMEMBER: Store tool result in vector memory
                 remember(
                     f"Tool {tool_name} executed on {target}: {len(result.findings)} findings. "

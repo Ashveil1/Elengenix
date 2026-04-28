@@ -93,7 +93,7 @@ def main():
     
     parser = argparse.ArgumentParser(description="Elengenix CLI", add_help=False)
     parser.add_argument("command", nargs="?", default="menu", 
-                        choices=["ai", "scan", "gateway", "configure", "update", "doctor", "arsenal", "memory", "cve-update", "menu"])
+                        choices=["ai", "scan", "gateway", "configure", "update", "doctor", "arsenal", "memory", "cve-update", "bola", "waf", "menu"])
     parser.add_argument("target", nargs="?", help="Target domain or IP")
     parser.add_argument("--rate-limit", type=int, default=5, help="Max requests per second")
     
@@ -259,6 +259,129 @@ def main():
                             
             except Exception as e:
                 print_error(f"Memory system error: {e}")
+
+        elif args.command == "bola":
+            from ui_components import show_section, print_info, print_success, print_error, console
+            from tools.bola_harness import BOLAHarness, parse_headers_input
+
+            show_section("BOLA/IDOR Differential Harness")
+            base_url = args.target or console.input("[cyan]Base URL[/cyan] (e.g., https://target.tld): ").strip()
+            if not base_url:
+                print_error("Base URL is required")
+                return
+
+            print_info("Paste headers for Account A (one per line: Header: value). Empty line to finish.")
+            lines_a = []
+            while True:
+                line = console.input("").rstrip("\n")
+                if not line.strip():
+                    break
+                lines_a.append(line)
+
+            print_info("Paste headers for Account B (one per line: Header: value). Empty line to finish.")
+            lines_b = []
+            while True:
+                line = console.input("").rstrip("\n")
+                if not line.strip():
+                    break
+                lines_b.append(line)
+
+            headers_a = parse_headers_input("\n".join(lines_a))
+            headers_b = parse_headers_input("\n".join(lines_b))
+
+            if not headers_a or not headers_b:
+                print_error("Both Account A and Account B headers are required for differential testing")
+                return
+
+            harness = BOLAHarness(base_url=base_url, rate_limit_rps=max(0.5, float(args.rate_limit)))
+            ids_a, ids_b, notes = harness.discover_identities(headers_a, headers_b)
+
+            print_info("Optional: paste endpoint seeds to test (paths or full URLs). Empty line to finish.")
+            print_info("You may use templates like /api/orders/{id} or /api/accounts/{account_id}")
+            seeds = []
+            while True:
+                line = console.input("").rstrip("\n")
+                if not line.strip():
+                    break
+                seeds.append(line.strip())
+
+            common = harness.run_common_idor_checks(headers_a, headers_b, ids_a, ids_b)
+            seeded = harness.run_seeded_checks(headers_a, headers_b, ids_a, ids_b, seeds)
+            result_findings = (common.findings or []) + (seeded.findings or [])
+            result_notes = (common.notes or []) + (seeded.notes or [])
+
+            for n in notes:
+                console.print(f"[dim]- {n}[/dim]")
+
+            for n in result_notes:
+                console.print(f"[dim]- {n}[/dim]")
+
+            if not result_findings:
+                print_info("No strong BOLA/IDOR signals detected with common checks.")
+                return
+
+            print_success(f"Potential issues: {len(result_findings)}")
+            for i, f in enumerate(result_findings, 1):
+                conf = f.get("confidence", "?")
+                sev = f.get("severity", "unknown")
+                url = f.get("url", "")
+                console.print(f"\n[bold cyan]{i}. {f.get('type','finding').upper()}[/bold cyan] [dim]({sev}, conf={conf})[/dim]")
+                console.print(f"[white]{url}[/white]")
+                ev = f.get("evidence", {})
+                if isinstance(ev, dict):
+                    console.print(f"[dim]A: {ev.get('account_a',{})}[/dim]")
+                    console.print(f"[dim]B: {ev.get('account_b',{})}[/dim]")
+
+        elif args.command == "waf":
+            from ui_components import show_section, print_info, print_success, print_warning, print_error, console
+            from tools.waf_evasion import WAFEvasionEngine
+
+            show_section("WAF Detection & Evasion Testing")
+            target_url = args.target or console.input("[cyan]Target URL to test[/cyan] (e.g., https://target.tld/search): ").strip()
+            if not target_url:
+                print_error("Target URL is required")
+                return
+
+            base_payload = console.input("[cyan]Base payload to test[/cyan] [dim](default: <script>alert(1)</script>)[/dim]: ").strip()
+            if not base_payload:
+                base_payload = "<script>alert(1)</script>"
+
+            print_info("Initializing WAF evasion engine...")
+            engine = WAFEvasionEngine(base_url=target_url, rate_limit_rps=max(0.3, float(args.rate_limit) / 5))
+
+            # Phase 1: WAF Detection
+            print_info("Phase 1: Detecting WAF...")
+            waf_type, confidence = engine.detect_waf(target_url, base_payload)
+            if waf_type:
+                print_success(f"WAF detected: {waf_type} (confidence: {confidence:.0%})")
+            else:
+                print_warning("No WAF detected or unable to identify")
+
+            # Phase 2: Generate and test mutations
+            print_info("Phase 2: Testing mutations...")
+            max_attempts = 12
+            results = engine.test_bypass(target_url, base_payload, waf_type, max_attempts)
+
+            blocked_count = sum(1 for r in results if r.blocked)
+            bypass_count = len(results) - blocked_count
+
+            print_info(f"Results: {blocked_count} blocked, {bypass_count} potentially bypassed")
+
+            # Show best bypass
+            best = engine.get_best_bypass(results)
+            if best:
+                print_success("Potential bypass found!")
+                console.print(f"[green]Payload:[/green] {best.payload[:80]}...")
+                console.print(f"[green]Techniques:[/green] {', '.join(best.techniques)}")
+                console.print(f"[green]Status:[/green] {best.status_code}")
+            else:
+                print_info("No bypass found in this run. Try different base payload or more attempts.")
+
+            # Show all results table
+            console.print("\n[bold cyan]Test Results:[/bold cyan]")
+            for i, r in enumerate(results[:10], 1):
+                status_color = "red" if r.blocked else "green"
+                console.print(f"{i}. [{status_color}]{'BLOCKED' if r.blocked else 'BYPASS'}[/{status_color}] {r.payload[:50]}... (tech: {', '.join(r.techniques)})")
 
         elif args.command == "cve-update":
             from ui_components import show_section, print_info, print_success, print_error, console
