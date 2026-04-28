@@ -13,14 +13,33 @@ Elengenix is a **Universal AI Agent** that combines the flexibility of Claude Co
 
 ### Key Capabilities:
 - **Universal Agent Mode:** File editing, package management, script development
-- **Bug Bounty Specialist:** 4-phase methodology with strategic planning
-- **Persistent Memory:** Vector database remembers all past sessions
-- **Real-time Monitoring:** Tmux split-screen shows every action
-- **8+ Security Tools:** Fully integrated recon-to-exploitation pipeline
+- **Bug Bounty Specialist:** 11 specialized tracks with strategic planning
+- **Persistent Memory:** Vector database + MissionState graph + SQLite
+- **Real-time Monitoring:** Tmux split-screen + Web Dashboard
+- **17 Commands:** Fully integrated offensive-defensive pipeline
+- **Governance Layer:** HITL approval gates for all high-risk actions
+- **Exploit Chain Builder:** Multi-stage attack path discovery
+- **ML Bounty Predictor:** Score findings for bounty potential
 
 ---
 
 ## ✨ What's New in v2.0.0
+
+### 🆕 11 Specialized Tracks (v2.0 Complete!)
+
+| Track | Command | Killer Feature |
+|-------|---------|----------------|
+| **1. BOLA/IDOR** | `bola` | Differential 2-account testing |
+| **2. WAF Evasion** | `waf` | 12 mutation techniques + adaptive learning |
+| **3. Smart Recon** | `recon` | Asset correlation graph + priority scoring |
+| **4. SOC/Defensive** | `soc` | Auto Sigma rule generation |
+| **5. Mobile API** | `mobile` | iOS/Android hardcoded key detection |
+| **6. Cloud/SaaS** | `cloud` | AWS/GCP/Azure misconfig scanner |
+| **7. SAST** | `sast` | Python/JS/Java/Go code analysis |
+| **8. Protocol Analyzer** | `proto` | MQTT/Modbus/gRPC (IoT/ICS) |
+| **9. Dashboard** | `dashboard` | Real-time web UI (no external deps) |
+| **10. Exploit Chains** | `chain` | Multi-stage attack path discovery |
+| **11. Bounty Predictor** | `predict` | ML-based bounty potential scoring |
 
 ### 🆕 Universal Agent Mode
 - Read/write/edit files like Claude Code
@@ -31,9 +50,21 @@ Elengenix is a **Universal AI Agent** that combines the flexibility of Claude Co
 
 ### 🆕 Strategic Planning Engine
 - AI generates Attack Trees automatically
-- 4-phase methodology: Recon → Enum → Scanning → Exploitation
+- Multi-phase methodology across all 11 tracks
 - Adaptive strategy that adds steps based on findings
 - Chain of Thought logging for full audit trail
+
+### 🆕 Mission State System
+- **Graph-based:** Nodes and edges for target relationships
+- **Facts & Hypotheses:** Structured security knowledge
+- **Action Ledger:** Complete audit trail
+- **SQLite-backed:** Termux compatible
+
+### 🆕 Governance Layer
+- **Permission Gates:** Risk classification (low/medium/high)
+- **HITL Approval:** Interactive prompts for dangerous actions
+- **Audit Logging:** Every decision recorded
+- **Safety First:** No automatic exploitation
 
 ### 🆕 Vector Memory System
 - **ChromaDB** for semantic memory (remembers meaning, not just words)
@@ -51,6 +82,13 @@ Elengenix is a **Universal AI Agent** that combines the flexibility of Claude Co
 - Automatic severity scoring (CVSS 3.1/4.0)
 - AI-assisted impact analysis
 - Priority-based exploitation paths
+
+### 🆕 Web Dashboard
+- Real-time findings view
+- Filter by severity, type, target
+- Export to JSON/HTML
+- Mobile-responsive design
+- Auto-refresh (no external dependencies)
 
 ---
 
@@ -85,10 +123,27 @@ cp .env.example .env
 
 ### Launch
 ```bash
-elengenix                    # Interactive menu
-elengenix ai                 # AI Partner (auto tmux)
-elengenix universal          # Universal Agent (auto tmux)
-elengenix scan example.com   # Automated scan
+# 11 Core Testing Tracks
+elengenix bola <url>              # BOLA/IDOR differential testing
+elengenix waf <url>               # WAF detection & bypass
+elengenix recon <domain>          # Smart reconnaissance
+elengenix soc <log_file>          # SOC alert analysis
+elengenix mobile <burp_export>    # Mobile API testing
+elengenix cloud <path>            # Cloud misconfig scan
+elengenix sast <repo>             # Static code analysis
+elengenix proto <hex_data>        # Protocol analysis (IoT/ICS)
+elengenix dashboard [port]        # Launch web dashboard
+elengenix chain <findings.json>   # Exploit chain analysis
+elengenix predict <findings.json> # Bounty prediction
+
+# Other Commands
+elengenix ai                      # AI Partner (auto tmux)
+elengenix universal               # Universal Agent (auto tmux)
+elengenix scan example.com        # Automated scan
+elengenix cve-update              # Update CVE database
+elengenix doctor                  # Health check
+elengenix memory                  # Memory management
+elengenix arsenal                 # Tool selection
 ```
 
 ---
@@ -251,11 +306,15 @@ Elengenix v2.0.0
 │   ├── Clean CLI (minimal emojis)
 │   ├── Tmux Integration (split-screen)
 │   └── Live Display (real-time monitor)
-└── Tools (8+ integrated)
-    ├── Recon: subfinder, httpx, naabu
-    ├── Enum: ffuf, arjun, trufflehog
-    ├── Scan: nuclei, katana
-    └── Exploit: dalfox
+└── 11 Tracks (17 commands)
+    ├── Offensive: bola, waf, mobile, proto
+    ├── Coverage: recon, sast, cloud
+    ├── Defensive: soc, dashboard
+    ├── Intelligence: chain, predict
+    └── Core: ai, universal, scan, cve-update, doctor, memory, arsenal
+    
+    Mission State: Graph + Facts + Hypotheses + Ledger
+    Governance: Permission Gates + HITL + Audit Trail
 ```
 
 ---
