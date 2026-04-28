@@ -120,17 +120,28 @@ def main():
             # First run completed, continue with user's command
             pass
     
+    # Initialize history tracking
+    from tools.history_manager import get_history_manager
+    history = get_history_manager()
+    
     # Help shortcut
     if args.command == "help":
         from tools.auto_detector import CommandSimplifier
         console.print(CommandSimplifier.get_help_text())
+        
+        # Show contextual suggestions from history
+        suggestions = history.get_contextual_suggestions()
+        if suggestions:
+            console.print("\n[dim]Based on your history, try:[/dim]")
+            for sugg in suggestions:
+                console.print(f"  [cyan]elengenix {sugg.split(' -- ')[0]}[/cyan]")
         return
     
     # Handle unknown commands with smart suggestions
     valid_commands = ["ai", "scan", "gateway", "configure", "update", "doctor", "arsenal", 
                      "memory", "cve-update", "bola", "waf", "recon", "evasion", "report", 
                      "menu", "auto", "bb", "check", "test", "red", "pdf", "hack", 
-                     "research", "poc", "autonomous", "welcome"]
+                     "research", "poc", "autonomous", "welcome", "history"]
     
     if args.command and args.command not in valid_commands and args.command != "auto":
         from tools.command_suggest import handle_command_error, CommandSuggester
@@ -147,12 +158,24 @@ def main():
                 args.command = correction
                 # Continue with corrected command
             else:
-                # Show help
+                # Show help with history context
                 console.print(handle_command_error(args.command))
+                # Show recent history
+                recent = history.get_recent_commands(hours=24, limit=5)
+                if recent:
+                    console.print("\n[dim]Recent commands:[/dim]")
+                    for entry in recent:
+                        console.print(f"  [cyan]elengenix {entry.command} {entry.args}[/cyan]")
                 return
         else:
             # No suggestion found, show help
             console.print(handle_command_error(args.command))
+            # Show recent history
+            recent = history.get_recent_commands(hours=24, limit=5)
+            if recent:
+                console.print("\n[dim]Recent commands:[/dim]")
+                for entry in recent:
+                    console.print(f"  [cyan]elengenix {entry.command} {entry.args}[/cyan]")
             return
     
     # Auto-detect mode (default) - Smart routing based on target
@@ -999,6 +1022,59 @@ def main():
                     print_error(f"Unknown profile command: {subcommand}")
                     console.print("Usage: elengenix profile [list|create|delete]")
 
+        elif args.command == "history":
+            """Command history management."""
+            from tools.history_manager import get_history_manager
+            from ui_components import console, print_info, print_success, print_error
+            
+            history_mgr = get_history_manager()
+            
+            subcommand = args.target or "list"
+            
+            if subcommand == "list" or subcommand == "ls":
+                console.print(history_mgr.format_history_list())
+            
+            elif subcommand == "stats":
+                stats = history_mgr.get_stats()
+                console.print("\n[bold]Command History Statistics[/bold]")
+                console.print(f"  Total runs: {stats['total_commands']}")
+                console.print(f"  Unique commands: {stats['unique_commands']}")
+                console.print(f"  Favorites: {stats['favorite_commands']}")
+                console.print(f"  Success rate: {stats['success_rate']:.1%}")
+                
+                if stats['most_used']:
+                    cmd, count = stats['most_used']
+                    console.print(f"\n[dim]Most used: {cmd} ({count} times)[/dim]")
+            
+            elif subcommand == "search":
+                query = console.input("Search query: ").strip()
+                if query:
+                    results = history_mgr.search(query)
+                    if results:
+                        console.print(f"\n[green]Found {len(results)} matches:[/green]")
+                        for entry in results[:10]:
+                            console.print(f"  • elengenix {entry.command} {entry.args}")
+                    else:
+                        print_info("No matches found")
+            
+            elif subcommand == "suggest":
+                suggestions = history_mgr.get_contextual_suggestions()
+                if suggestions:
+                    console.print("\n[bold]Suggested commands:[/bold]")
+                    for i, sugg in enumerate(suggestions, 1):
+                        console.print(f"  {i}. elengenix {sugg}")
+                else:
+                    print_info("Try: elengenix quick <target>")
+            
+            elif subcommand == "clear":
+                from ui_components import confirm
+                if confirm("Clear all history?"):
+                    history_mgr.clear_history()
+                    print_success("History cleared")
+            
+            else:
+                console.print(history_mgr.format_history_list())
+
         elif args.command in ["quick", "deep", "bounty", "stealth", "api", "web"]:
             """Profile shortcuts - one-command execution."""
             from tools.profile_manager import ProfileManager
@@ -1053,12 +1129,38 @@ def main():
             # Now let the actual command handler run
             # Fall through to the next matching elif
 
+        # Record successful command in history
+        if args.command and args.command != "auto":
+            history.record_command(
+                command=args.command,
+                args=args.target or "",
+                duration=0,  # Would need timing from start
+                success=True,
+                target=args.target or "",
+            )
+
     except KeyboardInterrupt:
         console.print("\n[dim]Operation canceled[/dim]")
+        # Record failed command
+        if args.command and args.command != "auto":
+            history.record_command(
+                command=args.command,
+                args=args.target or "",
+                success=False,
+                target=args.target or "",
+            )
         sys.exit(0)
     except Exception as e:
         logger.exception("Operational breakdown")
         print_error(f"SYSTEM FAILURE: {e}")
+        # Record failed command
+        if args.command and args.command != "auto":
+            history.record_command(
+                command=args.command,
+                args=args.target or "",
+                success=False,
+                target=args.target or "",
+            )
         from ui_components import confirm
         if confirm("Attempt emergency repair?", default=True):
             from tools.doctor import check_health
