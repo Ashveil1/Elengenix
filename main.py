@@ -93,7 +93,7 @@ def main():
     
     parser = argparse.ArgumentParser(description="Elengenix CLI", add_help=False)
     parser.add_argument("command", nargs="?", default="menu", 
-                        choices=["ai", "scan", "gateway", "configure", "update", "doctor", "arsenal", "memory", "cve-update", "bola", "waf", "recon", "soc", "mobile", "cloud", "sast", "proto", "dashboard", "chain", "predict", "workflow", "acm", "schema", "menu"])
+                        choices=["ai", "scan", "gateway", "configure", "update", "doctor", "arsenal", "memory", "cve-update", "bola", "waf", "recon", "soc", "mobile", "cloud", "sast", "proto", "dashboard", "chain", "predict", "workflow", "acm", "schema", "swarm", "menu"])
     parser.add_argument("target", nargs="?", help="Target domain or IP")
     parser.add_argument("--rate-limit", type=int, default=5, help="Max requests per second")
     
@@ -1006,7 +1006,39 @@ def main():
                 print_error("At least 1 endpoint is required")
                 return
 
-            dry = console.input("[cyan]Dry-run only?[/cyan] (Y/n): ").strip().lower()
+            # (3) Object ID Permutation Mode for BOLA/IDOR
+            use_permute = console.input("[cyan]Enable Object ID Permutation mode (BOLA/IDOR testing)?[/cyan] (y/N): ").strip().lower()
+            permuter_cases = []
+            permuter_results = []
+            if use_permute in ("y", "yes"):
+                from tools.object_id_permuter import ObjectIDPermuter, format_permutation_cases, format_permutation_results
+
+                permuter = ObjectIDPermuter(base_url=base_url, rate_limit_rps=max(0.3, float(args.rate_limit) / 5))
+                print_info("Discovering identities for Account A and B...")
+                permuter_cases, permuter_results = permuter.run_matrix_on_endpoints(
+                    endpoint_templates=eps,
+                    headers_a=headers_a,
+                    headers_b=headers_b,
+                    dry_run=True,  # Show cases first
+                )
+                console.print(format_permutation_cases(permuter_cases))
+
+                if permuter_cases:
+                    exec_perm = console.input(f"[cyan]Execute {len(permuter_cases)} ID permutations?[/cyan] (y/N): ").strip().lower()
+                    if exec_perm in ("y", "yes"):
+                        print_warning("Executing ID permutations (GET-only) - detecting potential BOLA/IDOR...")
+                        _, permuter_results = permuter.run_matrix_on_endpoints(
+                            endpoint_templates=eps,
+                            headers_a=headers_a,
+                            headers_b=headers_b,
+                            dry_run=False,
+                        )
+                        console.print(format_permutation_results(permuter_results))
+                        idor_count = sum(1 for r in permuter_results if r.signal == "idor_suspect")
+                        if idor_count:
+                            print_success(f"🚨 IDOR/BOLA suspects: {idor_count} cases - Account A can access B's resources!")
+
+            dry = console.input("[cyan]Dry-run only for standard ACM?[/cyan] (Y/n): ").strip().lower()
             dry_run = False if dry in ("n", "no") else True
             if not dry_run:
                 print_warning("ACM runs GET requests against provided endpoints. Ensure scope/permission.")
@@ -1014,8 +1046,11 @@ def main():
             tester = AccessControlMatrixTester(base_url=base_url, rate_limit_rps=max(0.3, float(args.rate_limit) / 5))
             res = tester.run(headers_a=headers_a, headers_b=headers_b, endpoints=eps, methods=["GET"], dry_run=dry_run)
             console.print(format_acm_result(res))
-            if res.findings:
-                print_success(f"Signals: {len(res.findings)}")
+            total_findings = len(res.findings)
+            if permuter_results:
+                total_findings += sum(1 for r in permuter_results if r.signal == "idor_suspect")
+            if total_findings:
+                print_success(f"Signals: {total_findings}")
 
         elif args.command == "schema":
             from ui_components import show_section, print_info, print_success, print_error, console
@@ -1048,6 +1083,96 @@ def main():
                 console.print(format_schema_diff(d))
             except Exception as e:
                 print_error(f"Schema analysis failed: {e}")
+
+        elif args.command == "swarm":
+            from ui_components import show_section, print_info, print_success, print_warning, print_error, console
+            from tools.swarm_controller import SwarmController, SwarmConfig, format_swarm_report
+            from pathlib import Path
+
+            show_section("Multi-Agent Swarm - Parallel Target Testing")
+
+            targets_file = args.target or console.input(
+                "[cyan]Targets file path[/cyan] (one URL per line, or 'targets.txt'): "
+            ).strip()
+            if not targets_file:
+                print_error("Targets file is required (one URL per line)")
+                return
+
+            file_path = Path(targets_file)
+            if not file_path.exists():
+                print_error(f"File not found: {targets_file}")
+                return
+
+            max_concurrent = console.input(
+                "[cyan]Max concurrent targets[/cyan] (default 3): "
+            ).strip()
+            try:
+                max_concurrent = max(1, int(max_concurrent)) if max_concurrent else 3
+            except:
+                max_concurrent = 3
+
+            abort_on_critical = console.input(
+                "[cyan]Abort all on critical finding?[/cyan] (y/N): "
+            ).strip().lower() in ("y", "yes")
+
+            config = SwarmConfig(
+                max_concurrent=max_concurrent,
+                rate_limit_per_target=max(0.5, float(args.rate_limit) / 2),
+                enable_governance=True,
+                abort_on_critical=abort_on_critical,
+                output_dir=Path("reports/swarm"),
+            )
+
+            controller = SwarmController(config)
+
+            try:
+                targets = controller.load_targets_from_file(file_path)
+                if not targets:
+                    print_error("No valid targets found in file")
+                    return
+
+                print_success(f"Loaded {len(targets)} targets")
+                print_info(f"Configuration: max_concurrent={max_concurrent}, rate_limit={config.rate_limit_per_target:.1f}")
+                print_warning("Each target will go through governance gates. Press Ctrl+C to abort swarm.")
+                console.input("[cyan]Press Enter to start swarm...[/cyan]")
+
+                def on_progress(target_id: str, pct: float):
+                    pass  # Updates are batched in display callback
+
+                def on_display(msg: str):
+                    console.print(msg)
+
+                results = controller.run(
+                    targets=targets,
+                    progress_callback=on_progress,
+                    display_callback=on_display,
+                )
+
+                # Generate and save report
+                report_path = controller.save_report()
+                report = controller.generate_aggregate_report()
+
+                console.print("\n" + format_swarm_report(report))
+                print_success(f"Swarm complete! Report saved: {report_path}")
+
+                # Summary
+                summary = report.get("summary", {})
+                total = summary.get("total_targets", 0)
+                completed = summary.get("completed", 0)
+                failed = summary.get("failed", 0)
+                findings = summary.get("total_findings", 0)
+
+                console.print(f"\n[green]Completed: {completed}/{total} | Failed: {failed} | Findings: {findings}[/green]")
+
+                if findings > 0:
+                    console.print(f"\n[yellow]💰 {findings} findings across swarm - use 'predict' to score bounty potential![/yellow]")
+
+            except KeyboardInterrupt:
+                print_warning("Swarm interrupted by user")
+                controller.abort()
+            except Exception as e:
+                print_error(f"Swarm execution failed: {e}")
+                logger.exception("Swarm failed")
 
     except KeyboardInterrupt:
         console.print("\n[dim]Operation canceled[/dim]")
