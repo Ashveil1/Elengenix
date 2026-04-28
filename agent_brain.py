@@ -1395,6 +1395,52 @@ Use JSON format: {{"action": "run_shell|save_memory|finish", "command": "...", "
                                     display_in_chat_mode(f"[Cloud] Found {cloud_report['total_findings']} misconfigurations", "warning")
                 except Exception as e:
                     logger.debug(f"Cloud scanner integration failed: {e}")
+
+                # Protocol Analyzer Integration: Check for non-HTTP protocols
+                try:
+                    from tools.protocol_analyzer import ProtocolAnalyzer, ProtocolType
+                    
+                    # Check if any findings mention non-HTTP ports
+                    iot_ports = {1883, 8883, 502, 102, 47808}  # MQTT, Modbus, S7, BACnet
+                    findings_with_ports = [f for f in result.findings if f.get('port') or f.get('url', '')]
+                    
+                    has_iot_port = False
+                    for finding in findings_with_ports:
+                        port = finding.get('port', 0)
+                        url = finding.get('url', '')
+                        if port in iot_ports or any(f':{p}/' in url for p in iot_ports):
+                            has_iot_port = True
+                            break
+                    
+                    if has_iot_port:
+                        # Governance gate for protocol analysis
+                        proto_gate = self.governance.gate(
+                            mission_id=mission_key,
+                            target=target or "global",
+                            action={
+                                "action": "run_protocol_analysis",
+                                "tool": "protocol_analyzer",
+                                "command": "analyze_iot_protocols",
+                                "purpose": "IoT/ICS protocol security analysis",
+                            },
+                            callback=callback,
+                        )
+                        
+                        if proto_gate.allowed or proto_gate.decision == "needs_approval":
+                            display_in_chat_mode("[Protocol] IoT/ICS protocol detected - consider manual protocol analysis", "info")
+                            
+                            # Add hypothesis for IoT testing
+                            mission_state.upsert_hypothesis(
+                                hyp_id=f"iot_protocol:{target}",
+                                title="IoT/ICS Protocol Testing Required",
+                                description=f"Non-HTTP ports detected ({iot_ports}). Consider MQTT, Modbus, or gRPC protocol testing.",
+                                confidence=0.6,
+                                status="open",
+                                tags=["iot", "ics", "mqtt", "modbus", "protocol"],
+                                evidence={"detected_ports": list(iot_ports), "source": tool_name},
+                            )
+                except Exception as e:
+                    logger.debug(f"Protocol analyzer integration failed: {e}")
                 
                 # Mark step as completed in attack tree
                 if self.current_tree and step < len(self.current_tree.steps):

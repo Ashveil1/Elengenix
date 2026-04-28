@@ -93,7 +93,7 @@ def main():
     
     parser = argparse.ArgumentParser(description="Elengenix CLI", add_help=False)
     parser.add_argument("command", nargs="?", default="menu", 
-                        choices=["ai", "scan", "gateway", "configure", "update", "doctor", "arsenal", "memory", "cve-update", "bola", "waf", "recon", "soc", "mobile", "cloud", "sast", "menu"])
+                        choices=["ai", "scan", "gateway", "configure", "update", "doctor", "arsenal", "memory", "cve-update", "bola", "waf", "recon", "soc", "mobile", "cloud", "sast", "proto", "menu"])
     parser.add_argument("target", nargs="?", help="Target domain or IP")
     parser.add_argument("--rate-limit", type=int, default=5, help="Max requests per second")
     
@@ -642,6 +642,57 @@ def main():
             except Exception as e:
                 print_error(f"SAST scan failed: {e}")
                 logger.exception("SAST failed")
+
+        elif args.command == "proto":
+            from ui_components import show_section, print_info, print_success, print_error, console
+            from tools.protocol_analyzer import ProtocolAnalyzer, format_protocol_report
+
+            show_section("IoT/ICS/gRPC Protocol Analyzer")
+            
+            hex_input = args.target or console.input("[cyan]Hex dump or PCAP data[/cyan]: ").strip()
+            if not hex_input:
+                print_error("Protocol data is required")
+                return
+            
+            print_info("Initializing protocol analyzer...")
+            analyzer = ProtocolAnalyzer()
+            
+            try:
+                result = analyzer.analyze_hex_dump(hex_input)
+                
+                if "error" in result:
+                    print_error(result["error"])
+                    return
+                
+                console.print(f"\n[cyan]Detected Protocol:[/cyan] {result['protocol'].upper()}")
+                console.print(f"[dim]Length: {result['length']} bytes[/dim]")
+                console.print(f"[dim]Entropy: {result['analysis']['entropy']}[/dim]")
+                
+                # If we detected a known protocol, do deeper analysis
+                if result['protocol'] != 'unknown_binary':
+                    from pathlib import Path
+                    src_addr = ("127.0.0.1", 1883 if result['protocol'] == 'mqtt' else 502)
+                    dst_addr = ("127.0.0.1", 12345)
+                    
+                    data = bytes.fromhex(hex_input.replace(' ', '').replace('\n', ''))
+                    analyzer.analyze_packet(data, src_addr, dst_addr)
+                    
+                    report = analyzer.generate_report()
+                    output = format_protocol_report(report)
+                    console.print(output)
+                    
+                    if report.get('total_findings', 0) > 0:
+                        console.print(f"\n[red]🚨 Found {report['total_findings']} protocol security issues![/red]")
+                else:
+                    console.print("\n[yellow]⚠️ Unknown binary protocol - showing analysis:[/yellow]")
+                    console.print(f"Printable ratio: {result['analysis']['printable_ratio']:.2%}")
+                    console.print(f"Null bytes: {result['analysis']['null_bytes']}")
+                    if result['analysis']['common_patterns']:
+                        console.print(f"Patterns: {', '.join(result['analysis']['common_patterns'])}")
+                    
+            except Exception as e:
+                print_error(f"Protocol analysis failed: {e}")
+                logger.exception("Protocol analysis failed")
 
     except KeyboardInterrupt:
         console.print("\n[dim]Operation canceled[/dim]")
