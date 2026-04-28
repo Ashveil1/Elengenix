@@ -93,7 +93,7 @@ def main():
     
     parser = argparse.ArgumentParser(description="Elengenix CLI", add_help=False)
     parser.add_argument("command", nargs="?", default="menu", 
-                        choices=["ai", "scan", "gateway", "configure", "update", "doctor", "arsenal", "memory", "cve-update", "bola", "waf", "recon", "soc", "mobile", "cloud", "sast", "proto", "dashboard", "chain", "predict", "menu"])
+                        choices=["ai", "scan", "gateway", "configure", "update", "doctor", "arsenal", "memory", "cve-update", "bola", "waf", "recon", "soc", "mobile", "cloud", "sast", "proto", "dashboard", "chain", "predict", "workflow", "acm", "schema", "menu"])
     parser.add_argument("target", nargs="?", help="Target domain or IP")
     parser.add_argument("--rate-limit", type=int, default=5, help="Max requests per second")
     
@@ -847,6 +847,139 @@ def main():
             except Exception as e:
                 print_error(f"Bounty prediction failed: {e}")
                 logger.exception("Bounty prediction failed")
+
+        elif args.command == "workflow":
+            from ui_components import show_section, print_info, print_success, print_warning, print_error, console
+            from tools.workflow_fuzzer import WorkflowFuzzer, format_workflow_plans
+
+            show_section("Workflow / Business-Logic Fuzzer (Stateful, Safe)")
+            base_url = args.target or console.input("[cyan]Base URL[/cyan] (e.g., https://target.tld): ").strip()
+            if not base_url:
+                print_error("Base URL is required")
+                return
+
+            fuzzer = WorkflowFuzzer(base_url=base_url, rate_limit_rps=max(0.3, float(args.rate_limit) / 5))
+            plans = fuzzer.propose_common_plans()
+            console.print(format_workflow_plans(plans))
+
+            sel = console.input("[cyan]Select plan number[/cyan] (default 1): ").strip() or "1"
+            try:
+                idx = max(1, int(sel)) - 1
+            except Exception:
+                idx = 0
+            if idx < 0 or idx >= len(plans):
+                idx = 0
+            plan = plans[idx]
+
+            print_info("Paste headers for session (one per line: Header: value). Empty line to finish.")
+            lines = []
+            while True:
+                line = console.input("").rstrip("\n")
+                if not line.strip():
+                    break
+                lines.append(line)
+            from tools.bola_harness import parse_headers_input
+            headers = parse_headers_input("\n".join(lines))
+
+            dry = console.input("[cyan]Dry-run only?[/cyan] (Y/n): ").strip().lower()
+            dry_run = False if dry in ("n", "no") else True
+            if not dry_run:
+                print_warning("Execution is GET-only by default. Use this only on authorized targets.")
+
+            result = fuzzer.execute_plan(plan, headers=headers, allow_non_get=False, dry_run=dry_run)
+            if result.anomalies:
+                print_success(f"Anomalies detected: {len(result.anomalies)}")
+                for a in result.anomalies[:10]:
+                    console.print(f"- {a.get('type')}: {a.get('note','')} ({a.get('url','')})")
+            else:
+                print_info("No anomalies flagged by heuristics (this does not mean safe).")
+
+        elif args.command == "acm":
+            from ui_components import show_section, print_info, print_success, print_warning, print_error, console
+            from tools.access_control_matrix import AccessControlMatrixTester, format_acm_result
+            from tools.bola_harness import parse_headers_input
+
+            show_section("Access-Control Matrix Tester (Differential AuthZ)")
+            base_url = args.target or console.input("[cyan]Base URL[/cyan] (e.g., https://target.tld): ").strip()
+            if not base_url:
+                print_error("Base URL is required")
+                return
+
+            print_info("Paste headers for Account A (empty line to finish)")
+            la = []
+            while True:
+                line = console.input("").rstrip("\n")
+                if not line.strip():
+                    break
+                la.append(line)
+
+            print_info("Paste headers for Account B (empty line to finish)")
+            lb = []
+            while True:
+                line = console.input("").rstrip("\n")
+                if not line.strip():
+                    break
+                lb.append(line)
+
+            headers_a = parse_headers_input("\n".join(la))
+            headers_b = parse_headers_input("\n".join(lb))
+            if not headers_a or not headers_b:
+                print_error("Both accounts headers are required")
+                return
+
+            print_info("Paste endpoints (paths or URLs) to test (empty line to finish)")
+            eps = []
+            while True:
+                line = console.input("").rstrip("\n")
+                if not line.strip():
+                    break
+                eps.append(line.strip())
+            if not eps:
+                print_error("At least 1 endpoint is required")
+                return
+
+            dry = console.input("[cyan]Dry-run only?[/cyan] (Y/n): ").strip().lower()
+            dry_run = False if dry in ("n", "no") else True
+            if not dry_run:
+                print_warning("ACM runs GET requests against provided endpoints. Ensure scope/permission.")
+
+            tester = AccessControlMatrixTester(base_url=base_url, rate_limit_rps=max(0.3, float(args.rate_limit) / 5))
+            res = tester.run(headers_a=headers_a, headers_b=headers_b, endpoints=eps, methods=["GET"], dry_run=dry_run)
+            console.print(format_acm_result(res))
+            if res.findings:
+                print_success(f"Signals: {len(res.findings)}")
+
+        elif args.command == "schema":
+            from ui_components import show_section, print_info, print_success, print_error, console
+            from tools.api_schema_diff import OpenAPISchemaDiff, format_schema_diff
+
+            show_section("API Schema Surface & Diff (OpenAPI)")
+            src_a = args.target or console.input("[cyan]Schema A (path or URL)[/cyan]: ").strip()
+            if not src_a:
+                print_error("Schema A is required")
+                return
+            src_b = console.input("[cyan]Schema B (path or URL)[/cyan] (optional): ").strip()
+
+            diff = OpenAPISchemaDiff()
+
+            def load(src: str):
+                if src.startswith("http://") or src.startswith("https://"):
+                    return diff.load_from_url(src)
+                return diff.load_from_path(Path(src))
+
+            try:
+                a = diff.surface(load(src_a))
+                print_success(f"Loaded A: {a.title} {a.version} endpoints={len(a.endpoints)}")
+                if not src_b:
+                    for m, p in a.endpoints[:50]:
+                        console.print(f"- {m} {p}")
+                    return
+                b = diff.surface(load(src_b))
+                print_success(f"Loaded B: {b.title} {b.version} endpoints={len(b.endpoints)}")
+                d = diff.diff(a, b)
+                console.print(format_schema_diff(d))
+            except Exception as e:
+                print_error(f"Schema analysis failed: {e}")
 
     except KeyboardInterrupt:
         console.print("\n[dim]Operation canceled[/dim]")
