@@ -284,25 +284,46 @@ def main():
                         language=lang
                     )
                     
-                    # Call AI (simulate with cli module for now)
+                    # Call AI using Universal Client (OpenClaw-style)
                     console.print("[dim]🤖 AI กำลังคิด...[/dim]")
                     
-                    # For now, use the existing cli but with our enhanced prompts
-                    # In production, this would call the actual AI with the prompt
                     try:
-                        import cli
-                        # Pass the enhanced prompt to AI
-                        response = f"รับทราบครับ จะช่วยดำเนินการตามที่ขอ: {user_input[:50]}..."
-                        if args.target:
-                            response += f"\n(เป้าหมาย: {args.target})"
+                        from tools.universal_ai_client import AIClientManager, AIMessage
+                        
+                        # Initialize AI manager with fallback chain
+                        ai_manager = AIClientManager(preferred_order=["gemini", "openai", "groq", "ollama"])
+                        
+                        if not ai_manager.active_client:
+                            console.print("[yellow]⚠ ไม่พบ AI provider[/yellow]")
+                            console.print("[dim]กรุณาตั้งค่าหนึ่งในนี้:[/dim]")
+                            console.print("  • GEMINI_API_KEY (ฟรี) - https://aistudio.google.com/app/apikey")
+                            console.print("  • OPENAI_API_KEY - https://platform.openai.com/api-keys")
+                            console.print("  • หรือติดตั้ง Ollama (ไม่ต้อง API key)")
+                            continue
+                        
+                        # Build messages with context
+                        messages = [
+                            AIMessage(role="system", content=prompt),
+                            AIMessage(role="user", content=user_input)
+                        ]
+                        
+                        # Get response from AI
+                        response_obj = ai_manager.chat(messages, temperature=0.7, max_tokens=2048)
+                        response = response_obj.content
                         
                         console.print(f"🤖 {response}\n")
                         
-                        # Save AI response
-                        memory.add_message(session_id, "assistant", response)
+                        # Save AI response with metadata
+                        memory.add_message(session_id, "assistant", response, metadata={
+                            "provider": ai_manager.get_active_provider(),
+                            "model": response_obj.model,
+                            "usage": response_obj.usage,
+                        })
                         
                     except Exception as e:
-                        print_error(f"AI error: {e}")
+                        logger.error(f"AI error: {e}")
+                        console.print(f"[red]AI Error: {str(e)[:100]}[/red]")
+                        console.print("[dim]ลองตรวจสอบ API key หรือใช้ Ollama (local) แทน[/dim]")
                         
                 except KeyboardInterrupt:
                     console.print("\n[dim]กำลังออก...[/dim]")
