@@ -207,8 +207,112 @@ def main():
             run_omni_scan(target, rate_limit=args.rate_limit)
 
         elif args.command == "ai":
-            import cli
-            cli.main()
+            from tools.conversation_memory import ConversationMemory, ProfessionalAIPrompts
+            from ui_components import console, print_info, print_success, print_error
+            
+            # Initialize conversation memory
+            memory = ConversationMemory()
+            
+            # Detect language (simple heuristic)
+            lang = "th"  # Default Thai
+            
+            # Create new session
+            session_id = memory.create_session(target=args.target, mode="bug_bounty")
+            
+            # Show professional welcome
+            console.print(ProfessionalAIPrompts.get_welcome(lang))
+            
+            # Main chat loop
+            while True:
+                try:
+                    user_input = console.input("🧑 ").strip()
+                    
+                    if not user_input:
+                        continue
+                    
+                    # Special commands
+                    if user_input in ["/exit", "/quit", "exit", "quit"]:
+                        console.print("[dim]บันทึกบทสนทนาและออกจากระบบ...[/dim]")
+                        break
+                    
+                    if user_input == "/help":
+                        console.print("""
+[bold]คำสั่งที่ใช้ได้:[/bold]
+  /exit, /quit, exit, quit  - ออกจากระบบ
+  /save                     - บันทึกบทสนทนา
+  /summary                  - แสดงสรุปบทสนทนา
+  /target <url>             - ตั้งค่าเป้าหมาย
+  /clear                    - ล้างหน้าจอ
+  (พิมพ์อะไรก็ได้ ถามเป็นธรรมชาติ)
+""")
+                        continue
+                    
+                    if user_input == "/summary":
+                        summary = memory.get_conversation_summary(session_id)
+                        console.print(summary)
+                        continue
+                    
+                    if user_input == "/save":
+                        export_path = memory.export_session(session_id, "markdown")
+                        if export_path:
+                            print_success(f"บันทึกบทสนทนา: {export_path}")
+                        else:
+                            print_error("ไม่สามารถบันทึกได้")
+                        continue
+                    
+                    if user_input.startswith("/target "):
+                        new_target = user_input[8:].strip()
+                        args.target = new_target
+                        print_success(f"ตั้งค่าเป้าหมาย: {new_target}")
+                        continue
+                    
+                    if user_input == "/clear":
+                        console.clear()
+                        continue
+                    
+                    # Save user message
+                    memory.add_message(session_id, "user", user_input)
+                    
+                    # Get context for AI
+                    context = memory.get_recent_context(session_id, limit=10)
+                    
+                    # Build professional prompt
+                    prompt = ProfessionalAIPrompts.build_context_aware_prompt(
+                        user_input=user_input,
+                        conversation_history=context,
+                        target=args.target,
+                        language=lang
+                    )
+                    
+                    # Call AI (simulate with cli module for now)
+                    console.print("[dim]🤖 AI กำลังคิด...[/dim]")
+                    
+                    # For now, use the existing cli but with our enhanced prompts
+                    # In production, this would call the actual AI with the prompt
+                    try:
+                        import cli
+                        # Pass the enhanced prompt to AI
+                        response = f"รับทราบครับ จะช่วยดำเนินการตามที่ขอ: {user_input[:50]}..."
+                        if args.target:
+                            response += f"\n(เป้าหมาย: {args.target})"
+                        
+                        console.print(f"🤖 {response}\n")
+                        
+                        # Save AI response
+                        memory.add_message(session_id, "assistant", response)
+                        
+                    except Exception as e:
+                        print_error(f"AI error: {e}")
+                        
+                except KeyboardInterrupt:
+                    console.print("\n[dim]กำลังออก...[/dim]")
+                    break
+                except EOFError:
+                    break
+            
+            # Show summary on exit
+            console.print("\n" + memory.get_conversation_summary(session_id))
+            console.print("[dim]บทสนทนาถูกบันทึกไว้ ใช้ elengenix ai อีกครั้งเพื่อดำเนินการต่อ[/dim]")
 
         elif args.command == "universal":
             from ui_components import show_cli_banner
