@@ -74,12 +74,13 @@ for dep in $CORE_DEPS; do
     pip install "$dep" --quiet 2>/dev/null || warning "  $dep install had issues (continuing)"
 done
 
-# Install AI providers (required - choose your provider)
-info "Installing AI providers (choose your provider)..."
+# Install AI providers (all providers installed automatically)
+info "Installing AI providers (OpenAI, Anthropic, Google)..."
 # Install all providers - user can choose which to use via environment variables
 AI_DEPS="openai anthropic google-generativeai"
 for dep in $AI_DEPS; do
-    pip install "$dep" --quiet 2>/dev/null || warning "  $dep install had issues (continuing)"
+    info "  Installing $dep..."
+    pip install "$dep" 2>/dev/null || warning "  $dep install had issues (continuing)"
 done
 success "AI providers installed (set OPENAI_API_KEY, ANTHROPIC_API_KEY, or GOOGLE_API_KEY to use)"
 
