@@ -39,14 +39,12 @@ PATTERNS: Dict[str, tuple] = {
 _TIMEOUT = 12
 
 def analyze_js(url: str) -> Dict[str, List[Dict]]:
-    pass  # TODO: Implement
  """
  Fetch a JS file and extract secrets/endpoints.
  Returns dict keyed by category with list of match dicts.
  """
  logger.info(f"Analyzing JS: {url}")
  try:
-     pass  # TODO: Implement
  r = requests.get(
  url,
  timeout=_TIMEOUT,
@@ -56,18 +54,15 @@ def analyze_js(url: str) -> Dict[str, List[Dict]]:
  r.raise_for_status()
  content = r.text
  except Exception as e:
-     pass  # TODO: Implement
  logger.error(f"Failed to fetch {url}: {e}")
  return {"error": [{"match": str(e), "severity": "ERROR"}]}
 
  results: Dict[str, List[Dict]] = {}
 
  for pattern, (description, severity) in PATTERNS.items():
-     pass  # TODO: Implement
  matches = list({m if isinstance(m, str) else m[0]
  for m in re.findall(pattern, content)})
  if matches:
-     pass  # TODO: Implement
  results[description] = [
  {"match": m, "severity": severity, "pattern": pattern}
  for m in matches[:20] # cap at 20 per category
@@ -76,20 +71,15 @@ def analyze_js(url: str) -> Dict[str, List[Dict]]:
  return results
 
 def analyze_js_files_from_list(urls: List[str]) -> Dict[str, Dict]:
-    pass  # TODO: Implement
  """Analyze multiple JS URLs and aggregate results."""
  aggregated: Dict[str, Dict] = {}
  for url in urls:
-     pass  # TODO: Implement
  findings = analyze_js(url)
  if findings:
-     pass  # TODO: Implement
  aggregated[url] = findings
  return aggregated
 
 if __name__ == "__main__":
-    pass  # TODO: Implement
  import sys, json
  if len(sys.argv) > 1:
-     pass  # TODO: Implement
  print(json.dumps(analyze_js(sys.argv[1]), indent=2))

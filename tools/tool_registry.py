@@ -24,7 +24,6 @@ logger = logging.getLogger("elengenix.tools")
 console = Console()
 
 class ToolCategory(Enum):
-    pass  # TODO: Implement
  """Classification of security tools by purpose."""
  RECON = "reconnaissance"
  SCANNER = "vulnerability_scanner"
@@ -37,7 +36,6 @@ class ToolCategory(Enum):
  UTILITY = "utility"
 
 class ToolPriority(Enum):
-    pass  # TODO: Implement
  """Execution priority for tool ordering."""
  CRITICAL = 1
  HIGH = 2
@@ -46,7 +44,6 @@ class ToolPriority(Enum):
 
 @dataclass
 class ToolResult:
-    pass  # TODO: Implement
  """Standardized result format for all tools."""
  success: bool
  tool_name: str
@@ -58,7 +55,6 @@ class ToolResult:
  raw_output_file: Optional[Path] = None
  
  def to_dict(self) -> Dict[str, Any]:
-     pass  # TODO: Implement
  return {
  "success": self.success,
  "tool_name": self.tool_name,
@@ -71,7 +67,6 @@ class ToolResult:
 
 @dataclass
 class ToolMetadata:
-    pass  # TODO: Implement
  """Metadata for tool registration."""
  name: str
  category: ToolCategory
@@ -84,22 +79,18 @@ class ToolMetadata:
  extra_args: Dict[str, Any] = field(default_factory=dict)
 
 class BaseTool(ABC):
-    pass  # TODO: Implement
  """Abstract base class for all Elengenix tools."""
  
  def __init__(self, metadata: ToolMetadata):
-     pass  # TODO: Implement
  self.metadata = metadata
  self._check_binary()
  
  def _check_binary(self) -> bool:
-     pass  # TODO: Implement
  """Verify the tool binary is installed."""
  return shutil.which(self.metadata.binary_name) is not None
  
  @property
  def is_available(self) -> bool:
-     pass  # TODO: Implement
  return self._check_binary()
  
  @abstractmethod
@@ -110,7 +101,6 @@ class BaseTool(ABC):
  semaphore: asyncio.Semaphore,
  **kwargs
  ) -> ToolResult:
-     pass  # TODO: Implement
  """Execute the tool and return standardized result."""
  pass
  
@@ -120,7 +110,6 @@ class BaseTool(ABC):
  output_file: Path,
  extra_flags: List[str] = None
  ) -> List[str]:
-     pass  # TODO: Implement
  """Build command arguments. Override in subclasses."""
  raise NotImplementedError("Subclasses must implement _build_command")
  
@@ -130,12 +119,9 @@ class BaseTool(ABC):
  timeout: int = None,
  semaphore: asyncio.Semaphore = None
  ) -> tuple:
-     pass  # TODO: Implement
  """Execute subprocess with optional semaphore."""
  async def _exec():
-     pass  # TODO: Implement
  try:
-     pass  # TODO: Implement
  proc = await asyncio.create_subprocess_exec(
  *cmd,
  stdout=asyncio.subprocess.PIPE,
@@ -147,24 +133,18 @@ class BaseTool(ABC):
  )
  return stdout.decode(), stderr.decode(), proc.returncode
  except asyncio.TimeoutError:
-     pass  # TODO: Implement
  if proc:
-     pass  # TODO: Implement
  proc.kill()
  return "", "Timeout exceeded", 1
  except Exception as e:
-     pass  # TODO: Implement
  return "", str(e), 1
  
  if semaphore:
-     pass  # TODO: Implement
  async with semaphore:
-     pass  # TODO: Implement
  return await _exec()
  return await _exec()
 
 class ToolRegistry:
-    pass  # TODO: Implement
  """Central registry for all security tools."""
  
  _instance = None
@@ -172,49 +152,39 @@ class ToolRegistry:
  _categories: Dict[ToolCategory, List[str]] = {}
  
  def __new__(cls):
-     pass  # TODO: Implement
  if cls._instance is None:
-     pass  # TODO: Implement
  cls._instance = super().__new__(cls)
  return cls._instance
  
  def register(self, tool: BaseTool) -> None:
-     pass  # TODO: Implement
  """Register a tool instance."""
  name = tool.metadata.name
  self._tools[name] = tool
  
  category = tool.metadata.category
  if category not in self._categories:
-     pass  # TODO: Implement
  self._categories[category] = []
  if name not in self._categories[category]:
-     pass  # TODO: Implement
  self._categories[category].append(name)
  
  logger.info(f"Registered tool: {name} ({category.value})")
  
  def unregister(self, name: str) -> None:
-     pass  # TODO: Implement
  """Remove a tool from registry."""
  if name in self._tools:
-     pass  # TODO: Implement
  tool = self._tools.pop(name)
  self._categories[tool.metadata.category].remove(name)
  
  def get_tool(self, name: str) -> Optional[BaseTool]:
-     pass  # TODO: Implement
  """Get tool by name."""
  return self._tools.get(name)
  
  def get_tools_by_category(self, category: ToolCategory) -> List[BaseTool]:
-     pass  # TODO: Implement
  """Get all tools in a category."""
  names = self._categories.get(category, [])
  return [self._tools[n] for n in names if n in self._tools]
  
  def list_available_tools(self) -> Dict[str, Dict[str, Any]]:
-     pass  # TODO: Implement
  """List all registered tools with availability status."""
  return {
  name: {
@@ -230,7 +200,6 @@ class ToolRegistry:
  self, 
  target_type: str = "web"
  ) -> List[BaseTool]:
-     pass  # TODO: Implement
  """Get recommended tool execution chain based on target type."""
  chains = {
  "web": [
@@ -256,7 +225,6 @@ class ToolRegistry:
  
  result = []
  for category in chains.get(target_type, chains["web"]):
-     pass  # TODO: Implement
  tools = self.get_tools_by_category(category)
  # Sort by priority
  tools.sort(key=lambda t: t.metadata.priority.value)
@@ -272,7 +240,6 @@ class ToolRegistry:
  rate_limit: int = 5,
  progress_callback: Optional[Callable] = None
  ) -> List[ToolResult]:
-     pass  # TODO: Implement
  """Execute a chain of tools sequentially with rate limiting."""
  semaphore = asyncio.Semaphore(rate_limit)
  results = []
@@ -282,13 +249,10 @@ class ToolRegistry:
  TextColumn("[bold cyan]{task.description}"),
  console=console,
  ) as progress:
-     pass  # TODO: Implement
  task = progress.add_task("Executing tool chain...", total=len(tools))
  
  for tool in tools:
-     pass  # TODO: Implement
  if not tool.is_available:
-     pass  # TODO: Implement
  logger.warning(f"Tool {tool.metadata.name} not available, skipping")
  progress.advance(task)
  continue
@@ -296,16 +260,13 @@ class ToolRegistry:
  progress.update(task, description=f"Running {tool.metadata.name}...")
  
  try:
-     pass  # TODO: Implement
  result = await tool.execute(target, report_dir, semaphore)
  results.append(result)
  
  if progress_callback:
-     pass  # TODO: Implement
  progress_callback(result)
  
  except Exception as e:
-     pass  # TODO: Implement
  logger.error(f"Tool {tool.metadata.name} failed: {e}")
  results.append(ToolResult(
  success=False,
@@ -322,12 +283,9 @@ class ToolRegistry:
 registry = ToolRegistry()
 
 def register_tool(metadata: ToolMetadata):
-    pass  # TODO: Implement
  """Decorator to register a tool class."""
  def decorator(cls: Type[BaseTool]):
-     pass  # TODO: Implement
  if not issubclass(cls, BaseTool):
-     pass  # TODO: Implement
  raise TypeError(f"{cls.__name__} must inherit from BaseTool")
  
  tool_instance = cls(metadata)
@@ -348,7 +306,6 @@ def register_tool(metadata: ToolMetadata):
  timeout_seconds=300,
 ))
 class SubfinderTool(BaseTool):
-    pass  # TODO: Implement
  async def execute(
  self, 
  target: Union[str, List[str]], 
@@ -356,7 +313,6 @@ class SubfinderTool(BaseTool):
  semaphore: asyncio.Semaphore,
  **kwargs
  ) -> ToolResult:
-     pass  # TODO: Implement
  import time
  start_time = time.time()
  
@@ -368,7 +324,6 @@ class SubfinderTool(BaseTool):
  execution_time = time.time() - start_time
  
  if rc == 0 and output_file.exists():
-     pass  # TODO: Implement
  content = output_file.read_text()
  subdomains = [line.strip() for line in content.split('\n') if line.strip()]
  
@@ -401,7 +356,6 @@ class SubfinderTool(BaseTool):
  supports_list_input=True,
 ))
 class HttpxTool(BaseTool):
-    pass  # TODO: Implement
  async def execute(
  self, 
  target: Union[str, List[str]], 
@@ -409,7 +363,6 @@ class HttpxTool(BaseTool):
  semaphore: asyncio.Semaphore,
  **kwargs
  ) -> ToolResult:
-     pass  # TODO: Implement
  import time
  start_time = time.time()
  
@@ -418,7 +371,6 @@ class HttpxTool(BaseTool):
  
  # Use subdomains if available
  if input_file.exists() and input_file.stat().st_size > 0:
-     pass  # TODO: Implement
  cmd = [
  "httpx", "-l", str(input_file),
  "-o", str(output_file),
@@ -426,7 +378,6 @@ class HttpxTool(BaseTool):
  "-tech-detect", "-status-code", "-title"
  ]
  else:
-     pass  # TODO: Implement
  cmd = [
  "httpx", "-u", target,
  "-o", str(output_file),
@@ -438,18 +389,13 @@ class HttpxTool(BaseTool):
  execution_time = time.time() - start_time
  
  if rc == 0 and output_file.exists():
-     pass  # TODO: Implement
  import json
  try:
-     pass  # TODO: Implement
  lines = output_file.read_text().strip().split('\n')
  findings = []
  for line in lines:
-     pass  # TODO: Implement
  if line:
-     pass  # TODO: Implement
  try:
-     pass  # TODO: Implement
  data = json.loads(line)
  findings.append({
  "url": data.get("url", ""),
@@ -458,7 +404,6 @@ class HttpxTool(BaseTool):
  "title": data.get("title", ""),
  })
  except:
-     pass  # TODO: Implement
  pass
  
  return ToolResult(
@@ -471,7 +416,6 @@ class HttpxTool(BaseTool):
  raw_output_file=output_file,
  )
  except Exception as e:
-     pass  # TODO: Implement
  pass
  
  return ToolResult(
@@ -492,7 +436,6 @@ class HttpxTool(BaseTool):
  timeout_seconds=600,
 ))
 class NucleiTool(BaseTool):
-    pass  # TODO: Implement
  async def execute(
  self, 
  target: Union[str, List[str]], 
@@ -500,7 +443,6 @@ class NucleiTool(BaseTool):
  semaphore: asyncio.Semaphore,
  **kwargs
  ) -> ToolResult:
-     pass  # TODO: Implement
  import time
  start_time = time.time()
  
@@ -513,15 +455,11 @@ class NucleiTool(BaseTool):
  urls = []
  import json
  for line in live_file.read_text().strip().split('\n'):
-     pass  # TODO: Implement
  if line:
-     pass  # TODO: Implement
  try:
-     pass  # TODO: Implement
  data = json.loads(line)
  urls.append(data.get("url", ""))
  except:
-     pass  # TODO: Implement
  pass
  
  if urls:
@@ -534,14 +472,12 @@ class NucleiTool(BaseTool):
  "-silent", "-severity", "critical,high,medium"
  ]
  else:
-     pass  # TODO: Implement
  cmd = [
  "nuclei", "-u", target,
  "-json", "-o", str(output_file),
  "-silent", "-severity", "critical,high,medium"
  ]
  else:
-     pass  # TODO: Implement
  cmd = [
  "nuclei", "-u", target,
  "-json", "-o", str(output_file),
@@ -553,14 +489,10 @@ class NucleiTool(BaseTool):
  
  findings = []
  if output_file.exists():
-     pass  # TODO: Implement
  import json
  for line in output_file.read_text().strip().split('\n'):
-     pass  # TODO: Implement
  if line:
-     pass  # TODO: Implement
  try:
-     pass  # TODO: Implement
  data = json.loads(line)
  findings.append({
  "template": data.get("template-id", ""),
@@ -570,7 +502,6 @@ class NucleiTool(BaseTool):
  "description": data.get("info", {}).get("description", ""),
  })
  except:
-     pass  # TODO: Implement
  pass
  
  return ToolResult(
@@ -588,21 +519,17 @@ class NucleiTool(BaseTool):
 # 
 
 def auto_discover_tools() -> List[str]:
-    pass  # TODO: Implement
  """Auto-discover and import all tool modules in tools/ directory."""
  tools_dir = Path(__file__).parent
  discovered = []
  
  for file in tools_dir.glob("*_integration.py"):
-     pass  # TODO: Implement
  module_name = f"tools.{file.stem}"
  try:
-     pass  # TODO: Implement
  __import__(module_name)
  discovered.append(module_name)
  logger.info(f"Auto-discovered: {module_name}")
  except Exception as e:
-     pass  # TODO: Implement
  logger.warning(f"Failed to import {module_name}: {e}")
  
  return discovered

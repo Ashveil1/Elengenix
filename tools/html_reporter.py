@@ -15,7 +15,6 @@ from pathlib import Path
 from typing import Dict, List
 
 def _badge(severity: str) -> str:
-    pass  # TODO: Implement
  colors = {
  "CRITICAL": "danger",
  "HIGH": "warning",
@@ -30,7 +29,6 @@ def generate_html_report(
  findings: List[Dict],
  output_path: str,
 ) -> str:
-    pass  # TODO: Implement
  now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
  total = len(findings)
  critical = sum(1 for f in findings if f.get("severity", "").upper() == "CRITICAL")
@@ -39,7 +37,6 @@ def generate_html_report(
 
  rows = ""
  for f in findings:
-     pass  # TODO: Implement
  sev = html.escape(str(f.get("severity", "INFO")))
  name = html.escape(str(f.get("name", "–")))
  url = html.escape(str(f.get("url", "–")))
@@ -53,7 +50,6 @@ def generate_html_report(
  </tr>"""
 
  if not rows:
-     pass  # TODO: Implement
  rows = "<tr><td colspan='4' class='text-center text-muted'>No vulnerabilities found by automated scan.</td></tr>"
 
  html_content = f"""<!DOCTYPE html>

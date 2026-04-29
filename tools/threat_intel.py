@@ -3,14 +3,12 @@
 Threat Intelligence Module for IOC lookups and enrichment.
 
 Purpose:
-    pass  # TODO: Implement
 - Local IOC database management (SQLite)
 - Enrich alerts with threat intel context
 - Track IOCs seen during operations
 - Import/export IOC feeds (STIX/TAXII compatible format)
 
 Types of IOCs:
-    pass  # TODO: Implement
 - IP addresses (malicious, C2, scanning)
 - Domains (malware C2, phishing)
 - File hashes (MD5, SHA256)
@@ -33,12 +31,10 @@ logger = logging.getLogger("elengenix.threat_intel")
 _DB_PATH = Path(__file__).parent.parent / "data" / "threat_intel.db"
 
 def init_db() -> None:
-    pass  # TODO: Implement
  """Initialize threat intel database."""
  _DB_PATH.parent.mkdir(parents=True, exist_ok=True)
  conn = sqlite3.connect(str(_DB_PATH), timeout=10)
  try:
-     pass  # TODO: Implement
  conn.execute("PRAGMA journal_mode=WAL")
  
  # IOCs table
@@ -73,38 +69,30 @@ def init_db() -> None:
  
  conn.commit()
  finally:
-     pass  # TODO: Implement
  conn.close()
 
 class ThreatIntelDB:
-    pass  # TODO: Implement
  """Local threat intelligence database."""
 
  def __init__(self):
-     pass  # TODO: Implement
  init_db()
 
  def lookup(self, ioc_value: str, ioc_type: Optional[str] = None) -> Optional[Dict[str, Any]]:
-     pass  # TODO: Implement
  """Look up an IOC in the database."""
  conn = sqlite3.connect(str(_DB_PATH), timeout=10)
  try:
-     pass  # TODO: Implement
  if ioc_type:
-     pass  # TODO: Implement
  row = conn.execute(
  "SELECT * FROM iocs WHERE ioc_value = ? AND ioc_type = ?",
  (ioc_value, ioc_type)
  ).fetchone()
  else:
-     pass  # TODO: Implement
  row = conn.execute(
  "SELECT * FROM iocs WHERE ioc_value = ?",
  (ioc_value,)
  ).fetchone()
  
  if row:
-     pass  # TODO: Implement
  return {
  "value": row[0],
  "type": row[1],
@@ -118,7 +106,6 @@ class ThreatIntelDB:
  }
  return None
  finally:
-     pass  # TODO: Implement
  conn.close()
 
  def add_ioc(
@@ -131,7 +118,6 @@ class ThreatIntelDB:
  description: Optional[str] = None,
  metadata: Optional[Dict[str, Any]] = None,
  ) -> bool:
-     pass  # TODO: Implement
  """Add or update an IOC in the database."""
  now = datetime.utcnow().isoformat()
  conn = sqlite3.connect(str(_DB_PATH), timeout=10)
@@ -162,28 +148,22 @@ class ThreatIntelDB:
  conn.commit()
  return True
  except Exception as e:
-     pass  # TODO: Implement
  logger.error(f"Failed to add IOC: {e}")
  return False
  finally:
-     pass  # TODO: Implement
  conn.close()
 
  def batch_lookup(self, ioc_list: List[Tuple[str, str]]) -> Dict[str, Optional[Dict[str, Any]]]:
-     pass  # TODO: Implement
  """Batch lookup multiple IOCs."""
  results = {}
  for ioc_value, ioc_type in ioc_list:
-     pass  # TODO: Implement
  results[ioc_value] = self.lookup(ioc_value, ioc_type)
  return results
 
  def search_by_type(self, ioc_type: str, limit: int = 100) -> List[Dict[str, Any]]:
-     pass  # TODO: Implement
  """Search IOCs by type."""
  conn = sqlite3.connect(str(_DB_PATH), timeout=10)
  try:
-     pass  # TODO: Implement
  rows = conn.execute(
  "SELECT * FROM iocs WHERE ioc_type = ? ORDER BY last_seen DESC LIMIT ?",
  (ioc_type, limit)
@@ -203,16 +183,13 @@ class ThreatIntelDB:
  for r in rows
  ]
  finally:
-     pass  # TODO: Implement
  conn.close()
 
  def get_recent(self, hours: int = 24) -> List[Dict[str, Any]]:
-     pass  # TODO: Implement
  """Get IOCs seen in last N hours."""
  since = (datetime.utcnow() - timedelta(hours=hours)).isoformat()
  conn = sqlite3.connect(str(_DB_PATH), timeout=10)
  try:
-     pass  # TODO: Implement
  rows = conn.execute(
  "SELECT * FROM iocs WHERE last_seen > ? ORDER BY last_seen DESC",
  (since,)
@@ -229,11 +206,9 @@ class ThreatIntelDB:
  for r in rows
  ]
  finally:
-     pass  # TODO: Implement
  conn.close()
 
  def add_builtin_iocs(self) -> int:
-     pass  # TODO: Implement
  """Add common/builtin IOCs for testing."""
  builtin_iocs = [
  # Common C2 ports (indicators of potential C2 activity)
@@ -271,23 +246,18 @@ class ThreatIntelDB:
  
  added = 0
  for ioc in builtin_iocs:
-     pass  # TODO: Implement
  if self.add_ioc(*ioc):
-     pass  # TODO: Implement
  added += 1
  
  return added
 
 class Enricher:
-    pass  # TODO: Implement
  """Enrich alerts and findings with threat intel context."""
  
  def __init__(self, ti_db: Optional[ThreatIntelDB] = None):
-     pass  # TODO: Implement
  self.ti_db = ti_db or ThreatIntelDB()
  
  def enrich_finding(self, finding: Dict[str, Any]) -> Dict[str, Any]:
-     pass  # TODO: Implement
  """Enrich a security finding with threat intel."""
  enriched = finding.copy()
  ioc_hits = []
@@ -303,16 +273,12 @@ class Enricher:
  ]
  
  for ioc_type, value in checks:
-     pass  # TODO: Implement
  if value:
-     pass  # TODO: Implement
  result = self.ti_db.lookup(value, ioc_type)
  if result:
-     pass  # TODO: Implement
  ioc_hits.append(result)
  
  if ioc_hits:
-     pass  # TODO: Implement
  enriched["threat_intel"] = {
  "ioc_matches": ioc_hits,
  "max_confidence": max(h["confidence"] for h in ioc_hits),
@@ -322,7 +288,6 @@ class Enricher:
  return enriched
 
 def get_threat_intel_db() -> ThreatIntelDB:
-    pass  # TODO: Implement
  """Get or create threat intel database instance."""
  db = ThreatIntelDB()
  return db

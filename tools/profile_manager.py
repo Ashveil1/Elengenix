@@ -3,7 +3,6 @@
 Command Profile Manager - One-Command Shortcuts.
 
 Purpose:
-    pass  # TODO: Implement
 - Create and manage command profiles (shortcuts)
 - One-command execution for common workflows
 - Built-in profiles for common use cases
@@ -11,13 +10,11 @@ Purpose:
 - Profile sharing and import/export
 
 Philosophy:
-    pass  # TODO: Implement
 - Apple: Simple, elegant, just works
 - Wozniak: Powerful under the hood, simple on surface
 - Zero friction: Common tasks in one word
 
 Built-in Profiles:
-    pass  # TODO: Implement
 - quick: Fast reconnaissance only
 - deep: Full autonomous scan with all tools
 - bounty: Focus on bounty-critical vulnerabilities
@@ -74,7 +71,6 @@ class ProfileManager:
     Manage command profiles for one-command execution.
     
     Provides:
-        pass  # TODO: Implement
     - Built-in profiles for common workflows
     - Custom profile creation
     - Profile persistence
@@ -207,7 +203,6 @@ class ProfileManager:
                       args: List[str] = None,
                       options: Dict[str, Any] = None,
                       tags: List[str] = None) -> bool:
-                          pass  # TODO: Implement
         """
         Create a new custom profile.
         
@@ -315,7 +310,6 @@ class ProfileManager:
     
     def clone_profile(self, source_name: str, new_name: str,
                      modifications: Dict[str, Any] = None) -> bool:
-                         pass  # TODO: Implement
         """
         Clone an existing profile with modifications.
         

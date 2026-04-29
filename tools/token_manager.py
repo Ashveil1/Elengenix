@@ -3,7 +3,6 @@
 Phase 2: Token Manager - Track and control AI token usage.
 
 Purpose:
-    pass  # TODO: Implement
 - Track token usage per AI provider
 - Enforce spending limits to prevent burn
 - Alert at thresholds (50%, 75%, 90%)
@@ -11,7 +10,6 @@ Purpose:
 - Daily/monthly budget tracking
 
 Features:
-    pass  # TODO: Implement
 - Real-time token tracking
 - Multi-provider support (OpenAI, Anthropic, etc.)
 - Cost estimation per provider
@@ -122,7 +120,6 @@ class TokenManager:
     Manage token usage and enforce budget limits.
     
     Features:
-        pass  # TODO: Implement
     - Real-time tracking per provider
     - Cost estimation
     - Threshold alerts
@@ -141,7 +138,6 @@ class TokenManager:
                  daily_budget_usd: float = 20.0,
                  monthly_budget_usd: float = 100.0,
                  provider_configs: Dict[str, ProviderConfig] = None):
-                     pass  # TODO: Implement
         """
         Initialize token manager.
         
@@ -194,7 +190,6 @@ class TokenManager:
                       tokens_input: int, 
                       tokens_output: int,
                       model: str = None) -> float:
-                          pass  # TODO: Implement
         """
         Calculate cost for token usage.
         
@@ -223,7 +218,6 @@ class TokenManager:
                     tokens_input: int,
                     tokens_output: int,
                     mission_id: str = None) -> TokenUsage:
-                        pass  # TODO: Implement
         """
         Record token usage.
         
@@ -351,7 +345,6 @@ class TokenManager:
                     estimated_cost: float = 0.0,
                     check_daily: bool = True,
                     check_monthly: bool = True) -> Tuple[bool, str]:
-                        pass  # TODO: Implement
         """
         Check if operation can proceed based on budget.
         
@@ -434,7 +427,6 @@ class TokenManager:
     def recommend_provider(self, 
                           current_provider: str,
                           estimated_tokens: int = 1000) -> Optional[str]:
-                              pass  # TODO: Implement
         """
         Recommend alternative provider if current is expensive or exhausted.
         

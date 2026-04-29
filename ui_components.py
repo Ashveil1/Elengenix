@@ -51,7 +51,6 @@ STYLES = {
 # 
 
 def show_main_banner():
-    pass  # TODO: Implement
  """Clean main banner with minimal styling."""
  banner = """
  [bold cyan]ELENGENIX[/bold cyan] [dim]v2.0.0[/dim]
@@ -65,7 +64,6 @@ def show_main_banner():
  ))
 
 def show_cli_banner(mode: str = "agent"):
-    pass  # TODO: Implement
  """CLI mode banner."""
  mode_names = {
  "universal": "Universal Agent",
@@ -84,7 +82,6 @@ def show_cli_banner(mode: str = "agent"):
  ))
 
 def show_arsenal_banner():
-    pass  # TODO: Implement
  """Tools arsenal banner."""
  console.print(Panel(
  "[bold cyan]Security Arsenal[/bold cyan] [dim]v2.0.0[/dim]\n"
@@ -99,7 +96,6 @@ def show_arsenal_banner():
 # 
 
 def create_main_menu() -> List[tuple]:
-    pass  # TODO: Implement
  """Create main menu items without emojis."""
  return [
  ("AI Partner", "Chat with AI (Intelligent Mode, auto tmux)", "ai"),
@@ -115,7 +111,6 @@ def create_main_menu() -> List[tuple]:
  ]
 
 def create_arsenal_menu() -> List[Dict[str, str]]:
-    pass  # TODO: Implement
  """Create arsenal menu items."""
  return [
  {"name": "Omni-Scan", "desc": "End-to-end: Recon → Vuln Scan → Report", "file": "omni_scan.py"},
@@ -129,7 +124,6 @@ def create_arsenal_menu() -> List[Dict[str, str]]:
  ]
 
 def format_menu_item(number: int, title: str, description: str) -> str:
-    pass  # TODO: Implement
  """Format a menu item cleanly."""
  return f"[cyan]{number:2}.[/cyan] [bold]{title}[/bold] [dim]{description}[/dim]"
 
@@ -138,7 +132,6 @@ def format_menu_item(number: int, title: str, description: str) -> str:
 # 
 
 def create_status_table(title: str) -> Table:
-    pass  # TODO: Implement
  """Create a clean status table."""
  table = Table(
  title=title,
@@ -150,7 +143,6 @@ def create_status_table(title: str) -> Table:
  return table
 
 def create_tools_table(tools: List[Dict[str, str]]) -> Table:
-    pass  # TODO: Implement
  """Create arsenal tools table."""
  table = Table(
  show_header=True,
@@ -164,7 +156,6 @@ def create_tools_table(tools: List[Dict[str, str]]) -> Table:
  table.add_column("Description", style="white")
  
  for idx, tool in enumerate(tools, 1):
-     pass  # TODO: Implement
  table.add_row(
  str(idx),
  tool["name"],
@@ -174,7 +165,6 @@ def create_tools_table(tools: List[Dict[str, str]]) -> Table:
  return table
 
 def create_doctor_table(checks: List[Dict[str, Any]]) -> Table:
-    pass  # TODO: Implement
  """Create doctor check results table."""
  table = Table(
  box=ROUNDED,
@@ -187,7 +177,6 @@ def create_doctor_table(checks: List[Dict[str, Any]]) -> Table:
  table.add_column("Details", style="white")
  
  for check in checks:
-     pass  # TODO: Implement
  status = check.get("status", "unknown")
  status_style = {
  "ok": "[green]OK[/green]",
@@ -209,27 +198,22 @@ def create_doctor_table(checks: List[Dict[str, Any]]) -> Table:
 # 
 
 def print_success(message: str):
-    pass  # TODO: Implement
  """Print success message."""
  console.print(f"[green]{message}[/green]")
 
 def print_error(message: str):
-    pass  # TODO: Implement
  """Print error message."""
  console.print(f"[red]{message}[/red]")
 
 def print_warning(message: str):
-    pass  # TODO: Implement
  """Print warning message."""
  console.print(f"[yellow]{message}[/yellow]")
 
 def print_info(message: str):
-    pass  # TODO: Implement
  """Print info message."""
  console.print(f"[dim]{message}[/dim]")
 
 def print_command(command: str):
-    pass  # TODO: Implement
  """Print command in highlighted style."""
  console.print(f"[black on cyan] {command} [/black on cyan]")
 
@@ -238,12 +222,10 @@ def print_command(command: str):
 # 
 
 def show_spinner(message: str):
-    pass  # TODO: Implement
  """Return status context manager."""
  return console.status(f"[cyan]{message}[/cyan]", spinner="dots")
 
 def show_section(title: str):
-    pass  # TODO: Implement
  """Show section divider."""
  console.print(f"\n[bold cyan] {title} [/bold cyan]\n")
 
@@ -252,39 +234,30 @@ def show_section(title: str):
 # 
 
 def prompt_target() -> str:
-    pass  # TODO: Implement
  """Clean target input prompt."""
  return console.input("[cyan]Target[/cyan] [dim](domain/IP)[/dim]: ")
 
 def prompt_choice(options: List[str]) -> int:
-    pass  # TODO: Implement
  """Show numbered options and get choice."""
  for i, opt in enumerate(options, 1):
-     pass  # TODO: Implement
  console.print(f" {i}. {opt}")
  
  while True:
-     pass  # TODO: Implement
  choice = console.input("\n[cyan]Select[/cyan] [dim](number)[/dim]: ")
  try:
-     pass  # TODO: Implement
  idx = int(choice) - 1
  if 0 <= idx < len(options):
-     pass  # TODO: Implement
  return idx
  except ValueError:
-     pass  # TODO: Implement
  pass
  console.print("[red]Invalid selection[/red]")
 
 def confirm(message: str, default: bool = False) -> bool:
-    pass  # TODO: Implement
  """Clean confirmation prompt."""
  default_text = "Y/n" if default else "y/N"
  response = console.input(f"[cyan]{message}[/cyan] [dim]({default_text})[/dim]: ").lower().strip()
  
  if not response:
-     pass  # TODO: Implement
  return default
  return response in ("y", "yes")
 
@@ -293,7 +266,6 @@ def confirm(message: str, default: bool = False) -> bool:
 # 
 
 def show_scan_summary(findings: Dict[str, Any]):
-    pass  # TODO: Implement
  """Show scan results summary."""
  console.print("\n[bold cyan]Scan Results[/bold cyan]\n")
  
@@ -303,26 +275,20 @@ def show_scan_summary(findings: Dict[str, Any]):
  low = findings.get("low", 0)
  
  if critical > 0:
-     pass  # TODO: Implement
  console.print(f" [red]Critical: {critical}[/red]")
  if high > 0:
-     pass  # TODO: Implement
  console.print(f" [yellow]High: {high}[/yellow]")
  if medium > 0:
-     pass  # TODO: Implement
  console.print(f" [blue]Medium: {medium}[/blue]")
  if low > 0:
-     pass  # TODO: Implement
  console.print(f" [dim]Low: {low}[/dim]")
  
  if not any([critical, high, medium, low]):
-     pass  # TODO: Implement
  console.print(" [dim]No findings[/dim]")
  
  console.print()
 
 def show_memory_stats(stats: Dict[str, Any]):
-    pass  # TODO: Implement
  """Show memory system stats."""
  console.print("\n[bold cyan]Memory Statistics[/bold cyan]\n")
  
@@ -335,10 +301,8 @@ def show_memory_stats(stats: Dict[str, Any]):
  console.print(f" Unique targets: {targets}")
  
  if stats.get("targets"):
-     pass  # TODO: Implement
  console.print(f"\n [dim]Recent targets:[/dim]")
  for t in stats["targets"][:10]:
-     pass  # TODO: Implement
  console.print(f" • {t}")
  
  console.print()

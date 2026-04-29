@@ -3,7 +3,6 @@
 Cloud & SaaS Misconfiguration Scanner for AWS, GCP, Azure.
 
 Purpose:
-    pass  # TODO: Implement
 - Scan AWS S3 bucket permissions and policies
 - Check IAM policies for privilege escalation risks
 - Detect public RDS, EC2, and storage resources
@@ -28,7 +27,6 @@ logger = logging.getLogger("elengenix.cloud_scanner")
 
 @dataclass
 class CloudResource:
-    pass  # TODO: Implement
  """Represents a cloud resource."""
  resource_id: str
  resource_type: str # s3_bucket, iam_policy, ec2_instance, etc.
@@ -40,7 +38,6 @@ class CloudResource:
 
 @dataclass
 class CloudFinding:
-    pass  # TODO: Implement
  """Cloud security misconfiguration finding."""
  finding_id: str
  resource_type: str
@@ -54,7 +51,6 @@ class CloudFinding:
  cve_references: List[str] = field(default_factory=list)
 
 class AWSScanner:
-    pass  # TODO: Implement
  """
  AWS-specific security scanner.
  Works with configuration files and AWS CLI output.
@@ -91,23 +87,19 @@ class AWSScanner:
  ]
 
  def __init__(self):
-     pass  # TODO: Implement
  self.findings: List[CloudFinding] = []
  self.scanned_resources: List[CloudResource] = []
 
  def parse_s3_bucket_policy(self, policy_json: Dict[str, Any], bucket_name: str) -> List[CloudFinding]:
-     pass  # TODO: Implement
  """Parse S3 bucket policy for misconfigurations."""
  findings = []
  
  if not policy_json:
-     pass  # TODO: Implement
  return findings
  
  statements = policy_json.get('Statement', [])
  
  for stmt in statements:
-     pass  # TODO: Implement
  effect = stmt.get('Effect', '')
  principal = stmt.get('Principal', {})
  actions = stmt.get('Action', [])
@@ -115,32 +107,24 @@ class AWSScanner:
  # Check for public access
  is_public = False
  if isinstance(principal, str) and principal == '*':
-     pass  # TODO: Implement
  is_public = True
  elif isinstance(principal, dict):
-     pass  # TODO: Implement
  if principal.get('AWS') == '*' or principal.get('CanonicalUser') == '*':
-     pass  # TODO: Implement
  is_public = True
  
  if effect == 'Allow' and is_public:
  # Check what actions are allowed publicly
  public_actions = []
  if isinstance(actions, str):
-     pass  # TODO: Implement
  actions = [actions]
  
  for action in actions:
-     pass  # TODO: Implement
  if 's3:GetObject' in action or action == 's3:*':
-     pass  # TODO: Implement
  public_actions.append('read')
  if 's3:PutObject' in action or 's3:DeleteObject' in action or action == 's3:*':
-     pass  # TODO: Implement
  public_actions.append('write')
  
  if public_actions:
-     pass  # TODO: Implement
  severity = 'critical' if 'write' in public_actions else 'high'
  findings.append(CloudFinding(
  finding_id=f"s3_public:{bucket_name}",
@@ -162,27 +146,22 @@ class AWSScanner:
  return findings
 
  def parse_iam_policy(self, policy_doc: Dict[str, Any], policy_name: str) -> List[CloudFinding]:
-     pass  # TODO: Implement
  """Parse IAM policy for overly permissive grants."""
  findings = []
  
  statements = policy_doc.get('Statement', [])
  
  for stmt in statements:
-     pass  # TODO: Implement
  effect = stmt.get('Effect', '')
  actions = stmt.get('Action', [])
  resources = stmt.get('Resource', [])
  
  if effect != 'Allow':
-     pass  # TODO: Implement
  continue
  
  if isinstance(actions, str):
-     pass  # TODO: Implement
  actions = [actions]
  if isinstance(resources, str):
-     pass  # TODO: Implement
  resources = [resources]
  
  # Check for wildcard actions
@@ -192,7 +171,6 @@ class AWSScanner:
  wildcard_resources = [r for r in resources if r == '*']
  
  if wildcard_resources:
-     pass  # TODO: Implement
  findings.append(CloudFinding(
  finding_id=f"iam_wildcard:{policy_name}",
  resource_type="iam_policy",
@@ -211,7 +189,6 @@ class AWSScanner:
  # Check for privilege escalation actions
  priv_esc_actions = [a for a in actions if any(pe in a for pe in self.PRIVILEGE_ESCALATION_ACTIONS)]
  if priv_esc_actions:
-     pass  # TODO: Implement
  findings.append(CloudFinding(
  finding_id=f"iam_privesc:{policy_name}",
  resource_type="iam_policy",
@@ -227,7 +204,6 @@ class AWSScanner:
  # Check for dangerous data access
  dangerous_data = [a for a in actions if any(d in a for d in ['secretsmanager:GetSecretValue', 'ssm:GetParameter'])]
  if dangerous_data:
-     pass  # TODO: Implement
  findings.append(CloudFinding(
  finding_id=f"iam_secrets:{policy_name}",
  resource_type="iam_policy",
@@ -243,7 +219,6 @@ class AWSScanner:
  return findings
 
  def check_security_group(self, sg_rules: List[Dict[str, Any]], sg_id: str) -> List[CloudFinding]:
-     pass  # TODO: Implement
  """Check security group rules for exposures."""
  findings = []
  
@@ -261,23 +236,19 @@ class AWSScanner:
  }
  
  for rule in sg_rules:
-     pass  # TODO: Implement
  protocol = rule.get('IpProtocol', '')
  from_port = rule.get('FromPort', 0)
  to_port = rule.get('ToPort', 0)
  ip_ranges = rule.get('IpRanges', [])
  
  for ip_range in ip_ranges:
-     pass  # TODO: Implement
  cidr = ip_range.get('CidrIp', '')
  
  # Check for open to internet (0.0.0.0/0)
  if cidr == '0.0.0.0/0':
  # Check for dangerous ports
  for port, service in dangerous_ports.items():
-     pass  # TODO: Implement
  if from_port <= port <= to_port:
-     pass  # TODO: Implement
  findings.append(CloudFinding(
  finding_id=f"sg_open:{sg_id}:{port}",
  resource_type="security_group",
@@ -298,19 +269,15 @@ class AWSScanner:
  return findings
 
  def scan_cloudformation_template(self, template_path: Path) -> List[CloudFinding]:
-     pass  # TODO: Implement
  """Scan CloudFormation template for security issues."""
  findings = []
  
  try:
-     pass  # TODO: Implement
  with open(template_path, 'r') as f:
-     pass  # TODO: Implement
  content = f.read()
  
  # Try to parse as JSON first, then YAML
  try:
-     pass  # TODO: Implement
  template = json.loads(content)
  except json.JSONDecodeError:
  # Would need PyYAML for proper YAML parsing
@@ -325,10 +292,8 @@ class AWSScanner:
  ]
  
  for pattern, finding_type in secret_patterns:
-     pass  # TODO: Implement
  matches = re.finditer(pattern, content, re.IGNORECASE)
  for match in matches:
-     pass  # TODO: Implement
  findings.append(CloudFinding(
  finding_id=f"cfn_secret:{hash(match.group(0)) % 1000000:06d}",
  resource_type="cloudformation_template",
@@ -346,19 +311,15 @@ class AWSScanner:
  
  # Check S3 bucket configurations
  if 'Resources' in template:
-     pass  # TODO: Implement
  for resource_name, resource_def in template['Resources'].items():
-     pass  # TODO: Implement
  resource_type = resource_def.get('Type', '')
  
  if resource_type == 'AWS::S3::Bucket':
-     pass  # TODO: Implement
  properties = resource_def.get('Properties', {})
  
  # Check if public access is blocked
  public_access = properties.get('PublicAccessBlockConfiguration', {})
  if not public_access.get('BlockPublicAcls', True):
-     pass  # TODO: Implement
  findings.append(CloudFinding(
  finding_id=f"cfn_s3_public:{resource_name}",
  resource_type="cloudformation_template",
@@ -372,20 +333,16 @@ class AWSScanner:
  ))
  
  except Exception as e:
-     pass  # TODO: Implement
  logger.error(f"Failed to scan CloudFormation template: {e}")
  
  return findings
 
  def scan_terraform_file(self, tf_path: Path) -> List[CloudFinding]:
-     pass  # TODO: Implement
  """Scan Terraform configuration for security issues."""
  findings = []
  
  try:
-     pass  # TODO: Implement
  with open(tf_path, 'r') as f:
-     pass  # TODO: Implement
  content = f.read()
  
  # Check for hardcoded credentials
@@ -393,10 +350,8 @@ class AWSScanner:
  secret_key_pattern = r'secret_key\s*=\s*["\']([A-Za-z0-9/+=]{40})["\']'
  
  for pattern, ftype in [(aws_key_pattern, 'tf_aws_access_key'), (secret_key_pattern, 'tf_aws_secret_key')]:
-     pass  # TODO: Implement
  matches = re.finditer(pattern, content)
  for match in matches:
-     pass  # TODO: Implement
  findings.append(CloudFinding(
  finding_id=f"{ftype}:{hash(match.group(0)) % 1000000:06d}",
  resource_type="terraform_config",
@@ -411,7 +366,6 @@ class AWSScanner:
  
  # Check for unencrypted resources
  if 'aws_db_instance' in content and 'storage_encrypted' not in content:
-     pass  # TODO: Implement
  findings.append(CloudFinding(
  finding_id=f"tf_unencrypted_db:{hash(tf_path.name) % 1000000:06d}",
  resource_type="terraform_config",
@@ -425,47 +379,37 @@ class AWSScanner:
  ))
  
  except Exception as e:
-     pass  # TODO: Implement
  logger.error(f"Failed to scan Terraform file: {e}")
  
  return findings
 
 class CloudScanner:
-    pass  # TODO: Implement
  """
  Multi-cloud security posture scanner.
  """
  
  def __init__(self):
-     pass  # TODO: Implement
  self.aws_scanner = AWSScanner()
  self.all_findings: List[CloudFinding] = []
  
  def scan_directory(self, scan_path: Path) -> Dict[str, Any]:
-     pass  # TODO: Implement
  """Scan a directory for cloud configuration files."""
  findings = []
  
  if not scan_path.exists():
-     pass  # TODO: Implement
  return {"error": f"Path not found: {scan_path}"}
  
  # Scan CloudFormation templates
  for cfn_file in scan_path.rglob("*.json"):
-     pass  # TODO: Implement
  if 'cloudformation' in cfn_file.name.lower() or 'template' in cfn_file.name.lower():
-     pass  # TODO: Implement
  findings.extend(self.aws_scanner.scan_cloudformation_template(cfn_file))
  
  for cfn_file in scan_path.rglob("*.yaml"):
-     pass  # TODO: Implement
  if 'cloudformation' in cfn_file.name.lower() or 'template' in cfn_file.name.lower():
-     pass  # TODO: Implement
  findings.extend(self.aws_scanner.scan_cloudformation_template(cfn_file))
  
  # Scan Terraform files
  for tf_file in scan_path.rglob("*.tf"):
-     pass  # TODO: Implement
  findings.extend(self.aws_scanner.scan_terraform_file(tf_file))
  
  self.all_findings = findings
@@ -473,14 +417,12 @@ class CloudScanner:
  return self._generate_report()
  
  def _generate_report(self) -> Dict[str, Any]:
-     pass  # TODO: Implement
  """Generate scan report."""
  severity_counts = {}
  resource_types = {}
  finding_types = {}
  
  for finding in self.all_findings:
-     pass  # TODO: Implement
  sev = finding.severity
  rtype = finding.resource_type
  ftype = finding.finding_type
@@ -508,7 +450,6 @@ class CloudScanner:
  }
 
 def format_cloud_report(report: Dict[str, Any]) -> str:
-    pass  # TODO: Implement
  """Format cloud security report for display."""
  lines = []
  lines.append("=" * 60)
@@ -516,7 +457,6 @@ def format_cloud_report(report: Dict[str, Any]) -> str:
  lines.append("=" * 60)
  
  if "error" in report:
-     pass  # TODO: Implement
  lines.append(f"\nError: {report['error']}")
  return "\n".join(lines)
  
@@ -524,17 +464,14 @@ def format_cloud_report(report: Dict[str, Any]) -> str:
  
  lines.append("\n[Severity Distribution]")
  for sev, count in report.get('severity_distribution', {}).items():
-     pass  # TODO: Implement
  lines.append(f" {sev.upper()}: {count}")
  
  lines.append("\n[Resource Types Affected]")
  for rtype, count in report.get('resource_types', {}).items():
-     pass  # TODO: Implement
  lines.append(f" {rtype}: {count}")
  
  lines.append("\n[Critical/High Findings]")
  for finding in report.get('critical_findings', [])[:10]:
-     pass  # TODO: Implement
  lines.append(f"\n {finding['type'].upper()}")
  lines.append(f" Resource: {finding['resource']}")
  lines.append(f" Severity: {finding['severity']}")

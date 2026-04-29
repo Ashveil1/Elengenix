@@ -3,7 +3,6 @@
 Configuration Wizard - Interactive setup for Elengenix.
 
 Purpose:
-    pass  # TODO: Implement
 - Configure AI providers and API keys
 - Set default preferences
 - Initialize project settings

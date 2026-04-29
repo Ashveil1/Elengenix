@@ -15,7 +15,6 @@ from typing import Optional, Tuple
 logger = logging.getLogger("elengenix.tmux")
 
 class TmuxManager:
-    pass  # TODO: Implement
  """
  Manages tmux sessions for Elengenix split-screen experience.
  Left pane: Chat interface
@@ -27,45 +26,36 @@ class TmuxManager:
  CHAT_WINDOW = "chat"
  
  def __init__(self):
-     pass  # TODO: Implement
  self.in_tmux = self._detect_tmux()
  self.tmux_available = self._check_tmux_installed()
  
  def _detect_tmux(self) -> bool:
-     pass  # TODO: Implement
  """Check if currently running inside tmux."""
  return os.environ.get("TMUX") is not None
  
  def _check_tmux_installed(self) -> bool:
-     pass  # TODO: Implement
  """Check if tmux command is available."""
  try:
-     pass  # TODO: Implement
  subprocess.run(["tmux", "-V"], capture_output=True, check=True)
  return True
  except (subprocess.CalledProcessError, FileNotFoundError):
-     pass  # TODO: Implement
  return False
  
  def is_available(self) -> bool:
-     pass  # TODO: Implement
  """Check if tmux features can be used."""
  return self.tmux_available
  
  def create_split_session(self) -> bool:
-     pass  # TODO: Implement
  """
  Create new tmux session with split windows.
  Left: Chat | Right: Live logs
  """
  if not self.tmux_available:
-     pass  # TODO: Implement
  logger.warning("Tmux not available")
  return False
  
  # Check if session already exists
  if self._session_exists():
-     pass  # TODO: Implement
  logger.info(f"Attaching to existing session: {self.SESSION_NAME}")
  self._attach_session()
  return True
@@ -77,10 +67,8 @@ class TmuxManager:
  # Source venv if exists
  venv_python = project_dir / "venv" / "bin" / "python"
  if venv_python.exists():
-     pass  # TODO: Implement
  python_cmd = str(venv_python)
  else:
-     pass  # TODO: Implement
  python_cmd = sys.executable
  
  # Create new session with initial window for chat
@@ -105,58 +93,46 @@ class TmuxManager:
  return True
  
  except subprocess.CalledProcessError as e:
-     pass  # TODO: Implement
  logger.error(f"Failed to create tmux session: {e}")
  return False
  
  def _session_exists(self) -> bool:
-     pass  # TODO: Implement
  """Check if elengenix tmux session exists."""
  try:
-     pass  # TODO: Implement
  result = subprocess.run(
  ["tmux", "has-session", "-t", self.SESSION_NAME],
  capture_output=True
  )
  return result.returncode == 0
  except:
-     pass  # TODO: Implement
  return False
  
  def _attach_session(self):
-     pass  # TODO: Implement
  """Attach to existing tmux session."""
  subprocess.run(["tmux", "attach-session", "-t", self.SESSION_NAME])
  
  def send_to_log_pane(self, message: str):
-     pass  # TODO: Implement
  """Send message to the log pane."""
  if not self.in_tmux:
-     pass  # TODO: Implement
  return
  
  try:
-     pass  # TODO: Implement
  subprocess.run([
  "tmux", "send-keys", "-t", f"{self.SESSION_NAME}:{self.CHAT_WINDOW}.1",
  message, "Enter"
  ], check=False)
  except:
-     pass  # TODO: Implement
  pass
  
  def get_pane_info(self) -> Tuple[bool, str]:
-     pass  # TODO: Implement
  """
  Get current pane information.
  Returns: (is_chat_pane, pane_id)
  """
  if not self.in_tmux:
-     pass  # TODO: Implement
  return (True, "0")
  
  try:
-     pass  # TODO: Implement
  result = subprocess.run(
  ["tmux", "display-message", "-p", "#I.#P"],
  capture_output=True, text=True
@@ -167,44 +143,35 @@ class TmuxManager:
  is_chat = pane_num % 2 == 0
  return (is_chat, pane_id)
  except:
-     pass  # TODO: Implement
  return (True, "0")
  
  def setup_environment(self):
-     pass  # TODO: Implement
  """Setup environment variables for tmux integration."""
  if self.in_tmux:
-     pass  # TODO: Implement
  os.environ["ELENGENIX_IN_TMUX"] = "1"
  is_chat, pane_id = self.get_pane_info()
  os.environ["ELENGENIX_PANE"] = "chat" if is_chat else "logs"
  os.environ["ELENGENIX_PANE_ID"] = pane_id
 
 def get_tmux_manager() -> TmuxManager:
-    pass  # TODO: Implement
  """Get singleton TmuxManager instance."""
  return TmuxManager()
 
 def launch_tmux_mode():
-    pass  # TODO: Implement
  """Entry point for launching in tmux split mode."""
  manager = get_tmux_manager()
  
  if not manager.is_available():
-     pass  # TODO: Implement
  print("Tmux not installed. Install with: apt install tmux")
  return False
  
  if manager.in_tmux:
-     pass  # TODO: Implement
  print("Already in tmux session")
  return True
  
  return manager.create_split_session()
 
 if __name__ == "__main__":
-    pass  # TODO: Implement
  if len(sys.argv) > 1 and sys.argv[1] == "--launch":
-     pass  # TODO: Implement
  success = launch_tmux_mode()
  sys.exit(0 if success else 1)

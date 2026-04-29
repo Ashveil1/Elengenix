@@ -19,11 +19,9 @@ from typing import Optional, List, Set
 
 # Safe import for nest_asyncio (for async compatibility)
 try:
-    pass  # TODO: Implement
  import nest_asyncio
  nest_asyncio.apply()
 except ImportError:
-    pass  # TODO: Implement
  pass # nest_asyncio not available, but not critical for orchestrator
 
 from rich.console import Console
@@ -39,109 +37,85 @@ console = Console()
 
 # Scope Management 
 def load_allowed_domains(scope_file: str = "scope.txt") -> Set[str]:
-    pass  # TODO: Implement
  """Loads authorized domains/IPs from environment or local file."""
  domains = set()
  env_scope = os.getenv("ELENGENIX_SCOPE")
  if env_scope:
-     pass  # TODO: Implement
  domains.update(d.strip().lower() for d in env_scope.split(",") if d.strip())
  
  scope_path = Path(scope_file)
  if scope_path.exists():
-     pass  # TODO: Implement
  with open(scope_path, "r", encoding="utf-8") as f:
-     pass  # TODO: Implement
  for line in f:
-     pass  # TODO: Implement
  clean_line = line.strip().lower()
  if clean_line and not clean_line.startswith("#"):
-     pass  # TODO: Implement
  domains.add(clean_line)
  return domains
 
 ALLOWED_DOMAINS = load_allowed_domains()
 
 def normalize_target(target: str) -> str:
-    pass  # TODO: Implement
  target = target.strip().lower()
  if target.startswith(("http://", "https://")):
-     pass  # TODO: Implement
  parsed = urlparse(target)
  target = parsed.netloc or parsed.path.split('/')[0]
  if ":" in target and not target.startswith("["):
-     pass  # TODO: Implement
  target = target.split(":")[0]
  return target.rstrip(".")
 
 def is_valid_target(target: str) -> bool:
-    pass  # TODO: Implement
  try:
-     pass  # TODO: Implement
  ip = ipaddress.ip_address(target)
  return not (ip.is_private or ip.is_loopback)
  except ValueError:
-     pass  # TODO: Implement
  pass
  if len(target) > 253 or "." not in target: return False
  return all(re.match(r"^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?$", l) for l in target.split("."))
 
 def is_in_scope(target: str) -> bool:
-    pass  # TODO: Implement
  normalized = normalize_target(target)
  if not is_valid_target(normalized): return False
  if not ALLOWED_DOMAINS: return True 
  return normalized in ALLOWED_DOMAINS or any(normalized.endswith(f".{a}") for a in ALLOWED_DOMAINS)
 
 def sanitize_path(target: str) -> str:
-    pass  # TODO: Implement
  return re.sub(r'[^a-zA-Z0-9.-]', '_', target)[:100]
 
 # Legacy Tool Runners (for backward compatibility) 
 async def run_subfinder_legacy(target: str, report_dir: Path) -> str:
-    pass  # TODO: Implement
  output_file = report_dir / "subdomains.txt"
  cmd = ["subfinder", "-d", target, "-o", str(output_file), "-silent"]
  try:
-     pass  # TODO: Implement
  proc = await asyncio.create_subprocess_exec(*cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
  await proc.communicate()
  return output_file.read_text() if output_file.exists() else ""
  except Exception as e:
-     pass  # TODO: Implement
  return f"Subfinder error: {e}"
 
 async def run_httpx_legacy(target: str, report_dir: Path) -> str:
-    pass  # TODO: Implement
  output_file = report_dir / "live_hosts.txt"
  input_file = report_dir / "subdomains.txt"
  
  cmd = ["httpx", "-l" if input_file.exists() else "-u", str(input_file) if input_file.exists() else target, "-o", str(output_file), "-silent"]
  try:
-     pass  # TODO: Implement
  proc = await asyncio.create_subprocess_exec(*cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
  await proc.communicate()
  return output_file.read_text() if output_file.exists() else ""
  except Exception as e:
-     pass  # TODO: Implement
  return f"Httpx error: {e}"
 
 async def run_nuclei_legacy(target: str, report_dir: Path) -> str:
-    pass  # TODO: Implement
  output_file = report_dir / "nuclei_results.txt"
  cmd = ["nuclei", "-u", target, "-o", str(output_file), "-silent", "-severity", "critical,high,medium"]
  try:
-     pass  # TODO: Implement
  proc = await asyncio.create_subprocess_exec(*cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
  await proc.communicate()
  return output_file.read_text() if output_file.exists() else ""
  except Exception as e:
-     pass  # TODO: Implement
  return f"Nuclei error: {e}"
 
 # Modern Tool Registry Orchestrator 
 def get_recommended_tool_chain(target_type: str = "web") -> List:
-    pass  # TODO: Implement
  """Get recommended tools based on target type using registry."""
  return registry.get_recommended_chain(target_type)
 
@@ -151,12 +125,10 @@ async def run_tool_with_registry(
  report_dir: Path,
  semaphore: asyncio.Semaphore
 ) -> ToolResult:
-    pass  # TODO: Implement
  """Execute a tool via the registry."""
  tool = registry.get_tool(tool_name)
  
  if not tool:
-     pass  # TODO: Implement
  logger.error(f"Tool {tool_name} not found in registry")
  return ToolResult(
  success=False,
@@ -166,7 +138,6 @@ async def run_tool_with_registry(
  )
  
  if not tool.is_available:
-     pass  # TODO: Implement
  logger.warning(f"Tool {tool_name} not available (binary missing)")
  return ToolResult(
  success=False,
@@ -176,12 +147,10 @@ async def run_tool_with_registry(
  )
  
  try:
-     pass  # TODO: Implement
  logger.info(f"Launching {tool_name} via registry...")
  result = await tool.execute(target, report_dir, semaphore)
  return result
  except Exception as e:
-     pass  # TODO: Implement
  logger.error(f"Tool {tool_name} execution failed: {e}")
  return ToolResult(
  success=False,
@@ -196,14 +165,12 @@ async def run_registry_pipeline(
  rate_limit: int = 5,
  tool_filter: List[str] = None
 ) -> List[ToolResult]:
-    pass  # TODO: Implement
  """Run all available tools from registry."""
  semaphore = asyncio.Semaphore(rate_limit)
  results = []
  
  # Get all registered tools or filtered list
  if tool_filter:
-     pass  # TODO: Implement
  tools = [registry.get_tool(name) for name in tool_filter if registry.get_tool(name)]
  else:
  # Get recommended chain for web targets
@@ -213,7 +180,6 @@ async def run_registry_pipeline(
  available_tools = [t for t in tools if t and t.is_available]
  
  if not available_tools:
-     pass  # TODO: Implement
  console.print("[yellow] No tools available in registry[/yellow]")
  return results
  
@@ -221,9 +187,7 @@ async def run_registry_pipeline(
  
  # Execute each tool
  for tool in available_tools:
-     pass  # TODO: Implement
  try:
-     pass  # TODO: Implement
  result = await run_tool_with_registry(
  tool.metadata.name,
  target,
@@ -233,31 +197,24 @@ async def run_registry_pipeline(
  results.append(result)
  
  if result.success and result.findings:
-     pass  # TODO: Implement
  console.print(f" [green] {tool.metadata.name}: {len(result.findings)} findings[/green]")
  elif result.success:
-     pass  # TODO: Implement
  console.print(f" [dim] {tool.metadata.name}: No findings[/dim]")
  else:
-     pass  # TODO: Implement
  console.print(f" [red] {tool.metadata.name}: {result.error_message[:50]}...[/red]")
  
  except Exception as e:
-     pass  # TODO: Implement
  logger.error(f"Pipeline error for {tool.metadata.name}: {e}")
  
  return results
 
 def calculate_cvss_for_results(results: List[ToolResult]) -> List[dict]:
-    pass  # TODO: Implement
  """Calculate CVSS scores for all findings."""
  calculator = CVSSCalculator(use_ai=False) # Use deterministic scoring for speed
  scored_findings = []
  
  for result in results:
-     pass  # TODO: Implement
  for finding in result.findings:
-     pass  # TODO: Implement
  score = calculator.calculate_from_tool_result(
  result.tool_name,
  finding,
@@ -279,7 +236,6 @@ def calculate_cvss_for_results(results: List[ToolResult]) -> List[dict]:
  return scored_findings
 
 def print_findings_summary(results: List[ToolResult]) -> None:
-    pass  # TODO: Implement
  """Print a summary of findings grouped by severity."""
  findings_by_severity = {
  "Critical": [],
@@ -290,16 +246,12 @@ def print_findings_summary(results: List[ToolResult]) -> None:
  }
  
  for result in results:
-     pass  # TODO: Implement
  for finding in result.findings:
-     pass  # TODO: Implement
  severity = finding.get("severity", "info").capitalize()
  if severity == "Info":
-     pass  # TODO: Implement
  severity = "Informational"
  
  if severity in findings_by_severity:
-     pass  # TODO: Implement
  findings_by_severity[severity].append({
  "tool": result.tool_name,
  "type": finding.get("type", "unknown"),
@@ -308,9 +260,7 @@ def print_findings_summary(results: List[ToolResult]) -> None:
  
  console.print("\n[bold] Findings Summary:[/bold]")
  for severity, items in findings_by_severity.items():
-     pass  # TODO: Implement
  if items:
-     pass  # TODO: Implement
  color = {
  "Critical": "red",
  "High": "orange3",
@@ -328,12 +278,10 @@ async def run_standard_scan(
  use_registry: bool = True,
  tool_filter: List[str] = None
 ) -> Optional[str]:
-    pass  # TODO: Implement
  """
  Run standard scan pipeline.
  
  Args:
-     pass  # TODO: Implement
  target: Target domain or IP
  rate_limit: Max concurrent operations
  timeout: Global timeout
@@ -341,7 +289,6 @@ async def run_standard_scan(
  tool_filter: Optional list of specific tools to run
  """
  if not is_in_scope(target):
-     pass  # TODO: Implement
  console.print(f"[bold red]SCOPE VIOLATION: {target}[/bold red]")
  return None
 
@@ -358,7 +305,6 @@ async def run_standard_scan(
  ))
 
  try:
-     pass  # TODO: Implement
  if use_registry:
  # Modern Tool Registry approach
  results = await asyncio.wait_for(
@@ -385,10 +331,8 @@ async def run_standard_scan(
  console.print(f"\n[bold green] Scan complete: {len(results)} tools, {total_findings} findings[/bold green]")
  
  if critical > 0:
-     pass  # TODO: Implement
  console.print(f"[bold red] CRITICAL: {critical} findings require immediate attention![/bold red]")
  if high > 0:
-     pass  # TODO: Implement
  console.print(f"[bold orange3] HIGH: {high} findings need review[/bold orange3]")
  
  else:
@@ -406,14 +350,12 @@ async def run_standard_scan(
  return str(report_dir)
  
  except asyncio.TimeoutError:
-     pass  # TODO: Implement
  logger.error(f"Scan timeout after {timeout}s")
  console.print(f"[bold red]⏱ Timeout: Scan exceeded {timeout} seconds[/bold red]")
  send_telegram_notification(f" Scan timeout for `{normalized}`")
  return str(report_dir) if report_dir.exists() else None
  
  except Exception as e:
-     pass  # TODO: Implement
  logger.error(f"Pipeline crash: {e}")
  console.print(f"[bold red] Error: {e}[/bold red]")
  return None

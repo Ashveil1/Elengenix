@@ -3,7 +3,6 @@
 Static Application Security Testing (SAST) Engine.
 
 Purpose:
-    pass  # TODO: Implement
 - Analyze source code for security vulnerabilities
 - Support Python, JavaScript/TypeScript, Java, Go
 - Detect injection flaws, secrets, weak crypto, etc.
@@ -28,7 +27,6 @@ logger = logging.getLogger("elengenix.sast")
 
 @dataclass
 class CodeVulnerability:
-    pass  # TODO: Implement
  """Represents a code vulnerability finding."""
  vuln_id: str
  file_path: str
@@ -44,7 +42,6 @@ class CodeVulnerability:
  owasp_category: Optional[str] = None
 
 class PatternBasedScanner:
-    pass  # TODO: Implement
  """Pattern-based vulnerability scanner for multiple languages."""
  
  # Language-specific patterns
@@ -147,29 +144,23 @@ class PatternBasedScanner:
  }
 
  def scan_file(self, file_path: Path) -> List[CodeVulnerability]:
-     pass  # TODO: Implement
  """Scan a single file for vulnerabilities."""
  findings = []
  
  # Determine language from extension
  lang = self._detect_language(file_path)
  if not lang or lang not in self.PATTERNS:
-     pass  # TODO: Implement
  return findings
  
  try:
-     pass  # TODO: Implement
  with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
-     pass  # TODO: Implement
  content = f.read()
  lines = content.split('\n')
  
  patterns = self.PATTERNS[lang]
  
  for vuln_type, pattern_list in patterns.items():
-     pass  # TODO: Implement
  for pattern, cwe, description in pattern_list:
-     pass  # TODO: Implement
  for match in re.finditer(pattern, content, re.IGNORECASE):
  # Calculate line number
  line_num = content[:match.start()].count('\n') + 1
@@ -197,13 +188,11 @@ class PatternBasedScanner:
  ))
  
  except Exception as e:
-     pass  # TODO: Implement
  logger.debug(f"Failed to scan {file_path}: {e}")
  
  return findings
  
  def _detect_language(self, file_path: Path) -> Optional[str]:
-     pass  # TODO: Implement
  """Detect programming language from file extension."""
  ext = file_path.suffix.lower()
  mapping = {
@@ -218,25 +207,20 @@ class PatternBasedScanner:
  return mapping.get(ext)
  
  def _calculate_severity(self, vuln_type: str) -> str:
-     pass  # TODO: Implement
  """Calculate severity based on vulnerability type."""
  critical_types = ['sql_injection', 'command_injection', 'hardcoded_secret', 
  'insecure_deserialization', 'deserialization']
  high_types = ['xss', 'weak_crypto', 'path_traversal', 'eval_danger']
  
  if vuln_type in critical_types:
-     pass  # TODO: Implement
  return 'critical'
  elif vuln_type in high_types:
-     pass  # TODO: Implement
  return 'high'
  elif vuln_type in ['insecure_random']:
-     pass  # TODO: Implement
  return 'medium'
  return 'low'
  
  def _get_remediation(self, vuln_type: str) -> str:
-     pass  # TODO: Implement
  """Get remediation advice for vulnerability type."""
  remediations = {
  'sql_injection': 'Use parameterized queries/prepared statements. Never concatenate user input into SQL.',
@@ -252,7 +236,6 @@ class PatternBasedScanner:
  return remediations.get(vuln_type, 'Review code and apply security best practices.')
  
  def _get_owasp_category(self, vuln_type: str) -> Optional[str]:
-     pass  # TODO: Implement
  """Map vulnerability to OWASP Top 10 category."""
  mapping = {
  'sql_injection': 'A03:2021 - Injection',
@@ -267,28 +250,23 @@ class PatternBasedScanner:
  return mapping.get(vuln_type)
 
 class SASTEngine:
-    pass  # TODO: Implement
  """
  Main SAST engine that orchestrates scanning.
  """
  
  def __init__(self):
-     pass  # TODO: Implement
  self.pattern_scanner = PatternBasedScanner()
  self.findings: List[CodeVulnerability] = []
  
  def scan_repository(self, repo_path: Path, exclude_patterns: Optional[List[str]] = None) -> Dict[str, Any]:
-     pass  # TODO: Implement
  """
  Scan entire repository for vulnerabilities.
  
  Args:
-     pass  # TODO: Implement
  repo_path: Path to source code repository
  exclude_patterns: List of glob patterns to exclude (e.g., ['*/test/*', '*.min.js'])
  """
  if not repo_path.exists():
-     pass  # TODO: Implement
  return {"error": f"Repository path not found: {repo_path}"}
  
  exclude_patterns = exclude_patterns or ['*/test/*', '*/tests/*', '*.min.js', '*/node_modules/*', '*/venv/*', '*/__pycache__/*']
@@ -303,19 +281,15 @@ class SASTEngine:
  skip = False
  str_path = str(file_path)
  for pattern in exclude_patterns:
-     pass  # TODO: Implement
  pattern_clean = pattern.replace('*/', '').replace('*', '')
  if pattern_clean in str_path:
-     pass  # TODO: Implement
  skip = True
  break
  
  if skip:
-     pass  # TODO: Implement
  continue
  
  if file_path.suffix in supported_extensions:
-     pass  # TODO: Implement
  findings = self.pattern_scanner.scan_file(file_path)
  all_findings.extend(findings)
  if findings or True: # Count all scanned files
@@ -325,14 +299,12 @@ class SASTEngine:
  return self._generate_report(files_scanned)
  
  def _generate_report(self, files_scanned: int) -> Dict[str, Any]:
-     pass  # TODO: Implement
  """Generate SAST scan report."""
  severity_counts = {}
  vuln_types = {}
  files_affected = set()
  
  for finding in self.findings:
-     pass  # TODO: Implement
  sev = finding.severity
  vtype = finding.vuln_type
  
@@ -364,7 +336,6 @@ class SASTEngine:
  }
 
 def format_sast_report(report: Dict[str, Any]) -> str:
-    pass  # TODO: Implement
  """Format SAST report for display."""
  lines = []
  lines.append("=" * 60)
@@ -372,7 +343,6 @@ def format_sast_report(report: Dict[str, Any]) -> str:
  lines.append("=" * 60)
  
  if "error" in report:
-     pass  # TODO: Implement
  lines.append(f"\nError: {report['error']}")
  return "\n".join(lines)
  
@@ -382,24 +352,19 @@ def format_sast_report(report: Dict[str, Any]) -> str:
  
  lines.append("\n[Severity Distribution]")
  for sev, count in report.get('severity_distribution', {}).items():
-     pass  # TODO: Implement
  lines.append(f" {sev.upper()}: {count}")
  
  lines.append("\n[Vulnerability Types]")
  for vtype, count in report.get('vulnerability_types', {}).items():
-     pass  # TODO: Implement
  lines.append(f" {vtype}: {count}")
  
  lines.append("\n[Critical/High Vulnerabilities]")
  for vuln in report.get('critical_vulnerabilities', [])[:10]:
-     pass  # TODO: Implement
  lines.append(f"\n {vuln['type'].upper()} ({vuln['severity']})")
  lines.append(f" File: {vuln['file']}:{vuln['line']}")
  if vuln.get('cwe'):
-     pass  # TODO: Implement
  lines.append(f" CWE: {vuln['cwe']}")
  if vuln.get('owasp'):
-     pass  # TODO: Implement
  lines.append(f" OWASP: {vuln['owasp']}")
  lines.append(f" Code: {vuln['code'][:60]}...")
  lines.append(f" Fix: {vuln['fix'][:80]}...")

@@ -3,10 +3,8 @@
 Artifact capture and report generation for bug bounty submissions.
 
 Purpose:
-    pass  # TODO: Implement
 - Capture request/response samples for findings
 - Generate standardized bounty report (markdown) with:
-    pass  # TODO: Implement
  - Summary with CVSS
  - Reproduction steps
  - Evidence (HTTP samples)
@@ -30,7 +28,6 @@ logger = logging.getLogger("elengenix.bounty_reporter")
 
 @dataclass
 class FindingArtifact:
-    pass  # TODO: Implement
  finding_id: str
  finding_type: str
  severity: str
@@ -45,17 +42,13 @@ class FindingArtifact:
  evidence_screenshot_hint: Optional[str] = None
 
 class BountyReporter:
-    pass  # TODO: Implement
  def __init__(self, target: str, output_dir: Optional[Path] = None):
-     pass  # TODO: Implement
  self.target = target
  self.timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
  if output_dir is None:
-     pass  # TODO: Implement
  safe_target = re.sub(r"[^a-zA-Z0-9._-]", "_", target)[:80]
  self.base_dir = Path("reports") / "bounty" / f"{safe_target}_{self.timestamp}"
  else:
-     pass  # TODO: Implement
  self.base_dir = output_dir
  self.base_dir.mkdir(parents=True, exist_ok=True)
  self.evidence_dir = self.base_dir / "evidence"
@@ -65,17 +58,14 @@ class BountyReporter:
  self,
  artifact: FindingArtifact,
  ) -> None:
-     pass  # TODO: Implement
  """Store artifact evidence files."""
  safe_id = re.sub(r"[^a-zA-Z0-9._-]", "_", artifact.finding_id)[:60]
 
  if artifact.request_sample:
-     pass  # TODO: Implement
  req_path = self.evidence_dir / f"{safe_id}_request.txt"
  req_path.write_text(artifact.request_sample, encoding="utf-8")
 
  if artifact.response_sample:
-     pass  # TODO: Implement
  resp_path = self.evidence_dir / f"{safe_id}_response.txt"
  resp_path.write_text(artifact.response_sample[:2000], encoding="utf-8")
 
@@ -84,7 +74,6 @@ class BountyReporter:
  findings: List[FindingArtifact],
  executive_summary: Optional[str] = None,
  ) -> Path:
-     pass  # TODO: Implement
  """Generate markdown bounty report."""
  lines: List[str] = []
 
@@ -97,38 +86,30 @@ class BountyReporter:
  # Executive Summary
  lines.append("## Executive Summary")
  if executive_summary:
-     pass  # TODO: Implement
  lines.append(executive_summary)
  else:
-     pass  # TODO: Implement
  lines.append(f"This report contains {len(findings)} potential security findings identified through automated and semi-automated analysis.")
  lines.append("")
 
  # Severity summary
  sev_counts: Dict[str, int] = {}
  for f in findings:
-     pass  # TODO: Implement
  sev_counts[f.severity] = sev_counts.get(f.severity, 0) + 1
  lines.append("### Severity Summary")
  for sev in ["critical", "high", "medium", "low", "info"]:
-     pass  # TODO: Implement
  if sev in sev_counts:
-     pass  # TODO: Implement
  lines.append(f"- **{sev.upper()}**: {sev_counts[sev]}")
  lines.append("")
 
  # Detailed findings
  for i, f in enumerate(findings, 1):
-     pass  # TODO: Implement
  lines.append(f"## Finding {i}: {f.title}")
  lines.append(f"- **Type**: {f.finding_type}")
  lines.append(f"- **Severity**: {f.severity}")
  lines.append(f"- **Confidence**: {f.confidence:.0%}")
  if f.cvss_score:
-     pass  # TODO: Implement
  lines.append(f"- **CVSS Score**: {f.cvss_score}")
  if f.cwe_id:
-     pass  # TODO: Implement
  lines.append(f"- **CWE**: {f.cwe_id}")
  lines.append(f"- **URL**: {f.url}")
  lines.append("")
@@ -140,10 +121,8 @@ class BountyReporter:
  lines.append("### Evidence")
  safe_id = re.sub(r"[^a-zA-Z0-9._-]", "_", f.finding_id)[:60]
  if (self.evidence_dir / f"{safe_id}_request.txt").exists():
-     pass  # TODO: Implement
  lines.append(f"- Request: `evidence/{safe_id}_request.txt`")
  if (self.evidence_dir / f"{safe_id}_response.txt").exists():
-     pass  # TODO: Implement
  lines.append(f"- Response: `evidence/{safe_id}_response.txt`")
  lines.append("")
 
@@ -176,7 +155,6 @@ class BountyReporter:
  findings: List[FindingArtifact],
  mission_summary: Optional[Dict[str, Any]] = None,
  ) -> Path:
-     pass  # TODO: Implement
  """Export machine-readable JSON report."""
  data = {
  "target": self.target,

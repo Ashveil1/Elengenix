@@ -3,7 +3,6 @@
 Auto-Detector - Smart input detection for easiest UX.
 
 Purpose:
-    pass  # TODO: Implement
 - Auto-detect what the user wants to do from their input
 - Route to appropriate module without user memorizing commands
 - Smart file type detection

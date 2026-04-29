@@ -24,32 +24,25 @@ _SUMMARY_SNIPPET = 400 # chars per category in summary
 _MAX_AGE_DAYS = 90 # auto-prune learnings older than this
 
 def _db_path() -> Path:
-    pass  # TODO: Implement
  _DB_PATH.parent.mkdir(parents=True, exist_ok=True)
  return _DB_PATH
 
 @contextmanager
 def _get_conn() -> Generator[sqlite3.Connection, None, None]:
-    pass  # TODO: Implement
  conn = sqlite3.connect(str(_db_path()), timeout=10)
  conn.execute("PRAGMA journal_mode=WAL") # concurrent read safety
  conn.execute("PRAGMA foreign_keys=ON")
  try:
-     pass  # TODO: Implement
  yield conn
  conn.commit()
  except Exception:
-     pass  # TODO: Implement
  conn.rollback()
  raise
  finally:
-     pass  # TODO: Implement
  conn.close()
 
 def init_db() -> None:
-    pass  # TODO: Implement
  with _get_conn() as conn:
-     pass  # TODO: Implement
  conn.execute("""
  CREATE TABLE IF NOT EXISTS learnings (
  id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -64,15 +57,12 @@ def init_db() -> None:
  conn.execute("CREATE INDEX IF NOT EXISTS idx_created ON learnings (created)")
 
 def save_learning(target: str, learning: str, category: str = "general") -> None:
-    pass  # TODO: Implement
  """Persist a finding. Truncates if too long."""
  if not target or not learning:
-     pass  # TODO: Implement
  return
  init_db()
  learning = learning.strip()[:_MAX_LEARNING_LEN]
  with _get_conn() as conn:
-     pass  # TODO: Implement
  conn.execute(
  "INSERT INTO learnings (target, category, learning) VALUES (?, ?, ?)",
  (target.lower().strip(), category.lower().strip(), learning),
@@ -80,18 +70,15 @@ def save_learning(target: str, learning: str, category: str = "general") -> None
  logger.debug(f"Memory saved [{category}] for {target}")
 
 def get_summarized_learnings(target: str, max_chars: int = 2000) -> str:
-    pass  # TODO: Implement
  """
  Returns a compact, LLM-friendly summary of prior findings for this target.
  Groups by category and truncates to stay within token budget.
  """
  if not _db_path().exists():
-     pass  # TODO: Implement
  return "No prior memory."
 
  init_db()
  with _get_conn() as conn:
-     pass  # TODO: Implement
  rows: List[Tuple] = conn.execute(
  """
  SELECT category, COUNT(*) AS cnt, GROUP_CONCAT(learning, ' || ')
@@ -104,17 +91,14 @@ def get_summarized_learnings(target: str, max_chars: int = 2000) -> str:
  ).fetchall()
 
  if not rows:
-     pass  # TODO: Implement
  return "No prior memory for this target."
 
  parts: List[str] = []
  used = 0
  for cat, cnt, details in rows:
-     pass  # TODO: Implement
  snippet = (details[:_SUMMARY_SNIPPET] + "...") if len(details) > _SUMMARY_SNIPPET else details
  line = f"[{cat.upper()}] ({cnt} items): {snippet}"
  if used + len(line) > max_chars:
-     pass  # TODO: Implement
  break
  parts.append(line)
  used += len(line)
@@ -122,24 +106,19 @@ def get_summarized_learnings(target: str, max_chars: int = 2000) -> str:
  return "\n".join(parts)
 
 def get_all_targets() -> List[str]:
-    pass  # TODO: Implement
  if not _db_path().exists():
-     pass  # TODO: Implement
  return []
  init_db()
  with _get_conn() as conn:
-     pass  # TODO: Implement
  rows = conn.execute(
  "SELECT DISTINCT target FROM learnings ORDER BY target"
  ).fetchall()
  return [r[0] for r in rows]
 
 def delete_target_memory(target: str) -> int:
-    pass  # TODO: Implement
  """Delete all learnings for a target. Returns number of rows deleted."""
  init_db()
  with _get_conn() as conn:
-     pass  # TODO: Implement
  cursor = conn.execute(
  "DELETE FROM learnings WHERE target = ?",
  (target.lower().strip(),),
@@ -147,17 +126,14 @@ def delete_target_memory(target: str) -> int:
  return cursor.rowcount
 
 def prune_old_learnings(days: int = _MAX_AGE_DAYS) -> int:
-    pass  # TODO: Implement
  """Remove learnings older than `days`. Returns count pruned."""
  init_db()
  cutoff = (datetime.utcnow() - timedelta(days=days)).isoformat()
  with _get_conn() as conn:
-     pass  # TODO: Implement
  cursor = conn.execute(
  "DELETE FROM learnings WHERE created < ?", (cutoff,)
  )
  pruned = cursor.rowcount
  if pruned:
-     pass  # TODO: Implement
  logger.info(f"Pruned {pruned} old learnings (>{days} days).")
  return pruned

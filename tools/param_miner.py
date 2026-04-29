@@ -33,7 +33,6 @@ def mine_parameters(
  url: str,
  extra_params: List[str] | None = None,
 ) -> List[Dict]:
-    pass  # TODO: Implement
  """
  Discover hidden/undocumented parameters by probing with a unique canary value.
  Returns list of found params with evidence.
@@ -46,28 +45,23 @@ def mine_parameters(
 
  # Baseline
  try:
-     pass  # TODO: Implement
  base = session.get(url, timeout=_TIMEOUT, verify=False)
  baseline_status = base.status_code
  baseline_len = len(base.content)
  except Exception as e:
-     pass  # TODO: Implement
  logger.error(f"Baseline request failed for {url}: {e}")
  return []
 
  found: List[Dict] = []
 
  def probe(param: str) -> Dict | None:
-     pass  # TODO: Implement
  test_url = f"{url}{'&' if '?' in url else '?'}{param}={canary}"
  try:
-     pass  # TODO: Implement
  r = session.get(test_url, timeout=_TIMEOUT, verify=False)
  length_delta = abs(len(r.content) - baseline_len)
  reflected = canary in r.text
 
  if r.status_code != baseline_status or length_delta > 50 or reflected:
-     pass  # TODO: Implement
  return {
  "param": param,
  "url": test_url,
@@ -77,18 +71,14 @@ def mine_parameters(
  "base_status": baseline_status,
  }
  except Exception:
-     pass  # TODO: Implement
  pass
  return None
 
  with ThreadPoolExecutor(max_workers=_MAX_WORKERS) as pool:
-     pass  # TODO: Implement
  futures = {pool.submit(probe, p): p for p in params}
  for future in as_completed(futures):
-     pass  # TODO: Implement
  result = future.result()
  if result:
-     pass  # TODO: Implement
  found.append(result)
  logger.info(f"Parameter found: {result['param']} on {url}")
 
@@ -96,8 +86,6 @@ def mine_parameters(
  return sorted(found, key=lambda x: x["param"])
 
 if __name__ == "__main__":
-    pass  # TODO: Implement
  import sys, json
  if len(sys.argv) > 1:
-     pass  # TODO: Implement
  print(json.dumps(mine_parameters(sys.argv[1]), indent=2))

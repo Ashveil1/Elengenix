@@ -3,7 +3,6 @@
 Multi-Agent Swarm Controller - Parallel Target Testing.
 
 Purpose:
-    pass  # TODO: Implement
 - Run multiple agent instances against different targets in parallel
 - Resource-managed (semaphore-controlled concurrency)
 - Per-target governance (HITL still applies to each)
@@ -11,7 +10,6 @@ Purpose:
 - Progress tracking for each mission
 
 Safety:
-    pass  # TODO: Implement
 - Each target still goes through governance gates
 - Rate limits apply per target
 - Max concurrent missions limit
@@ -35,7 +33,6 @@ logger = logging.getLogger("elengenix.swarm")
 
 @dataclass
 class SwarmTarget:
-    pass  # TODO: Implement
  """Single target configuration for swarm."""
  target_id: str
  target_url: str
@@ -51,7 +48,6 @@ class SwarmTarget:
 
 @dataclass
 class SwarmResult:
-    pass  # TODO: Implement
  """Result from a single target in swarm."""
  target_id: str
  target_url: str
@@ -63,7 +59,6 @@ class SwarmResult:
 
 @dataclass
 class SwarmConfig:
-    pass  # TODO: Implement
  """Swarm execution configuration."""
  max_concurrent: int = 3
  rate_limit_per_target: float = 2.0
@@ -73,59 +68,41 @@ class SwarmConfig:
  output_dir: Path = field(default_factory=lambda: Path("reports/swarm"))
 
 class SwarmMissionTracker:
-    pass  # TODO: Implement
  """Tracks progress of all swarm missions."""
  
  def __init__(self):
-     pass  # TODO: Implement
  self.lock = threading.Lock()
  self.targets: Dict[str, SwarmTarget] = {}
  self.global_start: Optional[float] = None
  self.global_end: Optional[float] = None
  
  def add_target(self, target: SwarmTarget) -> None:
-     pass  # TODO: Implement
  with self.lock:
-     pass  # TODO: Implement
  self.targets[target.target_id] = target
  
  def update_progress(self, target_id: str, progress: float) -> None:
-     pass  # TODO: Implement
  with self.lock:
-     pass  # TODO: Implement
  if target_id in self.targets:
-     pass  # TODO: Implement
  self.targets[target_id].progress = progress
  
  def update_status(self, target_id: str, status: str, error: Optional[str] = None) -> None:
-     pass  # TODO: Implement
  with self.lock:
-     pass  # TODO: Implement
  if target_id in self.targets:
-     pass  # TODO: Implement
  self.targets[target_id].status = status
  if error:
-     pass  # TODO: Implement
  self.targets[target_id].error_message = error
  if status == "running" and not self.targets[target_id].start_time:
-     pass  # TODO: Implement
  self.targets[target_id].start_time = time.time()
  if status in ("completed", "failed", "aborted"):
-     pass  # TODO: Implement
  self.targets[target_id].end_time = time.time()
  
  def update_findings(self, target_id: str, count: int) -> None:
-     pass  # TODO: Implement
  with self.lock:
-     pass  # TODO: Implement
  if target_id in self.targets:
-     pass  # TODO: Implement
  self.targets[target_id].findings_count = count
  
  def get_summary(self) -> Dict[str, Any]:
-     pass  # TODO: Implement
  with self.lock:
-     pass  # TODO: Implement
  total = len(self.targets)
  running = sum(1 for t in self.targets.values() if t.status == "running")
  completed = sum(1 for t in self.targets.values() if t.status == "completed")
@@ -144,15 +121,12 @@ class SwarmMissionTracker:
  }
  
  def format_progress_table(self) -> str:
-     pass  # TODO: Implement
  """Format progress as a table for display."""
  with self.lock:
-     pass  # TODO: Implement
  lines = []
  lines.append(f"{'Target':<30} {'Status':<12} {'Progress':>8} {'Findings':>10}")
  lines.append("-" * 65)
  for t in sorted(self.targets.values(), key=lambda x: x.priority):
-     pass  # TODO: Implement
  bar = "" * int(t.progress / 10) + "" * (10 - int(t.progress / 10))
  lines.append(f"{t.target_url[:28]:<30} {t.status:<12} {bar} {t.progress:>5.1f}% {t.findings_count:>8}")
  lines.append("-" * 65)
@@ -161,13 +135,11 @@ class SwarmMissionTracker:
  return "\n".join(lines)
 
 class SwarmController:
-    pass  # TODO: Implement
  """
  Controller for multi-target parallel execution.
  """
  
  def __init__(self, config: SwarmConfig):
-     pass  # TODO: Implement
  self.config = config
  self.tracker = SwarmMissionTracker()
  self.abort_event = threading.Event()
@@ -175,15 +147,12 @@ class SwarmController:
  self.results_lock = threading.Lock()
  
  def load_targets_from_file(self, file_path: Path) -> List[SwarmTarget]:
-     pass  # TODO: Implement
  """Load targets from a file (one URL per line)."""
  targets = []
  lines = file_path.read_text(encoding="utf-8").strip().splitlines()
  for i, line in enumerate(lines, 1):
-     pass  # TODO: Implement
  line = line.strip()
  if not line or line.startswith("#"):
-     pass  # TODO: Implement
  continue
  # Support format: URL or URL | priority | config_json
  parts = line.split("|")
@@ -191,13 +160,10 @@ class SwarmController:
  priority = int(parts[1].strip()) if len(parts) > 1 else 5
  config = {}
  if len(parts) > 2:
-     pass  # TODO: Implement
  try:
-     pass  # TODO: Implement
  import json
  config = json.loads(parts[2].strip())
  except:
-     pass  # TODO: Implement
  pass
  
  target = SwarmTarget(
@@ -211,13 +177,10 @@ class SwarmController:
  return targets
  
  def load_targets_from_list(self, urls: List[str]) -> List[SwarmTarget]:
-     pass  # TODO: Implement
  """Load targets from a list of URLs."""
  targets = []
  for i, url in enumerate(urls, 1):
-     pass  # TODO: Implement
  if url.strip():
-     pass  # TODO: Implement
  target = SwarmTarget(
  target_id=f"swarm_{i}_{uuid4().hex[:8]}",
  target_url=url.strip(),
@@ -228,7 +191,6 @@ class SwarmController:
  
  def _run_single_target(self, target: SwarmTarget, 
  progress_callback: Optional[Callable[[str, float], None]] = None) -> SwarmResult:
-     pass  # TODO: Implement
  """Execute agent for a single target."""
  start_time = time.time()
  self.tracker.update_status(target.target_id, "running")
@@ -250,10 +212,8 @@ class SwarmController:
  
  # Run agent turn
  def local_progress(step: str, pct: float):
-     pass  # TODO: Implement
  self.tracker.update_progress(target.target_id, pct)
  if progress_callback:
-     pass  # TODO: Implement
  progress_callback(target.target_id, pct)
  
  # Note: This is a simplified version - real implementation would
@@ -274,7 +234,6 @@ class SwarmController:
  )
  
  except Exception as e:
-     pass  # TODO: Implement
  duration = time.time() - start_time
  logger.error(f"Swarm target {target.target_id} failed: {e}")
  self.tracker.update_status(target.target_id, "failed", str(e))
@@ -290,7 +249,6 @@ class SwarmController:
  
  def _simulate_agent_run(self, target: SwarmTarget, mission: MissionState,
  progress_cb: Callable[[str, float], None]) -> Dict[str, Any]:
-     pass  # TODO: Implement
  """
  Simulate or delegate to actual agent run.
  In production, this would call agent_brain.process_agent_turn.
@@ -310,9 +268,7 @@ class SwarmController:
  
  findings = []
  for i, step in enumerate(steps):
-     pass  # TODO: Implement
  if self.abort_event.is_set():
-     pass  # TODO: Implement
  break
  progress_cb(step, (i / len(steps)) * 100)
  time.sleep(0.5) # Simulate work
@@ -323,7 +279,6 @@ class SwarmController:
  def run(self, targets: List[SwarmTarget],
  progress_callback: Optional[Callable[[str, float], None]] = None,
  display_callback: Optional[Callable[[str], None]] = None) -> List[SwarmResult]:
-     pass  # TODO: Implement
  """
  Run swarm across all targets with controlled concurrency.
  """
@@ -332,7 +287,6 @@ class SwarmController:
  
  # Register all targets
  for target in targets:
-     pass  # TODO: Implement
  self.tracker.add_target(target)
  
  # Sort by priority (lower = higher priority)
@@ -350,25 +304,20 @@ class SwarmController:
  
  # Process as they complete
  for future in as_completed(future_to_target):
-     pass  # TODO: Implement
  if self.abort_event.is_set():
  # Cancel remaining
  for f in future_to_target:
-     pass  # TODO: Implement
  f.cancel()
  break
  
  target = future_to_target[future]
  try:
-     pass  # TODO: Implement
  result = future.result()
  with self.results_lock:
-     pass  # TODO: Implement
  self.results.append(result)
  completed_count += 1
  
  if display_callback:
-     pass  # TODO: Implement
  summary = self.tracker.get_summary()
  display_callback(
  f"[{completed_count}/{len(targets)}] {target.target_url} -> "
@@ -377,24 +326,20 @@ class SwarmController:
  
  # Show progress table periodically
  if completed_count % 3 == 0 or completed_count == len(targets):
-     pass  # TODO: Implement
  display_callback("\n" + self.tracker.format_progress_table())
  
  # Check abort on critical
  if self.config.abort_on_critical:
-     pass  # TODO: Implement
  critical_count = sum(
  1 for f in result.findings
  if f.get("severity") == "critical"
  )
  if critical_count > 0:
-     pass  # TODO: Implement
  display_callback(f" Critical finding on {target.target_url}! Aborting swarm...")
  self.abort()
  break
  
  except Exception as e:
-     pass  # TODO: Implement
  logger.error(f"Future failed for {target.target_id}: {e}")
  self.tracker.update_status(target.target_id, "failed", str(e))
  
@@ -402,37 +347,30 @@ class SwarmController:
  return self.results
  
  def abort(self) -> None:
-     pass  # TODO: Implement
  """Signal swarm to abort."""
  self.abort_event.set()
  logger.info("Swarm abort signaled")
  
  def generate_aggregate_report(self) -> Dict[str, Any]:
-     pass  # TODO: Implement
  """Generate aggregated report across all targets."""
  total_duration = 0.0
  if self.tracker.global_start and self.tracker.global_end:
-     pass  # TODO: Implement
  total_duration = self.tracker.global_end - self.tracker.global_start
  
  all_findings = []
  for r in self.results:
-     pass  # TODO: Implement
  all_findings.extend(r.findings)
  
  # Severity distribution
  severity_counts = {"critical": 0, "high": 0, "medium": 0, "low": 0, "info": 0}
  for f in all_findings:
-     pass  # TODO: Implement
  sev = f.get("severity", "info").lower()
  if sev in severity_counts:
-     pass  # TODO: Implement
  severity_counts[sev] += 1
  
  # Per-target breakdown
  target_breakdown = []
  for r in self.results:
-     pass  # TODO: Implement
  target_breakdown.append({
  "target": r.target_url,
  "success": r.success,
@@ -457,12 +395,10 @@ class SwarmController:
  }
  
  def save_report(self, report_path: Optional[Path] = None) -> Path:
-     pass  # TODO: Implement
  """Save aggregate report to file."""
  report = self.generate_aggregate_report()
  
  if report_path is None:
-     pass  # TODO: Implement
  timestamp = int(time.time())
  report_path = self.config.output_dir / f"swarm_report_{timestamp}.json"
  
@@ -473,7 +409,6 @@ class SwarmController:
  return report_path
 
 def format_swarm_report(report: Dict[str, Any]) -> str:
-    pass  # TODO: Implement
  """Format swarm report for display."""
  lines = []
  lines.append("=" * 70)
@@ -493,16 +428,13 @@ def format_swarm_report(report: Dict[str, Any]) -> str:
  sev = report.get("severity_distribution", {})
  lines.append("Severity Distribution:")
  for level in ["critical", "high", "medium", "low", "info"]:
-     pass  # TODO: Implement
  count = sev.get(level, 0)
  if count > 0:
-     pass  # TODO: Implement
  lines.append(f" - {level.upper()}: {count}")
  lines.append("")
  
  lines.append("Target Breakdown:")
  for t in report.get("target_breakdown", [])[:10]:
-     pass  # TODO: Implement
  status = "" if t.get("success") else ""
  lines.append(f" {status} {t.get('target', 'N/A')[:40]:<40} ({t.get('findings_count', 0)} findings)")
  

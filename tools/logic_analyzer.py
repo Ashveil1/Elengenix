@@ -3,7 +3,6 @@
 Business Logic & Authorization Analyzer.
 
 Purpose:
-    pass  # TODO: Implement
 - Generate hypotheses for business logic bugs (BOLA/IDOR/workflow bypass)
 - Use mission graph snapshot + tool findings to propose next safe tests
 
@@ -20,7 +19,6 @@ logger = logging.getLogger("elengenix.logic_analyzer")
 
 @dataclass
 class LogicHypothesis:
-    pass  # TODO: Implement
  hyp_id: str
  title: str
  description: str
@@ -29,34 +27,27 @@ class LogicHypothesis:
  suggested_tests: List[Dict[str, Any]]
 
 class BusinessLogicAnalyzer:
-    pass  # TODO: Implement
  """Generate business/authz hypotheses from findings and state."""
 
  def generate(self, mission_snapshot: Dict[str, Any], recent_findings: List[Dict[str, Any]]) -> List[LogicHypothesis]:
-     pass  # TODO: Implement
  target = mission_snapshot.get("target", "")
 
  endpoints = []
  for node in mission_snapshot.get("nodes", []):
-     pass  # TODO: Implement
  if node.get("type") == "finding":
-     pass  # TODO: Implement
  raw = (node.get("props") or {}).get("raw") or {}
  url = raw.get("url") or raw.get("endpoint")
  if url:
-     pass  # TODO: Implement
  endpoints.append(url)
 
  # Heuristics: identify likely object endpoints
  object_like = [e for e in endpoints if any(x in e for x in ["/api/", "/v1/", "/v2/", "/users/", "/accounts/", "/orders/", "/invoices/", "/admin"])][:
-     pass  # TODO: Implement
  30
  ]
 
  hyps: List[LogicHypothesis] = []
 
  if object_like:
-     pass  # TODO: Implement
  hyps.append(
  LogicHypothesis(
  hyp_id=f"authz:idor:{target}",
@@ -86,7 +77,6 @@ class BusinessLogicAnalyzer:
 
  # Heuristics: rate limit / workflow hints
  if any("login" in e or "otp" in e or "reset" in e for e in endpoints):
-     pass  # TODO: Implement
  hyps.append(
  LogicHypothesis(
  hyp_id=f"logic:rate_limit:{target}",

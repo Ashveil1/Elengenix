@@ -3,14 +3,12 @@
 Phase 1: Intelligence Discovery - HackerOne Program Discovery Engine
 
 Purpose:
-    pass  # TODO: Implement
 - Discover profitable bug bounty programs automatically
 - HackerOne API integration (for users with API key)
 - Public scraping (token-free alternative)
 - Program ranking by potential profitability
 
 Features:
-    pass  # TODO: Implement
 - Two modes: API (authenticated) and Public (scraping)
 - Smart filtering: offers_bounties, response_time, scope_clarity
 - Caching: 6-hour cache to respect rate limits
@@ -100,7 +98,6 @@ class BountyIntelligence:
     Intelligence Discovery Engine for Bug Bounty Programs.
     
     Supports:
-        pass  # TODO: Implement
     - HackerOne API (authenticated, more data)
     - Public scraping (token-free, basic data)
     - Smart ranking algorithm
@@ -117,7 +114,6 @@ class BountyIntelligence:
     
     def __init__(self, api_key: Optional[str] = None, 
                  api_username: Optional[str] = None):
-                     pass  # TODO: Implement
         """
         Initialize intelligence engine.
         
@@ -177,7 +173,6 @@ class BountyIntelligence:
                             offers_bounties: bool = True,
                             state: str = "open",
                             limit: int = 50) -> List[BountyProgram]:
-                                pass  # TODO: Implement
         """
         Discover programs using HackerOne API (authenticated).
         
@@ -537,7 +532,6 @@ class BountyIntelligence:
         Rank programs by profitability potential.
         
         Scoring factors:
-            pass  # TODO: Implement
         - Reward potential (40%): Max bounty amount
         - Response speed (30%): Faster response = faster payout
         - Scope clarity (30%): Clear scope = less wasted effort
@@ -587,7 +581,6 @@ class BountyIntelligence:
     def get_top_recommendation(self, 
                                min_bounty: int = 500,
                                use_api: bool = True) -> Optional[BountyProgram]:
-                                   pass  # TODO: Implement
         """
         Get single top program recommendation.
         
@@ -611,7 +604,6 @@ class BountyIntelligence:
     
     def format_programs_list(self, programs: List[BountyProgram], 
                             show_scores: bool = False) -> str:
-                                pass  # TODO: Implement
         """Format program list for display."""
         if not programs:
             return "\n  No programs found.\n"

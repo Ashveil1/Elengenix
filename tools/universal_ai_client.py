@@ -3,14 +3,12 @@
 Universal AI Client - OpenAI-compatible API for any provider.
 
 Design Principle (OpenClaw-style):
-    pass  # TODO: Implement
 - Direct HTTP API calls (no vendor-locked libraries)
 - OpenAI-compatible format (universal standard)
 - Support: OpenAI, Gemini, Anthropic, Ollama, LocalAI, etc.
 - Easy provider switching (just change base_url + key)
 
 Providers with OpenAI-compatible API:
-    pass  # TODO: Implement
 - OpenAI (native)
 - Gemini (via endpoint)
 - Anthropic (Claude with OpenAI adapter)

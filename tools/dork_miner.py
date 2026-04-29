@@ -44,18 +44,15 @@ def run_smart_dorking(
  categories: List[str] | None = None,
  results_per_dork: int = 3,
 ) -> List[Dict]:
-    pass  # TODO: Implement
  """
  Run Google dorks for the target.
 
  Args:
-     pass  # TODO: Implement
  target: Domain to dork (e.g. example.com)
  categories: Subset of _DORK_TEMPLATES keys, or None for all
  results_per_dork: Max URLs per dork query
 
  Returns:
-     pass  # TODO: Implement
  List of {dork, category, urls}
  """
  cats = categories or list(_DORK_TEMPLATES.keys())
@@ -63,19 +60,15 @@ def run_smart_dorking(
  seen_urls: set = set()
 
  for cat in cats:
-     pass  # TODO: Implement
  if cat not in _DORK_TEMPLATES:
-     pass  # TODO: Implement
  logger.warning(f"Unknown dork category: {cat}")
  continue
  for template in _DORK_TEMPLATES[cat]:
-     pass  # TODO: Implement
  dork = template.replace("{target}", target)
  urls = [u for u in search_web(dork, num_results=results_per_dork)
  if u not in seen_urls]
  seen_urls.update(urls)
  if urls:
-     pass  # TODO: Implement
  results.append({"dork": dork, "category": cat, "urls": urls})
  logger.info(f"[{cat}] {len(urls)} results for: {dork}")
 

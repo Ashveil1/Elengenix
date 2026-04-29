@@ -24,13 +24,11 @@ _TEST_ORIGINS: List[str] = [
 _TIMEOUT = 8
 
 def check_cors(url: str) -> Dict:
-    pass  # TODO: Implement
  """
  Probe CORS configuration of the target URL.
  Returns a dict with: vulnerable, severity, details list.
  """
  if not url.startswith(("http://", "https://")):
-     pass  # TODO: Implement
  url = f"https://{url}"
 
  session = requests.Session()
@@ -39,9 +37,7 @@ def check_cors(url: str) -> Dict:
  issues: List[Dict] = []
 
  for origin in _TEST_ORIGINS:
-     pass  # TODO: Implement
  try:
-     pass  # TODO: Implement
  r = session.get(
  url,
  headers={"Origin": origin},
@@ -50,7 +46,6 @@ def check_cors(url: str) -> Dict:
  allow_redirects=True,
  )
  except Exception as e:
-     pass  # TODO: Implement
  logger.debug(f"CORS probe error ({origin}): {e}")
  continue
 
@@ -59,7 +54,6 @@ def check_cors(url: str) -> Dict:
  acam = r.headers.get("Access-Control-Allow-Methods", "")
 
  if acao == "*" and acac == "true":
-     pass  # TODO: Implement
  issues.append({
  "origin": origin,
  "severity": "CRITICAL",
@@ -67,7 +61,6 @@ def check_cors(url: str) -> Dict:
  "headers": {"ACAO": acao, "ACAC": acac},
  })
  elif acao == origin and acac == "true":
-     pass  # TODO: Implement
  issues.append({
  "origin": origin,
  "severity": "HIGH",
@@ -75,7 +68,6 @@ def check_cors(url: str) -> Dict:
  "headers": {"ACAO": acao, "ACAC": acac, "ACAM": acam},
  })
  elif acao == origin:
-     pass  # TODO: Implement
  issues.append({
  "origin": origin,
  "severity": "MEDIUM",
@@ -83,7 +75,6 @@ def check_cors(url: str) -> Dict:
  "headers": {"ACAO": acao},
  })
  elif acao == "*":
-     pass  # TODO: Implement
  issues.append({
  "origin": origin,
  "severity": "LOW",
@@ -103,8 +94,6 @@ def check_cors(url: str) -> Dict:
  }
 
 if __name__ == "__main__":
-    pass  # TODO: Implement
  import sys, json
  if len(sys.argv) > 1:
-     pass  # TODO: Implement
  print(json.dumps(check_cors(sys.argv[1]), indent=2))

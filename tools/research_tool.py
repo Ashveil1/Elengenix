@@ -31,7 +31,6 @@ _TIMEOUT = 15
 _MAX_TEXT = 4000 # chars returned to LLM
 
 def _headers() -> Dict[str, str]:
-    pass  # TODO: Implement
  return {
  "User-Agent": random.choice(_USER_AGENTS),
  "Accept": "text/html,application/xhtml+xml;q=0.9,*/*;q=0.8",
@@ -41,24 +40,19 @@ def _headers() -> Dict[str, str]:
  }
 
 def search_web(query: str, num_results: int = 5) -> List[str]:
-    pass  # TODO: Implement
  """Return a list of URLs from Google search."""
  try:
-     pass  # TODO: Implement
  return list(search(query, num_results=num_results, stop=num_results))
  except Exception as e:
-     pass  # TODO: Implement
  logger.error(f"Web search error: {e}")
  return []
 
 def extract_and_summarize(url: str, max_chars: int = _MAX_TEXT) -> Dict:
-    pass  # TODO: Implement
  """
  Fetch and extract readable text from a URL.
  Returns: {url, title, text, chars, error}
  """
  try:
-     pass  # TODO: Implement
  r = requests.get(url, headers=_headers(), timeout=_TIMEOUT, verify=False)
  r.raise_for_status()
 
@@ -69,7 +63,6 @@ def extract_and_summarize(url: str, max_chars: int = _MAX_TEXT) -> Dict:
  no_fallback=False,
  )
  if not text:
-     pass  # TODO: Implement
  text = "No readable content extracted."
 
  return {
@@ -79,7 +72,6 @@ def extract_and_summarize(url: str, max_chars: int = _MAX_TEXT) -> Dict:
  "error": "",
  }
  except Exception as e:
-     pass  # TODO: Implement
  logger.error(f"Extract error ({url}): {e}")
  return {"url": url, "text": "", "chars": 0, "error": str(e)}
 
@@ -88,7 +80,6 @@ def research_target(
  num_results: int = 5,
  summarize: bool = True,
 ) -> List[Dict]:
-    pass  # TODO: Implement
  """
  Search for OSINT about a target and optionally extract page text.
  """
@@ -102,19 +93,14 @@ def research_target(
  seen: set = set()
 
  for q in queries:
-     pass  # TODO: Implement
  for url in search_web(q, num_results=num_results):
-     pass  # TODO: Implement
  if url in seen:
-     pass  # TODO: Implement
  continue
  seen.add(url)
  if summarize:
-     pass  # TODO: Implement
  data = extract_and_summarize(url)
  results.append(data)
  else:
-     pass  # TODO: Implement
  results.append({"url": url, "text": "", "chars": 0, "error": ""})
  time.sleep(0.3) # polite delay
 

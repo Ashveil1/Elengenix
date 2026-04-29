@@ -3,14 +3,12 @@
 Phase 3: Telegram Bridge - Real-time notifications and mission control.
 
 Purpose:
-    pass  # TODO: Implement
 - Send real-time notifications to Telegram during missions
 - Control missions via Telegram commands
 - Notification templates for different events
 - Two-way sync between CLI and Telegram
 
 Features:
-    pass  # TODO: Implement
 - Mission control commands (/bounty, /status, /pause, /resume, /findings, /programs)
 - Notification templates (mission started, phase completed, finding discovered, token warning)
 - Real-time sync from CLI to Telegram
@@ -53,7 +51,6 @@ class TelegramBridge:
     Bridge for Telegram notifications and mission control.
     
     Features:
-        pass  # TODO: Implement
     - Send notifications for mission events
     - Control missions via Telegram commands
     - Formatted message templates

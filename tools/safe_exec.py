@@ -32,12 +32,10 @@ def execute_safely(
  timeout: int = 300,
  cwd: str | None = None,
 ) -> Dict[str, Union[str, int, bool]]:
-    pass  # TODO: Implement
  """
  Safely execute an allowlisted shell command.
 
  Returns:
-     pass  # TODO: Implement
  {
  "success": bool,
  "stdout": str,
@@ -51,29 +49,23 @@ def execute_safely(
  }
 
  if not command_str or not command_str.strip():
-     pass  # TODO: Implement
  return error_result("Empty command.")
 
  if any(c in command_str for c in FORBIDDEN_CHARS):
-     pass  # TODO: Implement
  logger.warning(f"Blocked dangerous command: {command_str!r}")
  return error_result("Command contains prohibited metacharacters.")
 
  try:
-     pass  # TODO: Implement
  args = shlex.split(command_str)
  except ValueError as e:
-     pass  # TODO: Implement
  return error_result(f"Parse error: {e}")
 
  binary = os.path.basename(args[0])
  if binary not in ALLOWED_BINARIES:
-     pass  # TODO: Implement
  return error_result(f"'{binary}' is not in the security allowlist.")
 
  logger.info(f"Executing: {command_str}")
  try:
-     pass  # TODO: Implement
  result = subprocess.run(
  args,
  shell=False,
@@ -90,12 +82,9 @@ def execute_safely(
  "error": "",
  }
  except subprocess.TimeoutExpired:
-     pass  # TODO: Implement
  return error_result(f"Command timed out after {timeout}s.")
  except FileNotFoundError:
-     pass  # TODO: Implement
  return error_result(f"Binary '{binary}' not found on this system.")
  except Exception as e:
-     pass  # TODO: Implement
  logger.error(f"Execution error: {e}")
  return error_result(str(e))

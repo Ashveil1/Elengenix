@@ -22,7 +22,6 @@ from tools.tool_registry import BaseTool, ToolCategory, ToolMetadata, ToolResult
  timeout_seconds=300,
 ))
 class NaabuTool(BaseTool):
-    pass  # TODO: Implement
  """Naabu port scanner integration."""
  
  # Common web ports + interesting ports
@@ -41,12 +40,10 @@ class NaabuTool(BaseTool):
  ports: List[str] = None,
  **kwargs
  ) -> ToolResult:
-     pass  # TODO: Implement
  """
  Execute naabu port scan.
  
  Args:
-     pass  # TODO: Implement
  target: Host to scan
  report_dir: Output directory
  semaphore: Rate limiter
@@ -59,10 +56,8 @@ class NaabuTool(BaseTool):
  
  # Determine port range
  if ports is None:
-     pass  # TODO: Implement
  port_str = ",".join(self.DEFAULT_PORTS)
  else:
-     pass  # TODO: Implement
  port_str = ",".join(ports)
  
  # Build command
@@ -75,15 +70,12 @@ class NaabuTool(BaseTool):
  
  # Scan type (SYN requires root)
  if scan_type == "syn":
-     pass  # TODO: Implement
  cmd.append("-scan-all-ips")
  else:
-     pass  # TODO: Implement
  cmd.append("-s") # Simple connect scan
  
  # Enable nmap integration for service detection if available
  if kwargs.get("nmap_service_detection", False):
-     pass  # TODO: Implement
  cmd.extend(["-nmap-cli", "nmap -sV -sS"])
  
  stdout, stderr, rc = await self._run_subprocess(cmd, semaphore=semaphore)
@@ -93,16 +85,11 @@ class NaabuTool(BaseTool):
  findings = []
  
  if output_file.exists():
-     pass  # TODO: Implement
  try:
-     pass  # TODO: Implement
  for line in output_file.read_text().strip().split('\n'):
-     pass  # TODO: Implement
  if not line:
-     pass  # TODO: Implement
  continue
  try:
-     pass  # TODO: Implement
  data = json.loads(line)
  finding = {
  "type": "open_port",
@@ -124,24 +111,17 @@ class NaabuTool(BaseTool):
  
  findings.append(finding)
  except json.JSONDecodeError:
-     pass  # TODO: Implement
  continue
  except Exception as e:
-     pass  # TODO: Implement
  pass
  
  # Also parse stdout if file is empty
  if not findings and stdout:
-     pass  # TODO: Implement
  for line in stdout.split('\n'):
-     pass  # TODO: Implement
  if "open" in line.lower():
-     pass  # TODO: Implement
  parts = line.split()
  if len(parts) >= 2:
-     pass  # TODO: Implement
  try:
-     pass  # TODO: Implement
  port = int(parts[-1])
  findings.append({
  "type": "open_port",
@@ -150,7 +130,6 @@ class NaabuTool(BaseTool):
  "evidence": line,
  })
  except ValueError:
-     pass  # TODO: Implement
  pass
  
  return ToolResult(
@@ -168,12 +147,10 @@ class NaabuTool(BaseTool):
  report_dir: Path,
  semaphore: asyncio.Semaphore
  ) -> ToolResult:
-     pass  # TODO: Implement
  """Scan all subdomains discovered by subfinder."""
  subdomains_file = report_dir / "subdomains.txt"
  
  if not subdomains_file.exists():
-     pass  # TODO: Implement
  return ToolResult(
  success=False,
  tool_name=self.metadata.name,
@@ -189,7 +166,6 @@ class NaabuTool(BaseTool):
  ]
  
  if not subdomains:
-     pass  # TODO: Implement
  return ToolResult(
  success=False,
  tool_name=self.metadata.name,
@@ -205,7 +181,6 @@ class NaabuTool(BaseTool):
  start_time = time.time()
  
  for target in targets:
-     pass  # TODO: Implement
  result = await self.execute(target, report_dir, semaphore)
  all_findings.extend(result.findings)
  
@@ -222,16 +197,12 @@ class NaabuTool(BaseTool):
 
 # Quick test
 if __name__ == "__main__":
-    pass  # TODO: Implement
  from tools.tool_registry import registry
  
  tool = registry.get_tool("naabu")
  if tool:
-     pass  # TODO: Implement
  print(f"[+] Naabu tool registered: {tool.is_available}")
  if not tool.is_available:
-     pass  # TODO: Implement
  print("[!] naabu binary not found. Install with: go install -v github.com/projectdiscovery/naabu/v2/cmd/naabu@latest")
  else:
-     pass  # TODO: Implement
  print("[!] Failed to register naabu")

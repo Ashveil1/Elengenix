@@ -3,7 +3,6 @@
 Phase 2: Smart Scanner - Phased scanning with token optimization.
 
 Purpose:
-    pass  # TODO: Implement
 - Execute security scans in phases (recon → scan → exploit → report)
 - Token-efficient scanning with checkpoints
 - Auto-pause when budget exceeded
@@ -11,7 +10,6 @@ Purpose:
 - Smart phase selection based on findings
 
 Features:
-    pass  # TODO: Implement
 - 4-phase scanning strategy
 - Checkpoint after each phase
 - Token tracking and budget enforcement
@@ -104,7 +102,6 @@ class SmartScanner:
     Smart scanner with phased execution and token optimization.
     
     Features:
-        pass  # TODO: Implement
     - 4-phase scanning strategy
     - Checkpoint after each phase
     - Token budget enforcement
@@ -119,7 +116,6 @@ class SmartScanner:
                  telegram_bridge: TelegramBridge = None,
                  auto_pause: bool = True,
                  pause_after_hours: int = 3):
-                     pass  # TODO: Implement
         """
         Initialize smart scanner.
         

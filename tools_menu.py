@@ -27,13 +27,11 @@ console = Console()
 FORBIDDEN_CHARS = set(";|&`$()><\\'\" \t\n\r")
 
 def _validate_target(target: str) -> bool:
-    pass  # TODO: Implement
  """Rigorous domain/IP validation to prevent injection."""
  if not target or not target.strip(): return False
  target = target.strip()
  
  if any(c in target for c in FORBIDDEN_CHARS) or ".." in target:
-     pass  # TODO: Implement
  return False
  
  if len(target) > 253: return False
@@ -56,19 +54,16 @@ TOOLS: List[Dict[str, str]] = [
 ]
 
 def _run_tool(tool_file: str, target: str) -> int:
-    pass  # TODO: Implement
  """Executes a tool securely with isolation and timeout."""
  # Robust Path Resolution
  base_dir = Path(__file__).parent.absolute()
  script_path = base_dir / "tools" / tool_file
 
  if not script_path.is_file():
-     pass  # TODO: Implement
  print_error(f"Tool missing: {script_path.relative_to(base_dir.parent)}")
  return 1
 
  try:
-     pass  # TODO: Implement
  from ui_components import console
  console.print(f"[dim]Running with 10min timeout. Press Ctrl+C to cancel.[/dim]\n")
  
@@ -84,25 +79,20 @@ def _run_tool(tool_file: str, target: str) -> int:
  return result.returncode
  
  except subprocess.TimeoutExpired:
-     pass  # TODO: Implement
  print_error("Process timed out after 10 minutes")
  return 124
  except KeyboardInterrupt:
-     pass  # TODO: Implement
  console.print("\n[dim]Operation suspended by user[/dim]")
  return 130
  except Exception as e:
-     pass  # TODO: Implement
  logger.error(f"Execution Error ({tool_file}): {e}")
  return 1
 
 def show_tools_menu():
-    pass  # TODO: Implement
  """Main Interactive Arsenal Loop."""
  from ui_components import show_arsenal_banner, create_tools_table, prompt_target, print_error, console
  
  while True:
-     pass  # TODO: Implement
  console.clear()
  show_arsenal_banner()
 
@@ -111,11 +101,9 @@ def show_tools_menu():
  console.print("\n[dim]Enter 0 to return to Main Menu[/dim]")
 
  try:
-     pass  # TODO: Implement
  choice = input("Select Vector [0-{}]: ".format(len(TOOLS))).strip()
  if choice == "0": return
  if not choice.isdigit() or not (1 <= int(choice) <= len(TOOLS)):
-     pass  # TODO: Implement
  console.print("[red] Invalid selection.[/red]\n")
  continue
 
@@ -124,7 +112,6 @@ def show_tools_menu():
  target = prompt_target()
  
  if not _validate_target(target):
-     pass  # TODO: Implement
  print_error("Security Violation: Target format not allowed")
  console.input("\n[dim]Press Enter to continue...[/dim]")
  continue
@@ -134,13 +121,10 @@ def show_tools_menu():
  
  from ui_components import confirm
  if not confirm("\nRun another mission?", default=True):
-     pass  # TODO: Implement
  break
 
  except (KeyboardInterrupt, EOFError):
-     pass  # TODO: Implement
  break
 
 if __name__ == "__main__":
-    pass  # TODO: Implement
  show_tools_menu()

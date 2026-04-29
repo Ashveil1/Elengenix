@@ -22,22 +22,17 @@ logger = logging.getLogger(__name__)
 
 # Config Loader 
 def get_config() -> dict:
-    pass  # TODO: Implement
  """Robust configuration loader with environment variable priority."""
  base_dir = Path(__file__).parent.absolute()
  config_path = base_dir / "config.yaml"
  
  config_data = {}
  if config_path.exists():
-     pass  # TODO: Implement
  try:
-     pass  # TODO: Implement
  with open(config_path, "r") as f:
-     pass  # TODO: Implement
  full_yaml = yaml.safe_load(f)
  config_data = full_yaml if full_yaml else {}
  except Exception as e:
-     pass  # TODO: Implement
  logger.error(f"Failed to read config.yaml: {e}")
 
  telegram_cfg = config_data.get("telegram", {})
@@ -60,7 +55,6 @@ def send_telegram_notification(
  max_retries: int = 3, 
  parse_mode: str = "MarkdownV2"
 ) -> bool:
-    pass  # TODO: Implement
  """
  Sends a secure message to Telegram with retry logic and proper escaping.
  """
@@ -69,12 +63,10 @@ def send_telegram_notification(
  chat_id = config["telegram"]["chat_id"]
 
  if not token or not chat_id or "YOUR" in str(token):
-     pass  # TODO: Implement
  return False
 
  # SECURITY: Proper Escaping based on parse_mode
  if parse_mode == "MarkdownV2":
-     pass  # TODO: Implement
  escape_chars = r'_*[]()~`>#+-=|{}.!'
  safe_message = ''.join(f'\\{c}' if c in escape_chars else c for c in message)
  else:
@@ -89,17 +81,13 @@ def send_telegram_notification(
  }
 
  for attempt in range(max_retries):
-     pass  # TODO: Implement
  try:
-     pass  # TODO: Implement
  response = requests.post(url, json=payload, timeout=10)
  response.raise_for_status()
  return True
  except Timeout:
-     pass  # TODO: Implement
  logger.warning(f"Telegram timeout (Attempt {attempt+1}/{max_retries})")
  except RequestException as e:
-     pass  # TODO: Implement
  if response.status_code == 429: # Rate Limited
  retry_after = int(response.headers.get("Retry-After", 5))
  logger.warning(f"Telegram Rate Limited. Waiting {retry_after}s")
@@ -108,7 +96,6 @@ def send_telegram_notification(
  logger.error(f"Telegram API error: {e}")
  break
  except Exception as e:
-     pass  # TODO: Implement
  logger.error(f"Unexpected Telegram error: {e}")
  break
  time.sleep(2 ** attempt) # Exponential backoff
@@ -120,34 +107,28 @@ def send_document(
  caption: str = "", 
  allowed_extensions: Optional[Set[str]] = None
 ) -> bool:
-    pass  # TODO: Implement
  """
  Sends a file to Telegram with Path Traversal protection.
  """
  # SECURITY: Validate file path (Prevent Path Traversal)
  try:
-     pass  # TODO: Implement
  file_path_obj = Path(file_path).resolve()
  # Only allow sending files from the project root or reports folder
  base_dir = Path(__file__).parent.parent.resolve()
  
  if not str(file_path_obj).startswith(str(base_dir)):
-     pass  # TODO: Implement
  logger.error(f"Access Denied: Path traversal attempt blocked: {file_path}")
  return False
 
  if not file_path_obj.exists():
-     pass  # TODO: Implement
  logger.error(f"File not found: {file_path}")
  return False
 
  if allowed_extensions and file_path_obj.suffix.lower() not in allowed_extensions:
-     pass  # TODO: Implement
  logger.error(f"Forbidden extension: {file_path_obj.suffix}")
  return False
 
  except Exception as e:
-     pass  # TODO: Implement
  logger.error(f"Path validation error: {e}")
  return False
 
@@ -162,15 +143,12 @@ def send_document(
 
  url = f"https://api.telegram.org/bot{token}/sendDocument"
  try:
-     pass  # TODO: Implement
  with open(file_path_obj, "rb") as f:
-     pass  # TODO: Implement
  files = {"document": (file_path_obj.name, f, "application/octet-stream")}
  data = {"chat_id": chat_id, "caption": safe_caption, "parse_mode": "HTML"}
  response = requests.post(url, data=data, files=files, timeout=30)
  response.raise_for_status()
  return True
  except Exception as e:
-     pass  # TODO: Implement
  logger.error(f"Failed to deliver document {file_path_obj.name}: {e}")
  return False

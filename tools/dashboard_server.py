@@ -3,7 +3,6 @@
 Interactive Web Dashboard for Elengenix Findings.
 
 Purpose:
-    pass  # TODO: Implement
 - Real-time web interface for viewing security findings
 - Filter and search findings by severity, type, target
 - Compare scan results (diff view)
@@ -12,7 +11,6 @@ Purpose:
 - Mission state visualization
 
 Features:
-    pass  # TODO: Implement
 - Built-in web server (no external dependencies beyond stdlib)
 - Auto-refreshes when new findings arrive
 - Mobile-responsive design
@@ -38,7 +36,6 @@ from tools.mission_state import MissionState
 logger = logging.getLogger("elengenix.dashboard")
 
 class DashboardHandler(BaseHTTPRequestHandler):
-    pass  # TODO: Implement
  """HTTP request handler for the dashboard."""
  
  def log_message(self, format, *args):
@@ -46,45 +43,34 @@ class DashboardHandler(BaseHTTPRequestHandler):
  pass
  
  def do_GET(self):
-     pass  # TODO: Implement
  """Handle GET requests."""
  parsed_path = urlparse(self.path)
  path = parsed_path.path
  query = parse_qs(parsed_path.query)
  
  if path == '/' or path == '/index.html':
-     pass  # TODO: Implement
  self._serve_dashboard()
  elif path == '/api/findings':
-     pass  # TODO: Implement
  self._serve_findings_api(query)
  elif path == '/api/mission':
-     pass  # TODO: Implement
  self._serve_mission_api()
  elif path == '/api/stats':
-     pass  # TODO: Implement
  self._serve_stats_api()
  elif path == '/export/json':
-     pass  # TODO: Implement
  self._serve_json_export()
  elif path == '/export/html':
-     pass  # TODO: Implement
  self._serve_html_export()
  elif path.startswith('/static/'):
-     pass  # TODO: Implement
  self._serve_static_file(path[8:])
  else:
-     pass  # TODO: Implement
  self._send_404()
  
  def _serve_dashboard(self):
-     pass  # TODO: Implement
  """Serve the main dashboard HTML."""
  html = self._generate_dashboard_html()
  self._send_response(200, 'text/html', html.encode('utf-8'))
  
  def _serve_findings_api(self, query: Dict[str, List[str]]):
-     pass  # TODO: Implement
  """Serve findings as JSON API."""
  findings = self.server.dashboard.get_findings(
  severity=query.get('severity', [None])[0],
@@ -95,19 +81,16 @@ class DashboardHandler(BaseHTTPRequestHandler):
  self._send_json_response(findings)
  
  def _serve_mission_api(self):
-     pass  # TODO: Implement
  """Serve mission state as JSON."""
  mission = self.server.dashboard.get_mission_summary()
  self._send_json_response(mission)
  
  def _serve_stats_api(self):
-     pass  # TODO: Implement
  """Serve statistics as JSON."""
  stats = self.server.dashboard.get_statistics()
  self._send_json_response(stats)
  
  def _serve_json_export(self):
-     pass  # TODO: Implement
  """Export all findings as JSON."""
  findings = self.server.dashboard.get_all_findings()
  export_data = {
@@ -119,14 +102,12 @@ class DashboardHandler(BaseHTTPRequestHandler):
  self._send_json_response(export_data, download_name="elengenix_findings.json")
  
  def _serve_html_export(self):
-     pass  # TODO: Implement
  """Export findings as standalone HTML report."""
  html = self._generate_report_html()
  self._send_response(200, 'text/html', html.encode('utf-8'), 
  headers={'Content-Disposition': 'attachment; filename="elengenix_report.html"'})
  
  def _serve_static_file(self, filename: str):
-     pass  # TODO: Implement
  """Serve static files (CSS, JS)."""
  content_types = {
  'css': 'text/css',
@@ -139,48 +120,38 @@ class DashboardHandler(BaseHTTPRequestHandler):
  
  # Built-in styles and scripts
  if filename == 'style.css':
-     pass  # TODO: Implement
  content = self._get_css().encode('utf-8')
  self._send_response(200, content_type, content)
  elif filename == 'app.js':
-     pass  # TODO: Implement
  content = self._get_js().encode('utf-8')
  self._send_response(200, content_type, content)
  else:
-     pass  # TODO: Implement
  self._send_404()
  
  def _send_response(self, code: int, content_type: str, content: bytes, headers: Optional[Dict[str, str]] = None):
-     pass  # TODO: Implement
  """Send HTTP response."""
  self.send_response(code)
  self.send_header('Content-Type', content_type)
  if headers:
-     pass  # TODO: Implement
  for key, value in headers.items():
-     pass  # TODO: Implement
  self.send_header(key, value)
  self.send_header('Access-Control-Allow-Origin', '*')
  self.end_headers()
  self.wfile.write(content)
  
  def _send_json_response(self, data: Any, download_name: Optional[str] = None):
-     pass  # TODO: Implement
  """Send JSON response."""
  content = json.dumps(data, indent=2, default=str).encode('utf-8')
  headers = {}
  if download_name:
-     pass  # TODO: Implement
  headers['Content-Disposition'] = f'attachment; filename="{download_name}"'
  self._send_response(200, 'application/json', content, headers)
  
  def _send_404(self):
-     pass  # TODO: Implement
  """Send 404 response."""
  self._send_response(404, 'text/plain', b'Not Found')
  
  def _generate_dashboard_html(self) -> str:
-     pass  # TODO: Implement
  """Generate the dashboard HTML."""
  return f'''<!DOCTYPE html>
 <html lang="en">
@@ -281,7 +252,6 @@ class DashboardHandler(BaseHTTPRequestHandler):
 </html>'''
  
  def _generate_report_html(self) -> str:
-     pass  # TODO: Implement
  """Generate standalone HTML report."""
  findings = self.server.dashboard.get_all_findings()
  
@@ -333,7 +303,6 @@ class DashboardHandler(BaseHTTPRequestHandler):
 </html>'''
  
  def _get_css(self) -> str:
-     pass  # TODO: Implement
  """Get the dashboard CSS."""
  return '''
 :root {
@@ -668,7 +637,6 @@ footer {
 '''
  
  def _get_js(self) -> str:
-     pass  # TODO: Implement
  """Get the dashboard JavaScript."""
  return '''
 let currentFindings = [];
@@ -851,11 +819,9 @@ if (localStorage.getItem('theme') === 'light') {
 '''
 
 class DashboardServer(HTTPServer):
-    pass  # TODO: Implement
  """Dashboard HTTP server with access to findings data."""
  
  def __init__(self, address, handler_class, mission_state: Optional[MissionState] = None):
-     pass  # TODO: Implement
  super().__init__(address, handler_class)
  self.mission_state = mission_state
  self.findings_cache: List[Dict[str, Any]] = []
@@ -865,32 +831,25 @@ class DashboardServer(HTTPServer):
  finding_type: Optional[str] = None,
  target: Optional[str] = None,
  limit: int = 100) -> List[Dict[str, Any]]:
-     pass  # TODO: Implement
  """Get findings with optional filtering."""
  findings = self._load_findings_from_mission()
  
  if severity:
-     pass  # TODO: Implement
  findings = [f for f in findings if f.get('severity') == severity]
  if finding_type:
-     pass  # TODO: Implement
  findings = [f for f in findings if finding_type.lower() in f.get('type', '').lower()]
  if target:
-     pass  # TODO: Implement
  findings = [f for f in findings if target.lower() in str(f.get('target', '')).lower()]
  
  return findings[:limit]
  
  def get_all_findings(self) -> List[Dict[str, Any]]:
-     pass  # TODO: Implement
  """Get all findings."""
  return self._load_findings_from_mission()
  
  def _load_findings_from_mission(self) -> List[Dict[str, Any]]:
-     pass  # TODO: Implement
  """Load findings from mission state."""
  if not self.mission_state:
-     pass  # TODO: Implement
  return self.findings_cache
  
  # Prevent excessive reloading
@@ -899,15 +858,12 @@ class DashboardServer(HTTPServer):
  return self.findings_cache
  
  try:
-     pass  # TODO: Implement
  snapshot = self.mission_state.snapshot(max_items=200)
  findings = []
  
  # Get from facts (vulnerabilities)
  for fact in snapshot.get('facts', []):
-     pass  # TODO: Implement
  if fact.get('category') in ['vulnerability', 'finding', 'misconfiguration']:
-     pass  # TODO: Implement
  findings.append({
  'id': fact.get('fact_id', ''),
  'type': fact.get('category', 'finding'),
@@ -920,10 +876,8 @@ class DashboardServer(HTTPServer):
  
  # Get from hypotheses
  for hyp in snapshot.get('hypotheses', []):
-     pass  # TODO: Implement
  if 'vulnerability' in str(hyp.get('tags', [])).lower() or \
  'security' in str(hyp.get('tags', [])).lower():
-     pass  # TODO: Implement
  findings.append({
  'id': hyp.get('hyp_id', ''),
  'type': 'hypothesis',
@@ -939,31 +893,24 @@ class DashboardServer(HTTPServer):
  return findings
  
  except Exception as e:
-     pass  # TODO: Implement
  logger.error(f"Failed to load findings from mission state: {e}")
  return self.findings_cache
  
  def _extract_severity(self, fact: Dict[str, Any]) -> str:
-     pass  # TODO: Implement
  """Extract severity from fact data."""
  evidence = fact.get('evidence', {})
  if isinstance(evidence, dict):
-     pass  # TODO: Implement
  sev = evidence.get('severity') or evidence.get('finding', {}).get('severity')
  if sev:
-     pass  # TODO: Implement
  return sev.lower()
  return 'info'
  
  def get_mission_summary(self) -> Dict[str, Any]:
-     pass  # TODO: Implement
  """Get mission state summary."""
  if not self.mission_state:
-     pass  # TODO: Implement
  return {"facts": 0, "hypotheses": 0, "ledger": 0, "active_missions": 0}
  
  try:
-     pass  # TODO: Implement
  snapshot = self.mission_state.snapshot(max_items=10)
  return {
  "facts": len(snapshot.get('facts', [])),
@@ -972,23 +919,18 @@ class DashboardServer(HTTPServer):
  "active_missions": 1 if self.mission_state.target else 0,
  }
  except:
-     pass  # TODO: Implement
  return {"facts": 0, "hypotheses": 0, "ledger": 0, "active_missions": 0}
  
  def get_statistics(self) -> Dict[str, int]:
-     pass  # TODO: Implement
  """Get finding statistics."""
  findings = self.get_all_findings()
  stats = {"critical": 0, "high": 0, "medium": 0, "low": 0, "info": 0}
  
  for f in findings:
-     pass  # TODO: Implement
  sev = f.get('severity', 'info').lower()
  if sev in stats:
-     pass  # TODO: Implement
  stats[sev] += 1
  else:
-     pass  # TODO: Implement
  stats['info'] += 1
  
  return stats
@@ -996,23 +938,19 @@ class DashboardServer(HTTPServer):
 def start_dashboard(mission_state: Optional[MissionState] = None, 
  port: int = 0,
  open_browser: bool = True) -> Tuple[int, threading.Thread]:
-     pass  # TODO: Implement
  """
  Start the dashboard server.
  
  Args:
-     pass  # TODO: Implement
  mission_state: MissionState instance to pull data from
  port: Port to use (0 = auto-assign)
  open_browser: Whether to open browser automatically
  
  Returns:
-     pass  # TODO: Implement
  (port, thread) tuple
  """
  # Find available port
  if port == 0:
-     pass  # TODO: Implement
  sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
  sock.bind(('', 0))
  port = sock.getsockname()[1]
@@ -1021,13 +959,10 @@ def start_dashboard(mission_state: Optional[MissionState] = None,
  server = DashboardServer(('0.0.0.0', port), DashboardHandler, mission_state)
  
  def run_server():
-     pass  # TODO: Implement
  try:
-     pass  # TODO: Implement
  logger.info(f"Dashboard server starting on port {port}")
  server.serve_forever()
  except Exception as e:
-     pass  # TODO: Implement
  logger.error(f"Dashboard server error: {e}")
  
  thread = threading.Thread(target=run_server, daemon=True)
@@ -1037,18 +972,14 @@ def start_dashboard(mission_state: Optional[MissionState] = None,
  logger.info(f"Dashboard available at {url}")
  
  if open_browser:
-     pass  # TODO: Implement
  try:
-     pass  # TODO: Implement
  webbrowser.open(url)
  except:
-     pass  # TODO: Implement
  pass
  
  return port, thread
 
 def stop_dashboard(server_thread: threading.Thread):
-    pass  # TODO: Implement
  """Stop the dashboard server."""
  # Note: Proper shutdown would require storing the server instance
  logger.info("Dashboard stop requested (server runs in daemon thread)")

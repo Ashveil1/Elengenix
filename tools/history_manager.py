@@ -3,7 +3,6 @@
 Command History Manager - Smart Context and Recommendations.
 
 Purpose:
-    pass  # TODO: Implement
 - Track command history with metadata
 - Provide intelligent auto-complete
 - Suggest commands based on context
@@ -11,13 +10,11 @@ Purpose:
 - Learn from user patterns
 
 Philosophy:
-    pass  # TODO: Implement
 - Apple: Anticipates what you need next
 - Wozniak: Just works, no configuration
 - Friction-free: History appears when you need it
 
 Features:
-    pass  # TODO: Implement
 1. Persistent command history with timestamps
 2. Context-aware suggestions (time, location, project)
 3. Quick re-run with up-arrow or !!
@@ -106,7 +103,6 @@ class HistoryManager:
     Intelligent command history management.
     
     Features:
-        pass  # TODO: Implement
     - Persistent history storage
     - Context-aware suggestions
     - Pattern detection
@@ -156,7 +152,6 @@ class HistoryManager:
                       findings: int = 0,
                       target: str = "",
                       tags: List[str] = None) -> None:
-                          pass  # TODO: Implement
         """
         Record a command execution.
         
@@ -245,7 +240,6 @@ class HistoryManager:
                 query_lower in entry.args.lower() or
                 query_lower in entry.target.lower() or
                 any(query_lower in t.lower() for t in entry.tags)):
-                    pass  # TODO: Implement
                 results.append(entry)
                 
                 if len(results) >= limit:
@@ -291,7 +285,6 @@ class HistoryManager:
         Get context-aware command suggestions.
         
         Based on:
-            pass  # TODO: Implement
         - Time of day (morning = deep scans, evening = quick checks)
         - Recent targets (suggest same target, different command)
         - Recent commands (suggest next logical step)
@@ -486,7 +479,6 @@ class HistoryManager:
     
     def format_history_list(self, entries: List[CommandEntry] = None, 
                          show_favorites_only: bool = False) -> str:
-                             pass  # TODO: Implement
         """Format history entries for display."""
         if entries is None:
             entries = self.entries

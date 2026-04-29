@@ -3,14 +3,12 @@
 AI Tool Creator - Allow AI to Create, Modify, and Install Tools Dynamically.
 
 Purpose:
-    pass  # TODO: Implement
 - AI can create new Python tools on-the-fly based on target needs
 - AI can install external dependencies automatically
 - AI can discover and integrate external security tools
 - Self-improving: AI learns from results and creates better tools
 
 Governance:
-    pass  # TODO: Implement
 - User approval required by default (with auto-approve option)
 - All tool creation/installation is logged
 - Sandbox escape detection
@@ -192,13 +190,11 @@ Target: {target}
 Target Info: {target_info or 'Unknown'}
 
 Your task:
-    pass  # TODO: Implement
 1. Analyze what the target likely is (web app, API, cloud infra, etc.)
 2. Identify what specialized tools would be most effective
 3. Plan custom Python tools to create
 
 For each tool, provide:
-    pass  # TODO: Implement
 - name: tool name
 - purpose: what it does
 - reasoning: why this tool is needed for this specific target
@@ -207,7 +203,6 @@ For each tool, provide:
 - code: complete Python code for the tool
 
 Respond in JSON format:
-    pass  # TODO: Implement
 {{
     "tools": [
         {{
@@ -424,7 +419,6 @@ Respond in JSON format:
 
 Tool Name: {tool_name}
 Current Code:
-    pass  # TODO: Implement
 ```python
 {old_spec.code}
 ```
@@ -432,7 +426,6 @@ Current Code:
 Feedback: {feedback}
 
 Provide improved version with:
-    pass  # TODO: Implement
 1. Fixes for issues mentioned
 2. Better error handling
 3. More comprehensive detection

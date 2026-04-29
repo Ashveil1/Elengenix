@@ -23,7 +23,6 @@ from tools.tool_registry import BaseTool, ToolCategory, ToolMetadata, ToolResult
  supports_list_input=True,
 ))
 class TrufflehogTool(BaseTool):
-    pass  # TODO: Implement
  """TruffleHog secret detection integration."""
  
  # High-entropy patterns and verified secrets only
@@ -44,12 +43,10 @@ class TrufflehogTool(BaseTool):
  scan_type: str = "filesystem", # filesystem, git, docker
  **kwargs
  ) -> ToolResult:
-     pass  # TODO: Implement
  """
  Execute trufflehog secret scan.
  
  Args:
-     pass  # TODO: Implement
  target: Path to scan or URL
  report_dir: Output directory
  semaphore: Rate limiter
@@ -61,14 +58,12 @@ class TrufflehogTool(BaseTool):
  
  # Build command based on scan type
  if scan_type == "git":
-     pass  # TODO: Implement
  cmd = [
  "trufflehog", "git", target,
  "--json",
  "--only-verified", # Only show verified secrets
  ]
  elif scan_type == "docker":
-     pass  # TODO: Implement
  cmd = [
  "trufflehog", "docker", target,
  "--json",
@@ -90,11 +85,8 @@ class TrufflehogTool(BaseTool):
  stdout_file = report_dir / "trufflehog_raw.json"
  
  async with semaphore:
-     pass  # TODO: Implement
  try:
-     pass  # TODO: Implement
  with open(stdout_file, "w") as f:
-     pass  # TODO: Implement
  proc = await asyncio.create_subprocess_exec(
  *cmd,
  stdout=f,
@@ -105,7 +97,6 @@ class TrufflehogTool(BaseTool):
  timeout=self.metadata.timeout_seconds
  )
  except asyncio.TimeoutError:
-     pass  # TODO: Implement
  proc.kill()
  stderr = b"Timeout exceeded"
  
@@ -115,16 +106,11 @@ class TrufflehogTool(BaseTool):
  findings = []
  
  if stdout_file.exists():
-     pass  # TODO: Implement
  try:
-     pass  # TODO: Implement
  for line in stdout_file.read_text().strip().split('\n'):
-     pass  # TODO: Implement
  if not line:
-     pass  # TODO: Implement
  continue
  try:
-     pass  # TODO: Implement
  data = json.loads(line)
  detector = data.get("DetectorName", "Unknown")
  verified = data.get("Verified", False)
@@ -132,7 +118,6 @@ class TrufflehogTool(BaseTool):
  # Determine severity
  severity = self.SEVERITY_MAP.get(detector, "medium")
  if not verified:
-     pass  # TODO: Implement
  severity = "low" # Unverified secrets are lower priority
  
  finding = {
@@ -148,10 +133,8 @@ class TrufflehogTool(BaseTool):
  }
  findings.append(finding)
  except json.JSONDecodeError:
-     pass  # TODO: Implement
  continue
  except Exception as e:
-     pass  # TODO: Implement
  pass
  
  # Generate summary
@@ -175,7 +158,6 @@ class TrufflehogTool(BaseTool):
  report_dir: Path,
  semaphore: asyncio.Semaphore
  ) -> ToolResult:
-     pass  # TODO: Implement
  """Scan JavaScript files for secrets."""
  # Look for downloaded JS files
  js_dirs = [
@@ -185,9 +167,7 @@ class TrufflehogTool(BaseTool):
  ]
  
  for js_dir in js_dirs:
-     pass  # TODO: Implement
  if js_dir.exists():
-     pass  # TODO: Implement
  return await self.execute(
  str(js_dir), 
  report_dir, 
@@ -208,10 +188,8 @@ class TrufflehogTool(BaseTool):
  report_dir: Path,
  semaphore: asyncio.Semaphore
  ) -> ToolResult:
-     pass  # TODO: Implement
  """Scan a specific directory for secrets."""
  if not target_dir.exists():
-     pass  # TODO: Implement
  return ToolResult(
  success=False,
  tool_name=self.metadata.name,
@@ -228,17 +206,13 @@ class TrufflehogTool(BaseTool):
 
 # Quick test
 if __name__ == "__main__":
-    pass  # TODO: Implement
  from tools.tool_registry import registry
  
  tool = registry.get_tool("trufflehog")
  if tool:
-     pass  # TODO: Implement
  print(f"[+] TruffleHog tool registered: {tool.is_available}")
  if not tool.is_available:
-     pass  # TODO: Implement
  print("[!] trufflehog binary not found. Install with:")
  print(" curl -sSfL https://raw.githubusercontent.com/trufflesecurity/trufflehog/main/scripts/install.sh | sh")
  else:
-     pass  # TODO: Implement
  print("[!] Failed to register trufflehog")

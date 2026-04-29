@@ -3,7 +3,6 @@
 Fully Autonomous AI Agent - No Restrictions, Maximum Capability.
 
 Purpose:
-    pass  # TODO: Implement
 - AI has full autonomy to achieve bug bounty goals
 - Can create tools, install dependencies, use external resources
 - Self-directed: AI decides what to do, not constrained by predefined workflows
@@ -11,13 +10,11 @@ Purpose:
 - Goal-oriented: Find bugs, maximize bounty payouts
 
 Governance Modes:
-    pass  # TODO: Implement
 - "strict": Ask for everything (safest)
 - "ask": Ask for dangerous/suspicious operations (balanced)
 - "auto": Auto-approve everything (maximum speed, requires trust)
 
 Key Features:
-    pass  # TODO: Implement
 1. AI plans entire attack strategy autonomously
 2. Creates custom tools as needed
 3. Installs external security tools automatically
@@ -83,7 +80,6 @@ class AutonomousAgent:
     Fully autonomous AI agent for bug bounty hunting.
     
     This agent has no predefined workflows. AI decides:
-        pass  # TODO: Implement
     - What to scan
     - How to scan it
     - What tools to use/create
@@ -123,7 +119,6 @@ class AutonomousAgent:
         Run completely autonomous scan on target.
         
         AI controls everything:
-            pass  # TODO: Implement
         1. Reconnaissance planning
         2. Tool selection/creation
         3. Vulnerability discovery
@@ -255,14 +250,12 @@ Target: {target}
 Goal: {goal or 'Find high-value security vulnerabilities'}
 
 Your task:
-    pass  # TODO: Implement
 1. Analyze what type of target this is (web app, API, cloud, etc.)
 2. Determine the best approach to find vulnerabilities
 3. Decide what specialized tools might be needed
 4. Plan the sequence of actions
 
 Respond in JSON:
-    pass  # TODO: Implement
 {{
     "target_type": "web_app/api/cloud/etc",
     "approach": "brief description of approach",
@@ -384,14 +377,12 @@ Respond in JSON:
 Finding: {json.dumps(finding, indent=2)}
 
 Determine:
-    pass  # TODO: Implement
 1. Is this a real vulnerability or false positive?
 2. What is the severity (critical/high/medium/low)?
 3. What is the business impact?
 4. How to reproduce it?
 
 Respond in JSON:
-    pass  # TODO: Implement
 {{
     "is_valid": true/false,
     "severity": "critical/high/medium/low",
@@ -454,7 +445,6 @@ Respond in JSON:
                                     findings: List[Dict],
                                     bounty_predictions: List[Dict],
                                     strategy: Dict) -> Optional[Path]:
-                                        pass  # TODO: Implement
         """Generate comprehensive report."""
         try:
             from tools.pdf_report_generator import PDFReportGenerator, ReportMetadata
@@ -484,7 +474,6 @@ Respond in JSON:
                          findings: List[Dict],
                          tools_created: List[str],
                          strategy: Dict) -> str:
-                             pass  # TODO: Implement
         """Generate human-readable summary."""
         critical = len([f for f in findings if f.get("severity") == "critical"])
         high = len([f for f in findings if f.get("severity") == "high"])

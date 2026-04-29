@@ -3,7 +3,6 @@
 Unified mission state for Elengenix autonomous expert system.
 
 Stores:
-    pass  # TODO: Implement
 - Target graph (assets/endpoints/services)
 - Facts/hypotheses with confidence
 - Action ledger (tool executions, decisions)
@@ -27,7 +26,6 @@ logger = logging.getLogger("elengenix.mission_state")
 _DB_PATH = Path(__file__).parent.parent / "data" / "mission_state.db"
 
 def _db_path() -> Path:
-    pass  # TODO: Implement
  _DB_PATH.parent.mkdir(parents=True, exist_ok=True)
  return _DB_PATH
 
@@ -153,14 +151,12 @@ def _uj(s: str) -> Any:
 
 @dataclass
 class GraphNode:
-    pass  # TODO: Implement
  node_id: str
  node_type: str
  props: Dict[str, Any] = field(default_factory=dict)
 
 @dataclass
 class GraphEdge:
-    pass  # TODO: Implement
  edge_id: str
  src_id: str
  dst_id: str

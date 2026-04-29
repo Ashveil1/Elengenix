@@ -2,7 +2,6 @@ import pytest
 from agent_brain import ElengenixAgent
 
 def test_safe_command_validation():
-    pass  # TODO: Implement
  agent = ElengenixAgent()
  
  # Valid commands
@@ -21,7 +20,6 @@ def test_safe_command_validation():
  assert agent._is_safe_command("echo hello > /etc/passwd") == False
 
 def test_target_validation():
-    pass  # TODO: Implement
  from orchestrator import validate_target
  
  assert validate_target("example.com") == True

@@ -23,7 +23,6 @@ from tools.tool_registry import BaseTool, ToolCategory, ToolMetadata, ToolResult
  timeout_seconds=300,
 ))
 class FfufTool(BaseTool):
-    pass  # TODO: Implement
  """FFUF web fuzzer integration."""
  
  # Default wordlist paths (can be overridden)
@@ -47,12 +46,10 @@ class FfufTool(BaseTool):
  extensions: str = "php,html,js,txt,json,xml",
  **kwargs
  ) -> ToolResult:
-     pass  # TODO: Implement
  """
  Execute ffuf fuzzer.
  
  Args:
-     pass  # TODO: Implement
  target: Target URL with FUZZ keyword (e.g., http://target/FUZZ)
  report_dir: Output directory
  semaphore: Rate limiter
@@ -66,24 +63,18 @@ class FfufTool(BaseTool):
  
  # Ensure target has FUZZ keyword
  if "FUZZ" not in target:
-     pass  # TODO: Implement
  if fuzz_mode == "directory":
-     pass  # TODO: Implement
  target = f"{target.rstrip('/')}/FUZZ"
  elif fuzz_mode == "vhost":
-     pass  # TODO: Implement
  target = target
  elif fuzz_mode == "parameter":
-     pass  # TODO: Implement
  target = f"{target}?FUZZ=value"
  
  # Get wordlist
  if wordlist is None:
-     pass  # TODO: Implement
  wordlist = self._get_default_wordlist(fuzz_mode, report_dir)
  
  if not wordlist or not wordlist.exists():
-     pass  # TODO: Implement
  return ToolResult(
  success=False,
  tool_name=self.metadata.name,
@@ -105,12 +96,10 @@ class FfufTool(BaseTool):
  
  # Add extensions for directory fuzzing
  if fuzz_mode == "directory" and extensions:
-     pass  # TODO: Implement
  cmd.extend(["-e", f".{extensions.replace(',', ',.')}"])
  
  # Virtual host mode
  if fuzz_mode == "vhost":
-     pass  # TODO: Implement
  cmd.extend(["-H", f"Host: FUZZ.{target}"])
  
  # Follow redirects
@@ -123,14 +112,11 @@ class FfufTool(BaseTool):
  findings = []
  
  if output_file.exists():
-     pass  # TODO: Implement
  try:
-     pass  # TODO: Implement
  data = json.loads(output_file.read_text())
  results = data.get("results", [])
  
  for result in results:
-     pass  # TODO: Implement
  url = result.get("url", "")
  status = result.get("status", 0)
  length = result.get("length", 0)
@@ -139,10 +125,8 @@ class FfufTool(BaseTool):
  # Determine severity based on status and content
  severity = "info"
  if status == 200:
-     pass  # TODO: Implement
  severity = "medium" if length > 0 else "low"
  elif status in [401, 403]:
-     pass  # TODO: Implement
  severity = "medium" # Protected resource
  
  finding = {
@@ -158,7 +142,6 @@ class FfufTool(BaseTool):
  }
  findings.append(finding)
  except (json.JSONDecodeError, KeyError) as e:
-     pass  # TODO: Implement
  pass
  
  return ToolResult(
@@ -172,7 +155,6 @@ class FfufTool(BaseTool):
  )
  
  def _get_default_wordlist(self, fuzz_mode: str, report_dir: Path) -> Path:
-     pass  # TODO: Implement
  """Get default wordlist for fuzz mode."""
  # Try to find wordlist in common locations
  possible_paths = [
@@ -184,9 +166,7 @@ class FfufTool(BaseTool):
  ]
  
  for path in possible_paths:
-     pass  # TODO: Implement
  if path.exists():
-     pass  # TODO: Implement
  return path
  
  return None
@@ -197,35 +177,27 @@ class FfufTool(BaseTool):
  semaphore: asyncio.Semaphore,
  wordlist: Path = None
  ) -> List[ToolResult]:
-     pass  # TODO: Implement
  """Run directory fuzzing on all live hosts from httpx output."""
  httpx_file = report_dir / "live_hosts.json"
  
  if not httpx_file.exists():
-     pass  # TODO: Implement
  return []
  
  # Extract URLs
  urls = []
  try:
-     pass  # TODO: Implement
  for line in httpx_file.read_text().strip().split('\n'):
-     pass  # TODO: Implement
  if line:
-     pass  # TODO: Implement
  data = json.loads(line)
  url = data.get("url", "")
  status = data.get("status_code", 0)
  # Only fuzz 200 OK endpoints
  if url and status == 200:
-     pass  # TODO: Implement
  urls.append(url)
  except Exception:
-     pass  # TODO: Implement
  pass
  
  if not urls:
-     pass  # TODO: Implement
  return []
  
  # Limit to first 5 URLs to avoid long scans
@@ -233,7 +205,6 @@ class FfufTool(BaseTool):
  
  results = []
  for url in urls:
-     pass  # TODO: Implement
  result = await self.execute(
  url, 
  report_dir, 
@@ -250,34 +221,25 @@ class FfufTool(BaseTool):
  js_analyzer_output: Path,
  output_file: Path
  ) -> Path:
-     pass  # TODO: Implement
  """Generate wordlist from JS analyzer endpoints."""
  if not js_analyzer_output.exists():
-     pass  # TODO: Implement
  return None
  
  # Extract unique paths/endpoints from JS analysis
  words = set()
  try:
-     pass  # TODO: Implement
  content = js_analyzer_output.read_text()
  # Simple extraction - can be enhanced
  for line in content.split('\n'):
-     pass  # TODO: Implement
  if '/' in line and not line.startswith('#'):
-     pass  # TODO: Implement
  parts = line.split('/')
  for part in parts:
-     pass  # TODO: Implement
  if part and len(part) > 2:
-     pass  # TODO: Implement
  words.add(part)
  except Exception:
-     pass  # TODO: Implement
  pass
  
  if words:
-     pass  # TODO: Implement
  output_file.write_text('\n'.join(sorted(words)))
  return output_file
  
@@ -285,16 +247,12 @@ class FfufTool(BaseTool):
 
 # Quick test
 if __name__ == "__main__":
-    pass  # TODO: Implement
  from tools.tool_registry import registry
  
  tool = registry.get_tool("ffuf")
  if tool:
-     pass  # TODO: Implement
  print(f"[+] FFUF tool registered: {tool.is_available}")
  if not tool.is_available:
-     pass  # TODO: Implement
  print("[!] ffuf binary not found. Install with: go install github.com/ffuf/ffuf@latest")
  else:
-     pass  # TODO: Implement
  print("[!] Failed to register ffuf")
