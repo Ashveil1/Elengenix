@@ -18,15 +18,24 @@ from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor
 from functools import partial
 
-from telegram import Update
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup
 from telegram.ext import (
  ApplicationBuilder,
  ContextTypes,
  CommandHandler,
  MessageHandler,
+ CallbackQueryHandler,
  filters,
 )
 from agent_brain import ElengenixAgent
+from tools.user_preferences import (
+ init_db,
+ get_preferences,
+ save_preferences,
+ add_favorite_target,
+ remove_favorite_target,
+ toggle_notification
+)
 
 # Logging Setup 
 logging.basicConfig(
@@ -86,6 +95,13 @@ def is_valid_domain(target: str) -> bool:
 
 # Global State 
 executor = ThreadPoolExecutor(max_workers=4)
+
+try:
+    init_db()
+    logger.info("User preferences database initialized.")
+except Exception as e:
+    logger.warning(f"User preferences init failed: {e}")
+
 try:
     agent = ElengenixAgent()
     logger.info("Elengenix AI Agent loaded.")
@@ -112,21 +128,40 @@ async def safe_reply(update: Update, text: str, parse_mode: str = "Markdown"):
 # Command Handlers 
 
 async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    pref = get_preferences(user_id)
+    
     welcome = (
-        " *Elengenix Hunter Bot v1.5.0*\n\n"
+        " *Elengenix Hunter Bot v1.6.0*\n\n"
         "Professional Bug Bounty Automation Hub.\n\n"
-        " *Commands:*\n"
+        " *Main Commands:*\n"
         " `/scan <domain>` — Optimized Recon & Scan\n"
         " `/ask <query>` — Persistent AI Agent\n"
         " `/status` — Check System Health\n"
         " `/bounty` — Discover bug bounty programs\n"
-        " `/mission <target>` — Start autonomous mission\n"
+        " `/mission <target>` — Start autonomous mission\n\n"
+        " *Mission Control:*\n"
         " `/pause <mission_id>` — Pause mission\n"
         " `/resume <mission_id>` — Resume mission\n"
         " `/findings <mission_id>` — View findings\n"
-        " `/programs` — List top programs\n"
+        " `/programs` — List top programs\n\n"
+        " *User Preferences:*\n"
+        " `/settings` — Configure notifications & preferences\n"
+        " `/favorites` — View favorite targets\n"
+        " `/addfav <target>` — Add to favorites\n"
+        " `/delfav <target>` — Remove from favorites\n\n"
+        f" *Notifications:* {'Enabled' if pref.notifications_enabled else 'Disabled'}"
     )
-    await safe_reply(update, welcome)
+    
+    keyboard = [
+        [InlineKeyboardButton("Settings", callback_data="show_settings"),
+         InlineKeyboardButton("Favorites", callback_data="show_favorites")],
+        [InlineKeyboardButton("Bounty", callback_data="run_bounty"),
+         InlineKeyboardButton("Programs", callback_data="run_programs")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    await safe_reply(update, welcome, reply_markup=reply_markup)
 
 async def cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     import shutil
@@ -350,7 +385,7 @@ async def cmd_resume(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await safe_reply(update, f"Error: {str(e)[:100]}")
 
 async def cmd_findings(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """View mission findings."""
+    """View mission findings with rich formatting."""
     from tools.smart_scanner import SmartScanner
 
     if not context.args:
@@ -365,9 +400,45 @@ async def cmd_findings(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await safe_reply(update, f"Mission not found: `{mission_id}`")
             return
 
-        from tools.telegram_bridge import TelegramBridge
-        bridge = TelegramBridge()
-        await bridge.notify_findings_list(mission_id, scanner.findings)
+        findings = scanner.findings if hasattr(scanner, 'findings') else []
+
+        if not findings:
+            await safe_reply(update, f"*Findings for {mission_id}*\n\nNo findings yet.")
+            return
+
+        lines = [f"*Findings for {mission_id}*\n\n"]
+
+        severity_order = ["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"]
+        severity_counts = {s: 0 for s in severity_order}
+
+        for finding in findings:
+            severity = finding.get("severity", "INFO").upper()
+            if severity in severity_counts:
+                severity_counts[severity] += 1
+
+        lines.append("*Summary:*\n")
+        for sev in severity_order:
+            count = severity_counts[sev]
+            if count > 0:
+                lines.append(f"  {sev}: {count}")
+
+        lines.append("\n*Details:*\n")
+
+        for i, finding in enumerate(findings[:10], 1):
+            severity = finding.get("severity", "INFO").upper()
+            vuln_type = finding.get("type", "Unknown")
+            endpoint = finding.get("endpoint", finding.get("value", "N/A"))
+            description = finding.get("description", "No description")
+
+            lines.append(f"{i}. *[{severity}]* {vuln_type}")
+            lines.append(f"   Endpoint: `{endpoint}`")
+            lines.append(f"   {description[:80]}...")
+            lines.append("")
+
+        if len(findings) > 10:
+            lines.append(f"... and {len(findings) - 10} more findings")
+
+        await safe_reply(update, "\n".join(lines))
 
     except Exception as e:
         logger.error(f"Findings error: {e}")
@@ -405,6 +476,119 @@ async def cmd_programs(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.error(f"Programs error: {e}")
         await safe_reply(update, f"Error: {str(e)[:100]}")
 
+async def cmd_settings(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Show user settings with inline buttons."""
+    user_id = update.effective_user.id
+    pref = get_preferences(user_id)
+
+    keyboard = [
+        [InlineKeyboardButton(f"Notifications: {'ON' if pref.notifications_enabled else 'OFF'}", callback_data=f"toggle_notif_all")],
+        [InlineKeyboardButton(f"Mission Start: {'ON' if pref.notify_mission_start else 'OFF'}", callback_data=f"toggle_notif_mission_start")],
+        [InlineKeyboardButton(f"Mission Complete: {'ON' if pref.notify_mission_complete else 'OFF'}", callback_data=f"toggle_notif_mission_complete")],
+        [InlineKeyboardButton(f"Findings: {'ON' if pref.notify_findings else 'OFF'}", callback_data=f"toggle_notif_findings")],
+        [InlineKeyboardButton(f"Warnings: {'ON' if pref.notify_warnings else 'OFF'}", callback_data=f"toggle_notif_warnings")],
+        [InlineKeyboardButton("Favorites", callback_data="show_favorites")],
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+
+    await safe_reply(
+        update,
+        f"*Settings*\n\n"
+        f"Notifications: {'Enabled' if pref.notifications_enabled else 'Disabled'}\n"
+        f"Language: {pref.language}\n"
+        f"Theme: {pref.theme}\n\n"
+        f"Tap buttons to change settings",
+        reply_markup=reply_markup
+    )
+
+async def cmd_favorites(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Show favorite targets."""
+    user_id = update.effective_user.id
+    pref = get_preferences(user_id)
+
+    if not pref.favorite_targets:
+        await safe_reply(update, "*Favorites*\n\nNo favorites yet. Use `/addfav <target>` to add.")
+        return
+
+    lines = ["*Favorites*\n\n"]
+    for i, target in enumerate(pref.favorite_targets, 1):
+        lines.append(f"{i}. `{target}`")
+
+    lines.append("\nUse `/delfav <target>` to remove.")
+    await safe_reply(update, "\n".join(lines))
+
+async def cmd_addfav(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Add target to favorites."""
+    if not context.args:
+        await safe_reply(update, "Usage: `/addfav <target>`")
+        return
+
+    target = context.args[0].strip()
+    user_id = update.effective_user.id
+
+    if not is_valid_domain(target):
+        await safe_reply(update, "Invalid domain format")
+        return
+
+    pref = add_favorite_target(user_id, target)
+    await safe_reply(update, f"Added `{target}` to favorites.\n\nTotal: {len(pref.favorite_targets)}")
+
+async def cmd_delfav(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Remove target from favorites."""
+    if not context.args:
+        await safe_reply(update, "Usage: `/delfav <target>`")
+        return
+
+    target = context.args[0].strip()
+    user_id = update.effective_user.id
+
+    pref = remove_favorite_target(user_id, target)
+    await safe_reply(update, f"Removed `{target}` from favorites.\n\nTotal: {len(pref.favorite_targets)}")
+
+async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle inline button callbacks."""
+    query = update.callback_query
+    await query.answer()
+
+    user_id = update.effective_user.id
+    data = query.data
+
+    if data == "show_settings":
+        await cmd_settings(update, context)
+    elif data == "show_favorites":
+        await cmd_favorites(update, context)
+    elif data == "run_bounty":
+        await cmd_bounty(update, context)
+    elif data == "run_programs":
+        await cmd_programs(update, context)
+
+    elif data == "toggle_notif_all":
+        pref = get_preferences(user_id)
+        pref.notifications_enabled = not pref.notifications_enabled
+        save_preferences(pref)
+        await safe_reply(update, f"Notifications: {'ON' if pref.notifications_enabled else 'OFF'}")
+        await cmd_settings(update, context)
+
+    elif data == "toggle_notif_mission_start":
+        pref = toggle_notification(user_id, "mission_start", not get_preferences(user_id).notify_mission_start)
+        await safe_reply(update, f"Mission Start: {'ON' if pref.notify_mission_start else 'OFF'}")
+        await cmd_settings(update, context)
+
+    elif data == "toggle_notif_mission_complete":
+        pref = toggle_notification(user_id, "mission_complete", not get_preferences(user_id).notify_mission_complete)
+        await safe_reply(update, f"Mission Complete: {'ON' if pref.notify_mission_complete else 'OFF'}")
+        await cmd_settings(update, context)
+
+    elif data == "toggle_notif_findings":
+        pref = toggle_notification(user_id, "findings", not get_preferences(user_id).notify_findings)
+        await safe_reply(update, f"Findings: {'ON' if pref.notify_findings else 'OFF'}")
+        await cmd_settings(update, context)
+
+    elif data == "toggle_notif_warnings":
+        pref = toggle_notification(user_id, "warnings", not get_preferences(user_id).notify_warnings)
+        await safe_reply(update, f"Warnings: {'ON' if pref.notify_warnings else 'OFF'}")
+        await cmd_settings(update, context)
+
 # Main 
 def main():
     # Environment Variable Support (10/10 Standard)
@@ -426,6 +610,19 @@ def main():
     app.add_handler(CommandHandler("resume", cmd_resume))
     app.add_handler(CommandHandler("findings", cmd_findings))
     app.add_handler(CommandHandler("programs", cmd_programs))
+    app.add_handler(CommandHandler("settings", cmd_settings))
+    app.add_handler(CommandHandler("favorites", cmd_favorites))
+    app.add_handler(CommandHandler("addfav", cmd_addfav))
+    app.add_handler(CommandHandler("delfav", cmd_delfav))
+    
+    app.add_handler(CommandHandler("b", cmd_bounty))
+    app.add_handler(CommandHandler("m", cmd_mission))
+    app.add_handler(CommandHandler("s", cmd_scan))
+    app.add_handler(CommandHandler("p", cmd_pause))
+    app.add_handler(CommandHandler("r", cmd_resume))
+    app.add_handler(CommandHandler("f", cmd_findings))
+    
+    app.add_handler(CallbackQueryHandler(button_callback))
 
     logger.info(" Elengenix Bot is now operational (v1.5.0)")
     app.run_polling(drop_pending_updates=True)
