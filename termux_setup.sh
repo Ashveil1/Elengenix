@@ -67,19 +67,21 @@ if [ ! -f "requirements.txt" ]; then
 fi
 if ! pip install --upgrade pip setuptools wheel --quiet; then error "Pip upgrade failed"; fi
 
-# Install core dependencies (required - no AI providers)
-info "Installing core dependencies (no AI providers)..."
+# Install core dependencies (required)
+info "Installing core dependencies..."
 CORE_DEPS="pyyaml requests python-dotenv rich tenacity nest-asyncio"
 for dep in $CORE_DEPS; do
     pip install "$dep" --quiet 2>/dev/null || warning "  $dep install had issues (continuing)"
 done
 
-# Install optional AI dependencies (all optional - can run without AI)
-info "Installing optional AI dependencies (all optional - can run without AI)..."
-OPTIONAL_AI="openai anthropic google-generativeai"
-for dep in $OPTIONAL_AI; do
-    pip install "$dep" --quiet 2>/dev/null || warning "  $dep skipped (AI features disabled)"
+# Install AI providers (required - choose your provider)
+info "Installing AI providers (choose your provider)..."
+# Install all providers - user can choose which to use via environment variables
+AI_DEPS="openai anthropic google-generativeai"
+for dep in $AI_DEPS; do
+    pip install "$dep" --quiet 2>/dev/null || warning "  $dep install had issues (continuing)"
 done
+success "AI providers installed (set OPENAI_API_KEY, ANTHROPIC_API_KEY, or GOOGLE_API_KEY to use)"
 
 # Install optional dependencies (may fail on mobile, that's OK)
 info "Installing optional dependencies..."
