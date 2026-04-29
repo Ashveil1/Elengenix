@@ -47,7 +47,11 @@ echo ""
 # 1. Sequential System Installation
 info "STEP 1/5: Installing system packages..."
 pkg update -y
-PKGS=(python golang git curl wget nmap openssl libxml2 libxslt libyaml clang make)
+# Core packages + build dependencies for Python modules
+PKGS=(python golang git curl wget nmap openssl libxml2 libxslt libyaml clang make 
+      build-essential libffi libffi-dev openssl-dev libjpeg-turbo zlib libbz2 liblzma
+      python-dev sqlite ncurses readline libexpat libxml2-dev libxslt-dev
+      libsqlite libsqlite-dev binutils libcrypt libcrypt-dev)
 # Note: python-venv not needed - Termux python includes venv
 for pkg in "${PKGS[@]}"; do
     pkg install -y "$pkg" || warning "Could not install $pkg. Proceeding..."
@@ -69,7 +73,7 @@ if ! pip install --upgrade pip setuptools wheel --quiet; then warning "Pip upgra
 
 # Install core dependencies (required)
 info "Installing core dependencies..."
-CORE_DEPS="pyyaml requests python-dotenv rich tenacity nest-asyncio"
+CORE_DEPS="pyyaml requests python-dotenv rich tenacity nest-asyncio setuptools wheel"
 for dep in $CORE_DEPS; do
     pip install "$dep" --quiet 2>/dev/null || warning "  $dep install had issues (continuing)"
 done
