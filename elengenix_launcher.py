@@ -1,28 +1,32 @@
 #!/usr/bin/env python3
 """
-Elengenix Apple-Inspired Launcher v3.0
-"Just works" - Clean, minimal, delightful.
-
-Principles:
-- Simplicity: One command does everything
-- Elegance: Beautiful output, minimal text
-- Power: Advanced features when you need them
-- Integration: All phases work seamlessly
+Elengenix Launcher v3.0
+Professional Bug Bounty Automation Platform
 """
 
 import sys
 import os
 import subprocess
 from pathlib import Path
-from typing import List, Optional
+from typing import List
 
-# ── Minimal Bootstrap ──────────────────────────────────────────
+# Color codes for terminal output
+class Colors:
+    HEADER = '\033[95m'
+    BLUE = '\033[94m'
+    CYAN = '\033[96m'
+    GREEN = '\033[92m'
+    YELLOW = '\033[93m'
+    RED = '\033[91m'
+    BOLD = '\033[1m'
+    UNDERLINE = '\033[4m'
+    END = '\033[0m'
+
 def bootstrap():
-    """Ensure we can run, no matter what."""
+    """Setup environment."""
     project_root = Path(__file__).parent.absolute()
     venv_path = project_root / "venv"
     
-    # Activate venv if exists
     if venv_path.exists():
         venv_bin = venv_path / "bin"
         if str(venv_bin) not in os.environ.get("PATH", ""):
@@ -30,50 +34,54 @@ def bootstrap():
     
     return project_root
 
-# ── Apple-Inspired UI ─────────────────────────────────────────
 class ElengenixUI:
-    """Clean, minimal UI - Apple style."""
+    """Clean UI with colors, no emojis."""
     
-    ICONS = {
-        "target": "🎯",
-        "scan": "🔍",
-        "ai": "🤖",
-        "mission": "🚀",
-        "bounty": "💰",
-        "telegram": "📱",
-        "success": "✨",
-        "error": "⚠️",
-        "info": "ℹ️",
-        "settings": "⚙️",
-        "warning": "🔶",
+    SYMBOLS = {
+        "bullet": ">",
+        "arrow": "->",
+        "check": "[OK]",
+        "error": "[ERR]",
+        "warn": "[!]",
+        "info": "[*]",
     }
     
     @classmethod
-    def print(cls, message: str, icon: str = "info"):
-        """Print with icon."""
-        icon_char = cls.ICONS.get(icon, "•")
-        print(f"{icon_char}  {message}")
+    def print(cls, message: str, style: str = "info"):
+        """Print with style."""
+        symbols = {
+            "info": (Colors.CYAN, cls.SYMBOLS["info"]),
+            "success": (Colors.GREEN, cls.SYMBOLS["check"]),
+            "error": (Colors.RED, cls.SYMBOLS["error"]),
+            "warning": (Colors.YELLOW, cls.SYMBOLS["warn"]),
+            "header": (Colors.HEADER, ""),
+            "bold": (Colors.BOLD, ""),
+        }
+        
+        color, symbol = symbols.get(style, (Colors.END, ""))
+        if symbol:
+            print(f"{color}{symbol}{Colors.END} {message}")
+        else:
+            print(f"{color}{message}{Colors.END}")
     
     @classmethod
     def banner(cls):
-        """Clean Apple-style banner."""
+        """Professional banner."""
         print()
-        print("  ╔═══════════════════════════════════════════╗")
-        print("  ║     Elengenix  v3.0  —  Bug Hunter        ║")
-        print("  ║     Autonomous • Intelligent • Secure     ║")
-        print("  ╚═══════════════════════════════════════════╝")
+        print(f"{Colors.BLUE}{'='*50}{Colors.END}")
+        print(f"{Colors.BOLD}{Colors.CYAN}  ELENGENIX v3.0{Colors.END}")
+        print(f"{Colors.CYAN}  Autonomous Bug Bounty Hunter{Colors.END}")
+        print(f"{Colors.BLUE}{'='*50}{Colors.END}")
         print()
 
-# ── Unified Command Router ───────────────────────────────────
 class ElengenixApp:
-    """Single entry point for all Elengenix operations."""
+    """Main application router."""
     
     def __init__(self):
         self.root = bootstrap()
-        self.ui = ElengenixUI()
     
     def run(self, args: List[str]):
-        """Route commands to appropriate handlers."""
+        """Route commands."""
         if not args or args[0] in ["help", "-h", "--help"]:
             self.show_help()
             return
@@ -98,58 +106,59 @@ class ElengenixApp:
         handler(remaining)
     
     def show_help(self):
-        """Show beautiful help - Apple style."""
-        self.ui.banner()
+        """Show help menu."""
+        ElengenixUI.banner()
         
-        print("  Usage: elengenix <command> [options]")
+        print(f"{Colors.BOLD}Usage:{Colors.END} elengenix <command> [options]")
         print()
         
         commands = [
-            ("mission <target>", "Start autonomous scanning mission", "🚀"),
-            ("bounty", "Discover top bug bounty programs", "💰"),
-            ("scan <target>", "Quick security scan", "🔍"),
-            ("programs", "List available bug bounty programs", "📋"),
-            ("status <mission>", "Check mission status", "📊"),
-            ("pause <mission>", "Pause running mission", "⏸️"),
-            ("resume <mission>", "Resume paused mission", "▶️"),
-            ("ai <query>", "Ask AI assistant", "🤖"),
-            ("doctor", "System health check", "🏥"),
-            ("telegram", "Start Telegram bot", "📱"),
+            ("mission <target>", "Start autonomous scanning mission"),
+            ("bounty", "Discover bug bounty programs"),
+            ("scan <target>", "Quick security scan"),
+            ("programs", "List bug bounty programs"),
+            ("status <mission>", "Check mission status"),
+            ("pause <mission>", "Pause running mission"),
+            ("resume <mission>", "Resume paused mission"),
+            ("ai <query>", "Ask AI assistant"),
+            ("doctor", "System health check"),
+            ("telegram", "Start Telegram bot"),
         ]
         
-        print("  Commands:")
-        for cmd, desc, icon in commands:
-            print(f"    {icon}  elengenix {cmd:<20} {desc}")
+        print(f"{Colors.BOLD}Commands:{Colors.END}")
+        for cmd, desc in commands:
+            print(f"  {Colors.CYAN}{cmd:<25}{Colors.END} {desc}")
         
         print()
-        print("  Examples:")
-        print("    elengenix bounty              # Find programs")
-        print("    elengenix mission example.com # Start mission")
-        print("    elengenix status mission-abc  # Check status")
+        print(f"{Colors.BOLD}Examples:{Colors.END}")
+        print(f"  {Colors.GREEN}elengenix bounty{Colors.END}")
+        print(f"  {Colors.GREEN}elengenix mission example.com{Colors.END}")
+        print(f"  {Colors.GREEN}elengenix status mission-abc{Colors.END}")
         print()
     
     def cmd_mission(self, args):
-        """Start autonomous mission - Phase 2."""
+        """Start mission."""
         if not args:
-            self.ui.print("Usage: elengenix mission <target>", "warning")
+            ElengenixUI.print("Usage: elengenix mission <target>", "warning")
             return
         
         target = args[0]
-        self.ui.print(f"Starting autonomous mission: {target}", "mission")
+        ElengenixUI.print(f"Starting mission: {target}", "info")
         
         try:
             from tools.smart_scanner import SmartScanner
             scanner = SmartScanner(target=target)
             results = scanner.run()
             
-            self.ui.print(f"Mission complete! Findings: {len(results.get('findings', []))}", "success")
+            findings = len(results.get('findings', []))
+            ElengenixUI.print(f"Complete. Findings: {findings}", "success")
             
         except Exception as e:
-            self.ui.print(f"Mission failed: {e}", "error")
+            ElengenixUI.print(f"Failed: {e}", "error")
     
     def cmd_bounty(self, args):
-        """Discover bounty programs - Phase 1."""
-        self.ui.print("Discovering bug bounty programs...", "bounty")
+        """Discover programs."""
+        ElengenixUI.print("Discovering programs...", "info")
         
         try:
             from tools.bounty_intelligence import BountyIntelligence
@@ -167,24 +176,24 @@ class ElengenixApp:
             if programs:
                 ranked = intel.rank_programs(programs)
                 top = ranked[0]
-                self.ui.print(f"Top: {top.name} ({top.bounty_range})", "success")
+                ElengenixUI.print(f"Top: {top.name}", "success")
+                print(f"    Reward: {top.bounty_range}")
                 print(f"    URL: {top.url}")
-                print(f"    Start: elengenix mission {top.url}")
+                print(f"    Run: elengenix mission {top.url}")
             else:
-                self.ui.print("No programs found", "warning")
+                ElengenixUI.print("No programs found", "warning")
                 
         except Exception as e:
-            self.ui.print(f"Discovery failed: {e}", "error")
+            ElengenixUI.print(f"Discovery failed: {e}", "error")
     
     def cmd_scan(self, args):
         """Quick scan."""
         if not args:
-            self.ui.print("Usage: elengenix scan <target>", "warning")
+            ElengenixUI.print("Usage: elengenix scan <target>", "warning")
             return
         
         target = args[0]
-        self.ui.print(f"Scanning {target}...", "scan")
-        # Delegate to main.py scan logic
+        ElengenixUI.print(f"Scanning {target}...", "info")
         subprocess.run([sys.executable, "main.py", "scan", target])
     
     def cmd_programs(self, args):
@@ -192,13 +201,13 @@ class ElengenixApp:
         self.cmd_bounty(args)
     
     def cmd_status(self, args):
-        """Check mission status."""
+        """Check status."""
         if not args:
-            self.ui.print("Usage: elengenix status <mission_id>", "warning")
+            ElengenixUI.print("Usage: elengenix status <mission_id>", "warning")
             return
         
         mission_id = args[0]
-        self.ui.print(f"Checking status: {mission_id}...", "info")
+        ElengenixUI.print(f"Checking: {mission_id}...", "info")
         
         try:
             from tools.smart_scanner import SmartScanner
@@ -210,77 +219,76 @@ class ElengenixApp:
                 print(f"    Phase: {status.get('current_phase', 'unknown')}")
                 print(f"    Findings: {status.get('findings_count', 0)}")
             else:
-                self.ui.print(f"Mission not found: {mission_id}", "warning")
+                ElengenixUI.print(f"Not found: {mission_id}", "warning")
         except Exception as e:
-            self.ui.print(f"Status check failed: {e}", "error")
+            ElengenixUI.print(f"Check failed: {e}", "error")
     
     def cmd_pause(self, args):
         """Pause mission."""
         if not args:
-            self.ui.print("Usage: elengenix pause <mission_id>", "warning")
+            ElengenixUI.print("Usage: elengenix pause <mission_id>", "warning")
             return
         
         mission_id = args[0]
-        self.ui.print(f"Pausing mission: {mission_id}...", "info")
+        ElengenixUI.print(f"Pausing: {mission_id}...", "info")
         
         try:
             from tools.smart_scanner import SmartScanner
             scanner = SmartScanner.load(mission_id)
             if scanner:
                 scanner.pause()
-                self.ui.print(f"Mission {mission_id} paused", "success")
+                ElengenixUI.print(f"Paused: {mission_id}", "success")
             else:
-                self.ui.print(f"Mission not found: {mission_id}", "warning")
+                ElengenixUI.print(f"Not found: {mission_id}", "warning")
         except Exception as e:
-            self.ui.print(f"Pause failed: {e}", "error")
+            ElengenixUI.print(f"Pause failed: {e}", "error")
     
     def cmd_resume(self, args):
         """Resume mission."""
         if not args:
-            self.ui.print("Usage: elengenix resume <mission_id>", "warning")
+            ElengenixUI.print("Usage: elengenix resume <mission_id>", "warning")
             return
         
         mission_id = args[0]
-        self.ui.print(f"Resuming mission: {mission_id}...", "info")
+        ElengenixUI.print(f"Resuming: {mission_id}...", "info")
         
         try:
             from tools.smart_scanner import SmartScanner
             scanner = SmartScanner.load(mission_id)
             if scanner:
                 results = scanner.resume()
-                self.ui.print(f"Mission resumed! Status: {results['status']}", "success")
+                ElengenixUI.print(f"Resumed. Status: {results['status']}", "success")
             else:
-                self.ui.print(f"Mission not found: {mission_id}", "warning")
+                ElengenixUI.print(f"Not found: {mission_id}", "warning")
         except Exception as e:
-            self.ui.print(f"Resume failed: {e}", "error")
+            ElengenixUI.print(f"Resume failed: {e}", "error")
     
     def cmd_ai(self, args):
-        """AI assistant."""
+        """AI query."""
         if not args:
-            self.ui.print("Usage: elengenix ai <query>", "warning")
+            ElengenixUI.print("Usage: elengenix ai <query>", "warning")
             return
         
         query = " ".join(args)
-        self.ui.print(f"AI: {query}", "ai")
+        ElengenixUI.print(f"Query: {query}", "info")
         subprocess.run([sys.executable, "main.py", "ai", query])
     
     def cmd_doctor(self, args):
-        """System health check."""
-        self.ui.print("Running system health check...", "info")
+        """Health check."""
+        ElengenixUI.print("Running health check...", "info")
         subprocess.run([sys.executable, "main.py", "doctor"])
     
     def cmd_telegram(self, args):
-        """Start Telegram bot."""
-        self.ui.print("Starting Telegram bot...", "telegram")
+        """Start Telegram."""
+        ElengenixUI.print("Starting Telegram bot...", "info")
         subprocess.run([sys.executable, "bot.py"])
     
     def cmd_unknown(self, args):
         """Unknown command."""
-        self.ui.print(f"Unknown command. Type 'elengenix help' for usage.", "warning")
+        ElengenixUI.print("Unknown command. Type 'elengenix help' for usage.", "warning")
 
-# ── Entry Point ───────────────────────────────────────────────
 def main():
-    """Elengenix - Just works."""
+    """Entry point."""
     app = ElengenixApp()
     app.run(sys.argv[1:])
 

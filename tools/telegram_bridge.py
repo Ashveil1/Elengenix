@@ -102,7 +102,7 @@ class TelegramBridge:
     def notify_mission_started(self, mission_id: str, target: str) -> bool:
         """Notify that a mission has started."""
         message = (
-            f"🎯 *Mission Started*\n\n"
+            f"*Mission Started*\n\n"
             f"ID: `{mission_id}`\n"
             f"Target: `{target}`\n"
             f"Time: {datetime.utcnow().strftime('%H:%M UTC')}\n\n"
@@ -110,19 +110,18 @@ class TelegramBridge:
         )
         return self._send_message(message)
     
-    def notify_phase_completed(self, mission_id: str, phase_name: str, 
+    def notify_phase_completed(self, mission_id: str, phase_name: str,
                              summary: str = "", findings_count: int = 0) -> bool:
-                                 pass  # TODO: Implement
         """Notify that a phase has completed."""
-        emoji = "✅"
+        emoji = "[OK]"
         if phase_name == "discovery":
-            emoji = "🔍"
+            emoji = "[D]"
         elif phase_name == "vulnerability_scan":
-            emoji = "🔬"
+            emoji = "[V]"
         elif phase_name == "exploit_verification":
-            emoji = "💥"
+            emoji = "[E]"
         elif phase_name == "report_generation":
-            emoji = "📄"
+            emoji = "[R]"
         
         message = (
             f"{emoji} *Phase Completed: {phase_name}*\n\n"
@@ -135,9 +134,8 @@ class TelegramBridge:
         
         return self._send_message(message)
     
-    def notify_finding(self, mission_id: str, finding: Dict[str, Any], 
+    def notify_finding(self, mission_id: str, finding: Dict[str, Any],
                        urgent: bool = False) -> bool:
-                           pass  # TODO: Implement
         """Notify about a discovered finding."""
         severity = finding.get("severity", "info").upper()
         vuln_type = finding.get("type", "Unknown")
@@ -145,13 +143,13 @@ class TelegramBridge:
         
         # Emoji based on severity
         emoji_map = {
-            "CRITICAL": "🚨",
-            "HIGH": "⚠️",
-            "MEDIUM": "⚡",
-            "LOW": "ℹ️",
-            "INFO": "📌",
+            "CRITICAL": "[CRIT]",
+            "HIGH": "[HIGH]",
+            "MEDIUM": "[MED]",
+            "LOW": "[LOW]",
+            "INFO": "[INFO]",
         }
-        emoji = emoji_map.get(severity, "📌")
+        emoji = emoji_map.get(severity, "[INFO]")
         
         if urgent:
             message = (
@@ -174,12 +172,11 @@ class TelegramBridge:
         
         return self._send_message(message)
     
-    def notify_token_warning(self, mission_id: str, threshold: float, 
+    def notify_token_warning(self, mission_id: str, threshold: float,
                             spent: float, budget: float) -> bool:
-                                pass  # TODO: Implement
         """Notify about token budget warning."""
         message = (
-            f"⚠️ *Token Budget Warning*\n\n"
+            f"*Token Budget Warning*\n\n"
             f"Mission: `{mission_id}`\n"
             f"Threshold: {threshold:.0%}\n"
             f"Spent: ${spent:.2f} / ${budget:.2f}\n\n"
@@ -190,7 +187,7 @@ class TelegramBridge:
     def notify_mission_paused(self, mission_id: str, reason: str) -> bool:
         """Notify that mission was paused."""
         message = (
-            f"⏸️ *Mission Paused*\n\n"
+            f"*Mission Paused*\n\n"
             f"Mission: `{mission_id}`\n"
             f"Reason: {reason}\n\n"
             f"Use `/resume {mission_id}` to continue"
@@ -199,12 +196,11 @@ class TelegramBridge:
     
     def notify_mission_completed(self, mission_id: str, findings_count: int,
                                tokens_used: int, duration_seconds: float) -> bool:
-                                   pass  # TODO: Implement
         """Notify that mission completed."""
         duration_min = duration_seconds / 60
         
         message = (
-            f"🎉 *Mission Completed*\n\n"
+            f"*Mission Completed*\n\n"
             f"Mission: `{mission_id}`\n"
             f"Findings: {findings_count}\n"
             f"Tokens used: {tokens_used:,}\n"
@@ -216,7 +212,7 @@ class TelegramBridge:
     def notify_mission_failed(self, mission_id: str, error: str) -> bool:
         """Notify that mission failed."""
         message = (
-            f"❌ *Mission Failed*\n\n"
+            f"*Mission Failed*\n\n"
             f"Mission: `{mission_id}`\n"
             f"Error: {error[:200]}\n\n"
             f"Check logs for details"
@@ -228,7 +224,7 @@ class TelegramBridge:
         if not programs:
             return self._send_message("No programs found")
         
-        lines = ["📋 *Top Bug Bounty Programs*\n\n"]
+        lines = ["*Top Bug Bounty Programs*\n\n"]
         
         for i, prog in enumerate(programs[:5], 1):
             lines.append(f"{i}. *{prog['name']}*")
@@ -243,7 +239,7 @@ class TelegramBridge:
     def notify_mission_status(self, mission_id: str, status: Dict[str, Any]) -> bool:
         """Notify current mission status."""
         lines = [
-            f"📊 *Mission Status*\n\n",
+            f"*Mission Status*\n\n",
             f"ID: `{mission_id}`\n",
             f"Status: {status.get('status', 'unknown')}\n",
             f"Phase: {status.get('current_phase', 'unknown')}\n",
@@ -261,7 +257,7 @@ class TelegramBridge:
         if not findings:
             return self._send_message(f"No findings for mission `{mission_id}`")
         
-        lines = [f"🎯 *Findings for {mission_id}*\n\n"]
+        lines = [f"*Findings for {mission_id}*\n\n"]
         
         for i, finding in enumerate(findings[:10], 1):
             severity = finding.get("severity", "info").upper()
@@ -313,18 +309,18 @@ def run_cli():
     command = sys.argv[1]
     
     if command == "test":
-        success = bridge._send_message("🧪 Test message from Elengenix")
+        success = bridge._send_message("Test message from Elengenix")
         if success:
-            print("✓ Test message sent")
+            print("[OK] Test message sent")
         else:
-            print("✗ Failed to send test message")
+            print("[ERR] Failed to send test message")
     
     elif command == "status":
         if bridge.enabled:
-            print(f"✓ Telegram bridge enabled")
+            print("[OK] Telegram bridge enabled")
             print(f"  Chat ID: {bridge.chat_id}")
         else:
-            print("✗ Telegram bridge disabled")
+            print("[OFF] Telegram bridge disabled")
     
     else:
         print(f"Unknown command: {command}")

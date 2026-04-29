@@ -207,7 +207,7 @@ async def cmd_bounty(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     intel = BountyIntelligence(api_key=api_key, api_username=api_user)
 
-    await safe_reply(update, "🎯 *Discovering bug bounty programs...*")
+    await safe_reply(update, "*Discovering bug bounty programs...*")
 
     try:
         if api_key:
@@ -223,7 +223,7 @@ async def cmd_bounty(update: Update, context: ContextTypes.DEFAULT_TYPE):
         top = ranked[0]
 
         message = (
-            f"🎯 *Top Recommendation*\n\n"
+            f"*Top Recommendation*\n\n"
             f"Program: *{top.name}*\n"
             f"Reward: {top.bounty_range}\n"
             f"URL: {top.url}\n"
@@ -249,14 +249,14 @@ async def cmd_mission(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await safe_reply(update, "Invalid domain")
         return
 
-    await safe_reply(update, f"🎯 *Starting mission for* `{target}`")
+    await safe_reply(update, f"*Starting mission for* `{target}`")
 
     try:
         scanner = SmartScanner(target=target, auto_pause=True, pause_after_hours=3)
         results = await run_in_thread(scanner.run)
 
         message = (
-            f"🎉 *Mission {results['mission_id']}*\n\n"
+            f"*Mission {results['mission_id']}*\n\n"
             f"Status: {results['status']}\n"
             f"Findings: {len(results.get('findings', []))}\n"
             f"Tokens: {results['tokens_used']:,}\n"
@@ -313,7 +313,7 @@ async def cmd_pause(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
 
         scanner.pause()
-        await safe_reply(update, f"⏸️ Mission `{mission_id}` paused")
+        await safe_reply(update, f"Mission `{mission_id}` paused")
 
     except Exception as e:
         logger.error(f"Pause error: {e}")
@@ -335,11 +335,11 @@ async def cmd_resume(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await safe_reply(update, f"Mission not found: `{mission_id}`")
             return
 
-        await safe_reply(update, f"▶️ Resuming mission `{mission_id}`")
+        await safe_reply(update, f"Resuming mission `{mission_id}`")
         results = await run_in_thread(scanner.resume)
 
         message = (
-            f"✅ Mission resumed\n\n"
+            f"Mission resumed\n\n"
             f"Status: {results['status']}\n"
             f"Findings: {len(results.get('findings', []))}"
         )
@@ -383,7 +383,7 @@ async def cmd_programs(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     intel = BountyIntelligence(api_key=api_key, api_username=api_user)
 
-    await safe_reply(update, "📋 *Fetching programs...*")
+    await safe_reply(update, "*Fetching programs...*")
 
     try:
         if api_key:
