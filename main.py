@@ -94,7 +94,7 @@ def main():
     
     parser = argparse.ArgumentParser(description="Elengenix CLI", add_help=False)
     parser.add_argument("command", nargs="?", default="auto", 
-                        choices=["ai", "scan", "gateway", "configure", "update", "doctor", "arsenal", "memory", "cve-update", "bola", "waf", "recon", "evasion", "report", "menu", "auto", "help", "bb", "check", "test", "red", "pdf", "hack", "research", "poc", "autonomous", "welcome", "quick", "deep", "bounty", "stealth", "api", "web", "profile"])
+                        choices=["ai", "scan", "gateway", "configure", "update", "doctor", "arsenal", "memory", "cve-update", "bola", "waf", "recon", "evasion", "report", "menu", "auto", "help", "bb", "check", "test", "red", "pdf", "hack", "research", "poc", "autonomous", "welcome", "quick", "deep", "bounty", "stealth", "api", "web", "profile", "history", "programs", "intel"])
     parser.add_argument("target", nargs="?", help="Target domain or IP")
     parser.add_argument("--rate-limit", type=int, default=5, help="Max requests per second")
     parser.add_argument("--framework", type=str, default="generic", help="Target framework for PoC generation")
@@ -1021,6 +1021,88 @@ def main():
                 else:
                     print_error(f"Unknown profile command: {subcommand}")
                     console.print("Usage: elengenix profile [list|create|delete]")
+
+        elif args.command in ["programs", "intel", "bounty"]:  # Phase 1: Intelligence Discovery
+            """Discover and rank bug bounty programs from HackerOne."""
+            from tools.bounty_intelligence import BountyIntelligence
+            from ui_components import console, print_info, print_success, print_error, print_warning
+            import os
+            
+            # Check for API credentials
+            api_key = os.environ.get("HACKERONE_API_KEY")
+            api_user = os.environ.get("HACKERONE_API_USER")
+            
+            intel = BountyIntelligence(api_key=api_key, api_username=api_user)
+            
+            if args.target == "api":
+                # Force API mode
+                if not api_key:
+                    print_error("HACKERONE_API_KEY not set")
+                    console.print("Set with: export HACKERONE_API_KEY=your_key")
+                    console.print("Get key at: https://hackerone.com/settings/api")
+                    return
+                
+                print_info("Discovering programs via HackerOne API...")
+                programs = intel.discover_programs_api(min_bounty=500, limit=15)
+            
+            elif args.target == "public":
+                # Force public scraping mode
+                print_info("Discovering programs via public scraping...")
+                programs = intel.discover_programs_public(limit=15)
+            
+            elif args.target == "top":
+                # Get single top recommendation
+                print_info("Finding top bounty program...")
+                top = intel.get_top_recommendation(min_bounty=500)
+                
+                if top:
+                    print_success(f"Top Pick: {top.name}")
+                    console.print(f"  Reward: {top.bounty_range}")
+                    console.print(f"  URL: {top.url}")
+                    if top.response_time_hours:
+                        days = top.response_time_hours / 24
+                        console.print(f"  Response: ~{days:.1f} days")
+                    console.print(f"  Score: {top.score_total:.1f}/100")
+                    console.print(f"\n[cyan]Start scanning:[/cyan]")
+                    console.print(f"  elengenix deep {top.url}")
+                    console.print(f"  elengenix autonomous {top.url} --mode auto")
+                else:
+                    print_error("No programs found")
+                return
+            
+            else:
+                # Auto mode: API if available, else public
+                if api_key:
+                    print_info("Mode: API (authenticated)")
+                    programs = intel.discover_programs_api(min_bounty=500, limit=10)
+                else:
+                    print_info("Mode: Public (no API key)")
+                    print_warning("Set HACKERONE_API_KEY for more programs and data")
+                    programs = intel.discover_programs_public(limit=10)
+            
+            if not programs:
+                print_error("No programs found. Check connection or try later.")
+                return
+            
+            # Rank programs
+            print_info(f"Ranking {len(programs)} programs...")
+            ranked = intel.rank_programs(programs)
+            
+            # Display results
+            console.print(intel.format_programs_list(ranked, show_scores=True))
+            
+            # Show top recommendation
+            top = ranked[0]
+            print_success(f"\nTop recommendation: {top.name}")
+            console.print(f"  Potential reward: {top.bounty_range}")
+            console.print(f"  Start scan: [cyan]elengenix quick {top.url}[/cyan]")
+            
+            # Offer to start scanning
+            from ui_components import confirm
+            if confirm("Start scanning now?", default=False):
+                args.command = "quick"
+                args.target = top.url.replace("https://", "").replace("http://", "")
+                # Fall through to quick command handler
 
         elif args.command == "history":
             """Command history management."""
