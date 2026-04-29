@@ -1,10 +1,10 @@
 """
-llm_client.py — Elengenix High-Resilience LLM Interface (v2.0.0)
-- Safe Sync-to-Async Bridge (nest_asyncio)
+llm_client.py — Elengenix High-Resilience LLM Interface (v2.0.1)
 - Native Anthropic, Gemini, Cohere, Hugging Face, Replicate Support
 - OpenAI-compatible API for Groq, OpenRouter, Mistral, DeepSeek, Perplexity, Azure OpenAI
 - Automatic Retries and Exponential Backoff
 - Token Usage Tracking and Prompt Sanitization
+- Optional nest_asyncio for nested event loops
 """
 
 import yaml
@@ -12,23 +12,42 @@ import os
 import asyncio
 import logging
 import re
-import nest_asyncio
 from pathlib import Path
 from dataclasses import dataclass
 from typing import Optional, Dict, Any, Union
 from openai import AsyncOpenAI, AsyncAzureOpenAI
 import google.generativeai as genai
-from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
-from dotenv import load_dotenv
 
-# Initialize nest_asyncio to allow nested event loops (Telegram Bot compatibility)
-nest_asyncio.apply()
+# Optional python-dotenv for environment variables
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass  # python-dotenv not installed, skip
+
+# Optional tenacity for retry logic
+try:
+    from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+except ImportError:
+    # Fallback decorator if tenacity not installed
+    def retry(*args, **kwargs):
+        def decorator(func):
+            return func
+        return decorator
+    stop_after_attempt = lambda x: None
+    wait_exponential = lambda **kwargs: None
+    retry_if_exception_type = lambda x: None
+
+# Optional: Initialize nest_asyncio to allow nested event loops (Telegram Bot compatibility)
+try:
+    import nest_asyncio
+    nest_asyncio.apply()
+except ImportError:
+    pass  # nest_asyncio not installed, skip
 
 # Setup structured logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger("elengenix.llm")
-
-load_dotenv()
 
 @dataclass
 class LLMResponse:
