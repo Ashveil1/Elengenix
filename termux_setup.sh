@@ -75,14 +75,14 @@ for dep in $CORE_DEPS; do
 done
 
 # Install AI providers (all providers installed automatically)
-info "Installing AI providers (OpenAI, Anthropic, Google)..."
+info "Installing AI providers (OpenAI, Anthropic, Google, Cohere, Hugging Face, Replicate)..."
 # Install all providers - user can choose which to use via environment variables
-AI_DEPS="openai anthropic google-generativeai"
+AI_DEPS="openai anthropic google-generativeai cohere huggingface-hub replicate"
 for dep in $AI_DEPS; do
     info "  Installing $dep..."
     pip install "$dep" 2>/dev/null || warning "  $dep install had issues (continuing)"
 done
-success "AI providers installed (set OPENAI_API_KEY, ANTHROPIC_API_KEY, or GOOGLE_API_KEY to use)"
+success "AI providers installed (set API keys in config to use)"
 
 # Install optional dependencies (may fail on mobile, that's OK)
 info "Installing optional dependencies..."

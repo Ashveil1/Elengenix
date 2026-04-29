@@ -98,6 +98,15 @@ else
     warning "ChromaDB installation had issues (optional - will use SQLite fallback)"
 fi
 
+# 3.6 AI Provider Dependencies (Comprehensive support)
+info "Installing AI provider dependencies..."
+AI_DEPS="openai anthropic google-generativeai cohere huggingface-hub replicate"
+for dep in $AI_DEPS; do
+    info "  Installing $dep..."
+    pip install "$dep" --quiet 2>/dev/null || warning "  $dep install had issues (continuing)"
+done
+success "AI providers installed (set API keys in config to use)"
+
 success "Python environment secured."
 
 # 4. Security Tools
