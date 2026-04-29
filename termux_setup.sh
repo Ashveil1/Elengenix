@@ -65,7 +65,7 @@ info "Installing dependencies..."
 if [ ! -f "requirements.txt" ]; then
     error "requirements.txt not found. Ensure you're in the Elengenix directory."
 fi
-if ! pip install --upgrade pip setuptools wheel --quiet; then error "Pip upgrade failed"; fi
+if ! pip install --upgrade pip setuptools wheel --quiet; then warning "Pip upgrade had issues (continuing)"; fi
 
 # Install core dependencies (required)
 info "Installing core dependencies..."
