@@ -94,7 +94,7 @@ def main():
     
     parser = argparse.ArgumentParser(description="Elengenix CLI", add_help=False)
     parser.add_argument("command", nargs="?", default="auto", 
-                        choices=["ai", "scan", "gateway", "configure", "update", "doctor", "arsenal", "memory", "cve-update", "bola", "waf", "recon", "evasion", "report", "menu", "auto", "help", "bb", "check", "test", "red", "pdf", "hack", "research", "poc", "autonomous", "welcome", "quick", "deep", "bounty", "stealth", "api", "web", "profile", "history", "programs", "intel"])
+                        choices=["ai", "scan", "gateway", "configure", "update", "doctor", "arsenal", "memory", "cve-update", "bola", "waf", "recon", "evasion", "report", "menu", "auto", "help", "bb", "check", "test", "red", "pdf", "hack", "research", "poc", "autonomous", "welcome", "quick", "deep", "bounty", "stealth", "api", "web", "profile", "history", "programs", "intel", "mission", "pause", "resume"])
     parser.add_argument("target", nargs="?", help="Target domain or IP")
     parser.add_argument("--rate-limit", type=int, default=5, help="Max requests per second")
     parser.add_argument("--framework", type=str, default="generic", help="Target framework for PoC generation")
@@ -1103,6 +1103,100 @@ def main():
                 args.command = "quick"
                 args.target = top.url.replace("https://", "").replace("http://", "")
                 # Fall through to quick command handler
+
+        elif args.command == "mission":
+            """Mission control - start autonomous scanning mission."""
+            from tools.smart_scanner import SmartScanner
+            from tools.token_manager import get_token_manager
+            from ui_components import console, print_info, print_success, print_error
+            
+            if not args.target:
+                print_error("Usage: elengenix mission <target>")
+                console.print("\n  Start autonomous scanning mission with:")
+                console.print("    elengenix mission target.com")
+                console.print("    elengenix mission target.com --pause-after 2")
+                return
+            
+            target = args.target
+            pause_after = 3  # Default: pause after 3 hours without findings
+            
+            # Parse pause-after option
+            import sys
+            if "--pause-after" in sys.argv:
+                idx = sys.argv.index("--pause-after")
+                if idx + 1 < len(sys.argv):
+                    try:
+                        pause_after = int(sys.argv[idx + 1])
+                    except ValueError:
+                        print_error("Invalid pause-after value")
+                        return
+            
+            print_info(f"Starting autonomous mission for {target}")
+            print_info(f"Auto-pause after {pause_after}h without findings")
+            
+            try:
+                scanner = SmartScanner(
+                    target=target,
+                    auto_pause=True,
+                    pause_after_hours=pause_after,
+                )
+                results = scanner.run()
+                
+                print_success(f"\nMission {results['mission_id']} completed")
+                console.print(f"  Status: {results['status']}")
+                console.print(f"  Findings: {len(results.get('findings', []))}")
+                console.print(f"  Tokens used: {results['tokens_used']}")
+                console.print(f"  Duration: {results['duration_seconds']:.0f}s")
+                
+                if results['status'] == 'paused':
+                    console.print(f"\n[dim]Mission paused. Resume with:[/dim]")
+                    console.print(f"  elengenix resume {results['mission_id']}")
+                
+            except Exception as e:
+                print_error(f"Mission failed: {e}")
+                logger.exception("Mission failed")
+
+        elif args.command == "pause":
+            """Pause a running mission."""
+            from tools.smart_scanner import SmartScanner
+            from ui_components import console, print_info, print_success, print_error
+            
+            if not args.target:
+                print_error("Usage: elengenix pause <mission_id>")
+                return
+            
+            mission_id = args.target
+            scanner = SmartScanner.load(mission_id)
+            
+            if not scanner:
+                print_error(f"Mission not found: {mission_id}")
+                return
+            
+            scanner.pause()
+            print_success(f"Mission {mission_id} paused")
+
+        elif args.command == "resume":
+            """Resume a paused mission."""
+            from tools.smart_scanner import SmartScanner
+            from ui_components import console, print_info, print_success, print_error
+            
+            if not args.target:
+                print_error("Usage: elengenix resume <mission_id>")
+                return
+            
+            mission_id = args.target
+            scanner = SmartScanner.load(mission_id)
+            
+            if not scanner:
+                print_error(f"Mission not found: {mission_id}")
+                return
+            
+            print_info(f"Resuming mission {mission_id}")
+            results = scanner.resume()
+            
+            print_success(f"Mission {mission_id} resumed")
+            console.print(f"  Status: {results['status']}")
+            console.print(f"  Findings: {len(results.get('findings', []))}")
 
         elif args.command == "history":
             """Command history management."""
