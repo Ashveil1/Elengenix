@@ -426,7 +426,6 @@ To use the CVE database, reference vulnerability types and ask for similar CVEs.
  if tgt:
  return f"https://{tgt}"
  except Exception:
- pass
  return "http://localhost"
 
  def _extract_json(self, text: str) -> Optional[Dict[str, Any]]:
@@ -1175,7 +1174,6 @@ Use JSON format: {{"action": "run_shell|save_memory|finish", "command": "...", "
  domains_found.add(parsed.netloc)
  endpoints_found.add(url)
  except Exception:
- pass
  
  # If we found new domains, add to mission graph
  for domain in domains_found:

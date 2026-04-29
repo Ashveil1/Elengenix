@@ -97,7 +97,6 @@ class ArjunTool(BaseTool):
  "cwe": "CWE-200", # Information Exposure
  })
  except (json.JSONDecodeError, KeyError) as e:
- pass
  
  # Fallback to text parsing
  text_file = report_dir / "arjun_results.txt"

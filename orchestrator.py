@@ -68,7 +68,6 @@ def is_valid_target(target: str) -> bool:
  ip = ipaddress.ip_address(target)
  return not (ip.is_private or ip.is_loopback)
  except ValueError:
- pass
  if len(target) > 253 or "." not in target: return False
  return all(re.match(r"^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?$", l) for l in target.split("."))
 

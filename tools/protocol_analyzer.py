@@ -189,7 +189,6 @@ class MQTTAnalyzer:
  result["username"] = data[idx:idx+user_len].decode('utf-8', errors='ignore')
  idx += user_len
  except:
- pass
  
  # Password
  if result["password_flag"] and len(data) > idx:
@@ -198,7 +197,6 @@ class MQTTAnalyzer:
  idx += 2
  result["password"] = data[idx:idx+pass_len].decode('utf-8', errors='ignore')
  except:
- pass
  
  return result
  
@@ -232,7 +230,6 @@ class MQTTAnalyzer:
  idx += 2
  result["message_id"] = msg_id
  except:
- pass
  
  # Payload
  if len(data) > idx:
@@ -652,7 +649,6 @@ class ProtobufAnalyzer:
  if all(c.isprintable() or c.isspace() for c in text):
  field_info["as_string"] = text[:100]
  except:
- pass
  
  # Check for nested protobuf
  if length > 2 and self.is_protobuf(payload):

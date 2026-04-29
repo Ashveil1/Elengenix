@@ -122,7 +122,6 @@ class TmuxManager:
  message, "Enter"
  ], check=False)
  except:
- pass
  
  def get_pane_info(self) -> Tuple[bool, str]:
  """

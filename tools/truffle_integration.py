@@ -135,7 +135,6 @@ class TrufflehogTool(BaseTool):
  except json.JSONDecodeError:
  continue
  except Exception as e:
- pass
  
  # Generate summary
  verified_count = sum(1 for f in findings if f.get("verified"))

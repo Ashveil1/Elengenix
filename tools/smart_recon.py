@@ -151,7 +151,6 @@ class SmartReconEngine:
  socket.gethostbyname(domain)
  domains.add(domain)
  except socket.gaierror:
- pass
  
  if domains:
  sources_used.append("dns_bruteforce")

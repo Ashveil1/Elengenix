@@ -230,7 +230,6 @@ def _load_registry_findings(report_dir: Path) -> List[Dict[str, Any]]:
  data["tool"] = tool_name
  findings.append(data)
  except json.JSONDecodeError:
- pass
  except Exception as e:
  logger.warning(f"Failed to parse {filename}: {e}")
  

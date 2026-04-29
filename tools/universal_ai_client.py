@@ -332,7 +332,6 @@ class UniversalAIClient:
                         if "content" in delta:
                             yield delta["content"]
                     except:
-                        pass
 
     def simple_chat(self, user_message: str, system_prompt: Optional[str] = None) -> str:
         """

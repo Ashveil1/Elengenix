@@ -164,7 +164,6 @@ class SwarmController:
  import json
  config = json.loads(parts[2].strip())
  except:
- pass
  
  target = SwarmTarget(
  target_id=f"swarm_{i}_{uuid4().hex[:8]}",

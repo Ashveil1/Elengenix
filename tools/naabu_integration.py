@@ -113,7 +113,6 @@ class NaabuTool(BaseTool):
  except json.JSONDecodeError:
  continue
  except Exception as e:
- pass
  
  # Also parse stdout if file is empty
  if not findings and stdout:
@@ -130,7 +129,6 @@ class NaabuTool(BaseTool):
  "evidence": line,
  })
  except ValueError:
- pass
  
  return ToolResult(
  success=rc == 0 or len(findings) > 0,

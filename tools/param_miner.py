@@ -71,7 +71,6 @@ def mine_parameters(
  "base_status": baseline_status,
  }
  except Exception:
- pass
  return None
 
  with ThreadPoolExecutor(max_workers=_MAX_WORKERS) as pool:

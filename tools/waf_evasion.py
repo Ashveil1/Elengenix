@@ -202,7 +202,6 @@ class WAFEvasionEngine:
  chained = urllib.parse.quote(v1, safe="") if "urlencode" not in t1 else v1
  variants.append((chained, t1 + t2))
  except Exception:
- pass
 
  # Deduplicate
  seen = set()

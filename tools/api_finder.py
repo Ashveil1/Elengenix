@@ -56,7 +56,6 @@ def _probe(session: requests.Session, base_url: str, endpoint: str) -> Dict | No
  "is_json": "json" in content_type or url.endswith(".json"),
  }
  except Exception:
- pass
  return None
 
 def find_api_docs(url: str) -> List[Dict]:

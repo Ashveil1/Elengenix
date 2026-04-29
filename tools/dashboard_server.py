@@ -975,7 +975,6 @@ def start_dashboard(mission_state: Optional[MissionState] = None,
  try:
  webbrowser.open(url)
  except:
- pass
  
  return port, thread
 

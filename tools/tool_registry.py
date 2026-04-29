@@ -404,7 +404,6 @@ class HttpxTool(BaseTool):
  "title": data.get("title", ""),
  })
  except:
- pass
  
  return ToolResult(
  success=True,
@@ -416,7 +415,6 @@ class HttpxTool(BaseTool):
  raw_output_file=output_file,
  )
  except Exception as e:
- pass
  
  return ToolResult(
  success=True,
@@ -460,7 +458,6 @@ class NucleiTool(BaseTool):
  data = json.loads(line)
  urls.append(data.get("url", ""))
  except:
- pass
  
  if urls:
  # Create input file for nuclei
@@ -502,7 +499,6 @@ class NucleiTool(BaseTool):
  "description": data.get("info", {}).get("description", ""),
  })
  except:
- pass
  
  return ToolResult(
  success=True,

@@ -249,7 +249,6 @@ def prompt_choice(options: List[str]) -> int:
  if 0 <= idx < len(options):
  return idx
  except ValueError:
- pass
  console.print("[red]Invalid selection[/red]")
 
 def confirm(message: str, default: bool = False) -> bool:

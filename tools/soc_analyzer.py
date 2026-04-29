@@ -429,7 +429,6 @@ class SOCAnalyzer:
  json_data = json.loads(line)
  alert = self.parse_json_alert(json_data, source)
  except json.JSONDecodeError:
- pass
  else:
  # Try syslog
  alert = self.parse_syslog(line)

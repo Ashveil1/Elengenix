@@ -87,7 +87,6 @@ class ActivityLogger:
  with open(ACTIVITY_LOG, "a", encoding="utf-8") as f:
  f.write(json.dumps(asdict(activity)) + "\n")
  except:
- pass
  
  def get_recent(self, n: int = 20) -> List[AgentActivity]:
  """Get recent n activities."""
@@ -340,9 +339,7 @@ def main():
  activity = AgentActivity(**data)
  display.activity_logger.history.append(activity)
  except:
- pass
  except:
- pass
  
  # Start live display
  display.run_live(duration=args.duration)

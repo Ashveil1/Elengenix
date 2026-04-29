@@ -100,7 +100,6 @@ class DalfoxTool(BaseTool):
  except json.JSONDecodeError:
  continue
  except Exception as e:
- pass
  
  # Also check for results in stdout if file is empty
  if not findings and stdout:

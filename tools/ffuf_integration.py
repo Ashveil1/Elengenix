@@ -142,7 +142,6 @@ class FfufTool(BaseTool):
  }
  findings.append(finding)
  except (json.JSONDecodeError, KeyError) as e:
- pass
  
  return ToolResult(
  success=rc == 0 or len(findings) > 0,
@@ -195,7 +194,6 @@ class FfufTool(BaseTool):
  if url and status == 200:
  urls.append(url)
  except Exception:
- pass
  
  if not urls:
  return []
@@ -237,7 +235,6 @@ class FfufTool(BaseTool):
  if part and len(part) > 2:
  words.add(part)
  except Exception:
- pass
  
  if words:
  output_file.write_text('\n'.join(sorted(words)))
