@@ -3,11 +3,13 @@
 Workflow / Business-Logic Fuzzer (Stateful) for web apps.
 
 Goal:
+    pass  # TODO: Implement
 - Model common bug bounty workflows as small state machines
 - Generate and execute SAFE test plans (GET by default)
 - Detect business-logic anomalies (double-spend patterns, coupon abuse hints, role transitions)
 
 Safety:
+    pass  # TODO: Implement
 - Default mode is DRY-RUN (no requests)
 - If execution is enabled, it is GET-only unless explicitly allowed
 - Intended to be driven by governance/HITL approvals
@@ -28,6 +30,7 @@ logger = logging.getLogger("elengenix.workflow_fuzzer")
 
 @dataclass
 class WorkflowStep:
+    pass  # TODO: Implement
  name: str
  method: str
  path: str
@@ -36,6 +39,7 @@ class WorkflowStep:
 
 @dataclass
 class WorkflowPlan:
+    pass  # TODO: Implement
  plan_id: str
  title: str
  description: str
@@ -45,26 +49,32 @@ class WorkflowPlan:
 
 @dataclass
 class WorkflowResult:
+    pass  # TODO: Implement
  success: bool
  observations: List[Dict[str, Any]]
  anomalies: List[Dict[str, Any]]
  notes: List[str]
 
 class WorkflowFuzzer:
+    pass  # TODO: Implement
  def __init__(self, base_url: str, rate_limit_rps: float = 1.0, timeout: int = 15):
+     pass  # TODO: Implement
  self.base_url = base_url.rstrip("/") + "/"
  self.rate_limit_rps = max(0.2, float(rate_limit_rps))
  self.timeout = timeout
  self._last_ts = 0.0
 
  def _sleep(self) -> None:
+     pass  # TODO: Implement
  dt = time.time() - self._last_ts
  min_dt = 1.0 / self.rate_limit_rps
  if dt < min_dt:
+     pass  # TODO: Implement
  time.sleep(min_dt - dt)
  self._last_ts = time.time()
 
  def propose_common_plans(self) -> List[WorkflowPlan]:
+     pass  # TODO: Implement
  """Return generic workflow plans (you can edit endpoints/paths)."""
  ts = int(time.time())
  plans: List[WorkflowPlan] = []
@@ -122,24 +132,29 @@ class WorkflowFuzzer:
  dry_run: bool = True,
  template_vars: Optional[Dict[str, str]] = None,
  ) -> WorkflowResult:
+     pass  # TODO: Implement
  template_vars = template_vars or {}
  observations: List[Dict[str, Any]] = []
  anomalies: List[Dict[str, Any]] = []
  notes: List[str] = []
 
  for step in plan.steps:
+     pass  # TODO: Implement
  method = step.method.upper()
  path = step.path
  for k, v in template_vars.items():
+     pass  # TODO: Implement
  path = path.replace("{" + k + "}", str(v))
 
  url = urljoin(self.base_url, path.lstrip("/"))
 
  if method != "GET" and not allow_non_get:
+     pass  # TODO: Implement
  notes.append(f"Skipped non-GET step '{step.name}' ({method} {path})")
  continue
 
  if dry_run:
+     pass  # TODO: Implement
  observations.append(
  {
  "step": step.name,
@@ -154,6 +169,7 @@ class WorkflowFuzzer:
 
  self._sleep()
  try:
+     pass  # TODO: Implement
  r = requests.request(
  method,
  url,
@@ -177,6 +193,7 @@ class WorkflowFuzzer:
 
  # Simple anomaly heuristics
  if r.status_code >= 500:
+     pass  # TODO: Implement
  anomalies.append(
  {
  "type": "server_error",
@@ -199,6 +216,7 @@ class WorkflowFuzzer:
  )
 
  except Exception as e:
+     pass  # TODO: Implement
  anomalies.append(
  {
  "type": "request_error",
@@ -211,11 +229,14 @@ class WorkflowFuzzer:
  return WorkflowResult(success=True, observations=observations, anomalies=anomalies, notes=notes)
 
 def format_workflow_plans(plans: List[WorkflowPlan]) -> str:
+    pass  # TODO: Implement
  lines: List[str] = []
  for i, p in enumerate(plans, 1):
+     pass  # TODO: Implement
  lines.append(f"{i}. {p.title} [risk={p.risk}] (id={p.plan_id})")
  lines.append(f" {p.description}")
  for s in p.steps:
+     pass  # TODO: Implement
  lines.append(f" - {s.method} {s.path} ({s.name})")
  lines.append("")
  return "\n".join(lines)

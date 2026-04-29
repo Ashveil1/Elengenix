@@ -3,12 +3,14 @@
 First-Run Welcome Wizard - Beautiful Apple-like Onboarding.
 
 Purpose:
+    pass  # TODO: Implement
 - Guide new users through initial setup in 30 seconds
 - Auto-detect best configuration for user's environment
 - One-command setup: configure AI, preferences, defaults
 - Beautiful, minimal, friction-free experience
 
 Philosophy:
+    pass  # TODO: Implement
 - Wozniak simplicity: Works perfectly with minimal steps
 - Apple beauty: Clean visuals, delightful micro-interactions
 - Zero friction: Smart defaults, auto-detect, skip unnecessary steps
@@ -63,6 +65,7 @@ class WelcomeWizard:
     Beautiful first-run welcome wizard.
     
     Apple-inspired design:
+        pass  # TODO: Implement
     - Clean, minimal visual style
     - Smart defaults (user just presses Enter)
     - Progress indicators with delightful animations

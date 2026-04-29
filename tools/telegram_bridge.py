@@ -3,12 +3,14 @@
 Phase 3: Telegram Bridge - Real-time notifications and mission control.
 
 Purpose:
+    pass  # TODO: Implement
 - Send real-time notifications to Telegram during missions
 - Control missions via Telegram commands
 - Notification templates for different events
 - Two-way sync between CLI and Telegram
 
 Features:
+    pass  # TODO: Implement
 - Mission control commands (/bounty, /status, /pause, /resume, /findings, /programs)
 - Notification templates (mission started, phase completed, finding discovered, token warning)
 - Real-time sync from CLI to Telegram
@@ -51,6 +53,7 @@ class TelegramBridge:
     Bridge for Telegram notifications and mission control.
     
     Features:
+        pass  # TODO: Implement
     - Send notifications for mission events
     - Control missions via Telegram commands
     - Formatted message templates
@@ -109,6 +112,7 @@ class TelegramBridge:
     
     def notify_phase_completed(self, mission_id: str, phase_name: str, 
                              summary: str = "", findings_count: int = 0) -> bool:
+                                 pass  # TODO: Implement
         """Notify that a phase has completed."""
         emoji = "✅"
         if phase_name == "discovery":
@@ -133,6 +137,7 @@ class TelegramBridge:
     
     def notify_finding(self, mission_id: str, finding: Dict[str, Any], 
                        urgent: bool = False) -> bool:
+                           pass  # TODO: Implement
         """Notify about a discovered finding."""
         severity = finding.get("severity", "info").upper()
         vuln_type = finding.get("type", "Unknown")
@@ -171,6 +176,7 @@ class TelegramBridge:
     
     def notify_token_warning(self, mission_id: str, threshold: float, 
                             spent: float, budget: float) -> bool:
+                                pass  # TODO: Implement
         """Notify about token budget warning."""
         message = (
             f"⚠️ *Token Budget Warning*\n\n"
@@ -193,6 +199,7 @@ class TelegramBridge:
     
     def notify_mission_completed(self, mission_id: str, findings_count: int,
                                tokens_used: int, duration_seconds: float) -> bool:
+                                   pass  # TODO: Implement
         """Notify that mission completed."""
         duration_min = duration_seconds / 60
         

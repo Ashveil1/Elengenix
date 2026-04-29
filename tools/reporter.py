@@ -13,10 +13,14 @@ from pathlib import Path
 from typing import List, Dict
 
 def _count_lines(filepath: str) -> int:
+    pass  # TODO: Implement
  try:
+     pass  # TODO: Implement
  with open(filepath, "r", encoding="utf-8") as f:
+     pass  # TODO: Implement
  return sum(1 for l in f if l.strip())
  except Exception:
+     pass  # TODO: Implement
  return 0
 
 def generate_bug_report(
@@ -25,6 +29,7 @@ def generate_bug_report(
  report_path: str,
  ai_insights: str = "",
 ) -> str:
+    pass  # TODO: Implement
  """
  Generate a professional Markdown bug bounty report.
  Returns the path of the written file.
@@ -41,6 +46,7 @@ def generate_bug_report(
  # Severity counts
  by_sev: Dict[str, int] = {"CRITICAL": 0, "HIGH": 0, "MEDIUM": 0, "LOW": 0, "INFO": 0}
  for f in findings:
+     pass  # TODO: Implement
  sev = f.get("severity", "INFO").upper()
  by_sev[sev] = by_sev.get(sev, 0) + 1
 
@@ -84,7 +90,9 @@ def generate_bug_report(
 
 """
  if findings:
+     pass  # TODO: Implement
  for i, f in enumerate(findings, 1):
+     pass  # TODO: Implement
  content += f"""### {i}. {f.get('name', 'Finding')}
 
 | Field | Value |
@@ -95,6 +103,7 @@ def generate_bug_report(
 
 """
  else:
+     pass  # TODO: Implement
  content += "_No high-severity vulnerabilities detected by automated scanning. Manual review recommended._\n\n"
 
  content += f"""---

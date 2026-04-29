@@ -12,8 +12,10 @@ PROVIDERS = [
 ]
 
 def main():
+    pass  # TODO: Implement
  config_path = "config.yaml"
  with open(config_path, "r") as f:
+     pass  # TODO: Implement
  config = yaml.safe_load(f)
 
  console.print("[bold cyan] AI Engine Multi-Provider Wizard[/bold cyan]")
@@ -29,6 +31,7 @@ def main():
  
  # 2. Fetch Models Dynamically
  with console.status(f"[bold yellow]Fetching latest models from {provider}...[/bold yellow]"):
+     pass  # TODO: Implement
  client = LLMClient()
  dynamic_models = client.fetch_available_models(provider, api_key)
  
@@ -40,20 +43,24 @@ def main():
  ).ask()
  
  if model == "Custom (Enter Manually)":
+     pass  # TODO: Implement
  model = questionary.text("Enter Model Name (e.g., gpt-5-preview):").ask()
  
  # Save to config
  config["ai"]["active_provider"] = provider
  if provider not in config["ai"]["providers"]: 
+     pass  # TODO: Implement
  config["ai"]["providers"][provider] = {}
  
  config["ai"]["providers"][provider]["model"] = model
  config["ai"]["providers"][provider]["api_key"] = api_key
  
  with open(config_path, "w") as f:
+     pass  # TODO: Implement
  yaml.dump(config, f)
  
  console.print(f"[bold green] {provider.upper()} configured with model: {model}[/bold green]")
 
 if __name__ == "__main__":
+    pass  # TODO: Implement
  main()

@@ -3,11 +3,13 @@
 Object ID Permuter for safe BOLA/IDOR testing via Access Control Matrix.
 
 Purpose:
+    pass  # TODO: Implement
 - Take endpoints with placeholders like {id}, {user_id}, {order_id}, {account_id}
 - Permute using actual object IDs discovered for Account A and Account B
 - Generate safe test matrix: A's ID vs B's ID on same endpoint pattern
 
 Safety:
+    pass  # TODO: Implement
 - GET-only execution (even in non-dry-run)
 - DRY-RUN by default; execution requires explicit confirmation
 - Rate-limited
@@ -29,6 +31,7 @@ logger = logging.getLogger("elengenix.object_id_permuter")
 
 @dataclass
 class PermutationCase:
+    pass  # TODO: Implement
  endpoint_template: str
  placeholder: str
  value_a: str
@@ -37,6 +40,7 @@ class PermutationCase:
 
 @dataclass
 class PermutationResult:
+    pass  # TODO: Implement
  url_a: str
  url_b: str
  status_a: int
@@ -47,6 +51,7 @@ class PermutationResult:
  notes: str
 
 class ObjectIDPermuter:
+    pass  # TODO: Implement
  """
  Generates permutations of endpoints using discovered object IDs.
  """
@@ -66,27 +71,32 @@ class ObjectIDPermuter:
  ]
 
  def __init__(self, base_url: str, rate_limit_rps: float = 1.0, timeout: int = 15):
+     pass  # TODO: Implement
  self.base_url = base_url.rstrip("/") + "/"
  self.rate_limit_rps = max(0.2, float(rate_limit_rps))
  self.timeout = timeout
  self._last_ts = 0.0
 
  def _sleep(self) -> None:
+     pass  # TODO: Implement
  dt = time.time() - self._last_ts
  min_dt = 1.0 / self.rate_limit_rps
  if dt < min_dt:
+     pass  # TODO: Implement
  time.sleep(min_dt - dt)
  self._last_ts = time.time()
 
  def discover_identities(
  self, headers: Dict[str, str], seed_endpoints: Optional[List[str]] = None
  ) -> Dict[str, str]:
+     pass  # TODO: Implement
  """
  Light identity discovery via common endpoints.
  Returns best-effort mapping of id/user_id/account_id.
  """
  # Lazy import to avoid circular deps
  try:
+     pass  # TODO: Implement
  from tools.bola_harness import BOLAHarness
 
  harness = BOLAHarness(
@@ -97,13 +107,16 @@ class ObjectIDPermuter:
  ids, _, _ = harness.discover_identities(headers, headers)
  return ids
  except Exception as e:
+     pass  # TODO: Implement
  logger.debug(f"Identity discovery failed: {e}")
  return {}
 
  def find_placeholders(self, endpoint: str) -> List[str]:
+     pass  # TODO: Implement
  """Find placeholder patterns in an endpoint template."""
  found = []
  for pattern in self.ID_PATTERNS:
+     pass  # TODO: Implement
  if re.search(pattern, endpoint):
  # Normalize to {placeholder_name}
  ph = pattern.replace(r"\{", "{").replace(r"\}", "}")
@@ -116,6 +129,7 @@ class ObjectIDPermuter:
  ids_a: Dict[str, str],
  ids_b: Dict[str, str],
  ) -> List[PermutationCase]:
+     pass  # TODO: Implement
  """
  Generate permutation cases for an endpoint template.
  For each placeholder found, create A vs B permutations.
@@ -130,6 +144,7 @@ class ObjectIDPermuter:
  val_b = ids_b.get(key) or ids_b.get("id") or ids_b.get("user_id")
 
  if val_a and val_b:
+     pass  # TODO: Implement
  cases.append(
  PermutationCase(
  endpoint_template=endpoint_template,
@@ -148,6 +163,7 @@ class ObjectIDPermuter:
  headers_b: Dict[str, str],
  dry_run: bool = True,
  ) -> Optional[PermutationResult]:
+     pass  # TODO: Implement
  """
  Execute a single permutation case safely.
  - Request A accesses endpoint with value_a using headers_a
@@ -155,28 +171,35 @@ class ObjectIDPermuter:
  - Then cross-test: A tries B's ID (potential IDOR)
  """
  if dry_run:
+     pass  # TODO: Implement
  return None
 
  url_a = case.endpoint_template.replace(case.placeholder, str(case.value_a))
  url_b = case.endpoint_template.replace(case.placeholder, str(case.value_b))
  if not url_a.startswith("http"):
+     pass  # TODO: Implement
  url_a = urljoin(self.base_url, url_a.lstrip("/"))
  if not url_b.startswith("http"):
+     pass  # TODO: Implement
  url_b = urljoin(self.base_url, url_b.lstrip("/"))
 
  # Cross-attempt: A tries to access B's resource (potential IDOR)
  url_cross = case.endpoint_template.replace(case.placeholder, str(case.value_b))
  if not url_cross.startswith("http"):
+     pass  # TODO: Implement
  url_cross = urljoin(self.base_url, url_cross.lstrip("/"))
 
  def fetch(url: str, hdr: Dict[str, str]) -> Tuple[int, str]:
+     pass  # TODO: Implement
  self._sleep()
  try:
+     pass  # TODO: Implement
  r = requests.get(
  url, headers=hdr, timeout=self.timeout, allow_redirects=False
  )
  return r.status_code, r.text or ""
  except Exception as e:
+     pass  # TODO: Implement
  return 0, str(e)
 
  sa, ta = fetch(url_a, headers_a)
@@ -191,6 +214,7 @@ class ObjectIDPermuter:
 
  # IDOR heuristic: A can access B's resource (cross-success while self also success)
  if sa == 200 and sc == 200 and case.value_a != case.value_b:
+     pass  # TODO: Implement
  signal = "idor_suspect"
  notes = f"IDOR/BOLA suspected: Account A can access B's {case.placeholder} ({case.value_b}) at {url_cross}"
 
@@ -213,6 +237,7 @@ class ObjectIDPermuter:
  headers_b: Dict[str, str],
  dry_run: bool = True,
  ) -> Tuple[List[PermutationCase], List[PermutationResult]]:
+     pass  # TODO: Implement
  """
  Run full matrix: discover IDs for A and B, generate permutations, execute.
  Returns (cases, results).
@@ -224,31 +249,40 @@ class ObjectIDPermuter:
  all_results: List[PermutationResult] = []
 
  for tmpl in endpoint_templates:
+     pass  # TODO: Implement
  cases = self.generate_permutations(tmpl, ids_a, ids_b)
  all_cases.extend(cases)
 
  if dry_run:
+     pass  # TODO: Implement
  return all_cases, []
 
  for case in all_cases:
+     pass  # TODO: Implement
  res = self.execute_permutation(case, headers_a, headers_b, dry_run=False)
  if res:
+     pass  # TODO: Implement
  all_results.append(res)
 
  return all_cases, all_results
 
 def format_permutation_cases(cases: List[PermutationCase]) -> str:
+    pass  # TODO: Implement
  lines: List[str] = []
  lines.append(f"Generated {len(cases)} permutation cases:")
  for c in cases:
+     pass  # TODO: Implement
  lines.append(f"- {c.endpoint_template} [{c.placeholder}] A={c.value_a} B={c.value_b}")
  return "\n".join(lines)
 
 def format_permutation_results(results: List[PermutationResult]) -> str:
+    pass  # TODO: Implement
  lines: List[str] = []
  lines.append(f"Executed {len(results)} permutations:")
  for r in results:
+     pass  # TODO: Implement
  lines.append(f"- [{r.signal}] A={r.status_a}({r.len_a}) vs B={r.status_b}({r.len_b})")
  if r.notes:
+     pass  # TODO: Implement
  lines.append(f" ! {r.notes}")
  return "\n".join(lines)

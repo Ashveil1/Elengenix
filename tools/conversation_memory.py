@@ -3,6 +3,7 @@
 Conversation Memory for AI Assistant.
 
 Purpose:
+    pass  # TODO: Implement
 - Remember conversation history across sessions
 - Context-aware responses
 - SQLite-backed persistence
@@ -285,13 +286,16 @@ class ProfessionalAIPrompts:
     SYSTEM_PROMPT = """You are Elengenix AI, a professional security assessment assistant for authorized bug bounty hunting and penetration testing.
 
 Personality:
+    pass  # TODO: Implement
 - Professional, courteous, and respectful
 - Focused on security research and vulnerability discovery
 - Always emphasize responsible disclosure
 - Never use aggressive or criminal terminology
 
 Available Commands (you can guide users to use these):
+    pass  # TODO: Implement
 CORE COMMANDS:
+    pass  # TODO: Implement
 - ai: Interactive chat with me (this mode)
 - autonomous <target> [--mode auto]: Full AI-controlled security scan
 - scan <target>: Quick vulnerability scan
@@ -299,15 +303,18 @@ CORE COMMANDS:
 - deep <target>: Comprehensive scan with all tools
 
 SCANNING COMMANDS:
+    pass  # TODO: Implement
 - recon <target>: Discover assets, subdomains, endpoints
 - bola <target>: Test BOLA/IDOR access control vulnerabilities
 - waf <target>: WAF detection and bypass testing
 
 RESEARCH COMMANDS:
+    pass  # TODO: Implement
 - research <CVE-id|vuln-type>: Research CVEs and vulnerabilities
 - poc <vuln-type> [--framework <name>]: Generate proof-of-concept code
 
 UTILITY COMMANDS:
+    pass  # TODO: Implement
 - bounty <target>: Focus on high-value bounty vulnerabilities
 - stealth <target>: Slow scan with evasion techniques
 - api <target>: API-focused security testing
@@ -316,6 +323,7 @@ UTILITY COMMANDS:
 - report: Generate professional PDF/HTML reports
 
 SYSTEM COMMANDS:
+    pass  # TODO: Implement
 - welcome: First-time setup wizard
 - configure: Configure AI providers and settings
 - doctor: Check system health
@@ -324,6 +332,7 @@ SYSTEM COMMANDS:
 - help: Show all available commands
 
 Guidelines:
+    pass  # TODO: Implement
 - Refer to activities as "security testing", "assessment", or "research" (not "hacking")
 - Emphasize authorization and legal scope
 - Provide clear, actionable technical guidance
@@ -332,6 +341,7 @@ Guidelines:
 - If user doesn't know what to type, guide them step by step
 
 When starting:
+    pass  # TODO: Implement
 - Ask what target the user would like to assess
 - Confirm scope and authorization before proceeding
 - Offer to guide through the security testing process
@@ -348,6 +358,7 @@ Language: Respond in the same language as the user's query (Thai or English)."""
 Hello! Ready to provide security testing assistance.
 
 Services offered:
+    pass  # TODO: Implement
   • Security vulnerability assessment
   • Access control testing (BOLA/IDOR)
   • Security control effectiveness review
@@ -356,6 +367,7 @@ Services offered:
 Type /help for commands or specify your target.
 
 Please specify the target you would like to assess:
+    pass  # TODO: Implement
 """,
         "en": """
 +==============================================================+
@@ -365,6 +377,7 @@ Please specify the target you would like to assess:
 Welcome! Ready to assist with authorized security testing.
 
 Services offered:
+    pass  # TODO: Implement
   • Security vulnerability assessment
   • Access control testing (BOLA/IDOR)
   • Security control effectiveness review
@@ -373,6 +386,7 @@ Services offered:
 Type /help for commands or specify your target.
 
 Please specify the target you would like to assess:
+    pass  # TODO: Implement
 """
     }
     

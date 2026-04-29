@@ -35,6 +35,7 @@ _TIMEOUT = 6
 _MAX_WORKERS = 10
 
 def _make_session() -> requests.Session:
+    pass  # TODO: Implement
  session = requests.Session()
  retry = Retry(total=2, backoff_factor=0.5, status_forcelist=[500, 502, 503])
  session.mount("https://", HTTPAdapter(max_retries=retry))
@@ -43,10 +44,13 @@ def _make_session() -> requests.Session:
  return session
 
 def _probe(session: requests.Session, base_url: str, endpoint: str) -> Dict | None:
+    pass  # TODO: Implement
  url = urljoin(base_url.rstrip("/") + "/", endpoint.lstrip("/"))
  try:
+     pass  # TODO: Implement
  r = session.get(url, timeout=_TIMEOUT, allow_redirects=False, verify=False)
  if r.status_code in (200, 201, 204):
+     pass  # TODO: Implement
  content_type = r.headers.get("Content-Type", "")
  return {
  "url": url,
@@ -56,28 +60,34 @@ def _probe(session: requests.Session, base_url: str, endpoint: str) -> Dict | No
  "is_json": "json" in content_type or url.endswith(".json"),
  }
  except Exception:
+     pass  # TODO: Implement
  pass
  return None
 
 def find_api_docs(url: str) -> List[Dict]:
+    pass  # TODO: Implement
  """
  Probe the target for API documentation endpoints.
  Returns a list of dicts with url, status, content_type, size.
  """
  if not url.startswith(("http://", "https://")):
+     pass  # TODO: Implement
  url = f"https://{url}"
 
  session = _make_session()
  found: List[Dict] = []
 
  with ThreadPoolExecutor(max_workers=_MAX_WORKERS) as pool:
+     pass  # TODO: Implement
  futures = {
  pool.submit(_probe, session, url, ep): ep
  for ep in API_ENDPOINTS
  }
  for future in as_completed(futures):
+     pass  # TODO: Implement
  result = future.result()
  if result:
+     pass  # TODO: Implement
  found.append(result)
  logger.info(f"API endpoint found: {result['url']}")
 
@@ -85,7 +95,9 @@ def find_api_docs(url: str) -> List[Dict]:
  return sorted(found, key=lambda x: x["url"])
 
 if __name__ == "__main__":
+    pass  # TODO: Implement
  import sys, json
  if len(sys.argv) > 1:
+     pass  # TODO: Implement
  results = find_api_docs(sys.argv[1])
  print(json.dumps(results, indent=2))

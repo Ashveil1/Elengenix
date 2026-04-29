@@ -27,23 +27,28 @@ _REDACT_PATTERNS = [
 ]
 
 def scrub_sensitive_data(text: str) -> str:
+    pass  # TODO: Implement
  """Remove PII and secrets from tool output before sending to LLM."""
  for pattern, replacement in _REDACT_PATTERNS:
+     pass  # TODO: Implement
  text = pattern.sub(replacement, text)
  return text
 
 def compress_output(raw_output: str, tool_name: str, max_chars: int = 3000) -> str:
+    pass  # TODO: Implement
  """
  Summarise and scrub tool output to fit within the LLM token budget.
  Tool-specific logic extracts the most security-relevant lines.
  """
  if not raw_output or not raw_output.strip():
+     pass  # TODO: Implement
  return f"[{tool_name}] No output."
 
  clean = scrub_sensitive_data(raw_output)
  tool = tool_name.lower()
 
  if "nmap" in tool:
+     pass  # TODO: Implement
  lines = clean.splitlines()
  important = [
  l for l in lines
@@ -51,20 +56,25 @@ def compress_output(raw_output: str, tool_name: str, max_chars: int = 3000) -> s
  ]
  result = "\n".join(important) if important else clean
  elif "nuclei" in tool:
+     pass  # TODO: Implement
  lines = clean.splitlines()
  important = [l for l in lines if "[" in l and "]" in l and l.strip()]
  result = "\n".join(important) if important else clean
  elif "httpx" in tool:
+     pass  # TODO: Implement
  lines = clean.splitlines()
  important = [l for l in lines if l.strip() and not l.startswith("#")]
  result = "\n".join(important[:200])
  elif "katana" in tool or "wayback" in tool or "gau" in tool:
+     pass  # TODO: Implement
  lines = sorted(set(clean.splitlines()))
  result = "\n".join(lines[:300])
  else:
+     pass  # TODO: Implement
  result = clean
 
  if len(result) > max_chars:
+     pass  # TODO: Implement
  half = max_chars // 2
  result = result[:half] + "\n... [TRUNCATED] ...\n" + result[-half:]
 

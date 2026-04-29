@@ -18,7 +18,7 @@ PROJECT_ROOT="$( cd -P "$( dirname "$SOURCE" )" >/dev/null 2>&1 && pwd )"
 
 # ── Configuration ─────────────────────────────────────────────────────────────
 VENV_DIR="$PROJECT_ROOT/venv"
-MAIN_SCRIPT="$PROJECT_ROOT/main.py"
+MAIN_SCRIPT="$PROJECT_ROOT/elengenix_launcher.py"
 REQUIREMENTS="$PROJECT_ROOT/requirements.txt"
 
 # ── Helper Functions ──────────────────────────────────────────────────────────
@@ -41,9 +41,13 @@ else
 fi
 
 # ── Pre-flight Checks ─────────────────────────────────────────────────────────
-# 1. Check if main.py exists
+# 1. Check if launcher exists (fallback to main.py for compatibility)
 if [[ ! -f "$MAIN_SCRIPT" ]]; then
-    die "Critical file not found: $MAIN_SCRIPT\n💡 Hint: Reinstall Elengenix or check your installation directory."
+    # Fallback to legacy main.py
+    MAIN_SCRIPT="$PROJECT_ROOT/main.py"
+    if [[ ! -f "$MAIN_SCRIPT" ]]; then
+        die "Critical file not found: elengenix_launcher.py or main.py\n💡 Hint: Reinstall Elengenix or check your installation directory."
+    fi
 fi
 
 # 2. Check and Activate Virtual Environment
@@ -64,7 +68,7 @@ if [[ -f "$REQUIREMENTS" ]] && ! $PYTHON_CMD -c "import rich" >/dev/null 2>&1; t
 fi
 
 # ── Execution ─────────────────────────────────────────────────────────────────
-info "Starting Elengenix v2.0.0 from: $PROJECT_ROOT"
+info "Starting Elengenix v3.0 from: $PROJECT_ROOT"
 
 # Use 'exec' to replace the shell process with python (Memory efficient)
 exec "$PYTHON_CMD" "$MAIN_SCRIPT" "$@"

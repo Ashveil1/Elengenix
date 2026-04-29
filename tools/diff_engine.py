@@ -17,10 +17,12 @@ def compute_diff(
  current_items: List[str],
  history_file: str,
 ) -> Dict[str, List[str]]:
+    pass  # TODO: Implement
  """
  Compare current list against history file.
 
  Returns:
+     pass  # TODO: Implement
  {
  "new": [...], # items not seen before
  "removed": [...], # items that disappeared
@@ -63,5 +65,6 @@ def compute_diff(
  }
 
 def get_new_items(current_list: List[str], history_file: str) -> List[str]:
+    pass  # TODO: Implement
  """Backward-compatible alias — returns only new items."""
  return compute_diff(current_list, history_file)["new"]
