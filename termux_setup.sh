@@ -274,3 +274,25 @@ echo -e "      elengenix scan <target>  - Run full scan"
 echo ""
 echo -e "  ${CYAN}Note:${NC} Restart Termux or run 'source ~/.bashrc' if commands not found"
 echo ""
+
+# Launch configuration wizard
+echo -e "${CYAN}══════════════════════════════════════════${NC}"
+echo -e "${BOLD}  ⚙️  CONFIGURATION WIZARD${NC}"
+echo -e "${CYAN}══════════════════════════════════════════${NC}"
+echo ""
+echo -e "  Configure your API keys and settings now?"
+echo -e "  (AI providers, Telegram, HackerOne)"
+echo ""
+read -p "  Run configuration wizard? [Y/n]: " -n 1 -r
+echo ""
+if [[ $REPLY =~ ^[Yy]$ ]] || [[ -z $REPLY ]]; then
+    echo ""
+    echo -e "${GREEN}Launching configuration wizard...${NC}"
+    python3 -c "from tools.config_wizard import run_config_wizard; run_config_wizard()" || warning "Configuration wizard had issues"
+    echo ""
+    echo -e "${GREEN}Configuration complete!${NC}"
+else
+    echo -e "${YELLOW}Skipped configuration.${NC}"
+    echo -e "  Run 'elengenix configure' anytime to set up API keys"
+fi
+echo ""

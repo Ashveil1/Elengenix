@@ -51,12 +51,92 @@ class ConfigWizard:
             notes="Most accurate but paid, requires credit card",
         ),
         AIProviderConfig(
+            name="Anthropic (Claude)",
+            env_key="ANTHROPIC_API_KEY",
+            base_url="https://api.anthropic.com/v1",
+            signup_url="https://console.anthropic.com/settings/keys",
+            is_free=False,
+            notes="Excellent reasoning, Claude 3.5 Sonnet",
+        ),
+        AIProviderConfig(
             name="Groq",
             env_key="GROQ_API_KEY",
             base_url="https://api.groq.com/openai/v1",
             signup_url="https://console.groq.com/keys",
             is_free=True,
             notes="Very fast, Llama 3.1 free",
+        ),
+        AIProviderConfig(
+            name="Cohere",
+            env_key="COHERE_API_KEY",
+            base_url="https://api.cohere.ai/v1",
+            signup_url="https://dashboard.cohere.com/api-keys",
+            is_free=True,
+            notes="Free tier available, good for text generation",
+        ),
+        AIProviderConfig(
+            name="Hugging Face",
+            env_key="HUGGINGFACE_API_KEY",
+            base_url="https://api-inference.huggingface.co",
+            signup_url="https://huggingface.co/settings/tokens",
+            is_free=True,
+            notes="Free inference for many models",
+        ),
+        AIProviderConfig(
+            name="Together AI",
+            env_key="TOGETHER_API_KEY",
+            base_url="https://api.together.xyz/v1",
+            signup_url="https://api.together.xyz/settings/api-keys",
+            is_free=True,
+            notes="Free tier, fast inference",
+        ),
+        AIProviderConfig(
+            name="Replicate",
+            env_key="REPLICATE_API_TOKEN",
+            base_url="https://api.replicate.com/v1",
+            signup_url="https://replicate.com/account/api-tokens",
+            is_free=True,
+            notes="Pay-as-you-go, many open-source models",
+        ),
+        AIProviderConfig(
+            name="Mistral",
+            env_key="MISTRAL_API_KEY",
+            base_url="https://api.mistral.ai/v1",
+            signup_url="https://console.mistral.ai/api-keys",
+            is_free=True,
+            notes="Free tier, Mistral 7B/8x7B",
+        ),
+        AIProviderConfig(
+            name="DeepSeek",
+            env_key="DEEPSEEK_API_KEY",
+            base_url="https://api.deepseek.com/v1",
+            signup_url="https://platform.deepseek.com/api_keys",
+            is_free=True,
+            notes="Very affordable, strong performance",
+        ),
+        AIProviderConfig(
+            name="Perplexity",
+            env_key="PERPLEXITY_API_KEY",
+            base_url="https://api.perplexity.ai",
+            signup_url="https://www.perplexity.ai/settings/api",
+            is_free=True,
+            notes="Free tier, good for research",
+        ),
+        AIProviderConfig(
+            name="OpenRouter",
+            env_key="OPENROUTER_API_KEY",
+            base_url="https://openrouter.ai/api/v1",
+            signup_url="https://openrouter.ai/keys",
+            is_free=True,
+            notes="Access to many models via one API",
+        ),
+        AIProviderConfig(
+            name="Azure OpenAI",
+            env_key="AZURE_OPENAI_API_KEY",
+            base_url="https://YOUR_RESOURCE.openai.azure.com",
+            signup_url="https://portal.azure.com",
+            is_free=False,
+            notes="Enterprise OpenAI, requires Azure account",
         ),
         AIProviderConfig(
             name="Ollama (Local)",
@@ -84,29 +164,35 @@ class ConfigWizard:
         while True:
             console.print("\n[bold]Select configuration:[/bold]")
             console.print("  [1] Configure AI Provider (API Keys)")
-            console.print("  [2] Configure Default Target")
-            console.print("  [3] Configure Rate Limits")
-            console.print("  [4] View configuration status")
-            console.print("  [5] Check system (Health Check)")
+            console.print("  [2] Configure Telegram Bot")
+            console.print("  [3] Configure HackerOne")
+            console.print("  [4] Configure Default Target")
+            console.print("  [5] Configure Rate Limits")
+            console.print("  [6] View configuration status")
+            console.print("  [7] Check system (Health Check)")
             console.print("  [0] Exit")
             
-            choice = console.input("\nSelect [0-5]: ").strip()
+            choice = console.input("\nSelect [0-7]: ").strip()
             
             if choice == "1":
                 self._setup_ai_provider()
             elif choice == "2":
-                self._setup_default_target()
+                self._setup_telegram()
             elif choice == "3":
-                self._setup_rate_limits()
+                self._setup_hackerone()
             elif choice == "4":
-                self._show_status()
+                self._setup_default_target()
             elif choice == "5":
+                self._setup_rate_limits()
+            elif choice == "6":
+                self._show_status()
+            elif choice == "7":
                 self._health_check()
             elif choice == "0":
                 console.print("\n[dim]Saving configuration...[/dim]")
                 break
             else:
-                print_warning("Please select 0-5")
+                print_warning("Please select 0-7")
     
     def _setup_ai_provider(self) -> None:
         """Setup AI provider and API key."""
@@ -120,7 +206,11 @@ class ConfigWizard:
             console.print(f"      {free_badge} - {provider.notes}")
             console.print()
         
-        choice = console.input("Select provider [1-4]: ").strip()
+        choice = console.input(f"Select provider [1-{len(self.AI_PROVIDERS)}] or [S]kip: ").strip()
+        
+        if choice.lower() == 's':
+            print_info("Skipped AI provider configuration")
+            return
         
         try:
             idx = int(choice) - 1
@@ -128,7 +218,7 @@ class ConfigWizard:
                 provider = self.AI_PROVIDERS[idx]
                 self._configure_provider(provider)
             else:
-                print_warning("Please select 1-4")
+                print_warning(f"Please select 1-{len(self.AI_PROVIDERS)}")
         except ValueError:
             print_warning("Please enter a number")
     
@@ -164,7 +254,11 @@ class ConfigWizard:
         masked = f"{current_key[:8]}..." if len(current_key) > 10 else "(none)"
         
         console.print(f"Current API Key: [dim]{masked}[/dim]")
-        new_key = console.input(f"Enter {provider.env_key} (Enter to skip): ").strip()
+        new_key = console.input(f"Enter {provider.env_key} or [S]kip: ").strip()
+        
+        if new_key.lower() == 's':
+            print_info("Skipped API key configuration")
+            return
         
         if new_key:
             self._save_env_var(provider.env_key, new_key)
@@ -208,6 +302,75 @@ class ConfigWizard:
             console.print(f"[dim]Error: {e}[/dim]")
             return False
     
+    def _setup_telegram(self) -> None:
+        """Setup Telegram bot configuration."""
+        console.print("\n[bold cyan]Telegram Bot Setup[/bold cyan]\n")
+        console.print("[dim]Get your bot token from @BotFather on Telegram[/dim]\n")
+        
+        # Bot Token
+        current_token = os.getenv("TELEGRAM_BOT_TOKEN", "")
+        masked_token = f"{current_token[:8]}..." if len(current_token) > 10 else "(none)"
+        console.print(f"Current Bot Token: [dim]{masked_token}[/dim]")
+        
+        new_token = console.input("Enter TELEGRAM_BOT_TOKEN or [S]kip: ").strip()
+        
+        if new_token.lower() == 's':
+            print_info("Skipped Telegram bot token")
+        elif new_token:
+            self._save_env_var("TELEGRAM_BOT_TOKEN", new_token)
+            print_success("Saved TELEGRAM_BOT_TOKEN")
+        else:
+            print_info("Skipped Telegram bot token")
+        
+        # Chat ID
+        current_chat = os.getenv("TELEGRAM_CHAT_ID", "")
+        console.print(f"\nCurrent Chat ID: [dim]{current_chat or '(none)'}[/dim]")
+        console.print("[dim]Get your chat ID from @userinfobot on Telegram[/dim]")
+        
+        new_chat = console.input("Enter TELEGRAM_CHAT_ID or [S]kip: ").strip()
+        
+        if new_chat.lower() == 's':
+            print_info("Skipped Telegram chat ID")
+        elif new_chat:
+            self._save_env_var("TELEGRAM_CHAT_ID", new_chat)
+            print_success("Saved TELEGRAM_CHAT_ID")
+        else:
+            print_info("Skipped Telegram chat ID")
+    
+    def _setup_hackerone(self) -> None:
+        """Setup HackerOne configuration."""
+        console.print("\n[bold cyan]HackerOne Setup[/bold cyan]\n")
+        console.print("[dim]Get your API credentials from https://hackerone.com/settings/me[/dim]\n")
+        
+        # API Key
+        current_key = os.getenv("HACKERONE_API_KEY", "")
+        masked_key = f"{current_key[:8]}..." if len(current_key) > 10 else "(none)"
+        console.print(f"Current API Key: [dim]{masked_key}[/dim]")
+        
+        new_key = console.input("Enter HACKERONE_API_KEY or [S]kip: ").strip()
+        
+        if new_key.lower() == 's':
+            print_info("Skipped HackerOne API key")
+        elif new_key:
+            self._save_env_var("HACKERONE_API_KEY", new_key)
+            print_success("Saved HACKERONE_API_KEY")
+        else:
+            print_info("Skipped HackerOne API key")
+        
+        # API User
+        current_user = os.getenv("HACKERONE_API_USER", "")
+        console.print(f"\nCurrent API User: [dim]{current_user or '(none)'}[/dim]")
+        
+        new_user = console.input("Enter HACKERONE_API_USER or [S]kip: ").strip()
+        
+        if new_user.lower() == 's':
+            print_info("Skipped HackerOne API user")
+        elif new_user:
+            self._save_env_var("HACKERONE_API_USER", new_user)
+            print_success("Saved HACKERONE_API_USER")
+        else:
+            print_info("Skipped HackerOne API user")
+
     def _setup_default_target(self) -> None:
         """Setup default target."""
         console.print("\n[bold cyan]Default Target Setup[/bold cyan]\n")
@@ -216,14 +379,15 @@ class ConfigWizard:
         if current:
             console.print(f"Current default target: [cyan]{current}[/cyan]")
         
-        target = console.input("Enter default target (empty to remove): ").strip()
+        target = console.input("Enter default target or [S]kip: ").strip()
         
-        if target:
+        if target.lower() == 's':
+            print_info("Skipped default target configuration")
+        elif target:
             self._save_env_var("ELENGENIX_DEFAULT_TARGET", target)
             print_success("Saved default target")
         else:
-            self._remove_env_var("ELENGENIX_DEFAULT_TARGET")
-            print_info("Removed default target")
+            print_info("Skipped default target configuration")
     
     def _setup_rate_limits(self) -> None:
         """Setup rate limits."""
@@ -264,10 +428,25 @@ class ConfigWizard:
         console.print(f"  Ollama (Local): {ollama_status}")
         
         # Active provider
-        from tools.universal_ai_client import AIClientManager
-        manager = AIClientManager()
-        active = manager.get_active_provider()
-        console.print(f"\n[bold]Active Provider:[/bold] [cyan]{active}[/cyan]")
+        try:
+            from tools.universal_ai_client import AIClientManager
+            manager = AIClientManager()
+            active = manager.get_active_provider()
+            console.print(f"\n[bold]Active Provider:[/bold] [cyan]{active}[/cyan]")
+        except:
+            console.print(f"\n[bold]Active Provider:[/bold] [yellow]Not configured[/yellow]")
+        
+        # Integrations
+        console.print("\n[bold]Integrations:[/bold]")
+        telegram_token = os.getenv("TELEGRAM_BOT_TOKEN", "")
+        telegram_chat = os.getenv("TELEGRAM_CHAT_ID", "")
+        telegram_status = "[green]Ready[/green]" if telegram_token and telegram_chat else "[red]Not configured[/red]"
+        console.print(f"  Telegram Bot: {telegram_status}")
+        
+        hackerone_key = os.getenv("HACKERONE_API_KEY", "")
+        hackerone_user = os.getenv("HACKERONE_API_USER", "")
+        hackerone_status = "[green]Ready[/green]" if hackerone_key and hackerone_user else "[red]Not configured[/red]"
+        console.print(f"  HackerOne: {hackerone_status}")
         
         # Other settings
         console.print("\n[bold]Other Settings:[/bold]")
