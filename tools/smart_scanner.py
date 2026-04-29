@@ -44,6 +44,7 @@ from typing import Any, Callable, Dict, List, Optional
 from tools.mission_state import MissionState, open_mission
 from tools.token_manager import TokenManager, get_token_manager
 from tools.progress_display import ProgressDisplay, ScanPhase
+from tools.telegram_bridge import TelegramBridge, get_telegram_bridge
 
 logger = logging.getLogger("elengenix.smart_scanner")
 
@@ -112,6 +113,7 @@ class SmartScanner:
                  target: str,
                  mission_id: str = None,
                  token_manager: TokenManager = None,
+                 telegram_bridge: TelegramBridge = None,
                  auto_pause: bool = True,
                  pause_after_hours: int = 3):
         """
@@ -121,12 +123,14 @@ class SmartScanner:
             target: Target to scan
             mission_id: Existing mission ID (for resume)
             token_manager: Token manager instance
+            telegram_bridge: Telegram bridge for notifications
             auto_pause: Auto-pause on budget limits
             pause_after_hours: Auto-pause if no findings after N hours
         """
         self.target = target
         self.mission_id = mission_id or f"mission-{uuid.uuid4().hex[:8]}"
         self.token_manager = token_manager or get_token_manager()
+        self.telegram_bridge = telegram_bridge or get_telegram_bridge()
         self.auto_pause = auto_pause
         self.pause_after_hours = pause_after_hours
         
@@ -164,6 +168,10 @@ class SmartScanner:
             Scan results summary
         """
         logger.info(f"Starting smart scanner for {self.target}")
+        
+        # Notify mission started
+        if self.telegram_bridge:
+            self.telegram_bridge.notify_mission_started(self.mission_id, self.target)
         
         # Initialize progress display
         scan_phases = [
@@ -215,6 +223,15 @@ class SmartScanner:
                 # Update progress
                 self.progress.complete(phase_name, f"Completed - {phase_result.get('summary', 'Done')}")
                 
+                # Notify phase completed
+                if self.telegram_bridge:
+                    self.telegram_bridge.notify_phase_completed(
+                        self.mission_id,
+                        phase_name,
+                        phase_result.get("summary", "Done"),
+                        len(phase_result.get("findings", []))
+                    )
+                
                 # Record token usage
                 tokens_used = phase_result.get("tokens_used", 0)
                 self.mission.add_tokens(tokens_used)
@@ -227,6 +244,17 @@ class SmartScanner:
                     self.mission.add_finding()
                     self.last_finding_time = datetime.utcnow()
                     self.progress.add_finding(len(new_findings))
+                    
+                    # Notify about findings
+                    if self.telegram_bridge:
+                        for finding in new_findings:
+                            severity = finding.get("severity", "info")
+                            is_urgent = severity.upper() in ["CRITICAL", "HIGH"]
+                            self.telegram_bridge.notify_finding(
+                                self.mission_id,
+                                finding,
+                                urgent=is_urgent
+                            )
                 
                 # Checkpoint after phase
                 self._checkpoint()
@@ -246,6 +274,15 @@ class SmartScanner:
             
             self.progress.finish(f"Scan complete - {len(self.findings)} findings")
             
+            # Notify mission completed
+            if self.telegram_bridge:
+                self.telegram_bridge.notify_mission_completed(
+                    self.mission_id,
+                    len(self.findings),
+                    results["tokens_used"],
+                    results["duration_seconds"]
+                )
+            
         except KeyboardInterrupt:
             logger.info("Scan interrupted by user")
             self._pause_mission("User interrupted")
@@ -256,6 +293,10 @@ class SmartScanner:
             self.mission.update_phase("failed")
             results["status"] = "failed"
             results["error"] = str(e)
+            
+            # Notify mission failed
+            if self.telegram_bridge:
+                self.telegram_bridge.notify_mission_failed(self.mission_id, str(e))
         
         return results
     
@@ -396,6 +437,10 @@ class SmartScanner:
         logger.info(f"Pausing mission: {reason}")
         self.mission.pause_mission()
         self.progress.finish(f"Paused: {reason}")
+        
+        # Notify via Telegram
+        if self.telegram_bridge:
+            self.telegram_bridge.notify_mission_paused(self.mission_id, reason)
     
     def _checkpoint(self) -> None:
         """Save checkpoint."""
