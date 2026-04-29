@@ -28,6 +28,7 @@ class AIProviderConfig:
     signup_url: str
     is_free: bool
     notes: str
+    api_type: str = "openai"  # "openai", "native", "azure"
 
 
 class ConfigWizard:
@@ -41,6 +42,7 @@ class ConfigWizard:
             signup_url="https://aistudio.google.com/app/apikey",
             is_free=True,
             notes="Free, fast, good Thai support (recommended)",
+            api_type="native"
         ),
         AIProviderConfig(
             name="OpenAI (GPT-4)",
@@ -49,6 +51,7 @@ class ConfigWizard:
             signup_url="https://platform.openai.com/api-keys",
             is_free=False,
             notes="Most accurate but paid, requires credit card",
+            api_type="openai"
         ),
         AIProviderConfig(
             name="Anthropic (Claude)",
@@ -57,6 +60,7 @@ class ConfigWizard:
             signup_url="https://console.anthropic.com/settings/keys",
             is_free=False,
             notes="Excellent reasoning, Claude 3.5 Sonnet",
+            api_type="native"
         ),
         AIProviderConfig(
             name="Groq",
@@ -65,6 +69,7 @@ class ConfigWizard:
             signup_url="https://console.groq.com/keys",
             is_free=True,
             notes="Very fast, Llama 3.1 free",
+            api_type="openai"
         ),
         AIProviderConfig(
             name="Cohere",
@@ -73,6 +78,7 @@ class ConfigWizard:
             signup_url="https://dashboard.cohere.com/api-keys",
             is_free=True,
             notes="Free tier available, good for text generation",
+            api_type="native"
         ),
         AIProviderConfig(
             name="Hugging Face",
@@ -81,6 +87,7 @@ class ConfigWizard:
             signup_url="https://huggingface.co/settings/tokens",
             is_free=True,
             notes="Free inference for many models",
+            api_type="native"
         ),
         AIProviderConfig(
             name="Together AI",
@@ -89,6 +96,7 @@ class ConfigWizard:
             signup_url="https://api.together.xyz/settings/api-keys",
             is_free=True,
             notes="Free tier, fast inference",
+            api_type="openai"
         ),
         AIProviderConfig(
             name="Replicate",
@@ -97,6 +105,7 @@ class ConfigWizard:
             signup_url="https://replicate.com/account/api-tokens",
             is_free=True,
             notes="Pay-as-you-go, many open-source models",
+            api_type="native"
         ),
         AIProviderConfig(
             name="Mistral",
@@ -105,6 +114,7 @@ class ConfigWizard:
             signup_url="https://console.mistral.ai/api-keys",
             is_free=True,
             notes="Free tier, Mistral 7B/8x7B",
+            api_type="openai"
         ),
         AIProviderConfig(
             name="DeepSeek",
@@ -113,6 +123,7 @@ class ConfigWizard:
             signup_url="https://platform.deepseek.com/api_keys",
             is_free=True,
             notes="Very affordable, strong performance",
+            api_type="openai"
         ),
         AIProviderConfig(
             name="Perplexity",
@@ -121,6 +132,7 @@ class ConfigWizard:
             signup_url="https://www.perplexity.ai/settings/api",
             is_free=True,
             notes="Free tier, good for research",
+            api_type="openai"
         ),
         AIProviderConfig(
             name="OpenRouter",
@@ -129,6 +141,7 @@ class ConfigWizard:
             signup_url="https://openrouter.ai/keys",
             is_free=True,
             notes="Access to many models via one API",
+            api_type="openai"
         ),
         AIProviderConfig(
             name="Azure OpenAI",
@@ -137,6 +150,7 @@ class ConfigWizard:
             signup_url="https://portal.azure.com",
             is_free=False,
             notes="Enterprise OpenAI, requires Azure account",
+            api_type="azure"
         ),
         AIProviderConfig(
             name="Ollama (Local)",
