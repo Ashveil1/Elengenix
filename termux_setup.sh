@@ -21,8 +21,9 @@ success() { echo -e "${GREEN}[✓]${NC} $1"; }
 warning() { echo -e "${YELLOW}[!]${NC} $1"; }
 error()   { echo -e "${RED}[✗]${NC} $1"; exit 1; }
 
-# 🛡️ ERROR TRAP
-trap 'echo -e "\n${RED}[!] Termux installation failed.${NC}";' ERR
+# 🛡️ ERROR TRAP - Only trap critical errors
+# Don't trap for optional tool failures
+trap 'echo -e "\n${RED}[!] Critical error during installation.${NC}";' ERR
 
 # Verify we're in the right directory
 if [ ! -f "sentinel" ] && [ ! -f "main.py" ]; then
@@ -68,10 +69,15 @@ if ! pip install --upgrade pip setuptools wheel --quiet; then error "Pip upgrade
 
 # Install core dependencies (required)
 info "Installing core dependencies..."
-CORE_DEPS="pyyaml requests python-dotenv openai anthropic google-generativeai rich tenacity nest-asyncio"
+CORE_DEPS="pyyaml requests python-dotenv openai anthropic rich tenacity nest-asyncio"
 for dep in $CORE_DEPS; do
     pip install "$dep" --quiet 2>/dev/null || warning "  $dep install had issues (continuing)"
 done
+
+# Install optional AI dependencies (Gemini - may fail on mobile)
+info "Installing optional AI dependencies (Gemini)..."
+OPTIONAL_AI="google-generativeai"
+pip install "$OPTIONAL_AI" --quiet 2>/dev/null || warning "  $OPTIONAL_AI skipped (use OpenAI/Anthropic instead)"
 
 # Install optional dependencies (may fail on mobile, that's OK)
 info "Installing optional dependencies..."
@@ -196,12 +202,12 @@ for tool in subfinder httpx katana; do
         success "  ✓ $tool"
         ((VERIFIED++))
     else
-        warning "  ✗ $tool (optional)"
+        warning "  ✗ $tool (may need PATH update or manual install)"
     fi
 done
 
 if [ $VERIFIED -eq 0 ]; then
-    warning "No Go tools verified. You may need to restart Termux or check Go installation."
+    warning "No Go tools verified. Try: export PATH=\$PATH:\$HOME/go/bin"
 else
     success "$VERIFIED core tools verified"
 fi
