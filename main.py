@@ -13,19 +13,19 @@ import logging
 import subprocess
 import argparse
 import re
-import time
 from datetime import datetime
 from pathlib import Path
 
 # --- Rich & Interactive UI ---
+from rich.console import Console
+from rich.panel import Panel
+from rich.progress import Progress, SpinnerColumn, TextColumn
+import questionary
+
 try:
-    from rich.console import Console
-    from rich.panel import Panel
-    from rich.progress import Progress, SpinnerColumn, TextColumn
-    import questionary
+    from ui_components import console
 except ImportError:
-    # Fallback for initial run before dependencies are installed
-    print("[*] Initializing system for the first time...")
+    console = Console()
 
 # ── Logging Setup ─────────────────────────────────────────────────────────────
 LOG_DIR = Path("data")
@@ -40,7 +40,6 @@ logging.basicConfig(
     ]
 )
 logger = logging.getLogger("elengenix.main")
-console = Console()
 
 # ── Dependency Management ─────────────────────────────────────────────────────
 def ensure_dependencies():
@@ -94,7 +93,7 @@ def main():
     
     parser = argparse.ArgumentParser(description="Elengenix CLI", add_help=False)
     parser.add_argument("command", nargs="?", default="auto", 
-                        choices=["ai", "scan", "gateway", "configure", "update", "doctor", "arsenal", "memory", "cve-update", "bola", "waf", "recon", "evasion", "report", "menu", "auto", "help", "bb", "check", "test", "red", "pdf", "hack", "research", "poc", "autonomous", "welcome", "quick", "deep", "bounty", "stealth", "api", "web", "profile", "history", "programs", "intel", "mission", "pause", "resume"])
+                        choices=["ai", "scan", "gateway", "configure", "update", "doctor", "arsenal", "memory", "cve-update", "bola", "waf", "recon", "evasion", "report", "menu", "auto", "help", "bb", "check", "test", "red", "pdf", "hack", "research", "poc", "autonomous", "welcome", "quick", "deep", "bounty", "stealth", "api", "web", "profile", "history", "programs", "intel", "mission", "pause", "resume", "cli"])
     parser.add_argument("target", nargs="?", help="Target domain or IP")
     parser.add_argument("--rate-limit", type=int, default=5, help="Max requests per second")
     parser.add_argument("--framework", type=str, default="generic", help="Target framework for PoC generation")
@@ -111,7 +110,7 @@ def main():
         return
     
     # Auto-run welcome if first time (unless running specific commands)
-    skip_welcome_commands = ["doctor", "configure", "update", "welcome"]
+    skip_welcome_commands = ["doctor", "configure", "update", "welcome", "cli"]
     if args.command not in skip_welcome_commands:
         from tools.welcome_wizard import WelcomeWizard
         wizard = WelcomeWizard()
@@ -141,7 +140,7 @@ def main():
     valid_commands = ["ai", "scan", "gateway", "configure", "update", "doctor", "arsenal", 
                      "memory", "cve-update", "bola", "waf", "recon", "evasion", "report", 
                      "menu", "auto", "bb", "check", "test", "red", "pdf", "hack", 
-                     "research", "poc", "autonomous", "welcome", "history"]
+                     "research", "poc", "autonomous", "welcome", "history", "cli"]
     
     if args.command and args.command not in valid_commands and args.command != "auto":
         from tools.command_suggest import handle_command_error, CommandSuggester
@@ -159,7 +158,8 @@ def main():
                 # Continue with corrected command
             else:
                 # Show help with history context
-                console.print(handle_command_error(args.command))
+                console.print(f"[yellow]Unknown command: {args.command}[/yellow]")
+                console.print("Run 'elengenix help' for available commands")
                 # Show recent history
                 recent = history.get_recent_commands(hours=24, limit=5)
                 if recent:
@@ -169,7 +169,8 @@ def main():
                 return
         else:
             # No suggestion found, show help
-            console.print(handle_command_error(args.command))
+            console.print(f"[yellow]Unknown command: {args.command}[/yellow]")
+            console.print("Run 'elengenix help' for available commands")
             # Show recent history
             recent = history.get_recent_commands(hours=24, limit=5)
             if recent:
@@ -224,7 +225,7 @@ def main():
     
     # Interactive Menu (Wizard)
     if args.command == "menu":
-        from ui_components import create_main_menu, format_menu_item, console
+        from ui_components import create_main_menu, format_menu_item
         menu_items = create_main_menu()
         
         while True:
@@ -280,7 +281,7 @@ def main():
 
         elif args.command == "ai":
             from tools.conversation_memory import ConversationMemory, ProfessionalAIPrompts
-            from ui_components import console, print_info, print_success, print_error
+            from ui_components import print_info, print_success, print_error
             
             # Initialize conversation memory
             memory = ConversationMemory()
@@ -431,10 +432,14 @@ def main():
             from tools.config_wizard import run_config_wizard
             run_config_wizard()
 
+        elif args.command == "cli":
+            from cli import main as cli_main
+            cli_main()
+
         elif args.command == "research":
             """Vulnerability Research Engine - Research CVEs and generate PoCs."""
             from tools.vuln_researcher import VulnerabilityResearcher
-            from ui_components import console, print_success, print_error
+            from ui_components import print_success, print_error
 
             researcher = VulnerabilityResearcher()
 
@@ -502,7 +507,7 @@ def main():
         elif args.command == "poc":
             """Generate custom PoC for vulnerability type."""
             from tools.vuln_researcher import VulnerabilityResearcher
-            from ui_components import console, print_success, print_error
+            from ui_components import print_success, print_error
 
             if not args.target:
                 console.print("Usage: elengenix poc <vuln-type> [--framework <name>] [--version <ver>]")
@@ -534,7 +539,7 @@ def main():
         elif args.command == "autonomous":
             """Fully autonomous AI mode - AI controls everything."""
             from tools.autonomous_agent import AutonomousAgent
-            from ui_components import console, print_success, print_error, print_warning
+            from ui_components import print_success, print_error, print_warning
 
             if not args.target:
                 console.print("Usage: elengenix autonomous <target> [--mode {strict|ask|auto}]")
@@ -961,7 +966,7 @@ def main():
         elif args.command == "profile":
             """Profile management - list, create, delete profiles."""
             from tools.profile_manager import ProfileManager
-            from ui_components import console, print_info, print_success, print_error
+            from ui_components import print_info, print_success, print_error
             
             manager = ProfileManager()
             
@@ -1025,7 +1030,7 @@ def main():
         elif args.command in ["programs", "intel", "bounty"]:  # Phase 1: Intelligence Discovery
             """Discover and rank bug bounty programs from HackerOne."""
             from tools.bounty_intelligence import BountyIntelligence
-            from ui_components import console, print_info, print_success, print_error, print_warning
+            from ui_components import print_info, print_success, print_error, print_warning
             import os
             
             # Check for API credentials
@@ -1108,7 +1113,7 @@ def main():
             """Mission control - start autonomous scanning mission."""
             from tools.smart_scanner import SmartScanner
             from tools.token_manager import get_token_manager
-            from ui_components import console, print_info, print_success, print_error
+            from ui_components import print_info, print_success, print_error
             
             if not args.target:
                 print_error("Usage: elengenix mission <target>")
@@ -1159,7 +1164,7 @@ def main():
         elif args.command == "pause":
             """Pause a running mission."""
             from tools.smart_scanner import SmartScanner
-            from ui_components import console, print_info, print_success, print_error
+            from ui_components import print_info, print_success, print_error
             
             if not args.target:
                 print_error("Usage: elengenix pause <mission_id>")
@@ -1178,7 +1183,7 @@ def main():
         elif args.command == "resume":
             """Resume a paused mission."""
             from tools.smart_scanner import SmartScanner
-            from ui_components import console, print_info, print_success, print_error
+            from ui_components import print_info, print_success, print_error
             
             if not args.target:
                 print_error("Usage: elengenix resume <mission_id>")
@@ -1201,7 +1206,7 @@ def main():
         elif args.command == "history":
             """Command history management."""
             from tools.history_manager import get_history_manager
-            from ui_components import console, print_info, print_success, print_error
+            from ui_components import print_info, print_success, print_error
             
             history_mgr = get_history_manager()
             
@@ -1254,7 +1259,7 @@ def main():
         elif args.command in ["quick", "deep", "bounty", "stealth", "api", "web"]:
             """Profile shortcuts - one-command execution."""
             from tools.profile_manager import ProfileManager
-            from ui_components import console, print_success, print_error
+            from ui_components import print_success, print_error
             
             manager = ProfileManager()
             
