@@ -1,7 +1,7 @@
 # ═══════════════════════════════════════════════════════
 # Elengenix Configuration Template (v1.5.0)
 # ═══════════════════════════════════════════════════════
-# 🔐 SECURITY: Never store real keys here. Use .env instead.
+#  SECURITY: Never store real keys here. Use .env instead.
 # ═══════════════════════════════════════════════════════
 
 agent:

@@ -384,23 +384,23 @@ class TokenManager:
         daily_ratio = status["daily_ratio"]
         
         if daily_ratio >= self.ALERT_THRESHOLD_3 and "daily_90" not in self._alerted_thresholds:
-            alerts.append(f"⚠️ 90% daily budget used: ${status['spent_today']:.2f} / ${self.daily_budget:.2f}")
+            alerts.append(f" 90% daily budget used: ${status['spent_today']:.2f} / ${self.daily_budget:.2f}")
             self._alerted_thresholds.add("daily_90")
         elif daily_ratio >= self.ALERT_THRESHOLD_2 and "daily_75" not in self._alerted_thresholds:
-            alerts.append(f"⚠️ 75% daily budget used: ${status['spent_today']:.2f} / ${self.daily_budget:.2f}")
+            alerts.append(f" 75% daily budget used: ${status['spent_today']:.2f} / ${self.daily_budget:.2f}")
             self._alerted_thresholds.add("daily_75")
         elif daily_ratio >= self.ALERT_THRESHOLD_1 and "daily_50" not in self._alerted_thresholds:
-            alerts.append(f"⚠️ 50% daily budget used: ${status['spent_today']:.2f} / ${self.daily_budget:.2f}")
+            alerts.append(f" 50% daily budget used: ${status['spent_today']:.2f} / ${self.daily_budget:.2f}")
             self._alerted_thresholds.add("daily_50")
         
         # Monthly alerts
         monthly_ratio = status["monthly_ratio"]
         
         if monthly_ratio >= self.ALERT_THRESHOLD_3 and "monthly_90" not in self._alerted_thresholds:
-            alerts.append(f"⚠️ 90% monthly budget used: ${status['spent_month']:.2f} / ${self.monthly_budget:.2f}")
+            alerts.append(f" 90% monthly budget used: ${status['spent_month']:.2f} / ${self.monthly_budget:.2f}")
             self._alerted_thresholds.add("monthly_90")
         elif monthly_ratio >= self.ALERT_THRESHOLD_2 and "monthly_75" not in self._alerted_thresholds:
-            alerts.append(f"⚠️ 75% monthly budget used: ${status['spent_month']:.2f} / ${self.monthly_budget:.2f}")
+            alerts.append(f" 75% monthly budget used: ${status['spent_month']:.2f} / ${self.monthly_budget:.2f}")
             self._alerted_thresholds.add("monthly_75")
         
         return alerts
@@ -567,9 +567,9 @@ def run_cli():
     elif command == "check":
         can_proceed, reason = tm.can_proceed()
         if can_proceed:
-            print("✓ Can proceed with operations")
+            print(" Can proceed with operations")
         else:
-            print(f"✗ Cannot proceed: {reason}")
+            print(f" Cannot proceed: {reason}")
     
     elif command == "mission":
         if len(sys.argv) < 3:

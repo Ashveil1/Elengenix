@@ -332,6 +332,7 @@ class UniversalAIClient:
                         if "content" in delta:
                             yield delta["content"]
                     except:
+                        pass
 
     def simple_chat(self, user_message: str, system_prompt: Optional[str] = None) -> str:
         """
@@ -449,10 +450,10 @@ def create_default_client() -> UniversalAIClient:
 def format_ai_status(status: Dict[str, Any]) -> str:
     """Format AI client status for display."""
     lines = [
-        f"🤖 AI Provider: {status['provider']}",
-        f"📍 Endpoint: {status['base_url']}",
-        f"🧠 Model: {status['model']}",
-        f"🔑 API Key: {'✓' if status['has_api_key'] else '✗'}",
-        f"✅ Available: {'Yes' if status['available'] else 'No'}",
+        f" AI Provider: {status['provider']}",
+        f" Endpoint: {status['base_url']}",
+        f" Model: {status['model']}",
+        f" API Key: {'' if status['has_api_key'] else ''}",
+        f" Available: {'Yes' if status['available'] else 'No'}",
     ]
     return "\n".join(lines)

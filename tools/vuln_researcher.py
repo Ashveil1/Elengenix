@@ -375,6 +375,7 @@ class VulnerabilityResearcher:
                     "type": "exploit"
                 })
         except Exception:
+            pass
         
         # Check GitHub for PoC repos
         try:
@@ -390,6 +391,7 @@ class VulnerabilityResearcher:
                         "stars": repo.get("stargazers_count", 0),
                     })
         except Exception:
+            pass
         
         return pocs
     

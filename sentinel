@@ -23,7 +23,7 @@ REQUIREMENTS="$PROJECT_ROOT/requirements.txt"
 
 # ── Helper Functions ──────────────────────────────────────────────────────────
 die() {
-    echo -e "\033[0;31m[✗] $1\033[0m" >&2
+    echo -e "\033[0;31m[] $1\033[0m" >&2
     exit "${2:-1}"
 }
 
@@ -46,7 +46,7 @@ if [[ ! -f "$MAIN_SCRIPT" ]]; then
     # Fallback to legacy main.py
     MAIN_SCRIPT="$PROJECT_ROOT/main.py"
     if [[ ! -f "$MAIN_SCRIPT" ]]; then
-        die "Critical file not found: elengenix_launcher.py or main.py\n💡 Hint: Reinstall Elengenix or check your installation directory."
+        die "Critical file not found: elengenix_launcher.py or main.py\n Hint: Reinstall Elengenix or check your installation directory."
     fi
 fi
 
@@ -63,7 +63,7 @@ fi
 # 3. Canary Dependency Check
 if [[ -f "$REQUIREMENTS" ]] && ! $PYTHON_CMD -c "import rich" >/dev/null 2>&1; then
     echo -e "\033[1;33m[!] Warning: Core dependencies (rich) missing.\033[0m"
-    echo -e "    💡 Run: pip install -r $REQUIREMENTS"
+    echo -e "     Run: pip install -r $REQUIREMENTS"
     echo ""
 fi
 

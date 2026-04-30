@@ -498,11 +498,11 @@ def run_cli():
         )
         
         if success:
-            print(f"✓ Created profile: {name}")
+            print(f" Created profile: {name}")
             print(f"  Based on: {based_on}")
             print(f"  Options: {options}")
         else:
-            print(f"✗ Failed to create profile")
+            print(f" Failed to create profile")
             sys.exit(1)
     
     elif command == "delete":
@@ -512,9 +512,9 @@ def run_cli():
         
         name = sys.argv[2]
         if manager.delete_profile(name):
-            print(f"✓ Deleted profile: {name}")
+            print(f" Deleted profile: {name}")
         else:
-            print(f"✗ Failed to delete profile: {name}")
+            print(f" Failed to delete profile: {name}")
             sys.exit(1)
     
     elif command == "export":
@@ -539,12 +539,12 @@ def run_cli():
         try:
             json_data = Path(file_path).read_text()
             if manager.import_profile(json_data):
-                print(f"✓ Imported profile from {file_path}")
+                print(f" Imported profile from {file_path}")
             else:
-                print("✗ Failed to import profile")
+                print(" Failed to import profile")
                 sys.exit(1)
         except Exception as e:
-            print(f"✗ Error: {e}")
+            print(f" Error: {e}")
             sys.exit(1)
     
     else:

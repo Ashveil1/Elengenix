@@ -1,9 +1,21 @@
 """
-Elengenix - Telegram Bot (v1.5.0)
-- High-Security Implementation
-- Rate Limiting & Domain Validation
-- Robust Async Execution & Race Condition Prevention
-- Production-Grade Logging and Error Handling
+bot.py -- Elengenix Telegram Bot Gateway (v2.0.0)
+
+Secure Telegram bot interface for remote control of Elengenix operations.
+
+Features:
+    - High-security domain validation and input sanitization
+    - Per-user rate limiting (configurable window and threshold)
+    - Async execution with timeout protection
+    - User preferences and notification management
+    - Mission control (start, pause, resume, findings)
+
+Usage:
+    python bot.py
+    # or via launcher: elengenix telegram
+
+Requires:
+    TELEGRAM_BOT_TOKEN in .env or config.yaml
 """
 
 import logging
@@ -53,8 +65,8 @@ def check_config_security(path: Path):
     mode = path.stat().st_mode
     # Warn if readable by others (Group or World)
     if mode & (stat.S_IRGRP | stat.S_IROTH):
-        logger.warning(f" {path.name} has loose permissions: {oct(mode)}")
-        logger.warning(" Run: chmod 600 config.yaml to protect your secrets")
+        logger.warning(f"[WARN] {path.name} has loose permissions: {oct(mode)}")
+        logger.warning("[WARN] Run: chmod 600 config.yaml to protect your secrets")
 
 # Load Config 
 try:
@@ -132,25 +144,25 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     pref = get_preferences(user_id)
     
     welcome = (
-        " *Elengenix Hunter Bot v1.6.0*\n\n"
+        "*Elengenix Bot v2.0.0*\n\n"
         "Professional Bug Bounty Automation Hub.\n\n"
-        " *Main Commands:*\n"
-        " `/scan <domain>` — Optimized Recon & Scan\n"
-        " `/ask <query>` — Persistent AI Agent\n"
-        " `/status` — Check System Health\n"
-        " `/bounty` — Discover bug bounty programs\n"
-        " `/mission <target>` — Start autonomous mission\n\n"
-        " *Mission Control:*\n"
-        " `/pause <mission_id>` — Pause mission\n"
-        " `/resume <mission_id>` — Resume mission\n"
-        " `/findings <mission_id>` — View findings\n"
-        " `/programs` — List top programs\n\n"
-        " *User Preferences:*\n"
-        " `/settings` — Configure notifications & preferences\n"
-        " `/favorites` — View favorite targets\n"
-        " `/addfav <target>` — Add to favorites\n"
-        " `/delfav <target>` — Remove from favorites\n\n"
-        f" *Notifications:* {'Enabled' if pref.notifications_enabled else 'Disabled'}"
+        "*Commands:*\n"
+        "`/scan <domain>` -- Recon and Scan\n"
+        "`/ask <query>` -- AI Agent\n"
+        "`/status` -- System Health\n"
+        "`/bounty` -- Discover programs\n"
+        "`/mission <target>` -- Start mission\n\n"
+        "*Mission Control:*\n"
+        "`/pause <id>` -- Pause mission\n"
+        "`/resume <id>` -- Resume mission\n"
+        "`/findings <id>` -- View findings\n"
+        "`/programs` -- List top programs\n\n"
+        "*Preferences:*\n"
+        "`/settings` -- Notifications and preferences\n"
+        "`/favorites` -- View favorite targets\n"
+        "`/addfav <target>` -- Add to favorites\n"
+        "`/delfav <target>` -- Remove from favorites\n\n"
+        f"Notifications: {'Enabled' if pref.notifications_enabled else 'Disabled'}"
     )
     
     keyboard = [
@@ -166,71 +178,72 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     import shutil
     tools = ["subfinder", "httpx", "nuclei", "katana"]
-    lines = [" *System Health Checklist:*\n"]
+    lines = ["*System Health Checklist:*\n"]
     for tool in tools:
         found = shutil.which(tool) is not None
-        lines.append(f"{'' if found else ''} `{tool}`")
-    lines.append(f"\n AI Agent: {' Online' if agent else ' Offline'}")
+        status = "[OK]" if found else "[MISSING]"
+        lines.append(f"{status} `{tool}`")
+    lines.append(f"\nAI Agent: {'[OK] Online' if agent else '[FAIL] Offline'}")
     await safe_reply(update, "\n".join(lines))
 
 async def cmd_scan(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     if not check_rate_limit(user_id):
-        await safe_reply(update, "⏳ *Rate Limit:* Please wait a moment before next scan.")
+        await safe_reply(update, "*Rate Limit:* Please wait a moment before next scan.")
         return
 
     if not context.args:
-        await safe_reply(update, " Usage: `/scan example.com`")
+        await safe_reply(update, "Usage: `/scan example.com`")
         return
 
     target = context.args[0].strip()
     if not is_valid_domain(target):
-        await safe_reply(update, " *Security Error:* Invalid domain or unauthorized scope.")
+        await safe_reply(update, "*Security Error:* Invalid domain or unauthorized scope.")
         return
 
-    await safe_reply(update, f" *Scan Initiated:* `{target}`\nRunning parallel recon and analysis...")
+    await safe_reply(update, f"*Scan Initiated:* `{target}`\nRunning parallel recon and analysis...")
 
     try:
         from orchestrator import run_standard_scan
-        # ⏱ 10-Minute Timeout Protection
+        # 10-Minute Timeout Protection
         result = await asyncio.wait_for(
             run_in_thread(run_standard_scan, target),
             timeout=600
         )
         if result:
-            await safe_reply(update, f" *Scan Complete:* `{target}`\nReports saved to cloud/local storage.")
+            await safe_reply(update, f"*Scan Complete:* `{target}`\nReports saved to cloud/local storage.")
         else:
-            await safe_reply(update, f" Scan finished for `{target}` with no critical findings.")
+            await safe_reply(update, f"Scan finished for `{target}` with no critical findings.")
     except asyncio.TimeoutError:
-        await safe_reply(update, "⏱ *Timeout:* Scan exceeded 10 minutes. Check local logs.")
+        await safe_reply(update, "*Timeout:* Scan exceeded 10 minutes. Check local logs.")
     except Exception as e:
         logger.error(f"Scan error: {e}")
-        await safe_reply(update, f" *System Error:* `{str(e)[:100]}`")
+        await safe_reply(update, f"*System Error:* `{str(e)[:100]}`")
 
 async def cmd_ask(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not agent:
-        await safe_reply(update, " AI Agent is currently offline.")
+        await safe_reply(update, "AI Agent is currently offline.")
         return
 
     query = " ".join(context.args).strip()
     if not query:
-        await safe_reply(update, " Usage: `/ask find vulnerabilities on example.com`")
+        await safe_reply(update, "Usage: `/ask find vulnerabilities on example.com`")
         return
 
     chat_id = update.effective_chat.id
-    await safe_reply(update, " *Sentinel is analyzing technical vectors...*")
+    await safe_reply(update, "*Analyzing technical vectors...*")
 
     # Race-Condition Safe Callback
     def bot_callback(msg: str):
-        asyncio.create_task(context.bot.send_message(chat_id=chat_id, text=f" {msg}", parse_mode="Markdown"))
+        asyncio.create_task(context.bot.send_message(chat_id=chat_id, text=f"{msg}", parse_mode="Markdown"))
 
     try:
         response = await run_in_thread(agent.process_query, query, bot_callback)
         if response:
-            await safe_reply(update, f" *Agent Findings:*\n\n{response[:3800]}")
+            await safe_reply(update, f"*Agent Findings:*\n\n{response[:3800]}")
     except Exception as e:
         logger.error(f"AI error: {e}")
-        await safe_reply(update, f" *AI Error:* `{str(e)[:100]}`")
+        await safe_reply(update, f"*AI Error:* `{str(e)[:100]}`")
 
 async def cmd_bounty(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Start autonomous bounty hunt."""
@@ -624,7 +637,7 @@ def main():
     
     app.add_handler(CallbackQueryHandler(button_callback))
 
-    logger.info(" Elengenix Bot is now operational (v1.5.0)")
+    logger.info("[START] Elengenix Bot is now operational (v2.0.0)")
     app.run_polling(drop_pending_updates=True)
 
 if __name__ == "__main__":

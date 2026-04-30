@@ -16,81 +16,83 @@ import urllib.parse
 from dataclasses import dataclass
 from typing import List, Optional
 
+
 @dataclass
 class MutationResult:
- payload: str
- techniques: List[str]
+    payload: str
+    techniques: List[str]
+
 
 class PayloadMutator:
- def __init__(self, seed: Optional[int] = None):
- self._rnd = random.Random(seed)
+    def __init__(self, seed: Optional[int] = None):
+        self._rnd = random.Random(seed)
 
- def mutate(self, payload: str, max_variants: int = 25) -> List[MutationResult]:
- if not payload:
- return []
+    def mutate(self, payload: str, max_variants: int = 25) -> List[MutationResult]:
+        if not payload:
+            return []
 
- variants: List[MutationResult] = []
+        variants: List[MutationResult] = []
 
- # Base
- variants.append(MutationResult(payload=payload, techniques=["base"]))
+        # Base
+        variants.append(MutationResult(payload=payload, techniques=["base"]))
 
- # URL-encode
- variants.append(MutationResult(payload=urllib.parse.quote(payload, safe=""), techniques=["urlencode"]))
+        # URL-encode
+        variants.append(MutationResult(payload=urllib.parse.quote(payload, safe=""), techniques=["urlencode"]))
 
- # Double URL-encode
- variants.append(
- MutationResult(
- payload=urllib.parse.quote(urllib.parse.quote(payload, safe=""), safe=""),
- techniques=["double_urlencode"],
- )
- )
+        # Double URL-encode
+        variants.append(
+            MutationResult(
+                payload=urllib.parse.quote(urllib.parse.quote(payload, safe=""), safe=""),
+                techniques=["double_urlencode"],
+            )
+        )
 
- # Case toggle for keywords (simple)
- variants.append(MutationResult(payload=self._case_toggle(payload), techniques=["case_toggle"]))
+        # Case toggle for keywords (simple)
+        variants.append(MutationResult(payload=self._case_toggle(payload), techniques=["case_toggle"]))
 
- # Whitespace sprinkling
- variants.append(MutationResult(payload=self._whitespace_sprinkle(payload), techniques=["whitespace_sprinkle"]))
+        # Whitespace sprinkling
+        variants.append(MutationResult(payload=self._whitespace_sprinkle(payload), techniques=["whitespace_sprinkle"]))
 
- # Quote switching
- variants.append(MutationResult(payload=payload.replace('"', "'").replace("'", '"'), techniques=["quote_switch"]))
+        # Quote switching
+        variants.append(MutationResult(payload=payload.replace('"', "'").replace("'", '"'), techniques=["quote_switch"]))
 
- # Random concatenation style (useful for some contexts)
- variants.append(MutationResult(payload=self._concat_style(payload), techniques=["concat_style"]))
+        # Random concatenation style (useful for some contexts)
+        variants.append(MutationResult(payload=self._concat_style(payload), techniques=["concat_style"]))
 
- # De-dup and cap
- seen = set()
- uniq: List[MutationResult] = []
- for v in variants:
- if v.payload not in seen:
- seen.add(v.payload)
- uniq.append(v)
- if len(uniq) >= max_variants:
- break
- return uniq
+        # De-dup and cap
+        seen = set()
+        uniq: List[MutationResult] = []
+        for v in variants:
+            if v.payload not in seen:
+                seen.add(v.payload)
+                uniq.append(v)
+            if len(uniq) >= max_variants:
+                break
+        return uniq
 
- def _case_toggle(self, s: str) -> str:
- out = []
- for ch in s:
- if ch.isalpha() and self._rnd.random() < 0.35:
- out.append(ch.swapcase())
- else:
- out.append(ch)
- return "".join(out)
+    def _case_toggle(self, s: str) -> str:
+        out = []
+        for ch in s:
+            if ch.isalpha() and self._rnd.random() < 0.35:
+                out.append(ch.swapcase())
+            else:
+                out.append(ch)
+        return "".join(out)
 
- def _whitespace_sprinkle(self, s: str) -> str:
- # Insert random harmless whitespace characters
- ws = [" ", "\t", "\n", "\r\n"]
- out = []
- for ch in s:
- out.append(ch)
- if self._rnd.random() < 0.08:
- out.append(self._rnd.choice(ws))
- return "".join(out)
+    def _whitespace_sprinkle(self, s: str) -> str:
+        # Insert random harmless whitespace characters
+        ws = [" ", "\t", "\n", "\r\n"]
+        out = []
+        for ch in s:
+            out.append(ch)
+            if self._rnd.random() < 0.08:
+                out.append(self._rnd.choice(ws))
+        return "".join(out)
 
- def _concat_style(self, s: str) -> str:
- # Very conservative: wrap with string concatenation markers often seen in injections
- # This is a generic transform and may not be valid in all sinks.
- if len(s) < 6:
- return s
- mid = len(s) // 2
- return s[:mid] + "" + s[mid:]
+    def _concat_style(self, s: str) -> str:
+        # Very conservative: wrap with string concatenation markers often seen in injections
+        # This is a generic transform and may not be valid in all sinks.
+        if len(s) < 6:
+            return s
+        mid = len(s) // 2
+        return s[:mid] + "" + s[mid:]

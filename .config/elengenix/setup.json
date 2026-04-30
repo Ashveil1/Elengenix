@@ -1,0 +1,11 @@
+{
+  "ai_provider": "Gemini (Google)",
+  "ai_model": "gemini-2.0-flash",
+  "default_mode": "autonomous",
+  "rate_limit": 5,
+  "theme": "minimal",
+  "auto_update": true,
+  "telemetry": false,
+  "first_run_complete": true,
+  "setup_at": "2026-04-30T05:17:56.292620"
+}

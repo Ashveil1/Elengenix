@@ -153,7 +153,7 @@ class WelcomeWizard:
     
     def _print_success(self, message: str) -> None:
         """Print success indicator."""
-        print(f"  ✓ {message}")
+        print(f"   {message}")
     
     def _print_info(self, message: str) -> None:
         """Print info message."""
@@ -201,7 +201,7 @@ class WelcomeWizard:
             time.sleep(0.1)
             i += 1
         
-        sys.stdout.write(f"\r  ✓ {message}{' ' * 20}\n")
+        sys.stdout.write(f"\r   {message}{' ' * 20}\n")
         sys.stdout.flush()
     
     def run_setup(self) -> SetupConfig:
@@ -308,7 +308,7 @@ class WelcomeWizard:
         
         if configured:
             # Auto-pick first configured, but show all
-            print(f"\n  ✓ Using: {configured[0][0]}")
+            print(f"\n   Using: {configured[0][0]}")
             
             if len(configured) > 1:
                 print("\n  Other configured providers:")
@@ -359,7 +359,7 @@ class WelcomeWizard:
             os.environ[env_key] = key
             # Save to .env
             self._save_to_env(env_key, key)
-            print(f"  ✓ {provider_name} configured!")
+            print(f"   {provider_name} configured!")
         
         return provider_name
     
@@ -400,7 +400,7 @@ class WelcomeWizard:
     def _show_completion(self, config: SetupConfig) -> None:
         """Show completion screen with next steps."""
         print("\n" + "=" * 64)
-        print("  ✓ Setup Complete!")
+        print("   Setup Complete!")
         print("=" * 64)
         
         print("\n  Your configuration:")
@@ -436,7 +436,7 @@ class WelcomeWizard:
         print("    $ elengenix doctor              # Check system")
         
         print("\n" + "=" * 64)
-        print("  Happy hunting! 🐛")
+        print("  Happy hunting! ")
         print("=" * 64 + "\n")
     
     def run_if_first_time(self) -> Optional[SetupConfig]:

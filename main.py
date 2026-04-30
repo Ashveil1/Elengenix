@@ -13,6 +13,7 @@ import logging
 import subprocess
 import argparse
 import re
+import importlib.util
 from datetime import datetime
 from pathlib import Path
 
@@ -43,36 +44,36 @@ logger = logging.getLogger("elengenix.main")
 
 # ── Dependency Management ─────────────────────────────────────────────────────
 def ensure_dependencies():
-    """Safety-first dependency checker with no-break logic."""
-    required = {
-        "yaml": "pyyaml", "rich": "rich", "questionary": "questionary",
-        "requests": "requests", "google.generativeai": "google-generativeai",
-        "openai": "openai", "anthropic": "anthropic", "trafilatura": "trafilatura",
-        "dotenv": "python-dotenv", "nest_asyncio": "nest-asyncio", "tenacity": "tenacity"
+    """Dependency checker with graceful degradation for optional providers."""
+    core_required = {
+        "yaml": "pyyaml",
+        "rich": "rich",
+        "questionary": "questionary",
+        "requests": "requests",
+        "dotenv": "python-dotenv",
+        "tenacity": "tenacity",
     }
-    
-    missing = []
-    for mod, pkg in required.items():
-        try:
-            __import__(mod)
-        except ImportError:
-            missing.append(pkg)
-            
-    if not missing: return True
+    optional_required = {
+        "google.generativeai": "google-generativeai",
+        "openai": "openai",
+        "anthropic": "anthropic",
+        "trafilatura": "trafilatura",
+        "nest_asyncio": "nest-asyncio",
+    }
 
-    console.print(Panel(f"[yellow]System update required. Missing: {', '.join(missing)}[/yellow]"))
-    
-    with Progress(SpinnerColumn(), TextColumn("[bold cyan]Updating Environment...[/]"), console=console) as progress:
-        progress.add_task("install", total=None)
-        try:
-            # SECURITY: Using --user instead of breaking system packages
-            cmd = [sys.executable, "-m", "pip", "install", "--quiet", "--user"] + missing
-            subprocess.run(cmd, check=True, capture_output=True)
-            console.print("[bold green]Environment ready. Restarting...[/bold green]\n")
-            os.execv(sys.executable, [sys.executable] + sys.argv)
-        except Exception as e:
-            logger.error(f"Auto-update failed: {e}")
-            sys.exit(1)
+    missing_core = [pkg for mod, pkg in core_required.items() if importlib.util.find_spec(mod) is None]
+    if missing_core:
+        console.print(Panel(
+            f"[yellow]Core dependencies are missing: {', '.join(missing_core)}[/yellow]\n"
+            "[dim]Run ./setup.sh (or termux_setup.sh) to complete installation.[/dim]"
+        ))
+        return False
+
+    missing_optional = [pkg for mod, pkg in optional_required.items() if importlib.util.find_spec(mod) is None]
+    if missing_optional:
+        logger.debug(f"Optional dependencies unavailable: {', '.join(missing_optional)}")
+
+    return True
 
 # ── Validation ────────────────────────────────────────────────────────────────
 def validate_target(target: str) -> bool:
@@ -90,10 +91,18 @@ def show_banner():
 
 def main():
     show_banner()
-    
+
+    command_choices = [
+        "ai", "universal", "scan", "gateway", "configure", "update", "doctor",
+        "arsenal", "memory", "cve-update", "bola", "waf", "recon", "evasion",
+        "report", "menu", "auto", "help", "bb", "check", "test", "red", "pdf",
+        "hack", "research", "poc", "autonomous", "welcome", "quick", "deep",
+        "bounty", "stealth", "api", "web", "profile", "history", "programs",
+        "intel", "mission", "pause", "resume", "cli"
+    ]
+
     parser = argparse.ArgumentParser(description="Elengenix CLI", add_help=False)
-    parser.add_argument("command", nargs="?", default="auto", 
-                        choices=["ai", "scan", "gateway", "configure", "update", "doctor", "arsenal", "memory", "cve-update", "bola", "waf", "recon", "evasion", "report", "menu", "auto", "help", "bb", "check", "test", "red", "pdf", "hack", "research", "poc", "autonomous", "welcome", "quick", "deep", "bounty", "stealth", "api", "web", "profile", "history", "programs", "intel", "mission", "pause", "resume", "cli"])
+    parser.add_argument("command", nargs="?", default="auto", choices=command_choices)
     parser.add_argument("target", nargs="?", help="Target domain or IP")
     parser.add_argument("--rate-limit", type=int, default=5, help="Max requests per second")
     parser.add_argument("--framework", type=str, default="generic", help="Target framework for PoC generation")
@@ -137,10 +146,7 @@ def main():
         return
     
     # Handle unknown commands with smart suggestions
-    valid_commands = ["ai", "scan", "gateway", "configure", "update", "doctor", "arsenal", 
-                     "memory", "cve-update", "bola", "waf", "recon", "evasion", "report", 
-                     "menu", "auto", "bb", "check", "test", "red", "pdf", "hack", 
-                     "research", "poc", "autonomous", "welcome", "history", "cli"]
+    valid_commands = set(command_choices)
     
     if args.command and args.command not in valid_commands and args.command != "auto":
         from tools.command_suggest import handle_command_error, CommandSuggester
@@ -216,7 +222,30 @@ def main():
                 console.print(f"[green]Selected module:[/green] {module_name}")
                 console.print(f"[dim]   (Use --manual to override)[/dim]\n")
                 
-                args.command = detection['action']
+                detected_action = detection.get("action", "ai")
+                detected_module = detection.get("module", "ai")
+                action_fallback_map = {
+                    "bola_test": "bola",
+                    "web_scan": "waf",
+                    "protocol": "ai",
+                    "mobile_api": "ai",
+                    "cloud_scan": "ai",
+                    "soc_analysis": "ai",
+                    "analyze_findings": "ai",
+                    "json_analysis": "ai",
+                    "admin_test": "ai",
+                    "file_analysis": "ai",
+                    "schema": "ai",
+                    "swarm": "ai",
+                }
+
+                candidate_command = detected_action
+                if candidate_command not in valid_commands:
+                    candidate_command = detected_module
+                if candidate_command not in valid_commands:
+                    candidate_command = action_fallback_map.get(detected_action, "ai")
+
+                args.command = candidate_command
                 args.target = effective_target
             else:
                 console.print("[yellow]Low confidence detection. Starting AI assistant...[/yellow]")
@@ -384,7 +413,7 @@ def main():
                         response_obj = ai_manager.chat(messages, temperature=0.7, max_tokens=2048)
                         response = response_obj.content
                         
-                        console.print(f"🤖 {response}\n")
+                        console.print(f"{response}\n")
                         
                         # Save AI response with metadata
                         memory.add_message(session_id, "assistant", response, metadata={
@@ -592,7 +621,7 @@ def main():
             console.print("  [cyan]git pull && ./setup.sh[/cyan]")
 
         elif args.command == "memory":
-            from ui_components import console, show_section, print_info, create_status_table
+            from ui_components import show_section, print_info, create_status_table
             
             try:
                 from tools.vector_memory import get_vector_memory, get_vector_memory as vm_get
@@ -661,7 +690,7 @@ def main():
                 print_error(f"Memory system error: {e}")
 
         elif args.command == "bola":
-            from ui_components import show_section, print_info, print_success, print_error, console
+            from ui_components import show_section, print_info, print_success, print_error
             from tools.bola_harness import BOLAHarness, parse_headers_input
 
             show_section("BOLA/IDOR Differential Harness")
@@ -733,7 +762,7 @@ def main():
                     console.print(f"[dim]B: {ev.get('account_b',{})}[/dim]")
 
         elif args.command == "waf":
-            from ui_components import show_section, print_info, print_success, print_warning, print_error, console
+            from ui_components import show_section, print_info, print_success, print_warning, print_error
             from tools.waf_evasion import WAFEvasionEngine
 
             show_section("WAF Detection & Evasion Testing")
@@ -784,7 +813,7 @@ def main():
                 console.print(f"{i}. [{status_color}]{'BLOCKED' if r.blocked else 'BYPASS'}[/{status_color}] {r.payload[:50]}... (tech: {', '.join(r.techniques)})")
 
         elif args.command == "recon":
-            from ui_components import show_section, print_info, print_success, print_warning, print_error, console
+            from ui_components import show_section, print_info, print_success, print_warning, print_error
             from tools.smart_recon import SmartReconEngine, format_recon_for_display
 
             show_section("Smart Reconnaissance - Asset Correlation Engine")
@@ -826,7 +855,7 @@ def main():
                 logger.exception("Smart recon failed")
 
         elif args.command == "cve-update":
-            from ui_components import show_section, print_info, print_success, print_error, console
+            from ui_components import show_section, print_info, print_success, print_error
             from tools.cve_database import get_cve_database
             
             show_section("CVE Database Update")
@@ -850,7 +879,7 @@ def main():
                 console.print("[dim]Run 'elengenix doctor' to check system status.[/dim]")
 
         elif args.command == "evasion":
-            from ui_components import show_section, print_info, print_success, print_warning, print_error, console
+            from ui_components import show_section, print_info, print_success, print_warning, print_error
             from tools.edr_evasion import EDREvasionEngine, format_edr_report
 
             show_section("EDR/AV Evasion - Red Team Payload Generator")
@@ -908,12 +937,12 @@ def main():
                 print_info("Available actions: list, generate, plan")
 
         elif args.command == "report":
-            from ui_components import show_section, print_info, print_success, print_error, console
+            from ui_components import show_section, print_info, print_success, print_error
             from tools.pdf_report_generator import PDFReportGenerator, ReportMetadata, format_report_summary
             from pathlib import Path
             import json
 
-            show_section("📄 Professional Report Generator")
+            show_section("Professional Report Generator")
             
             findings_file = args.target or console.input("[cyan]Findings JSON file[/cyan]: ").strip()
             if not findings_file:

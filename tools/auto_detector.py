@@ -51,10 +51,10 @@ class AutoDetector:
         # Check if it's hex data (for protocol analysis)
         if re.match(r'^[0-9a-fA-F\s]+$', target) and len(target.replace(' ', '')) > 20:
             return {
-                "action": "protocol",
-                "module": "proto",
+                "action": "ai",
+                "module": "ai",
                 "confidence": 0.85,
-                "explanation": "Input looks like hex data. Analyzing as network protocol...",
+                "explanation": "Input looks like hex data. Switching to AI mode for guided protocol analysis...",
             }
         
         # Default to AI mode
@@ -82,20 +82,20 @@ class AutoDetector:
                 if isinstance(data, list) and len(data) > 0:
                     if any(k in str(data[0]) for k in ['severity', 'type', 'finding']):
                         return {
-                            "action": "analyze_findings",
-                            "module": "predict",
+                            "action": "ai",
+                            "module": "ai",
                             "confidence": 0.95,
-                            "explanation": f"JSON file with findings detected: {p.name}. Running bounty prediction...",
+                            "explanation": f"JSON findings detected: {p.name}. Opening AI mode for analysis and prioritization...",
                         }
                 
                 # Check for Burp/mobile format
                 if isinstance(data, dict):
                     if any(k in data for k in ['endpoints', 'requests', 'responses']):
                         return {
-                            "action": "mobile_api",
-                            "module": "mobile",
+                            "action": "ai",
+                            "module": "ai",
                             "confidence": 0.9,
-                            "explanation": f"API export detected: {p.name}. Running mobile API analysis...",
+                            "explanation": f"API export detected: {p.name}. Opening AI mode for focused API analysis...",
                         }
                 
                 return {
@@ -110,10 +110,10 @@ class AutoDetector:
         # Cloud/Terraform files
         if ext in ['.tf', '.tfvars', '.yml', '.yaml']:
             return {
-                "action": "cloud_scan",
-                "module": "cloud",
+                "action": "ai",
+                "module": "ai",
                 "confidence": 0.9,
-                "explanation": f"Infrastructure-as-code file detected: {p.name}. Scanning for misconfigurations...",
+                "explanation": f"Infrastructure-as-code file detected: {p.name}. Opening AI mode for cloud security review...",
             }
         
         # Source code
@@ -128,37 +128,37 @@ class AutoDetector:
         # Log files
         if ext in ['.log', '.txt'] or 'log' in p.name.lower():
             return {
-                "action": "soc_analysis",
-                "module": "soc",
+                "action": "ai",
+                "module": "ai",
                 "confidence": 0.85,
-                "explanation": f"Log file detected: {p.name}. Analyzing for threats...",
+                "explanation": f"Log file detected: {p.name}. Opening AI mode for security log analysis...",
             }
         
         # Protocol/hex dump
         if ext in ['.pcap', '.cap', '.hex', '.bin']:
             return {
-                "action": "protocol",
-                "module": "proto",
+                "action": "ai",
+                "module": "ai",
                 "confidence": 0.9,
-                "explanation": f"Binary/hex file detected: {p.name}. Analyzing protocol...",
+                "explanation": f"Binary capture detected: {p.name}. Opening AI mode for protocol triage...",
             }
         
         # Targets list (for swarm)
         if p.name.lower() in ['targets.txt', 'urls.txt', 'domains.txt']:
             return {
-                "action": "swarm",
-                "module": "swarm",
+                "action": "ai",
+                "module": "ai",
                 "confidence": 0.95,
-                "explanation": f"Targets list detected: {p.name}. Running multi-target swarm...",
+                "explanation": f"Targets list detected: {p.name}. Opening AI mode for controlled multi-target planning...",
             }
         
         # OpenAPI schema
         if any(k in p.name.lower() for k in ['openapi', 'swagger', 'api.json', 'api.yaml']):
             return {
-                "action": "schema",
-                "module": "schema",
+                "action": "ai",
+                "module": "ai",
                 "confidence": 0.95,
-                "explanation": f"OpenAPI schema detected: {p.name}. Analyzing API surface...",
+                "explanation": f"OpenAPI schema detected: {p.name}. Opening AI mode for API surface review...",
             }
         
         # Default file
@@ -178,7 +178,7 @@ class AutoDetector:
         # API endpoints
         if '/api/' in path or path.endswith(('.json', '.xml')):
             return {
-                "action": "bola_test",
+                "action": "bola",
                 "module": "bola",
                 "confidence": 0.85,
                 "explanation": f"API endpoint detected: {url}. Testing for BOLA/IDOR...",
@@ -196,15 +196,15 @@ class AutoDetector:
         # OpenAPI schema URL
         if any(k in url.lower() for k in ['openapi', 'swagger', 'api-docs']):
             return {
-                "action": "schema",
-                "module": "schema",
+                "action": "ai",
+                "module": "ai",
                 "confidence": 0.95,
-                "explanation": f"OpenAPI docs detected: {url}. Analyzing schema...",
+                "explanation": f"OpenAPI docs detected: {url}. Opening AI mode for schema review...",
             }
         
         # Default web scan
         return {
-            "action": "web_scan",
+            "action": "waf",
             "module": "waf",
             "confidence": 0.8,
             "explanation": f"Web URL detected: {url}. Testing for WAF and vulnerabilities...",
@@ -233,44 +233,44 @@ class SmartWizard:
 
     QUESTIONS = {
         "start": {
-            "question": "🚀 What do you want to do? (Select one)",
+            "question": "What do you want to do? (Select one)",
             "options": [
-                ("🔍 Scan a website/domain for vulnerabilities", "scan"),
-                ("🐛 Test for specific bug (BOLA, XSS, WAF bypass)", "specific"),
-                ("📁 Analyze a file (logs, code, API export, findings)", "file"),
-                ("🤖 Chat with AI assistant", "ai"),
-                ("📊 Generate professional PDF report", "report"),
+                ("Scan a website/domain for vulnerabilities", "scan"),
+                ("Test for specific bug (BOLA, XSS, WAF bypass)", "specific"),
+                ("Analyze a file (logs, code, API export, findings)", "file"),
+                ("Chat with AI assistant", "ai"),
+                ("Generate professional PDF report", "report"),
             ]
         },
         "scan_type": {
-            "question": "🔍 Choose scan type:",
+            "question": "Choose scan type:",
             "options": [
-                ("🔎 Reconnaissance - Discover subdomains, ports, tech", "recon"),
-                ("🛡️ Web vulnerabilities - XSS, WAF bypass, injection", "waf"),
-                ("🎯 Bug bounty - BOLA/IDOR, access control testing", "bola"),
-                ("☁️ Cloud security - Terraform, AWS, config files", "cloud"),
-                ("💻 Source code - Python, JS, Java, Go vulnerabilities", "sast"),
+                ("Reconnaissance - Discover subdomains, ports, technologies", "recon"),
+                ("Web vulnerabilities - XSS, WAF bypass, injection", "waf"),
+                ("Bug bounty - BOLA/IDOR, access control testing", "bola"),
+                ("Cloud security - Terraform, AWS, configuration files", "cloud"),
+                ("Source code - Python, JS, Java, Go vulnerabilities", "sast"),
             ]
         },
         "file_type": {
-            "question": "📁 What type of file are you analyzing?",
+            "question": "What type of file are you analyzing?",
             "options": [
-                ("📱 Mobile API - Burp Suite export, API collection", "mobile"),
-                ("🔐 Security logs - SIEM, firewall, alerts (SOC analysis)", "soc"),
-                ("☁️ Cloud config - Terraform, CloudFormation, AWS", "cloud"),
-                ("💻 Source code - .py, .js, .java, .go files", "sast"),
-                ("📊 Findings/results - JSON scan results to analyze", "predict"),
-                ("🔌 Network data - PCAP, hex dump, protocol capture", "proto"),
-                ("❓ Not sure - Let Elengenix auto-detect", "auto"),
+                ("Mobile API - Burp export, API collection", "mobile"),
+                ("Security logs - SIEM, firewall, alerts", "soc"),
+                ("Cloud config - Terraform, CloudFormation, AWS", "cloud"),
+                ("Source code - .py, .js, .java, .go files", "sast"),
+                ("Findings/results - JSON scan results", "predict"),
+                ("Network data - PCAP, hex dump, protocol capture", "proto"),
+                ("Not sure - Let Elengenix auto-detect", "auto"),
             ]
         },
         "specific_type": {
-            "question": "🐛 Which vulnerability type to test?",
+            "question": "Which vulnerability type to test?",
             "options": [
-                ("🎯 BOLA/IDOR - Broken access control, ID enumeration", "bola"),
-                ("🛡️ WAF/XSS - Web firewall bypass, cross-site scripting", "waf"),
-                ("🔌 Protocols - MQTT, Modbus, gRPC, IoT/ICS", "proto"),
-                ("🔴 Red Team - EDR evasion, AV bypass (Auth only)", "evasion"),
+                ("BOLA/IDOR - Broken access control, ID enumeration", "bola"),
+                ("WAF/XSS - Web firewall bypass, cross-site scripting", "waf"),
+                ("Protocols - MQTT, Modbus, gRPC, IoT/ICS", "proto"),
+                ("Red Team - EDR evasion, AV bypass (authorized only)", "evasion"),
             ]
         },
     }
@@ -317,37 +317,37 @@ class CommandSimplifier:
         """Get organized help text by category."""
         return """
 ╔══════════════════════════════════════════════════════════════════╗
-║                    🚀 ELENGENIX - COMMAND GUIDE                   ║
+║                    ELENGENIX COMMAND GUIDE                      ║
 ╚══════════════════════════════════════════════════════════════════╝
 
 ┌──────────────────────────────────────────────────────────────────┐
-│  🎯 SMART MODE (Auto-Detect) - Just type anything!              │
+│  SMART MODE (Auto-detect input)                                │
 ├──────────────────────────────────────────────────────────────────┤
-│  elengenix example.com              → Auto reconnaissance       │
-│  elengenix https://api.x.com        → Auto API testing          │
-│  elengenix findings.json            → Auto bounty analysis      │
-│  elengenix myapp.py                 → Auto code scan            │
-│  elengenix terraform/               → Auto cloud scan           │
+│  elengenix example.com              -> reconnaissance           │
+│  elengenix https://api.x.com        -> BOLA/WAF workflow        │
+│  elengenix findings.json            -> AI-assisted analysis      │
+│  elengenix myapp.py                 -> SAST guidance             │
+│  elengenix terraform/               -> cloud review guidance     │
 └──────────────────────────────────────────────────────────────────┘
 
 ┌──────────────────────────────────────────────────────────────────┐
-│  ⚡ QUICK SHORTCUTS (One word = One action)                      │
+│  QUICK SHORTCUTS                                                │
 ├──────────────────────────────────────────────────────────────────┤
-│  elengenix bb <url>                 → Bug bounty (BOLA)         │
-│  elengenix check <domain>           → Quick recon               │
-│  elengenix test <url>               → Test WAF/XSS              │
-│  elengenix red                      → Red team tools            │
-│  elengenix pdf <file>               → Generate report           │
-│  elengenix ai                       → AI assistant                │
+│  elengenix bb <url>                 -> BOLA workflow             │
+│  elengenix check <domain>           -> reconnaissance            │
+│  elengenix test <url>               -> WAF/XSS checks            │
+│  elengenix red                      -> red team workflow         │
+│  elengenix pdf <file>               -> report generation         │
+│  elengenix ai                       -> AI assistant              │
 └──────────────────────────────────────────────────────────────────┘
 
 ┌──────────────────────────────────────────────────────────────────┐
-│  📋 FULL COMMANDS (Explicit control)                            │
+│  FULL COMMANDS (Explicit control)                              │
 ├──────────────────────────────────────────────────────────────────┤
 │  Offensive Testing:                                             │
 │    elengenix bola <url>             BOLA/IDOR testing           │
-│    elengenix waf <url>              WAF/XSS scanner           │
-│    elengenix evasion                EDR/AV evasion (Red Team) │
+│    elengenix waf <url>              WAF/XSS scanner             │
+│    elengenix evasion                EDR/AV evasion              │
 │                                                                 │
 │  Reconnaissance:                                                │
 │    elengenix recon <domain>         Asset discovery             │
@@ -355,24 +355,16 @@ class CommandSimplifier:
 │                                                                 │
 │  Analysis & Reports:                                            │
 │    elengenix report <findings>      Generate PDF report         │
-│    elengenix menu                   Interactive wizard          │
+│    elengenix menu                   Interactive wizard           │
 └──────────────────────────────────────────────────────────────────┘
 
 ┌──────────────────────────────────────────────────────────────────┐
-│  💡 EXAMPLES                                                      │
+│  EXAMPLES                                                       │
 ├──────────────────────────────────────────────────────────────────┤
-│  # Quick start - just type the target                          │
-│  elengenix target.com                                             │
-│                                                                   │
-│  # Bug bounty mode                                               │
+│  elengenix target.com                                           │
 │  elengenix bb https://api.target.com                            │
-│                                                                   │
-│  # Analyze file                                                  │
 │  elengenix burp_export.json                                     │
-│                                                                   │
-│  # Ask AI anything                                               │
-│  elengenix ai                                                     │
-│  > Help me scan target.com for vulnerabilities                 │
+│  elengenix ai                                                    │
 └──────────────────────────────────────────────────────────────────┘
 
 For detailed help: elengenix menu

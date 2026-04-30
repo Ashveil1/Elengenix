@@ -16,7 +16,6 @@ from pathlib import Path
 from dataclasses import dataclass
 from typing import Optional, Dict, Any, Union
 from openai import AsyncOpenAI, AsyncAzureOpenAI
-import google.generativeai as genai
 
 # Optional python-dotenv for environment variables
 try:
@@ -105,6 +104,7 @@ class LLMClient:
         self.model_name = provider_cfg.get("model", "gemini-1.5-flash")
 
         if self.active_provider == "gemini":
+            import google.generativeai as genai
             genai.configure(api_key=self.api_key)
             self.gemini_model = genai.GenerativeModel(self.model_name)
         elif self.active_provider == "anthropic":
@@ -263,6 +263,31 @@ class LLMClient:
             raise
 
     def chat(self, system_prompt: str, user_message: str) -> str:
-        """Synchronous wrapper. Safe to call from any context including active event loops."""
-        response = asyncio.run(self.chat_async(system_prompt, user_message))
+        """Synchronous wrapper for chat_async.
+
+        Safely bridges async-to-sync in any context, including
+        active event loops (e.g. Telegram bot handlers).
+        """
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
+
+        if loop and loop.is_running():
+            # Already inside an async context -- use nest_asyncio if available,
+            # otherwise run in a separate thread to avoid RuntimeError.
+            try:
+                import nest_asyncio
+                nest_asyncio.apply()
+                future = asyncio.ensure_future(self.chat_async(system_prompt, user_message))
+                response = loop.run_until_complete(future)
+            except (ImportError, RuntimeError):
+                import concurrent.futures
+                with concurrent.futures.ThreadPoolExecutor() as pool:
+                    response = pool.submit(
+                        asyncio.run, self.chat_async(system_prompt, user_message)
+                    ).result(timeout=120)
+        else:
+            response = asyncio.run(self.chat_async(system_prompt, user_message))
+
         return response.content

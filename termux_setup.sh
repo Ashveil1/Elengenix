@@ -1,4 +1,4 @@
-#!/data/data/com.termux/files/usr/bin/bash
+#!/usr/bin/env bash
 
 # ============================================================
 #   Elengenix - Professional Termux Mobile Installer
@@ -17,16 +17,25 @@ BOLD='\033[1m'
 NC='\033[0m'
 
 info()    { echo -e "${CYAN}[*]${NC} $1"; }
-success() { echo -e "${GREEN}[✓]${NC} $1"; }
+success() { echo -e "${GREEN}[]${NC} $1"; }
 warning() { echo -e "${YELLOW}[!]${NC} $1"; }
-error()   { echo -e "${RED}[✗]${NC} $1"; exit 1; }
+error()   { echo -e "${RED}[]${NC} $1"; exit 1; }
 
-# 🛡️ ERROR TRAP - Disabled for this script since we handle optional failures gracefully
+#  ERROR TRAP - Disabled for this script since we handle optional failures gracefully
 # trap 'echo -e "\n${RED}[!] Critical error during installation.${NC}"; exit 1;' ERR
 
 # Verify we're in the right directory
 if [ ! -f "sentinel" ] && [ ! -f "main.py" ]; then
     error "Please run this script from the Elengenix project directory"
+fi
+
+# Python binary detection (Termux can expose python, python3, or both)
+if command -v python3 >/dev/null 2>&1; then
+    PYTHON_BIN="python3"
+elif command -v python >/dev/null 2>&1; then
+    PYTHON_BIN="python"
+else
+    error "Python is not installed in this Termux environment."
 fi
 
 clear
@@ -46,11 +55,13 @@ echo ""
 # 1. Sequential System Installation
 info "STEP 1/5: Installing system packages..."
 pkg update -y
-# Core packages + build dependencies for Python modules
-PKGS=(python golang git curl wget nmap openssl libxml2 libxslt libyaml clang make 
-      build-essential libffi libffi-dev openssl-dev libjpeg-turbo zlib libbz2 liblzma
-      python-dev sqlite ncurses readline libexpat libxml2-dev libxslt-dev
-      libsqlite libsqlite-dev binutils libcrypt libcrypt-dev rust)
+# Core packages + compatible build dependencies for Termux
+PKGS=(
+    python golang git curl wget nmap
+    openssl libxml2 libxslt libyaml libffi
+    clang make pkg-config binutils rust
+    libjpeg-turbo zlib xz-utils sqlite
+)
 # Note: python-venv not needed - Termux python includes venv
 for pkg in "${PKGS[@]}"; do
     pkg install -y "$pkg" || warning "Could not install $pkg. Proceeding..."
@@ -60,7 +71,7 @@ success "System packages installed."
 # 2. Virtual Environment
 info "STEP 2/5: Creating isolated Python environment..."
 if [ ! -d "venv" ]; then
-    python -m venv venv
+    "$PYTHON_BIN" -m venv venv
     success "Created venv."
 fi
 source venv/bin/activate
@@ -216,10 +227,10 @@ info "Verifying installed tools..."
 VERIFIED=0
 for tool in subfinder httpx katana; do
     if command -v "$tool" >/dev/null 2>&1 || [ -f "$GOPATH/bin/$tool" ]; then
-        success "  ✓ $tool"
+        success "   $tool"
         ((VERIFIED++))
     else
-        warning "  ✗ $tool (may need PATH update or manual install)"
+        warning "   $tool (may need PATH update or manual install)"
     fi
 done
 
@@ -235,11 +246,22 @@ PROJECT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SENTINEL_PATH="$PROJECT_DIR/sentinel"
 WRAPPER_PATH="${PREFIX}/bin/elengenix"
 
-chmod +x "$SENTINEL_PATH"
-ln -sf "$SENTINEL_PATH" "$WRAPPER_PATH"
-success "Symlink created: $WRAPPER_PATH"
+if [ -f "$SENTINEL_PATH" ]; then
+    chmod +x "$SENTINEL_PATH"
+    ln -sf "$SENTINEL_PATH" "$WRAPPER_PATH"
+    success "Symlink created: $WRAPPER_PATH"
+elif [ -f "$PROJECT_DIR/main.py" ]; then
+    cat > "$WRAPPER_PATH" <<EOF
+#!/data/data/com.termux/files/usr/bin/bash
+exec "$PYTHON_BIN" "$PROJECT_DIR/main.py" "\$@"
+EOF
+    chmod +x "$WRAPPER_PATH"
+    success "Wrapper created: $WRAPPER_PATH"
+else
+    error "Launcher not found (missing sentinel and main.py)."
+fi
 
-# 🛡️ SMART PATH CHECK
+#  SMART PATH CHECK
 if ! echo "$PATH" | grep -q "$PREFIX/bin"; then
     info "Fixing PATH: Adding $PREFIX/bin to ~/.bashrc..."
     echo "export PATH=\$PATH:$PREFIX/bin" >> ~/.bashrc
@@ -249,23 +271,23 @@ fi
 # 5. Final Config
 info "STEP 5/5: Running Configuration..."
 if [ -f "wizard.py" ]; then
-    python3 wizard.py || warning "Wizard issues detected."
+    "$PYTHON_BIN" wizard.py || warning "Wizard issues detected."
 else
     warning "wizard.py not found."
 fi
 
 echo ""
 echo -e "${GREEN}══════════════════════════════════════════${NC}"
-echo -e "${BOLD}  ✅ SETUP COMPLETE — HAPPY HUNTING${NC}"
+echo -e "${BOLD}   SETUP COMPLETE — HAPPY HUNTING${NC}"
 echo -e "${GREEN}══════════════════════════════════════════${NC}"
 echo ""
-echo -e "  🛠️  ${BOLD}Installed Security Tools:${NC}"
+echo -e "    ${BOLD}Installed Security Tools:${NC}"
 echo ""
 
 # Show installed tools status
 for tool in subfinder httpx katana naabu dalfox ffuf arjun; do
     if command -v "$tool" >/dev/null 2>&1 || [ -f "$GOPATH/bin/$tool" ]; then
-        echo -e "    ${GREEN}✓${NC} $tool"
+        echo -e "    ${GREEN}${NC} $tool"
     else
         echo -e "    ${YELLOW}○${NC} $tool (optional)"
     fi
@@ -273,13 +295,13 @@ done
 
 # TruffleHog special message for mobile
 if command -v trufflehog >/dev/null 2>&1; then
-    echo -e "    ${GREEN}✓${NC} trufflehog"
+    echo -e "    ${GREEN}${NC} trufflehog"
 else
     echo -e "    ${YELLOW}○${NC} trufflehog (heavy for mobile - install manually if needed)"
 fi
 
 echo ""
-echo -e "  🚀 ${BOLD}Start hunting with:${NC}"
+echo -e "   ${BOLD}Start hunting with:${NC}"
 echo -e "      elengenix           - Launch interactive menu"
 echo -e "      elengenix doctor    - Check tool installation"
 echo -e "      elengenix scan <target>  - Run full scan"
@@ -289,7 +311,7 @@ echo ""
 
 # Launch configuration wizard
 echo -e "${CYAN}══════════════════════════════════════════${NC}"
-echo -e "${BOLD}  ⚙️  CONFIGURATION WIZARD${NC}"
+echo -e "${BOLD}    CONFIGURATION WIZARD${NC}"
 echo -e "${CYAN}══════════════════════════════════════════${NC}"
 echo ""
 echo -e "  Configure your API keys and settings now?"
@@ -300,7 +322,7 @@ echo ""
 if [[ $REPLY =~ ^[Yy]$ ]] || [[ -z $REPLY ]]; then
     echo ""
     echo -e "${GREEN}Launching configuration wizard...${NC}"
-    python3 -c "from tools.config_wizard import run_config_wizard; run_config_wizard()" || warning "Configuration wizard had issues"
+    "$PYTHON_BIN" -c "from tools.config_wizard import run_config_wizard; run_config_wizard()" || warning "Configuration wizard had issues"
     echo ""
     echo -e "${GREEN}Configuration complete!${NC}"
 else

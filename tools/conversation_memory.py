@@ -188,11 +188,11 @@ class ConversationMemory:
                     tools_mentioned.add(tool)
         
         summary = f"""
-📊 Session Summary: {session_id}
-🎯 Target: {session.target or 'Not specified'}
-💬 Messages: {user_msgs} user, {ai_msgs} assistant
-🛠️ Tools discussed: {', '.join(tools_mentioned) if tools_mentioned else 'None'}
-⏱️ Duration: {session.started_at[:19]} → {session.updated_at[:19]}
+ Session Summary: {session_id}
+ Target: {session.target or 'Not specified'}
+ Messages: {user_msgs} user, {ai_msgs} assistant
+ Tools discussed: {', '.join(tools_mentioned) if tools_mentioned else 'None'}
+⏱ Duration: {session.started_at[:19]} → {session.updated_at[:19]}
 """
         return summary
     
@@ -264,7 +264,7 @@ class ConversationMemory:
             ]
             
             for m in session.messages:
-                role = "🧑 User" if m.role == "user" else "🤖 Assistant"
+                role = " User" if m.role == "user" else " Assistant"
                 lines.append(f"\n### {role} ({m.timestamp[:19]})\n")
                 lines.append(m.content)
                 lines.append("\n")

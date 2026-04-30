@@ -314,7 +314,7 @@ class ProgressDisplay:
         print("=" * 60)
         
         for phase in self.phases.values():
-            status = "✓" if phase.status == "complete" else "✗" if phase.status == "failed" else "○"
+            status = "" if phase.status == "complete" else "" if phase.status == "failed" else "○"
             duration = self._format_duration(phase.duration)
             result = phase.result_summary or f"{phase.progress:.0f}%"
             
@@ -336,8 +336,8 @@ class ProgressDisplay:
         icons = {
             "pending": "○",
             "running": "◐",
-            "complete": "✓",
-            "failed": "✗",
+            "complete": "",
+            "failed": "",
         }
         return icons.get(status, "?")
     
@@ -398,7 +398,7 @@ class Spinner:
             self._thread.join(timeout=1)
         
         # Clear line and show final message
-        print(f"\r  ✓ {final_message or self.message}")
+        print(f"\r   {final_message or self.message}")
     
     def _animate(self) -> None:
         """Animation loop."""
@@ -444,7 +444,7 @@ class CompactProgress:
             eta = "?"
         
         bar = self._make_bar(percent)
-        status = "✓" if final else ">"
+        status = "" if final else ">"
         
         print(f"\r  {status} {self.description} {bar} {self.current}/{self.total} ETA: {eta}", end="")
         sys.stdout.flush()

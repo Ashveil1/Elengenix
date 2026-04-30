@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # ============================================================
 #   Elengenix - Indestructible Professional Installer
@@ -17,11 +17,11 @@ BOLD='\033[1m'
 NC='\033[0m'
 
 info()    { echo -e "${CYAN}[*]${NC} $1"; }
-success() { echo -e "${GREEN}[✓]${NC} $1"; }
+success() { echo -e "${GREEN}[]${NC} $1"; }
 warning() { echo -e "${YELLOW}[!]${NC} $1"; }
-error()   { echo -e "${RED}[✗]${NC} $1"; exit 1; }
+error()   { echo -e "${RED}[]${NC} $1"; exit 1; }
 
-# 🛡️ ERROR TRAP
+#  ERROR TRAP
 trap 'echo -e "\n${RED}[!] Error occurred at line $LINENO. Installation failed.${NC}";' ERR
 
 # Verify we're in the right directory
@@ -29,7 +29,7 @@ if [ ! -f "sentinel" ] && [ ! -f "main.py" ]; then
     error "Please run this script from the Elengenix project directory (where 'sentinel' or 'main.py' is located)"
 fi
 
-clear
+[ -t 1 ] && clear || true
 echo -e "${CYAN}"
 echo "  ███████╗██╗     ███████╗███╗   ██╗ ██████╗ ███████╗███╗   ██╗██╗██╗  ██╗"
 echo "  ██╔════╝██║     ██╔════╝████╗  ██║██╔════╝ ██╔════╝████╗  ██║██║╚██╗██╔╝"
@@ -188,10 +188,10 @@ info "Verifying tool installation..."
 MISSING_TOOLS=()
 for tool in subfinder httpx nuclei naabu katana dalfox ffuf; do
     if command -v "$tool" >/dev/null 2>&1 || [ -f "$GOPATH/bin/$tool" ]; then
-        success "  ✓ $tool"
+        success "   $tool"
     else
         MISSING_TOOLS+=("$tool")
-        warning "  ✗ $tool not in PATH"
+        warning "   $tool not in PATH"
     fi
 done
 
@@ -226,23 +226,23 @@ fi
 
 echo ""
 echo -e "${GREEN}══════════════════════════════════════════${NC}"
-echo -e "${GREEN}  ✅ INSTALLATION SUCCESSFUL!${NC}"
+echo -e "${GREEN}   INSTALLATION SUCCESSFUL!${NC}"
 echo -e "${GREEN}══════════════════════════════════════════${NC}"
 echo ""
-echo -e "  🛠️  ${BOLD}Installed Security Tools:${NC}"
+echo -e "    ${BOLD}Installed Security Tools:${NC}"
 echo ""
 
 # Show installed tools status
 for tool in subfinder httpx nuclei naabu dalfox ffuf katana arjun trufflehog; do
     if command -v "$tool" >/dev/null 2>&1 || [ -f "$GOPATH/bin/$tool" ] || [ -f "$HOME/.local/bin/$tool" ]; then
-        echo -e "    ${GREEN}✓${NC} $tool"
+        echo -e "    ${GREEN}${NC} $tool"
     else
         echo -e "    ${YELLOW}○${NC} $tool (optional/manual install)"
     fi
 done
 
 echo ""
-echo -e "  🚀 ${BOLD}Start hunting with:${NC}"
+echo -e "   ${BOLD}Start hunting with:${NC}"
 if command -v elengenix >/dev/null 2>&1; then
     echo -e "      elengenix           - Launch interactive menu"
     echo -e "      elengenix doctor    - Check tool installation"

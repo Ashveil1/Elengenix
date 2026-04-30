@@ -170,7 +170,7 @@ class ConfigWizard:
         """Run the configuration wizard."""
         console.print("""
 ╔════════════════════════════════════════════════════════════════╗
-║           ⚙️ ELENGENIX CONFIGURATION WIZARD                    ║
+║            ELENGENIX CONFIGURATION WIZARD                    ║
 ╚════════════════════════════════════════════════════════════════╝
 """)
         

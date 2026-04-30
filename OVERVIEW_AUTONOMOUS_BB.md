@@ -261,7 +261,7 @@ $ elengenix ai
 ### Flow 2: Telegram Control
 ```
 User: /bounty
-Bot: 🎯 เริ่มล่า bounty อัตโนมัติ
+Bot:  เริ่มล่า bounty อัตโนมัติ
 Bot: กำลังหาโปรแกรมจาก HackerOne...
 Bot: พบ 5 โปรแกรมน่าสนใจ:
     1. Company A - $500-10k
@@ -269,25 +269,25 @@ Bot: พบ 5 โปรแกรมน่าสนใจ:
     3. Company C - $100-5k
 
 User: 2
-Bot: ✅ เลือก Company B
-Bot: 🎯 Mission #12345 เริ่มแล้ว
+Bot:  เลือก Company B
+Bot:  Mission #12345 เริ่มแล้ว
 Bot: Target: api.company.com
 Bot: สถานะ: Reconnaissance (Est. 10 min)
 
 [10 minutes later]
-Bot: ✅ Phase 1 เสร็จแล้ว
+Bot:  Phase 1 เสร็จแล้ว
 Bot: พบ 8 subdomains, 32 endpoints
 Bot: กำลังสแกนช่องโหว่...
 
 [30 minutes later]
-Bot: ⚠️ สแกนมา 30 นาทีแล้วยังไม่เจอ
+Bot:  สแกนมา 30 นาทีแล้วยังไม่เจอ
 Bot: จะหยุดพักไหม? (กด /resume 12345 เพื่อทำต่อ)
 
 User: /resume 12345
-Bot: 🔄 กลับมาทำต่อ...
+Bot:  กลับมาทำต่อ...
 
 [5 minutes later]
-Bot: 🎉 พบช่องโหว่!
+Bot:  พบช่องโหว่!
 Bot: Type: IDOR in order endpoint
 Bot: Severity: High
 Bot: Bounty Estimate: $2,000 - $5,000

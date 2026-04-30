@@ -503,9 +503,9 @@ class HistoryManager:
                 time_str = "??:??"
             
             # Status indicator
-            status = "★" if entry.is_favorite else " "
+            status = "" if entry.is_favorite else " "
             if not entry.success:
-                status = "✗"
+                status = ""
             
             # Truncate args
             args = entry.args[:30] + "..." if len(entry.args) > 30 else entry.args
