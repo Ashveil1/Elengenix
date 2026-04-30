@@ -105,6 +105,7 @@ class AutoDetector:
                     "explanation": f"JSON file detected: {p.name}. Analyzing content...",
                 }
             except:
+                pass
         
         # Cloud/Terraform files
         if ext in ['.tf', '.tfvars', '.yml', '.yaml']:
