@@ -308,3 +308,6 @@ else
     echo -e "  Run 'elengenix configure' anytime to set up API keys"
 fi
 echo ""
+
+# Ensure script exits with success even if optional tools failed
+exit 0
