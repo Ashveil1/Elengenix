@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/data/data/com.termux/files/usr/bin/bash
 
 # ============================================================
 #   Elengenix - Professional Termux Mobile Installer
@@ -16,10 +16,35 @@ CYAN='\033[0;36m'
 BOLD='\033[1m'
 NC='\033[0m'
 
-info()    { echo -e "${CYAN}[*]${NC} $1"; }
-success() { echo -e "${GREEN}[]${NC} $1"; }
-warning() { echo -e "${YELLOW}[!]${NC} $1"; }
-error()   { echo -e "${RED}[]${NC} $1"; exit 1; }
+info()    { echo -e "${CYAN}[INFO]${NC} $1"; }
+success() { echo -e "${GREEN}[OK]${NC} $1"; }
+warning() { echo -e "${YELLOW}[WARN]${NC} $1"; }
+error()   { echo -e "${RED}[FAIL]${NC} $1"; exit 1; }
+
+run_with_spinner() {
+    local msg="$1"
+    shift
+    echo -n -e "${CYAN}[INFO]${NC} $msg "
+    "$@" >/dev/null 2>&1 &
+    local pid=$!
+    local delay=0.1
+    local spinstr='|/-\'
+    while kill -0 $pid 2>/dev/null; do
+        local temp=${spinstr#?}
+        printf "[%c]" "$spinstr"
+        local spinstr=$temp${spinstr%"$temp"}
+        sleep $delay
+        printf "\b\b\b"
+    done
+    wait $pid
+    local status=$?
+    if [ $status -eq 0 ]; then
+        echo -e "\r${GREEN}[OK]${NC} $msg   "
+    else
+        echo -e "\r${RED}[FAIL]${NC} $msg   "
+    fi
+    return $status
+}
 
 #  ERROR TRAP - Disabled for this script since we handle optional failures gracefully
 # trap 'echo -e "\n${RED}[!] Critical error during installation.${NC}"; exit 1;' ERR
@@ -96,14 +121,12 @@ AI_DEPS_CORE="openai anthropic"  # These have pre-built wheels and work reliably
 AI_DEPS_OPTIONAL="google-generativeai cohere huggingface-hub replicate"  # May fail on Termux
 
 for dep in $AI_DEPS_CORE; do
-    info "  Installing $dep (core)..."
-    pip install "$dep" 2>/dev/null || warning "  $dep install had issues (continuing)"
+    run_with_spinner "Installing $dep (core)..." pip install "$dep" || warning "  $dep install had issues (continuing)"
 done
 
 info "  Installing optional AI providers (may fail on Termux)..."
 for dep in $AI_DEPS_OPTIONAL; do
-    info "  Installing $dep (optional)..."
-    pip install "$dep" 2>/dev/null || warning "  $dep skipped (build issues on Termux)"
+    run_with_spinner "Installing $dep (optional)..." pip install "$dep" || warning "  $dep skipped (build issues on Termux)"
 done
 success "AI providers installed (OpenAI & Anthropic work best on Termux)"
 
@@ -138,10 +161,7 @@ declare -A GO_TOOLS=(
 info "Installing lightweight Go tools..."
 for tool in "${!GO_TOOLS[@]}"; do
     if ! command -v "$tool" >/dev/null 2>&1; then
-        info "  Installing $tool..."
-        if go install -v "${GO_TOOLS[$tool]}" 2>/dev/null; then
-            success "  $tool installed"
-        else
+        if ! run_with_spinner "Installing $tool (Go)..." go install -v "${GO_TOOLS[$tool]}"; then
             warning "  Could not install $tool (skipping)"
         fi
     else

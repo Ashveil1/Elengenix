@@ -30,12 +30,16 @@ Elengenix is a next-generation security framework that combines the reasoning ca
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-username/Elengenix.git
+git clone https://github.com/Ashveil1/Elengenix.git
 cd Elengenix
 
-# Run the setup script
+# For Linux/Ubuntu users:
 chmod +x setup.sh
 ./setup.sh
+
+# For Termux (Android) users:
+chmod +x termux_setup.sh
+./termux_setup.sh
 ```
 
 ### Configuration
@@ -89,8 +93,8 @@ We welcome contributions from the security and AI community. Please refer to [CO
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the GPL License - see the [LICENSE](LICENSE) file for details.
 
 ---
 
-**Developed by the Elengenix Project Team.**
+**Developed by Ashveil1.**

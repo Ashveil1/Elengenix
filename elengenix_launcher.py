@@ -32,13 +32,13 @@ logger = logging.getLogger("elengenix.launcher")
 # ---------------------------------------------------------------------------
 
 class Colors:
-    """ANSI escape codes for terminal output styling."""
-    HEADER    = "\033[95m"
-    BLUE      = "\033[94m"
-    CYAN      = "\033[96m"
-    GREEN     = "\033[92m"
-    YELLOW    = "\033[93m"
-    RED       = "\033[91m"
+    """ANSI escape codes for terminal output styling (Ancient Greek Theme)."""
+    HEADER    = "\033[38;5;178m"  # Gold3
+    BLUE      = "\033[38;5;67m"   # Steel Blue
+    CYAN      = "\033[38;5;178m"  # Gold3 (Replaces Cyan for primary text)
+    GREEN     = "\033[38;5;113m"  # Dark Olive Green2
+    YELLOW    = "\033[38;5;208m"  # Dark Orange
+    RED       = "\033[38;5;131m"  # Indian Red
     BOLD      = "\033[1m"
     DIM       = "\033[2m"
     UNDERLINE = "\033[4m"

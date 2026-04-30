@@ -36,15 +36,15 @@ console = Console()
 # ---------------------------------------------------------------------------
 
 COLORS = {
-    "primary":   "cyan",       # Main brand color
-    "secondary": "blue",       # Secondary actions
-    "success":   "green",      # Success states
-    "warning":   "yellow",     # Warnings
-    "error":     "red",        # Errors
-    "info":      "cyan",       # Informational text
-    "text":      "white",      # Normal text
-    "muted":     "dim",        # Muted/secondary text
-    "accent":    "magenta",    # Highlights and accents
+    "primary":   "gold3",              # Bronze / Gold (Main brand)
+    "secondary": "steel_blue",         # Aegean Sea Blue (Secondary actions)
+    "success":   "dark_olive_green2",  # Olive (Success states)
+    "warning":   "dark_orange",        # Terracotta (Warnings)
+    "error":     "indian_red",         # Spartan Red (Errors)
+    "info":      "steel_blue",         # Lapis Lazuli (Informational text)
+    "text":      "white",              # Marble (Normal text)
+    "muted":     "dim",                # Muted/secondary text
+    "accent":    "gold3",              # Highlights and accents
 }
 
 
@@ -53,13 +53,13 @@ COLORS = {
 # ---------------------------------------------------------------------------
 
 STYLES = {
-    "title":     Style(color="cyan", bold=True),
-    "subtitle":  Style(color="blue", dim=True),
-    "success":   Style(color="green", bold=True),
-    "error":     Style(color="red", bold=True),
-    "warning":   Style(color="yellow"),
-    "info":      Style(color="cyan", dim=True),
-    "command":   Style(color="cyan", bgcolor="black"),
+    "title":     Style(color="gold3", bold=True),
+    "subtitle":  Style(color="steel_blue", dim=True),
+    "success":   Style(color="dark_olive_green2", bold=True),
+    "error":     Style(color="indian_red", bold=True),
+    "warning":   Style(color="dark_orange"),
+    "info":      Style(color="steel_blue", dim=True),
+    "command":   Style(color="gold3", bgcolor="black"),
 }
 
 # Standard text markers (no emoji)
@@ -85,12 +85,12 @@ def show_main_banner():
     """
     banner = (
         "\n"
-        "  [bold cyan]ELENGENIX[/bold cyan] [dim]v2.0.0[/dim]\n"
+        "  [bold gold3]ELENGENIX[/bold gold3] [dim]v2.0.0[/dim]\n"
         "  [dim]Universal AI Agent  |  Bug Bounty Specialist[/dim]\n"
     )
     console.print(Panel(
         banner,
-        border_style="cyan",
+        border_style="gold3",
         box=MINIMAL_DOUBLE_HEAD,
         padding=(1, 2)
     ))
@@ -111,9 +111,9 @@ def show_cli_banner(mode: str = "agent"):
     mode_text = mode_names.get(mode, "AI Partner")
 
     console.print(Panel(
-        f"[bold cyan]{mode_text}[/bold cyan] [dim]v2.0.0[/dim]\n"
+        f"[bold gold3]{mode_text}[/bold gold3] [dim]v2.0.0[/dim]\n"
         f"[dim]Type /help for commands  |  /exit to quit[/dim]",
-        border_style="cyan",
+        border_style="gold3",
         box=ROUNDED,
         padding=(0, 2)
     ))
@@ -122,9 +122,9 @@ def show_cli_banner(mode: str = "agent"):
 def show_arsenal_banner():
     """Display the Security Arsenal banner."""
     console.print(Panel(
-        "[bold cyan]Security Arsenal[/bold cyan] [dim]v2.0.0[/dim]\n"
+        "[bold gold3]Security Arsenal[/bold gold3] [dim]v2.0.0[/dim]\n"
         "[dim]Select a tool to begin[/dim]",
-        border_style="cyan",
+        border_style="gold3",
         box=ROUNDED,
         padding=(0, 2)
     ))
@@ -180,7 +180,7 @@ def format_menu_item(number: int, title: str, description: str) -> str:
         title: Item title (bold).
         description: Item description (dimmed).
     """
-    return f"[cyan]{number:2}.[/cyan] [bold]{title}[/bold]  [dim]{description}[/dim]"
+    return f"[gold3]{number:2}.[/gold3] [bold]{title}[/bold]  [dim]{description}[/dim]"
 
 
 # ---------------------------------------------------------------------------
@@ -196,8 +196,8 @@ def create_status_table(title: str) -> Table:
     table = Table(
         title=title,
         box=ROUNDED,
-        border_style="cyan",
-        header_style="bold cyan",
+        border_style="gold3",
+        header_style="bold gold3",
         show_lines=True
     )
     return table
@@ -211,13 +211,13 @@ def create_tools_table(tools: List[Dict[str, str]]) -> Table:
     """
     table = Table(
         show_header=True,
-        header_style="bold cyan",
+        header_style="bold gold3",
         box=ROUNDED,
-        border_style="cyan",
+        border_style="gold3",
         show_lines=True
     )
     table.add_column("#", style="dim", width=3, justify="right")
-    table.add_column("Tool", style="cyan", width=20)
+    table.add_column("Tool", style="gold3", width=20)
     table.add_column("Description", style="white")
 
     for idx, tool in enumerate(tools, 1):
@@ -235,18 +235,18 @@ def create_doctor_table(checks: List[Dict[str, Any]]) -> Table:
     """
     table = Table(
         box=ROUNDED,
-        border_style="cyan",
+        border_style="gold3",
         show_lines=False,
         padding=(0, 1)
     )
-    table.add_column("Check", style="cyan")
+    table.add_column("Check", style="gold3")
     table.add_column("Status", width=10)
     table.add_column("Details", style="white")
 
     status_display = {
-        "ok":   "[green]OK[/green]",
-        "fail": "[red]FAIL[/red]",
-        "warn": "[yellow]WARN[/yellow]",
+        "ok":   "[dark_olive_green2]OK[/dark_olive_green2]",
+        "fail": "[indian_red]FAIL[/indian_red]",
+        "warn": "[dark_orange]WARN[/dark_orange]",
         "info": "[dim]INFO[/dim]",
     }
 
@@ -268,17 +268,17 @@ def create_doctor_table(checks: List[Dict[str, Any]]) -> Table:
 
 def print_success(message: str):
     """Print a success message with [OK] marker."""
-    console.print(f"[green][OK] {message}[/green]")
+    console.print(f"[dark_olive_green2][OK] {message}[/dark_olive_green2]")
 
 
 def print_error(message: str):
     """Print an error message with [FAIL] marker."""
-    console.print(f"[red][FAIL] {message}[/red]")
+    console.print(f"[indian_red][FAIL] {message}[/indian_red]")
 
 
 def print_warning(message: str):
     """Print a warning message with [WARN] marker."""
-    console.print(f"[yellow][WARN] {message}[/yellow]")
+    console.print(f"[dark_orange][WARN] {message}[/dark_orange]")
 
 
 def print_info(message: str):
@@ -288,7 +288,7 @@ def print_info(message: str):
 
 def print_command(command: str):
     """Print a command in highlighted style (for copy-paste guidance)."""
-    console.print(f"[black on cyan] {command} [/black on cyan]")
+    console.print(f"[black on gold3] {command} [/black on gold3]")
 
 
 # ---------------------------------------------------------------------------
@@ -302,7 +302,7 @@ def show_spinner(message: str):
         with show_spinner("Loading..."):
             do_work()
     """
-    return console.status(f"[cyan]{message}[/cyan]", spinner="dots")
+    return console.status(f"[gold3]{message}[/gold3]", spinner="dots")
 
 
 def show_section(title: str):
@@ -311,7 +311,7 @@ def show_section(title: str):
     Args:
         title: Section heading text.
     """
-    console.print(f"\n[bold cyan]{title}[/bold cyan]\n")
+    console.print(f"\n[bold gold3]{title}[/bold gold3]\n")
 
 
 # ---------------------------------------------------------------------------
@@ -320,7 +320,7 @@ def show_section(title: str):
 
 def prompt_target() -> str:
     """Prompt the user to enter a target domain or IP address."""
-    return console.input("[cyan]Target[/cyan] [dim](domain/IP)[/dim]: ")
+    return console.input("[gold3]Target[/gold3] [dim](domain/IP)[/dim]: ")
 
 
 def prompt_choice(options: List[str]) -> int:
@@ -336,13 +336,13 @@ def prompt_choice(options: List[str]) -> int:
         console.print(f" {i}. {opt}")
 
     while True:
-        choice = console.input("\n[cyan]Select[/cyan] [dim](number)[/dim]: ")
+        choice = console.input("\n[gold3]Select[/gold3] [dim](number)[/dim]: ")
         try:
             idx = int(choice) - 1
             if 0 <= idx < len(options):
                 return idx
         except ValueError:
-            console.print("[red]Invalid selection[/red]")
+            console.print("[indian_red]Invalid selection[/indian_red]")
 
 
 def confirm(message: str, default: bool = False) -> bool:
@@ -357,7 +357,7 @@ def confirm(message: str, default: bool = False) -> bool:
     """
     default_text = "Y/n" if default else "y/N"
     response = console.input(
-        f"[cyan]{message}[/cyan] [dim]({default_text})[/dim]: "
+        f"[gold3]{message}[/gold3] [dim]({default_text})[/dim]: "
     ).lower().strip()
 
     if not response:
@@ -375,7 +375,7 @@ def show_scan_summary(findings: Dict[str, Any]):
     Args:
         findings: Dict with 'critical', 'high', 'medium', 'low' counts.
     """
-    console.print("\n[bold cyan]Scan Results[/bold cyan]\n")
+    console.print("\n[bold gold3]Scan Results[/bold gold3]\n")
 
     critical = findings.get("critical", 0)
     high = findings.get("high", 0)
@@ -383,11 +383,11 @@ def show_scan_summary(findings: Dict[str, Any]):
     low = findings.get("low", 0)
 
     if critical > 0:
-        console.print(f"  [red]Critical: {critical}[/red]")
+        console.print(f"  [indian_red]Critical: {critical}[/indian_red]")
     if high > 0:
-        console.print(f"  [yellow]High: {high}[/yellow]")
+        console.print(f"  [dark_orange]High: {high}[/dark_orange]")
     if medium > 0:
-        console.print(f"  [blue]Medium: {medium}[/blue]")
+        console.print(f"  [steel_blue]Medium: {medium}[/steel_blue]")
     if low > 0:
         console.print(f"  [dim]Low: {low}[/dim]")
 
@@ -404,13 +404,13 @@ def show_memory_stats(stats: Dict[str, Any]):
         stats: Dict with 'status', 'total_memories', 'unique_targets',
                and optional 'targets' list.
     """
-    console.print("\n[bold cyan]Memory Statistics[/bold cyan]\n")
+    console.print("\n[bold gold3]Memory Statistics[/bold gold3]\n")
 
     status = stats.get("status", "unknown")
     total = stats.get("total_memories", 0)
     targets = stats.get("unique_targets", 0)
 
-    console.print(f"  Status:          [cyan]{status}[/cyan]")
+    console.print(f"  Status:          [gold3]{status}[/gold3]")
     console.print(f"  Total memories:  {total}")
     console.print(f"  Unique targets:  {targets}")
 

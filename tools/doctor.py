@@ -78,13 +78,14 @@ def _check_tool(tool: str) -> Tuple[bool, str]:
     return False, "Not found"
 
 
-def check_health(fix: bool = False) -> bool:
+def check_health(interactive: bool = True) -> bool:
     """
     Full system health check.
-    If fix=True, attempts repair.
+    If interactive=True, prompts the user to fix issues dynamically.
     Returns True if system is healthy.
     """
-    from ui_components import console, print_error, print_success, print_warning, confirm, create_status_table
+    from ui_components import console, print_error, print_success, print_warning, confirm
+    import questionary
     
     console.print("\n[bold cyan]System Health Check[/bold cyan] [dim]v2.0.0[/dim]\n")
     all_ok = True
@@ -106,11 +107,16 @@ def check_health(fix: bool = False) -> bool:
     console.print(f"  config.yaml: {status} {cfg_msg}")
     if not cfg_ok:
         all_ok = False
-        if fix:
-            console.print("[yellow]Running wizard to fix config...[/yellow]")
+        if interactive and confirm("API Keys not configured. Run configuration wizard now?", default=True):
+            console.print("\n[yellow]Launching Configuration Wizard...[/yellow]")
             try:
                 import wizard
                 wizard.main()
+                # Re-check config after wizard
+                cfg_ok, cfg_msg = _check_config()
+                if cfg_ok:
+                    all_ok = True
+                    console.print(f"  [green]New config:[/green] {cfg_msg}")
             except Exception as e:
                 logger.error(f"Wizard failed: {e}")
     console.print()
@@ -130,24 +136,55 @@ def check_health(fix: bool = False) -> bool:
 
     if missing:
         print_error(f"Missing tools: {', '.join(missing)}")
-        console.print("[dim]Run: ./setup.sh to install all tools[/dim]\n")
-        if fix and confirm("Install missing tools now?", default=True):
-            import subprocess
-            subprocess.run(["bash", "./setup.sh"], check=False)
+        if interactive:
+            try:
+                while True:
+                    choice = questionary.select(
+                        "Missing security tools detected. What would you like to do?",
+                        choices=[
+                            "Install ALL missing tools (Recommended)",
+                            "Select specific tools to install",
+                            "Skip for now"
+                        ]
+                    ).ask()
+                    
+                    if choice == "Install ALL missing tools (Recommended)":
+                        import dependency_manager
+                        dependency_manager.check_and_install_dependencies()
+                        break
+                    elif choice == "Select specific tools to install":
+                        selected = questionary.checkbox(
+                            "Select tools to install (Press Space to select, Enter to confirm):",
+                            choices=missing
+                        ).ask()
+                        if not selected:
+                            console.print("[yellow]No tools selected. Returning to menu...[/yellow]")
+                            continue  # Loop back to the main menu
+                        
+                        import dependency_manager
+                        for tool in selected:
+                            if tool in dependency_manager.TOOLS:
+                                console.print(f"[*] Installing {tool}...")
+                                dependency_manager.run_with_streaming(dependency_manager.TOOLS[tool])
+                        break
+                    else:
+                        console.print("[dim]Skipping tool installation.[/dim]")
+                        break
+            except ImportError:
+                print_warning("questionary module missing. Run setup.sh to install core dependencies.")
+            except Exception as e:
+                logger.error(f"Error during tool installation prompt: {e}")
 
     # ── Final Verdict ──────────────────────────────────────────────────────────
     console.print()
     if all_ok:
         print_success("System is healthy and ready for use")
     else:
-        print_error("System has issues")
-        console.print("[dim]Run: python main.py doctor --fix[/dim]")
-        if not fix and confirm("Run auto-repair now?", default=True):
-            check_health(fix=True)
+        print_warning("System still has some unresolved issues. Run 'elengenix doctor' again later.")
     console.print()
 
     return all_ok
 
 
 if __name__ == "__main__":
-    check_health(fix="--fix" in sys.argv)
+    check_health(interactive="--no-interactive" not in sys.argv)

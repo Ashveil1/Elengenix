@@ -17,9 +17,34 @@ BOLD='\033[1m'
 NC='\033[0m'
 
 info()    { echo -e "${CYAN}[*]${NC} $1"; }
-success() { echo -e "${GREEN}[]${NC} $1"; }
-warning() { echo -e "${YELLOW}[!]${NC} $1"; }
-error()   { echo -e "${RED}[]${NC} $1"; exit 1; }
+success() { echo -e "${GREEN}[OK]${NC} $1"; }
+warning() { echo -e "${YELLOW}[WARN]${NC} $1"; }
+error()   { echo -e "${RED}[FAIL]${NC} $1"; exit 1; }
+
+run_with_spinner() {
+    local msg="$1"
+    shift
+    echo -n -e "${CYAN}[INFO]${NC} $msg "
+    "$@" >/dev/null 2>&1 &
+    local pid=$!
+    local delay=0.1
+    local spinstr='|/-\'
+    while kill -0 $pid 2>/dev/null; do
+        local temp=${spinstr#?}
+        printf "[%c]" "$spinstr"
+        local spinstr=$temp${spinstr%"$temp"}
+        sleep $delay
+        printf "\b\b\b"
+    done
+    wait $pid
+    local status=$?
+    if [ $status -eq 0 ]; then
+        echo -e "\r${GREEN}[OK]${NC} $msg   "
+    else
+        echo -e "\r${RED}[FAIL]${NC} $msg   "
+    fi
+    return $status
+}
 
 #  ERROR TRAP
 trap 'echo -e "\n${RED}[!] Error occurred at line $LINENO. Installation failed.${NC}";' ERR
@@ -102,8 +127,7 @@ fi
 info "Installing AI provider dependencies..."
 AI_DEPS="openai anthropic google-generativeai cohere huggingface-hub replicate"
 for dep in $AI_DEPS; do
-    info "  Installing $dep..."
-    pip install "$dep" --quiet 2>/dev/null || warning "  $dep install had issues (continuing)"
+    run_with_spinner "Installing $dep..." pip install "$dep" || warning "  $dep install had issues (continuing)"
 done
 success "AI providers installed (set API keys in config to use)"
 
@@ -128,10 +152,7 @@ declare -A GO_TOOLS=(
 info "Installing Go-based security tools..."
 for tool in "${!GO_TOOLS[@]}"; do
     if ! command -v "$tool" >/dev/null 2>&1; then
-        info "  Installing $tool..."
-        if go install -v "${GO_TOOLS[$tool]}" 2>/dev/null; then
-            success "  $tool installed"
-        else
+        if ! run_with_spinner "Installing $tool (Go)..." go install -v "${GO_TOOLS[$tool]}"; then
             warning "  Could not install $tool (may require manual installation)"
         fi
     else

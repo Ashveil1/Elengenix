@@ -1,4 +1,4 @@
-# ═══════════════════════════════════════════════════════
+ร# ═══════════════════════════════════════════════════════
 # Elengenix - Professional Security Stack (v1.5.0)
 # - Security Hardening (CVE Fixes for PyYAML & Requests)
 # - Latest AI Provider SDKs for improved stability
