@@ -180,10 +180,10 @@ async def run_registry_pipeline(
     available_tools = [t for t in tools if t and t.is_available]
     
     if not available_tools:
-        console.print("[yellow][WARN] No tools available in registry[/yellow]")
+        console.print("[grey70][WARN] No tools available in registry[/grey70]")
         return results
     
-    console.print(f"[cyan][RUN] Running {len(available_tools)} tools from registry...[/cyan]")
+    console.print(f"[red][RUN] Running {len(available_tools)} tools from registry...[/red]")
     
     # Execute each tool
     for tool in available_tools:
@@ -197,7 +197,7 @@ async def run_registry_pipeline(
             results.append(result)
             
             if result.success and result.findings:
-                console.print(f"  [green][OK] {tool.metadata.name}: {len(result.findings)} findings[/green]")
+                console.print(f"  [bold white][OK] {tool.metadata.name}: {len(result.findings)} findings[/bold white]")
             elif result.success:
                 console.print(f"  [dim][ ] {tool.metadata.name}: No findings[/dim]")
             else:
@@ -264,9 +264,9 @@ def print_findings_summary(results: List[ToolResult]) -> None:
             color = {
                 "Critical": "red",
                 "High": "orange3",
-                "Medium": "yellow",
-                "Low": "green",
-                "Informational": "blue",
+                "Medium": "grey70",
+                "Low": "bold white",
+                "Informational": "grey70",
             }.get(severity, "white")
             console.print(f"  [{color}]{severity}: {len(items)}[/{color}]")
 
@@ -301,7 +301,7 @@ async def run_standard_scan(
     console.print(Panel(
         f"SECURE PIPELINE ACTIVATED: {normalized}\n"
         f"[dim]Mode: {'Tool Registry' if use_registry else 'Legacy'} | Rate: {rate_limit} concurrent[/dim]",
-        border_style="cyan"
+        border_style="red"
     ))
 
     try:

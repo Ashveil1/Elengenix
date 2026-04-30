@@ -130,8 +130,9 @@ class UniversalAIClient:
         else:
             self.api_key = ""
         
-        # Set model
-        self.model = model or config.get("default_model", "gpt-4o-mini")
+        # Set model (priority: param > env > config default)
+        env_model_key = f"{provider.upper()}_MODEL" if provider != "auto" else ""
+        self.model = model or os.getenv(env_model_key) or config.get("default_model", "gpt-4o-mini")
         
         # Check if provider needs custom format (like Anthropic)
         self.custom_format = config.get("custom_format", False)

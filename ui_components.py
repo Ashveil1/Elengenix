@@ -8,7 +8,7 @@ elements across all modules.
 Design Principles:
     - No emoji characters in any output
     - Professional text-only markers: [OK], [FAIL], [WARN], [INFO]
-    - Consistent cyan/blue color scheme with green/red for status
+    - Consistent red/blue color scheme with green/red for status
     - All components use Rich library for terminal rendering
 
 Usage:
@@ -36,15 +36,15 @@ console = Console()
 # ---------------------------------------------------------------------------
 
 COLORS = {
-    "primary":   "gold3",              # Bronze / Gold (Main brand)
-    "secondary": "steel_blue",         # Aegean Sea Blue (Secondary actions)
-    "success":   "dark_olive_green2",  # Olive (Success states)
-    "warning":   "dark_orange",        # Terracotta (Warnings)
-    "error":     "indian_red",         # Spartan Red (Errors)
-    "info":      "steel_blue",         # Lapis Lazuli (Informational text)
+    "primary":   "red",              # Bronze / Gold (Main brand)
+    "secondary": "grey70",         # Aegean Sea Blue (Secondary actions)
+    "success":   "white",  # Olive (Success states)
+    "warning":   "grey70",        # Terracotta (Warnings)
+    "error":     "red",         # Spartan Red (Errors)
+    "info":      "grey70",         # Lapis Lazuli (Informational text)
     "text":      "white",              # Marble (Normal text)
     "muted":     "dim",                # Muted/secondary text
-    "accent":    "gold3",              # Highlights and accents
+    "accent":    "red",              # Highlights and accents
 }
 
 
@@ -53,23 +53,23 @@ COLORS = {
 # ---------------------------------------------------------------------------
 
 STYLES = {
-    "title":     Style(color="gold3", bold=True),
-    "subtitle":  Style(color="steel_blue", dim=True),
-    "success":   Style(color="dark_olive_green2", bold=True),
-    "error":     Style(color="indian_red", bold=True),
-    "warning":   Style(color="dark_orange"),
-    "info":      Style(color="steel_blue", dim=True),
-    "command":   Style(color="gold3", bgcolor="black"),
+    "title":     Style(color="red", bold=True),
+    "subtitle":  Style(color="grey70", dim=True),
+    "success":   Style(color="white", bold=True),
+    "error":     Style(color="red", bold=True),
+    "warning":   Style(color="grey70"),
+    "info":      Style(color="grey70", dim=True),
+    "command":   Style(color="red", bgcolor="black"),
 }
 
-# Standard text markers (no emoji)
+# Standard text markers (no emoji, Greek-inspired or professional symbols)
 MARKERS = {
-    "ok":    "[OK]",
-    "fail":  "[FAIL]",
-    "warn":  "[WARN]",
-    "info":  "[INFO]",
-    "run":   "[RUN]",
-    "skip":  "[SKIP]",
+    "ok":    "[✔]",
+    "fail":  "[✘]",
+    "warn":  "[!]",
+    "info":  "[i]",
+    "run":   "[►]",
+    "skip":  "[»]",
 }
 
 
@@ -78,21 +78,33 @@ MARKERS = {
 # ---------------------------------------------------------------------------
 
 def show_main_banner():
-    """Display the main application banner.
+    """Display the majestic application banner.
 
     Used at startup in main.py. Renders a centered, bordered panel
-    with the application name, version, and tagline.
+    with the application name, version, and tagline using a Greek aesthetic.
     """
+    from rich.align import Align
+    
     banner = (
         "\n"
-        "  [bold gold3]ELENGENIX[/bold gold3] [dim]v2.0.0[/dim]\n"
-        "  [dim]Universal AI Agent  |  Bug Bounty Specialist[/dim]\n"
+        "[bold red] ███████╗██╗     ███████╗███╗   ██╗ ██████╗ ███████╗███╗   ██╗██╗██╗  ██╗[/bold red]\n"
+        "[bold red] ██╔════╝██║     ██╔════╝████╗  ██║██╔════╝ ██╔════╝████╗  ██║██║╚██╗██╔╝[/bold red]\n"
+        "[bold red] █████╗  ██║     █████╗  ██╔██╗ ██║██║  ███╗█████╗  ██╔██╗ ██║██║ ╚███╔╝ [/bold red]\n"
+        "[bold red] ██╔══╝  ██║     ██╔══╝  ██║╚██╗██║██║   ██║██╔══╝  ██║╚██╗██║██║ ██╔██╗ [/bold red]\n"
+        "[bold red] ███████╗███████╗███████╗██║ ╚████║╚██████╔╝███████╗██║ ╚████║██║██╔╝ ██╗[/bold red]\n"
+        "[bold red] ╚══════╝╚══════╝╚══════╝╚═╝  ╚═══╝ ╚═════╝ ╚══════╝╚═╝  ╚═══╝╚═╝╚═╝  ╚═╝[/bold red]\n"
+        "[dim grey70] ─────────────────────────────────────────────────────────────────────────── [/dim grey70]\n"
+        "[bold white]                   Universal AI & Bug Bounty Agent                   [/bold white]\n"
+        "[dim grey70]                        Aegis Protocol Active                        [/dim grey70]\n\n"
+        "                               [bold red]v2.0.0[/bold red]                                \n"
     )
     console.print(Panel(
-        banner,
-        border_style="gold3",
-        box=MINIMAL_DOUBLE_HEAD,
-        padding=(1, 2)
+        Align.center(banner),
+        border_style="red",
+        box=ROUNDED,
+        padding=(0, 2),
+        title="[bold red] System Online [/bold red]",
+        title_align="center"
     ))
 
 
@@ -111,20 +123,22 @@ def show_cli_banner(mode: str = "agent"):
     mode_text = mode_names.get(mode, "AI Partner")
 
     console.print(Panel(
-        f"[bold gold3]{mode_text}[/bold gold3] [dim]v2.0.0[/dim]\n"
+        f"[bold red]❖ {mode_text} ❖[/bold red]\n"
         f"[dim]Type /help for commands  |  /exit to quit[/dim]",
-        border_style="gold3",
+        border_style="red",
         box=ROUNDED,
-        padding=(0, 2)
+        padding=(0, 2),
+        subtitle="[dim]v2.0.0[/dim]",
+        subtitle_align="right"
     ))
 
 
 def show_arsenal_banner():
     """Display the Security Arsenal banner."""
     console.print(Panel(
-        "[bold gold3]Security Arsenal[/bold gold3] [dim]v2.0.0[/dim]\n"
+        "[bold red]Security Arsenal[/bold red] [dim]v2.0.0[/dim]\n"
         "[dim]Select a tool to begin[/dim]",
-        border_style="gold3",
+        border_style="red",
         box=ROUNDED,
         padding=(0, 2)
     ))
@@ -180,7 +194,7 @@ def format_menu_item(number: int, title: str, description: str) -> str:
         title: Item title (bold).
         description: Item description (dimmed).
     """
-    return f"[gold3]{number:2}.[/gold3] [bold]{title}[/bold]  [dim]{description}[/dim]"
+    return f"[red]{number:2}.[/red] [bold]{title}[/bold]  [dim]{description}[/dim]"
 
 
 # ---------------------------------------------------------------------------
@@ -196,8 +210,8 @@ def create_status_table(title: str) -> Table:
     table = Table(
         title=title,
         box=ROUNDED,
-        border_style="gold3",
-        header_style="bold gold3",
+        border_style="red",
+        header_style="bold red",
         show_lines=True
     )
     return table
@@ -211,13 +225,13 @@ def create_tools_table(tools: List[Dict[str, str]]) -> Table:
     """
     table = Table(
         show_header=True,
-        header_style="bold gold3",
+        header_style="bold red",
         box=ROUNDED,
-        border_style="gold3",
+        border_style="red",
         show_lines=True
     )
     table.add_column("#", style="dim", width=3, justify="right")
-    table.add_column("Tool", style="gold3", width=20)
+    table.add_column("Tool", style="red", width=20)
     table.add_column("Description", style="white")
 
     for idx, tool in enumerate(tools, 1):
@@ -235,18 +249,18 @@ def create_doctor_table(checks: List[Dict[str, Any]]) -> Table:
     """
     table = Table(
         box=ROUNDED,
-        border_style="gold3",
+        border_style="red",
         show_lines=False,
         padding=(0, 1)
     )
-    table.add_column("Check", style="gold3")
+    table.add_column("Check", style="red")
     table.add_column("Status", width=10)
     table.add_column("Details", style="white")
 
     status_display = {
-        "ok":   "[dark_olive_green2]OK[/dark_olive_green2]",
-        "fail": "[indian_red]FAIL[/indian_red]",
-        "warn": "[dark_orange]WARN[/dark_orange]",
+        "ok":   "[white]OK[/white]",
+        "fail": "[red]FAIL[/red]",
+        "warn": "[grey70]WARN[/grey70]",
         "info": "[dim]INFO[/dim]",
     }
 
@@ -267,28 +281,28 @@ def create_doctor_table(checks: List[Dict[str, Any]]) -> Table:
 # ---------------------------------------------------------------------------
 
 def print_success(message: str):
-    """Print a success message with [OK] marker."""
-    console.print(f"[dark_olive_green2][OK] {message}[/dark_olive_green2]")
+    """Print a success message with [✔] marker."""
+    console.print(f"[white]{MARKERS['ok']} {message}[/white]")
 
 
 def print_error(message: str):
-    """Print an error message with [FAIL] marker."""
-    console.print(f"[indian_red][FAIL] {message}[/indian_red]")
+    """Print an error message with [✘] marker."""
+    console.print(f"[red]{MARKERS['fail']} {message}[/red]")
 
 
 def print_warning(message: str):
-    """Print a warning message with [WARN] marker."""
-    console.print(f"[dark_orange][WARN] {message}[/dark_orange]")
+    """Print a warning message with [!] marker."""
+    console.print(f"[grey70]{MARKERS['warn']} {message}[/grey70]")
 
 
 def print_info(message: str):
-    """Print an informational message (dimmed)."""
-    console.print(f"[dim]{message}[/dim]")
+    """Print an informational message with [i] marker."""
+    console.print(f"[grey70]{MARKERS['info']} {message}[/grey70]")
 
 
 def print_command(command: str):
     """Print a command in highlighted style (for copy-paste guidance)."""
-    console.print(f"[black on gold3] {command} [/black on gold3]")
+    console.print(f"[black on red] {command} [/black on red]")
 
 
 # ---------------------------------------------------------------------------
@@ -302,16 +316,18 @@ def show_spinner(message: str):
         with show_spinner("Loading..."):
             do_work()
     """
-    return console.status(f"[gold3]{message}[/gold3]", spinner="dots")
+    return console.status(f"[red]{message}[/red]", spinner="dots")
 
 
 def show_section(title: str):
-    """Print a section divider with a bold title.
+    """Print a section divider with a bold title and Greek-style border.
 
     Args:
         title: Section heading text.
     """
-    console.print(f"\n[bold gold3]{title}[/bold gold3]\n")
+    console.print()
+    console.print(f"[bold red] ❖ {title.upper()} ❖ [/bold red]")
+    console.print(f"[dim red] ────────{'─' * len(title)}──────── [/dim red]")
 
 
 # ---------------------------------------------------------------------------
@@ -320,7 +336,7 @@ def show_section(title: str):
 
 def prompt_target() -> str:
     """Prompt the user to enter a target domain or IP address."""
-    return console.input("[gold3]Target[/gold3] [dim](domain/IP)[/dim]: ")
+    return console.input("[red]Target[/red] [dim](domain/IP)[/dim]: ")
 
 
 def prompt_choice(options: List[str]) -> int:
@@ -336,13 +352,13 @@ def prompt_choice(options: List[str]) -> int:
         console.print(f" {i}. {opt}")
 
     while True:
-        choice = console.input("\n[gold3]Select[/gold3] [dim](number)[/dim]: ")
+        choice = console.input("\n[red]Select[/red] [dim](number)[/dim]: ")
         try:
             idx = int(choice) - 1
             if 0 <= idx < len(options):
                 return idx
         except ValueError:
-            console.print("[indian_red]Invalid selection[/indian_red]")
+            console.print("[red]Invalid selection[/red]")
 
 
 def confirm(message: str, default: bool = False) -> bool:
@@ -357,7 +373,7 @@ def confirm(message: str, default: bool = False) -> bool:
     """
     default_text = "Y/n" if default else "y/N"
     response = console.input(
-        f"[gold3]{message}[/gold3] [dim]({default_text})[/dim]: "
+        f"[red]{message}[/red] [dim]({default_text})[/dim]: "
     ).lower().strip()
 
     if not response:
@@ -375,7 +391,7 @@ def show_scan_summary(findings: Dict[str, Any]):
     Args:
         findings: Dict with 'critical', 'high', 'medium', 'low' counts.
     """
-    console.print("\n[bold gold3]Scan Results[/bold gold3]\n")
+    console.print("\n[bold red]Scan Results[/bold red]\n")
 
     critical = findings.get("critical", 0)
     high = findings.get("high", 0)
@@ -383,11 +399,11 @@ def show_scan_summary(findings: Dict[str, Any]):
     low = findings.get("low", 0)
 
     if critical > 0:
-        console.print(f"  [indian_red]Critical: {critical}[/indian_red]")
+        console.print(f"  [red]Critical: {critical}[/red]")
     if high > 0:
-        console.print(f"  [dark_orange]High: {high}[/dark_orange]")
+        console.print(f"  [grey70]High: {high}[/grey70]")
     if medium > 0:
-        console.print(f"  [steel_blue]Medium: {medium}[/steel_blue]")
+        console.print(f"  [grey70]Medium: {medium}[/grey70]")
     if low > 0:
         console.print(f"  [dim]Low: {low}[/dim]")
 
@@ -404,13 +420,13 @@ def show_memory_stats(stats: Dict[str, Any]):
         stats: Dict with 'status', 'total_memories', 'unique_targets',
                and optional 'targets' list.
     """
-    console.print("\n[bold gold3]Memory Statistics[/bold gold3]\n")
+    console.print("\n[bold red]Memory Statistics[/bold red]\n")
 
     status = stats.get("status", "unknown")
     total = stats.get("total_memories", 0)
     targets = stats.get("unique_targets", 0)
 
-    console.print(f"  Status:          [gold3]{status}[/gold3]")
+    console.print(f"  Status:          [red]{status}[/red]")
     console.print(f"  Total memories:  {total}")
     console.print(f"  Unique targets:  {targets}")
 

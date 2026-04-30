@@ -31,9 +31,7 @@ def _db_path() -> Path:
 
 @contextmanager
 def _get_conn() -> Generator[sqlite3.Connection, None, None]:
-    conn = sqlite3.connect(str(_db_path()), timeout=10)
-    conn.execute("PRAGMA journal_mode=WAL")
-    conn.execute("PRAGMA foreign_keys=ON")
+    conn = sqlite3.connect(str(_db_path()), timeout=30)
     try:
         yield conn
         conn.commit()
@@ -71,8 +69,7 @@ def init_db() -> None:
             node_type TEXT NOT NULL,
             props_json TEXT NOT NULL,
             created_at TEXT NOT NULL,
-            PRIMARY KEY (mission_id, node_id),
-            FOREIGN KEY (mission_id) REFERENCES missions(mission_id) ON DELETE CASCADE
+            PRIMARY KEY (mission_id, node_id)
             )
             """
         )
@@ -86,8 +83,7 @@ def init_db() -> None:
             edge_type TEXT NOT NULL,
             props_json TEXT NOT NULL,
             created_at TEXT NOT NULL,
-            PRIMARY KEY (mission_id, edge_id),
-            FOREIGN KEY (mission_id) REFERENCES missions(mission_id) ON DELETE CASCADE
+            PRIMARY KEY (mission_id, edge_id)
             )
             """
         )
@@ -101,8 +97,7 @@ def init_db() -> None:
             confidence REAL NOT NULL,
             evidence_json TEXT NOT NULL,
             created_at TEXT NOT NULL,
-            PRIMARY KEY (mission_id, fact_id),
-            FOREIGN KEY (mission_id) REFERENCES missions(mission_id) ON DELETE CASCADE
+            PRIMARY KEY (mission_id, fact_id)
             )
             """
         )
@@ -119,8 +114,7 @@ def init_db() -> None:
             evidence_json TEXT NOT NULL,
             created_at TEXT NOT NULL,
             updated_at TEXT NOT NULL,
-            PRIMARY KEY (mission_id, hyp_id),
-            FOREIGN KEY (mission_id) REFERENCES missions(mission_id) ON DELETE CASCADE
+            PRIMARY KEY (mission_id, hyp_id)
             )
             """
         )
@@ -134,8 +128,7 @@ def init_db() -> None:
             tool TEXT,
             action_json TEXT NOT NULL,
             result_json TEXT NOT NULL,
-            PRIMARY KEY (mission_id, entry_id),
-            FOREIGN KEY (mission_id) REFERENCES missions(mission_id) ON DELETE CASCADE
+            PRIMARY KEY (mission_id, entry_id)
             )
             """
         )
@@ -301,7 +294,7 @@ class MissionState:
                     _now(),
                 ),
             )
-            self.touch()
+        self.touch()
 
     def upsert_edge(self, edge: GraphEdge) -> None:
         with _get_conn() as conn:
@@ -322,7 +315,7 @@ class MissionState:
                     _now(),
                 ),
             )
-            self.touch()
+        self.touch()
 
     def add_fact(
         self,
@@ -350,7 +343,7 @@ class MissionState:
                     _now(),
                 ),
             )
-            self.touch()
+        self.touch()
 
     def upsert_hypothesis(
         self,
@@ -389,7 +382,7 @@ class MissionState:
                     now,
                 ),
             )
-            self.touch()
+        self.touch()
 
     def add_ledger_entry(
         self,
@@ -416,7 +409,7 @@ class MissionState:
                     _j(result or {}),
                 ),
             )
-            self.touch()
+        self.touch()
 
     def snapshot(self, max_items: int = 50) -> Dict[str, Any]:
         with _get_conn() as conn:

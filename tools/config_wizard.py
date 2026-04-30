@@ -144,15 +144,6 @@ class ConfigWizard:
             api_type="openai"
         ),
         AIProviderConfig(
-            name="Azure OpenAI",
-            env_key="AZURE_OPENAI_API_KEY",
-            base_url="https://YOUR_RESOURCE.openai.azure.com",
-            signup_url="https://portal.azure.com",
-            is_free=False,
-            notes="Enterprise OpenAI, requires Azure account",
-            api_type="azure"
-        ),
-        AIProviderConfig(
             name="Ollama (Local)",
             env_key="",
             base_url="http://localhost:11434/v1",
@@ -161,6 +152,19 @@ class ConfigWizard:
             notes="No API key needed, runs locally",
         ),
     ]
+
+    DEFAULT_MODELS: Dict[str, List[str]] = {
+        "Gemini (Google)": ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro", "gemini-1.0-pro"],
+        "OpenAI (GPT-4)": ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "o1-preview", "o1-mini"],
+        "Anthropic (Claude)": ["claude-3-5-sonnet-latest", "claude-3-5-haiku-latest", "claude-3-opus-latest"],
+        "Groq": ["llama-3.3-70b-versatile", "llama-3.1-70b-versatile", "llama-3.1-8b-instant"],
+        "DeepSeek": ["deepseek-chat", "deepseek-reasoner"],
+        "Mistral": ["mistral-large-latest", "mistral-small-latest", "open-mixtral-8x7b"],
+        "Together AI": ["meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo", "mistralai/Mixtral-8x7B-Instruct-v0.1"],
+        "OpenRouter": ["meta-llama/llama-3.3-70b-instruct", "google/gemini-2.0-flash-exp:free", "auto"],
+        "Perplexity": ["llama-3.1-sonar-large-128k-online", "llama-3.1-sonar-small-128k-online"],
+        "Ollama (Local)": ["llama3.2", "llama3.1:8b", "mistral:7b", "codellama:7b"],
+    }
     
     def __init__(self, config_dir: Path = Path(".")):
         self.config_dir = config_dir
@@ -210,12 +214,12 @@ class ConfigWizard:
     
     def _setup_ai_provider(self) -> None:
         """Setup AI provider and API key."""
-        console.print("\n[bold cyan]AI Provider Setup[/bold cyan]\n")
+        console.print("\n[bold red]AI Provider Setup[/bold red]\n")
         
         # Show available providers
         console.print("Select AI Provider:\n")
         for i, provider in enumerate(self.AI_PROVIDERS, 1):
-            free_badge = "[green]Free[/green]" if provider.is_free else "[yellow]Paid[/yellow]"
+            free_badge = "[bold white]Free[/bold white]" if provider.is_free else "[grey70]Paid[/grey70]"
             console.print(f"  [{i}] {provider.name}")
             console.print(f"      {free_badge} - {provider.notes}")
             console.print()
@@ -245,15 +249,15 @@ class ConfigWizard:
             # Ollama special setup
             print_info("Ollama requires no API key")
             console.print("\nInstall Ollama:")
-            console.print("  [cyan]curl -fsSL https://ollama.com/install.sh | sh[/cyan]")
-            console.print("  [cyan]ollama pull llama3.1:8b[/cyan]")
+            console.print("  [red]curl -fsSL https://ollama.com/install.sh | sh[/red]")
+            console.print("  [red]ollama pull llama3.1:8b[/red]")
             
             # Check if running
             import requests
             try:
                 resp = requests.get("http://localhost:11434/api/tags", timeout=2)
                 if resp.status_code == 200:
-                    print_success("[green]OK[/green] Ollama is running!")
+                    print_success("[bold white]OK[/bold white] Ollama is running!")
                 else:
                     print_warning("Ollama not responding")
             except:
@@ -278,16 +282,63 @@ class ConfigWizard:
             self._save_env_var(provider.env_key, new_key)
             print_success(f"Saved {provider.env_key}")
             
+            # Model Selection
+            model_env_key = provider.env_key.replace("_API_KEY", "_MODEL") if provider.env_key else "OLLAMA_MODEL"
+            self._select_model(provider)
+            
             # Test connection
             console.print("[dim]Testing connection...[/dim]")
-            if self._test_provider(provider, new_key):
-                print_success("Connection successful!")
-            else:
-                print_warning("Connection failed, please check API key")
+            try:
+                model = os.getenv(model_env_key)
+                if self._test_provider(provider, new_key, model):
+                    print_success("Connection successful!")
+                else:
+                    print_warning("Connection failed, please check API key and model")
+            except Exception as e:
+                print_error(f"Test failed: {str(e)[:50]}")
         else:
-            print_info("Skipped API key configuration")
+            # Even if key is skipped, allow updating model if key exists
+            if os.getenv(provider.env_key):
+                self._select_model(provider)
+            else:
+                print_info("Skipped configuration")
+
+    def _select_model(self, provider: AIProviderConfig) -> None:
+        """Select model for the provider."""
+        models = self.DEFAULT_MODELS.get(provider.name, ["default"])
+        model_env_key = provider.env_key.replace("_API_KEY", "_MODEL")
+        if not model_env_key: # For Ollama
+             model_env_key = "OLLAMA_MODEL"
+        
+        current_model = os.getenv(model_env_key, "")
+        
+        console.print(f"\n[bold]Select Model for {provider.name}:[/bold]")
+        for i, m in enumerate(models, 1):
+            active = " [bold white](current)[/bold white]" if m == current_model else ""
+            console.print(f"  [{i}] {m}{active}")
+        
+        console.print(f"  [{len(models) + 1}] Custom (Enter identifier)")
+        
+        choice = console.input(f"\nSelect model [1-{len(models) + 1}] or [S]kip: ").strip()
+        
+        if choice.lower() == 's' or not choice:
+            return
+        
+        selected_model = ""
+        try:
+            idx = int(choice) - 1
+            if 0 <= idx < len(models):
+                selected_model = models[idx]
+            elif idx == len(models):
+                selected_model = console.input("Enter custom model identifier: ").strip()
+        except ValueError:
+            pass
+        
+        if selected_model:
+            self._save_env_var(model_env_key, selected_model)
+            print_success(f"Selected model: {selected_model}")
     
-    def _test_provider(self, provider: AIProviderConfig, api_key: str) -> bool:
+    def _test_provider(self, provider: AIProviderConfig, api_key: str, model: Optional[str] = None) -> bool:
         """Test provider connection."""
         import requests
         
@@ -297,9 +348,14 @@ class ConfigWizard:
                 "Content-Type": "application/json",
             }
             
+            # Use provided model, or fallback to default
+            test_model = model or "gpt-4o-mini"
+            if "gemini" in provider.base_url and not model:
+                test_model = "gemini-1.5-flash"
+            
             # Simple test request
             payload = {
-                "model": provider.base_url.split("/")[-1] if "gemini" in provider.base_url else "gpt-4o-mini",
+                "model": test_model,
                 "messages": [{"role": "user", "content": "Hello"}],
                 "max_tokens": 10,
             }
@@ -318,7 +374,7 @@ class ConfigWizard:
     
     def _setup_telegram(self) -> None:
         """Setup Telegram bot configuration."""
-        console.print("\n[bold cyan]Telegram Bot Setup[/bold cyan]\n")
+        console.print("\n[bold red]Telegram Bot Setup[/bold red]\n")
         console.print("[dim]Get your bot token from @BotFather on Telegram[/dim]\n")
         
         # Bot Token
@@ -353,7 +409,7 @@ class ConfigWizard:
     
     def _setup_hackerone(self) -> None:
         """Setup HackerOne configuration."""
-        console.print("\n[bold cyan]HackerOne Setup[/bold cyan]\n")
+        console.print("\n[bold red]HackerOne Setup[/bold red]\n")
         console.print("[dim]Get your API credentials from https://hackerone.com/settings/me[/dim]\n")
         
         # API Key
@@ -387,11 +443,11 @@ class ConfigWizard:
 
     def _setup_default_target(self) -> None:
         """Setup default target."""
-        console.print("\n[bold cyan]Default Target Setup[/bold cyan]\n")
+        console.print("\n[bold red]Default Target Setup[/bold red]\n")
         
         current = os.getenv("ELENGENIX_DEFAULT_TARGET", "")
         if current:
-            console.print(f"Current default target: [cyan]{current}[/cyan]")
+            console.print(f"Current default target: [red]{current}[/red]")
         
         target = console.input("Enter default target or [S]kip: ").strip()
         
@@ -405,10 +461,10 @@ class ConfigWizard:
     
     def _setup_rate_limits(self) -> None:
         """Setup rate limits."""
-        console.print("\n[bold cyan]Rate Limit Setup[/bold cyan]\n")
+        console.print("\n[bold red]Rate Limit Setup[/bold red]\n")
         
         current = os.getenv("ELENGENIX_RATE_LIMIT", "5")
-        console.print(f"Current rate limit: [cyan]{current} req/s[/cyan]")
+        console.print(f"Current rate limit: [red]{current} req/s[/red]")
         console.print("[dim]Recommended: 5 for production, 10 for testing[/dim]\n")
         
         limit = console.input("Enter rate limit (req/s, Enter to keep current): ").strip()
@@ -423,22 +479,25 @@ class ConfigWizard:
     
     def _show_status(self) -> None:
         """Show configuration status."""
-        console.print("\n[bold cyan]Configuration Status[/bold cyan]\n")
+        console.print("\n[bold red]Configuration Status[/bold red]\n")
         
         # AI Providers
         console.print("[bold]AI Providers:[/bold]")
         for provider in self.AI_PROVIDERS:
-            key = os.getenv(provider.env_key, "")
-            status = "[green]Ready[/green]" if key else "[red]No API key[/red]"
-            console.print(f"  {provider.name}: {status}")
+            key = os.getenv(provider.env_key, "") if provider.env_key else "local"
+            model_env_key = provider.env_key.replace("_API_KEY", "_MODEL") if provider.env_key else "OLLAMA_MODEL"
+            model = os.getenv(model_env_key, "(default)")
+            
+            status = "[bold white]Ready[/bold white]" if key else "[red]No API key[/red]"
+            console.print(f"  {provider.name}: {status} [dim]({model})[/dim]")
         
         # Ollama check
         try:
             import requests
             resp = requests.get("http://localhost:11434/api/tags", timeout=2)
-            ollama_status = "[green]Running[/green]" if resp.status_code == 200 else "[yellow]Not responding[/yellow]"
+            ollama_status = "[bold white]Running[/bold white]" if resp.status_code == 200 else "[grey70]Not responding[/grey70]"
         except:
-            ollama_status = "[yellow]Not found[/yellow]"
+            ollama_status = "[grey70]Not found[/grey70]"
         console.print(f"  Ollama (Local): {ollama_status}")
         
         # Active provider
@@ -446,20 +505,20 @@ class ConfigWizard:
             from tools.universal_ai_client import AIClientManager
             manager = AIClientManager()
             active = manager.get_active_provider()
-            console.print(f"\n[bold]Active Provider:[/bold] [cyan]{active}[/cyan]")
+            console.print(f"\n[bold]Active Provider:[/bold] [red]{active}[/red]")
         except:
-            console.print(f"\n[bold]Active Provider:[/bold] [yellow]Not configured[/yellow]")
+            console.print(f"\n[bold]Active Provider:[/bold] [grey70]Not configured[/grey70]")
         
         # Integrations
         console.print("\n[bold]Integrations:[/bold]")
         telegram_token = os.getenv("TELEGRAM_BOT_TOKEN", "")
         telegram_chat = os.getenv("TELEGRAM_CHAT_ID", "")
-        telegram_status = "[green]Ready[/green]" if telegram_token and telegram_chat else "[red]Not configured[/red]"
+        telegram_status = "[bold white]Ready[/bold white]" if telegram_token and telegram_chat else "[red]Not configured[/red]"
         console.print(f"  Telegram Bot: {telegram_status}")
         
         hackerone_key = os.getenv("HACKERONE_API_KEY", "")
         hackerone_user = os.getenv("HACKERONE_API_USER", "")
-        hackerone_status = "[green]Ready[/green]" if hackerone_key and hackerone_user else "[red]Not configured[/red]"
+        hackerone_status = "[bold white]Ready[/bold white]" if hackerone_key and hackerone_user else "[red]Not configured[/red]"
         console.print(f"  HackerOne: {hackerone_status}")
         
         # Other settings
@@ -471,9 +530,9 @@ class ConfigWizard:
         
         # .env file status
         if self.env_file.exists():
-            console.print(f"\n[green].env file exists:[/green] {self.env_file.absolute()}")
+            console.print(f"\n[bold white].env file exists:[/bold white] {self.env_file.absolute()}")
         else:
-            console.print(f"\n[yellow].env file not found[/yellow]")
+            console.print(f"\n[grey70].env file not found[/grey70]")
     
     def _health_check(self) -> None:
         """Run health check."""

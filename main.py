@@ -64,7 +64,7 @@ def ensure_dependencies():
     missing_core = [pkg for mod, pkg in core_required.items() if importlib.util.find_spec(mod) is None]
     if missing_core:
         console.print(Panel(
-            f"[yellow]Core dependencies are missing: {', '.join(missing_core)}[/yellow]\n"
+            f"[grey70]Core dependencies are missing: {', '.join(missing_core)}[/grey70]\n"
             "[dim]Run ./setup.sh (or termux_setup.sh) to complete installation.[/dim]"
         ))
         return False
@@ -142,7 +142,7 @@ def main():
         if suggestions:
             console.print("\n[dim]Based on your history, try:[/dim]")
             for sugg in suggestions:
-                console.print(f"  [cyan]elengenix {sugg.split(' -- ')[0]}[/cyan]")
+                console.print(f"  [red]elengenix {sugg.split(' -- ')[0]}[/red]")
         return
     
     # Handle unknown commands with smart suggestions
@@ -156,33 +156,33 @@ def main():
         correction = suggester.suggest_correction(args.command)
         
         if correction:
-            console.print(f"\n[yellow]Unknown command: '{args.command}'[/yellow]")
-            console.print(f"[cyan]Did you mean:[/cyan] [bold]elengenix {correction}[/bold]")
+            console.print(f"\n[grey70]Unknown command: '{args.command}'[/grey70]")
+            console.print(f"[red]Did you mean:[/red] [bold]elengenix {correction}[/bold]")
             
             if confirm(f"Run 'elengenix {correction}' instead?", default=True):
                 args.command = correction
                 # Continue with corrected command
             else:
                 # Show help with history context
-                console.print(f"[yellow]Unknown command: {args.command}[/yellow]")
+                console.print(f"[grey70]Unknown command: {args.command}[/grey70]")
                 console.print("Run 'elengenix help' for available commands")
                 # Show recent history
                 recent = history.get_recent_commands(hours=24, limit=5)
                 if recent:
                     console.print("\n[dim]Recent commands:[/dim]")
                     for entry in recent:
-                        console.print(f"  [cyan]elengenix {entry.command} {entry.args}[/cyan]")
+                        console.print(f"  [red]elengenix {entry.command} {entry.args}[/red]")
                 return
         else:
             # No suggestion found, show help
-            console.print(f"[yellow]Unknown command: {args.command}[/yellow]")
+            console.print(f"[grey70]Unknown command: {args.command}[/grey70]")
             console.print("Run 'elengenix help' for available commands")
             # Show recent history
             recent = history.get_recent_commands(hours=24, limit=5)
             if recent:
                 console.print("\n[dim]Recent commands:[/dim]")
                 for entry in recent:
-                    console.print(f"  [cyan]elengenix {entry.command} {entry.args}[/cyan]")
+                    console.print(f"  [red]elengenix {entry.command} {entry.args}[/red]")
             return
     
     # Auto-detect mode (default) - Smart routing based on target
@@ -202,7 +202,7 @@ def main():
             detection = AutoDetector.detect(effective_target)
             
             # Show clear module selection
-            console.print(f"[cyan]Input detected:[/cyan] {detection['explanation']}")
+            console.print(f"[red]Input detected:[/red] {detection['explanation']}")
             
             if detection['confidence'] > 0.7:
                 module_name = {
@@ -219,7 +219,7 @@ def main():
                     "ai": "AI Assistant",
                 }.get(detection['action'], detection['action'])
                 
-                console.print(f"[green]Selected module:[/green] {module_name}")
+                console.print(f"[bold white]Selected module:[/bold white] {module_name}")
                 console.print(f"[dim]   (Use --manual to override)[/dim]\n")
                 
                 detected_action = detection.get("action", "ai")
@@ -248,7 +248,7 @@ def main():
                 args.command = candidate_command
                 args.target = effective_target
             else:
-                console.print("[yellow]Low confidence detection. Starting AI assistant...[/yellow]")
+                console.print("[grey70]Low confidence detection. Starting AI assistant...[/grey70]")
                 args.command = "ai"
                 args.target = effective_target
     
@@ -259,12 +259,12 @@ def main():
         
         while True:
             try:
-                console.print("\n[bold cyan]Main Menu[/bold cyan]\n")
+                console.print("\n[bold red]Main Menu[/bold red]\n")
                 for i, (title, desc, _) in enumerate(menu_items, 1):
                     console.print(format_menu_item(i, title, desc))
                 console.print()
                 
-                choice_num = console.input("[cyan]Select[/cyan] [dim](1-9)[/dim]: ")
+                choice_num = console.input("[red]Select[/red] [dim](1-9)[/dim]: ")
                 try:
                     idx = int(choice_num) - 1
                     if 0 <= idx < len(menu_items):
@@ -305,7 +305,7 @@ def main():
             with show_spinner(f"Initiating scan on {target}..."):
                 pass  # Spinner shows while loading
             
-            console.print(f"[cyan]Target:[/cyan] {target}  [dim]Rate: {args.rate_limit} req/s[/dim]")
+            console.print(f"[red]Target:[/red] {target}  [dim]Rate: {args.rate_limit} req/s[/dim]")
             run_omni_scan(target, rate_limit=args.rate_limit)
 
         elif args.command == "ai":
@@ -396,7 +396,7 @@ def main():
                         ai_manager = AIClientManager(preferred_order=["gemini", "openai", "groq", "ollama"])
                         
                         if not ai_manager.active_client:
-                            console.print("[yellow]No AI provider found[/yellow]")
+                            console.print("[grey70]No AI provider found[/grey70]")
                             console.print("[dim]Please configure one of these:[/dim]")
                             console.print("  • GEMINI_API_KEY (free) - https://aistudio.google.com/app/apikey")
                             console.print("  • OPENAI_API_KEY - https://platform.openai.com/api-keys")
@@ -449,12 +449,12 @@ def main():
             if not bot_path.exists():
                 print_error("bot.py not found")
                 return
-            console.print("[cyan]Starting Telegram Gateway...[/cyan]")
+            console.print("[red]Starting Telegram Gateway...[/red]")
             subprocess.run([sys.executable, str(bot_path)])
 
         elif args.command == "doctor":
             from tools.doctor import check_health
-            console.print("[cyan]Running system health check...[/cyan]")
+            console.print("[red]Running system health check...[/red]")
             check_health()
 
         elif args.command == "configure":
@@ -488,7 +488,7 @@ def main():
                 result = researcher.research_cve(target)
 
                 if result:
-                    console.print(f"\n[bold cyan]CVE Research: {result.cve_id}[/bold cyan]")
+                    console.print(f"\n[bold red]CVE Research: {result.cve_id}[/bold red]")
                     console.print(f"CVSS Score: {result.cvss_score} ({result.severity})")
                     console.print(f"\n[bold]Description:[/bold]\n{result.description[:400]}...")
                     console.print(f"\n[bold]Prerequisites:[/bold] {', '.join(result.exploitation_requirements) or 'None listed'}")
@@ -505,7 +505,7 @@ def main():
                 # Exploitation guide
                 guide = researcher.get_exploitation_guide(target)
 
-                console.print(f"\n[bold cyan]Exploitation Guide: {target.upper()}[/bold cyan]")
+                console.print(f"\n[bold red]Exploitation Guide: {target.upper()}[/bold red]")
                 console.print(f"{guide.get('description', 'N/A')}")
                 console.print(f"\n[bold]Impact:[/bold] {guide.get('impact', 'Unknown')}")
                 console.print(f"[bold]CVSS Base:[/bold] {guide.get('cvss_base', 'N/A')}")
@@ -588,8 +588,8 @@ def main():
                 mode = args.mode
 
             console.print(f"[bold]Elengenix Autonomous Mode[/bold]")
-            console.print(f"Target: [cyan]{args.target}[/cyan]")
-            console.print(f"Governance: [yellow]{mode}[/yellow]")
+            console.print(f"Target: [red]{args.target}[/red]")
+            console.print(f"Governance: [grey70]{mode}[/grey70]")
             console.print("")
 
             if mode == "auto":
@@ -618,7 +618,7 @@ def main():
 
         elif args.command == "update":
             console.print("[dim]To update, run:[/dim]")
-            console.print("  [cyan]git pull && ./setup.sh[/cyan]")
+            console.print("  [red]git pull && ./setup.sh[/red]")
 
         elif args.command == "memory":
             from ui_components import show_section, print_info, create_status_table
@@ -633,7 +633,7 @@ def main():
                 
                 # Display stats table
                 table = create_status_table("Memory Statistics")
-                table.add_column("Metric", style="cyan")
+                table.add_column("Metric", style="red")
                 table.add_column("Value", style="white")
                 
                 table.add_row("Status", stats.get("status", "unknown"))
@@ -649,17 +649,17 @@ def main():
                 console.print("  3. Clear target memory")
                 console.print("  4. Back")
                 
-                mem_choice = console.input("\n[cyan]Select[/cyan] [dim](1-4)[/dim]: ")
+                mem_choice = console.input("\n[red]Select[/red] [dim](1-4)[/dim]: ")
                 
                 if mem_choice == "1":
-                    query = console.input("[cyan]Search query[/cyan]: ")
+                    query = console.input("[red]Search query[/red]: ")
                     target = console.input("[dim]Target filter (optional)[/dim]: ")
                     if query:
                         from tools.vector_memory import recall
                         results = recall(query, target or None, n_results=10)
                         
                         if results:
-                            console.print(f"\n[cyan]Found {len(results)} memories:[/cyan]\n")
+                            console.print(f"\n[red]Found {len(results)} memories:[/red]\n")
                             for i, mem in enumerate(results, 1):
                                 content = mem['content'][:80]
                                 sim = mem.get('similarity', 0)
@@ -670,7 +670,7 @@ def main():
                 elif mem_choice == "2":
                     targets = vm.get_all_targets()
                     if targets:
-                        console.print(f"\n[cyan]Known Targets ({len(targets)}):[/cyan]\n")
+                        console.print(f"\n[red]Known Targets ({len(targets)}):[/red]\n")
                         for t in targets[:20]:
                             console.print(f"  • {t}")
                         if len(targets) > 20:
@@ -679,7 +679,7 @@ def main():
                         print_info("No targets in memory")
                         
                 elif mem_choice == "3":
-                    target = console.input("[cyan]Target to clear[/cyan]: ")
+                    target = console.input("[red]Target to clear[/red]: ")
                     if target:
                         from ui_components import confirm
                         if confirm(f"Delete all memories for '{target}'?", default=False):
@@ -694,7 +694,7 @@ def main():
             from tools.bola_harness import BOLAHarness, parse_headers_input
 
             show_section("BOLA/IDOR Differential Harness")
-            base_url = args.target or console.input("[cyan]Base URL[/cyan] (e.g., https://target.tld): ").strip()
+            base_url = args.target or console.input("[red]Base URL[/red] (e.g., https://target.tld): ").strip()
             if not base_url:
                 print_error("Base URL is required")
                 return
@@ -754,7 +754,7 @@ def main():
                 conf = f.get("confidence", "?")
                 sev = f.get("severity", "unknown")
                 url = f.get("url", "")
-                console.print(f"\n[bold cyan]{i}. {f.get('type','finding').upper()}[/bold cyan] [dim]({sev}, conf={conf})[/dim]")
+                console.print(f"\n[bold red]{i}. {f.get('type','finding').upper()}[/bold red] [dim]({sev}, conf={conf})[/dim]")
                 console.print(f"[white]{url}[/white]")
                 ev = f.get("evidence", {})
                 if isinstance(ev, dict):
@@ -766,12 +766,12 @@ def main():
             from tools.waf_evasion import WAFEvasionEngine
 
             show_section("WAF Detection & Evasion Testing")
-            target_url = args.target or console.input("[cyan]Target URL to test[/cyan] (e.g., https://target.tld/search): ").strip()
+            target_url = args.target or console.input("[red]Target URL to test[/red] (e.g., https://target.tld/search): ").strip()
             if not target_url:
                 print_error("Target URL is required")
                 return
 
-            base_payload = console.input("[cyan]Base payload to test[/cyan] [dim](default: <script>alert(1)</script>)[/dim]: ").strip()
+            base_payload = console.input("[red]Base payload to test[/red] [dim](default: <script>alert(1)</script>)[/dim]: ").strip()
             if not base_payload:
                 base_payload = "<script>alert(1)</script>"
 
@@ -800,16 +800,16 @@ def main():
             best = engine.get_best_bypass(results)
             if best:
                 print_success("Potential bypass found!")
-                console.print(f"[green]Payload:[/green] {best.payload[:80]}...")
-                console.print(f"[green]Techniques:[/green] {', '.join(best.techniques)}")
-                console.print(f"[green]Status:[/green] {best.status_code}")
+                console.print(f"[bold white]Payload:[/bold white] {best.payload[:80]}...")
+                console.print(f"[bold white]Techniques:[/bold white] {', '.join(best.techniques)}")
+                console.print(f"[bold white]Status:[/bold white] {best.status_code}")
             else:
                 print_info("No bypass found in this run. Try different base payload or more attempts.")
 
             # Show all results table
-            console.print("\n[bold cyan]Test Results:[/bold cyan]")
+            console.print("\n[bold red]Test Results:[/bold red]")
             for i, r in enumerate(results[:10], 1):
-                status_color = "red" if r.blocked else "green"
+                status_color = "red" if r.blocked else "bold white"
                 console.print(f"{i}. [{status_color}]{'BLOCKED' if r.blocked else 'BYPASS'}[/{status_color}] {r.payload[:50]}... (tech: {', '.join(r.techniques)})")
 
         elif args.command == "recon":
@@ -817,7 +817,7 @@ def main():
             from tools.smart_recon import SmartReconEngine, format_recon_for_display
 
             show_section("Smart Reconnaissance - Asset Correlation Engine")
-            target = args.target or console.input("[cyan]Target domain[/cyan] (e.g., example.com): ").strip()
+            target = args.target or console.input("[red]Target domain[/red] (e.g., example.com): ").strip()
             if not target:
                 print_error("Target domain is required")
                 return
@@ -843,12 +843,12 @@ def main():
                 # Priority targets
                 priority_count = len([f for f in result.findings if f.get("type") == "priority"])
                 if priority_count > 0:
-                    console.print(f"\n[yellow]{priority_count} high-priority targets identified[/yellow]")
+                    console.print(f"\n[grey70]{priority_count} high-priority targets identified[/grey70]")
                 
                 # Correlation findings
                 corr_count = len([f for f in result.findings if f.get("type") == "correlation"])
                 if corr_count > 0:
-                    console.print(f"[cyan]{corr_count} asset correlations discovered[/cyan]")
+                    console.print(f"[red]{corr_count} asset correlations discovered[/red]")
                     
             except Exception as e:
                 print_error(f"Recon failed: {e}")
@@ -868,9 +868,9 @@ def main():
                 
                 if result.get("status") == "success":
                     print_success(f"CVE database updated successfully!")
-                    console.print(f"  [green]Added:[/green] {result['added']} new CVEs")
-                    console.print(f"  [green]Updated:[/green] {result['updated']} existing CVEs")
-                    console.print(f"  [cyan]Total in database:[/cyan] {result['total']} CVEs")
+                    console.print(f"  [bold white]Added:[/bold white] {result['added']} new CVEs")
+                    console.print(f"  [bold white]Updated:[/bold white] {result['updated']} existing CVEs")
+                    console.print(f"  [red]Total in database:[/red] {result['total']} CVEs")
                 else:
                     print_error(f"Update failed: {result.get('error', 'Unknown error')}")
                     console.print("[dim]Note: You can still use Elengenix without CVE database updates.[/dim]")
@@ -888,11 +888,11 @@ def main():
             engine = EDREvasionEngine()
             
             action = console.input(
-                "[cyan]Select action[/cyan] [list/generate/plan]: "
+                "[red]Select action[/red] [list/generate/plan]: "
             ).strip().lower()
             
             if action == "list":
-                category = console.input("[cyan]Filter by category[/cyan] [amsi/process/memory/sandbox/signature/all]: ").strip()
+                category = console.input("[red]Filter by category[/red] [amsi/process/memory/sandbox/signature/all]: ").strip()
                 if category == "all":
                     category = None
                 techniques = engine.list_techniques(category=category)
@@ -903,7 +903,7 @@ def main():
                     console.print(f"  {risk_marker} [{t.difficulty}] {t.name} ({t.category}) - {t.platform}")
                     
             elif action == "generate":
-                tech_name = console.input("[cyan]Technique name[/cyan]: ").strip()
+                tech_name = console.input("[red]Technique name[/red]: ").strip()
                 if not tech_name:
                     print_error("Technique name required")
                     return
@@ -916,7 +916,7 @@ def main():
                 console.print(format_edr_report(result))
                 
                 # Save to file
-                save = console.input("[cyan]Save payload to file?[/cyan] (y/N): ").strip().lower()
+                save = console.input("[red]Save payload to file?[/red] (y/N): ").strip().lower()
                 if save in ("y", "yes"):
                     from pathlib import Path
                     timestamp = int(time.time())
@@ -926,8 +926,8 @@ def main():
                     print_success(f"Saved to: {out_path}")
                     
             elif action == "plan":
-                target_edr = console.input("[cyan]Target EDR[/cyan] (e.g., crowdstrike/sentinelone/defender): ").strip()
-                objectives = console.input("[cyan]Objectives[/cyan] [persistence,privilege,escalation,evasion]: ").strip()
+                target_edr = console.input("[red]Target EDR[/red] (e.g., crowdstrike/sentinelone/defender): ").strip()
+                objectives = console.input("[red]Objectives[/red] [persistence,privilege,escalation,evasion]: ").strip()
                 obj_list = [o.strip() for o in objectives.split(",") if o.strip()]
                 
                 plan = engine.generate_red_team_plan(target_edr=target_edr or None, objectives=obj_list or None)
@@ -944,7 +944,7 @@ def main():
 
             show_section("Professional Report Generator")
             
-            findings_file = args.target or console.input("[cyan]Findings JSON file[/cyan]: ").strip()
+            findings_file = args.target or console.input("[red]Findings JSON file[/red]: ").strip()
             if not findings_file:
                 print_error("Findings file required")
                 return
@@ -966,9 +966,9 @@ def main():
                 print_success(f"Loaded {len(findings)} findings")
                 
                 # Get metadata
-                target = console.input("[cyan]Target name[/cyan]: ").strip() or "Unknown Target"
-                author = console.input("[cyan]Author name[/cyan]: ").strip() or "Elengenix Security"
-                title = console.input("[cyan]Report title[/cyan]: ").strip() or f"Security Assessment - {target}"
+                target = console.input("[red]Target name[/red]: ").strip() or "Unknown Target"
+                author = console.input("[red]Author name[/red]: ").strip() or "Elengenix Security"
+                title = console.input("[red]Report title[/red]: ").strip() or f"Security Assessment - {target}"
                 
                 metadata = ReportMetadata(
                     title=title,
@@ -1009,7 +1009,7 @@ def main():
                     console.print(manager.format_profile_list())
                 
                 elif subcommand == "create":
-                    console.print("[cyan]Create custom profile[/cyan]")
+                    console.print("[red]Create custom profile[/red]")
                     name = console.input("Profile name: ").strip()
                     if not name:
                         print_error("Name required")
@@ -1097,7 +1097,7 @@ def main():
                         days = top.response_time_hours / 24
                         console.print(f"  Response: ~{days:.1f} days")
                     console.print(f"  Score: {top.score_total:.1f}/100")
-                    console.print(f"\n[cyan]Start scanning:[/cyan]")
+                    console.print(f"\n[red]Start scanning:[/red]")
                     console.print(f"  elengenix deep {top.url}")
                     console.print(f"  elengenix autonomous {top.url} --mode auto")
                 else:
@@ -1129,7 +1129,7 @@ def main():
             top = ranked[0]
             print_success(f"\nTop recommendation: {top.name}")
             console.print(f"  Potential reward: {top.bounty_range}")
-            console.print(f"  Start scan: [cyan]elengenix quick {top.url}[/cyan]")
+            console.print(f"  Start scan: [red]elengenix quick {top.url}[/red]")
             
             # Offer to start scanning
             from ui_components import confirm
@@ -1261,7 +1261,7 @@ def main():
                 if query:
                     results = history_mgr.search(query)
                     if results:
-                        console.print(f"\n[green]Found {len(results)} matches:[/green]")
+                        console.print(f"\n[bold white]Found {len(results)} matches:[/bold white]")
                         for entry in results[:10]:
                             console.print(f"  • elengenix {entry.command} {entry.args}")
                     else:
@@ -1361,8 +1361,17 @@ def main():
             )
         sys.exit(0)
     except Exception as e:
-        logger.exception("Operational breakdown")
-        print_error(f"SYSTEM FAILURE: {e}")
+        from ui_components import print_error, confirm
+        # Log to file for debugging, but keep console clean
+        logger.debug("Full Traceback:", exc_info=True)
+        
+        # Display short error message
+        error_msg = str(e)
+        if "NameError" in error_msg or "UnboundLocalError" in error_msg:
+            print_error(f"CRITICAL CODE ERROR: {error_msg}")
+        else:
+            print_error(f"SYSTEM FAILURE: {error_msg[:100]}...")
+            
         # Record failed command
         if args.command and args.command != "auto":
             history.record_command(
@@ -1371,10 +1380,10 @@ def main():
                 success=False,
                 target=args.target or "",
             )
-        from ui_components import confirm
-        if confirm("Attempt emergency repair?", default=True):
+            
+        if confirm("Attempt emergency repair (doctor)?", default=True):
             from tools.doctor import check_health
-            check_health(fix=True)
+            check_health()
 
 if __name__ == "__main__":
     ensure_dependencies()

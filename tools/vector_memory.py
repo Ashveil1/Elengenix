@@ -419,8 +419,9 @@ def get_context_for_ai(
     all_memories = []
     
     for mem in memories + recent:
-        if mem["id"] not in seen_ids:
-            seen_ids.add(mem["id"])
+        mem_id = mem.get("id") or mem.get("memory_id") or str(hash(str(mem)))
+        if mem_id and mem_id not in seen_ids:
+            seen_ids.add(mem_id)
             all_memories.append(mem)
     
     # Format as context

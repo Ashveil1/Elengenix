@@ -111,7 +111,7 @@ def show_tools_menu():
                 continue
 
             selected = TOOLS[int(choice) - 1]
-            console.print(f"\n[bold cyan]{selected['name']}[/bold cyan]")
+            console.print(f"\n[bold red]{selected['name']}[/bold red]")
             target = prompt_target()
             
             if not _validate_target(target):
@@ -119,7 +119,7 @@ def show_tools_menu():
                 console.input("\n[dim]Press Enter to continue...[/dim]")
                 continue
 
-            console.print(f"\n[cyan]Deploying {selected['name']} on {target}...[/cyan]\n")
+            console.print(f"\n[red]Deploying {selected['name']} on {target}...[/red]\n")
             _run_tool(selected["file"], target)
             
             from ui_components import confirm

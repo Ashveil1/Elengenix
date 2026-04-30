@@ -87,13 +87,13 @@ def check_health(interactive: bool = True) -> bool:
     from ui_components import console, print_error, print_success, print_warning, confirm
     import questionary
     
-    console.print("\n[bold cyan]System Health Check[/bold cyan] [dim]v2.0.0[/dim]\n")
+    console.print("\n[bold red]System Health Check[/bold red] [dim]v2.0.0[/dim]\n")
     all_ok = True
 
     # ── Python Version ─────────────────────────────────────────────────────────
     py_ok, py_ver = _check_python()
-    console.print("[cyan]Python Runtime[/cyan]")
-    status = "[green]OK[/green]" if py_ok else "[red]FAIL[/red]"
+    console.print("[bold red]Python Runtime[/bold red]")
+    status = "[bold white]OK[/bold white]" if py_ok else "[bold red]FAIL[/bold red]"
     detail = py_ver + (f" (need >={PYTHON_MIN[0]}.{PYTHON_MIN[1]})" if not py_ok else "")
     console.print(f"  Version: {status} {detail}")
     if not py_ok:
@@ -102,13 +102,13 @@ def check_health(interactive: bool = True) -> bool:
 
     # ── Config ─────────────────────────────────────────────────────────────────
     cfg_ok, cfg_msg = _check_config()
-    console.print("[cyan]Configuration[/cyan]")
-    status = "[green]OK[/green]" if cfg_ok else "[red]FAIL[/red]"
+    console.print("[bold red]Configuration[/bold red]")
+    status = "[bold white]OK[/bold white]" if cfg_ok else "[bold red]FAIL[/bold red]"
     console.print(f"  config.yaml: {status} {cfg_msg}")
     if not cfg_ok:
         all_ok = False
         if interactive and confirm("API Keys not configured. Run configuration wizard now?", default=True):
-            console.print("\n[yellow]Launching Configuration Wizard...[/yellow]")
+            console.print("\n[grey70]Launching Configuration Wizard...[/grey70]")
             try:
                 import wizard
                 wizard.main()
@@ -116,18 +116,18 @@ def check_health(interactive: bool = True) -> bool:
                 cfg_ok, cfg_msg = _check_config()
                 if cfg_ok:
                     all_ok = True
-                    console.print(f"  [green]New config:[/green] {cfg_msg}")
+                    console.print(f"  [bold white]New config:[/bold white] {cfg_msg}")
             except Exception as e:
                 logger.error(f"Wizard failed: {e}")
     console.print()
 
     # ── Security Tools ─────────────────────────────────────────────────────────
-    console.print("[cyan]Security Tools[/cyan]")
+    console.print("[bold red]Security Tools[/bold red]")
     
     missing: List[str] = []
     for tool in SECURITY_TOOLS:
         ok, info = _check_tool(tool)
-        status = "[green]OK[/green]" if ok else "[red]Missing[/red]"
+        status = "[bold white]OK[/bold white]" if ok else "[bold red]Missing[/bold red]"
         console.print(f"  {tool}: {status}")
         if not ok:
             missing.append(tool)
@@ -158,7 +158,7 @@ def check_health(interactive: bool = True) -> bool:
                             choices=missing
                         ).ask()
                         if not selected:
-                            console.print("[yellow]No tools selected. Returning to menu...[/yellow]")
+                            console.print("[grey70]No tools selected. Returning to menu...[/grey70]")
                             continue  # Loop back to the main menu
                         
                         import dependency_manager
@@ -187,4 +187,8 @@ def check_health(interactive: bool = True) -> bool:
 
 
 if __name__ == "__main__":
+    import sys
+    import os
+    # Ensure the root directory is in sys.path so we can import root modules like ui_components
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     check_health(interactive="--no-interactive" not in sys.argv)

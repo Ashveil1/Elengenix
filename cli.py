@@ -85,89 +85,64 @@ def get_secure_input(prompt: str, timeout: int = 300) -> Optional[str]:
             return None
 
 def create_callback(console_obj: Console, use_live_display: bool = False) -> Callable[[str], None]:
-    """Factory for agent thought updates."""
+    """Factory for agent thought updates - minimal output."""
     def callback(msg: str):
+        # Only show important actions and results, skip thinking
+        msg_lower = msg.lower()
+        
+        # Skip thinking/thought messages
+        if any(skip in msg_lower for skip in ["step", "thinking", "reasoning", "i will", "i need to", "plan"]):
+            return
+            
         if use_live_display:
             from live_display import display_in_chat_mode
-            if "Running" in msg or "Executing" in msg:
+            if "→" in msg or ":" in msg[:30]:
                 display_in_chat_mode(msg, "action")
-            elif "success" in msg.lower() or "complete" in msg.lower():
+            elif "success" in msg_lower or "complete" in msg_lower or "done" in msg_lower:
                 display_in_chat_mode(msg, "result")
-            else:
-                display_in_chat_mode(msg, "thought")
         else:
-            if "Running" in msg or "Executing" in msg:
-                console_obj.print(f"[cyan]→ {msg}[/cyan]")
-            elif "success" in msg.lower() or "complete" in msg.lower():
-                console_obj.print(f"[green] {msg}[/green]")
-            elif "error" in msg.lower() or "fail" in msg.lower():
-                console_obj.print(f"[red] {msg}[/red]")
-            else:
-                console_obj.print(f"[dim]• {msg}[/dim]")
+            # Show only actions and errors, skip verbose thoughts
+            if "→" in msg or ":" in msg[:30]:
+                console_obj.print(f"[cyan]→ {msg[:100]}[/cyan]")
+            elif "error" in msg_lower or "fail" in msg_lower:
+                console_obj.print(f"[red] {msg[:100]}[/red]")
     return callback
 
 def select_agent_mode() -> str:
-    """Let user choose between Universal Agent and Bug Bounty Specialist."""
-    from ui_components import console
-    
-    console.print("\n[bold cyan]Select Agent Mode[/bold cyan]\n")
-    console.print(" 1. Universal Agent (Flexible - Like Claude Code)")
-    console.print(" 2. Bug Bounty Specialist (Security Focused)")
-    console.print(" 3. Auto Detect (Choose based on query)")
-    console.print()
-    
-    choice = console.input("[cyan]Mode[/cyan] [dim](1-3)[/dim]: ").strip()
-    
-    if choice == "1":
-        return "universal"
-    elif choice == "2":
-        return "bug_bounty"
-    else:
-        return "auto"
+    """Auto-detect mode to save tokens and merge capabilities."""
+    return "auto"
 
-def main(mode: str = None, target: str = None):
+from prompt_toolkit import PromptSession
+from prompt_toolkit.completion import WordCompleter
+from prompt_toolkit.formatted_text import HTML
+from prompt_toolkit.patch_stdout import patch_stdout
+from prompt_toolkit.styles import Style as PTStyle
+
+def get_bottom_toolbar(target_state: str, mode_state: str):
+    """Generate dynamic bottom toolbar matching Gemini CLI style."""
+    t_disp = target_state if target_state else "no target"
+    # Use spacing to simulate column layout
+    return HTML(f' <b>workspace</b> (~/Elengenix)      <b>target</b> ({t_disp})      <b>mode</b> ({mode_state})      <b>status</b> (Ready) ')
+
+def main(mode: str = "auto", target: str = None):
     import os
     
     in_tmux = os.environ.get("TMUX") is not None
-    tmux_pane = os.environ.get("ELENGENIX_PANE", "unknown")
-    
-    if not in_tmux:
-        try:
-            import tmux_manager
-            tmux_mgr = tmux_manager.get_tmux_manager()
-            if tmux_mgr.is_available():
-                console.print("\n[dim]Tmux detected! Split-screen mode available.[/dim]")
-                use_tmux = console.input("[cyan]Use split-screen mode?[/cyan] [dim](y/N)[/dim]: ").strip().lower()
-                if use_tmux in ('y', 'yes'):
-                    console.print("[dim]Launching split-screen mode...[/dim]")
-                    if tmux_manager.launch_tmux_mode():
-                        return
-                    else:
-                        console.print("[yellow]Failed to launch tmux mode, continuing with normal mode...[/yellow]\n")
-                else:
-                    console.print("[dim]Continuing with normal mode...[/dim]\n")
-        except Exception as e:
-            pass
     
     console.clear()
+    mode = "auto"
     
-    if not mode:
-        mode = select_agent_mode()
- 
-    mode_display = {
-        "universal": "Universal Agent",
-        "bug_bounty": "Bug Bounty Specialist",
-        "auto": "Adaptive Agent"
-    }.get(mode, "AI Partner")
- 
     if in_tmux:
-        console.print(f"[bold cyan]{mode_display}[/bold cyan] [dim](tmux mode)[/dim]\n")
+        console.print(f"[bold cyan]Elengenix Core[/bold cyan] [dim](tmux mode)[/dim]\n")
     else:
-        console.print(Panel.fit(
-            f"[bold cyan]{mode_display} MODE (v2.0.0)[/bold cyan]\n"
-            f"[dim]Enter '/exit' to quit | '/mode' to switch | '/target <domain>' to set target[/dim]",
-            border_style="cyan"
-        ))
+        # Show Gemini-style startup banner
+        from ui_components import show_main_banner
+        show_main_banner()
+        console.print("  [dim]Signed in with secure profile[/dim]")
+        console.print("  [dim]Plan: Elengenix Professional Edition[/dim]\n\n")
+        console.print("                                                                [dim]? for shortcuts[/dim]")
+        console.print("[dim]────────────────────────────────────────────────────────────────────────────────[/dim]")
+        console.print(" [dim]Shift+Tab to accept edits[/dim]")
 
     try:
         agent = get_agent()
@@ -178,42 +153,74 @@ def main(mode: str = None, target: str = None):
 
     callback = create_callback(console, use_live_display=in_tmux)
 
+    # Prompt Toolkit Setup
+    commands = ['/clear', '/quit', '/exit', '/help', '/mode', '/target', '/stats', '/resume', '/compress', '/directory']
+    completer = WordCompleter(commands, ignore_case=True)
+    
+    style = PTStyle.from_dict({
+        'bottom-toolbar': 'bg:#222222 #aaaaaa',
+    })
+    
+    session = PromptSession(
+        completer=completer,
+        style=style
+    )
+
     while True:
         try:
-            raw_input = get_secure_input("\n[cyan]You[/cyan]: ", timeout=600)
+            with patch_stdout():
+                raw_input = session.prompt(
+                    HTML('\n<b><ansired>Σlengenix</ansired></b> <ansiwhite>❯</ansiwhite> '),
+                    bottom_toolbar=lambda: get_bottom_toolbar(target, mode),
+                )
 
-            if raw_input is None:
-                console.print("\n[dim]Session timed out due to inactivity[/dim]")
-                break
+            if not raw_input.strip():
+                continue
 
-            if raw_input.lower() in ["/exit", "exit", "quit"]:
-                console.print("[dim]Session ended[/dim]")
+            if raw_input.lower() in ["/exit", "exit", "quit", "/quit"]:
+                # Print exit summary like Gemini
+                console.print("[dim]▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀[/dim]")
+                console.print("╭──────────────────────────────────────────────────────────────────────────────╮")
+                console.print("│                                                                              │")
+                console.print("│  Agent powering down. Goodbye!                                               │")
+                console.print("│                                                                              │")
+                console.print("│  Interaction Summary                                                         │")
+                console.print("│  Session ID:                 elengenix-auto-session                          │")
+                console.print("│                                                                              │")
+                console.print("│  To resume this session: elengenix cli --resume                              │")
+                console.print("╰──────────────────────────────────────────────────────────────────────────────╯")
                 break
+                
+            if raw_input.lower() == "/clear":
+                console.clear()
+                show_main_banner()
+                continue
 
             if raw_input.lower() == "/help":
-                console.print("\n[bold cyan]Available Commands:[/bold cyan]\n")
-                console.print(" /exit - End session")
-                console.print(" /mode - Switch agent mode")
-                console.print(" /target - Set target domain")
-                console.print(" /help - Show this help")
+                console.print("\n[bold cyan]Available Commands:[/bold cyan]")
+                console.print(" /clear       Clear the screen")
+                console.print(" /quit        Exit the cli")
+                console.print(" /mode        Switch agent mode")
+                console.print(" /target      Set target domain")
+                console.print(" /help        Show this help")
                 if in_tmux:
-                    console.print("\n[bold cyan]Tmux Shortcuts:[/bold cyan]\n")
+                    console.print("\n[bold cyan]Tmux Shortcuts:[/bold cyan]")
                     console.print(" Ctrl+B ← - Focus left pane (chat)")
                     console.print(" Ctrl+B → - Focus right pane (logs)")
-                    console.print(" Ctrl+B % - Split window vertically")
-                    console.print(' Ctrl+B " - Split window horizontally')
-                    console.print(" Ctrl+B x - Close current pane")
-                    console.print()
                 continue
 
             if raw_input.lower() == "/mode":
-                mode = select_agent_mode()
-                console.print(f"[green]Switched to {mode} mode[/green]")
+                console.print("[green]Mode is locked to Auto for maximum efficiency.[/green]")
                 continue
 
-            if raw_input.lower().startswith("/target "):
-                target = raw_input[8:].strip()
-                console.print(f"[green]Target set to: {target}[/green]")
+            if raw_input.lower().startswith("/target"):
+                parts = raw_input.split(" ", 1)
+                if len(parts) > 1:
+                    target = parts[1].strip()
+                    console.print(f"[green]Target set to: {target}[/green]")
+                else:
+                    target = None
+                    console.print("[dim]Target cleared.[/dim]")
                 continue
 
             user_query = sanitize_input(raw_input)
@@ -229,24 +236,15 @@ def main(mode: str = None, target: str = None):
             result_container = {"response": None, "error": None}
             def run_agent():
                 try:
-                    if mode == "universal" or (mode == "auto" and not target and 
-                        not any(kw in user_query.lower() for kw in ["scan", "vuln", "exploit", "pentest", "target", "domain"])):
-                        result_container["response"] = agent.process_universal(
-                            user_query, 
-                            callback=callback,
-                            target=target or "",
-                            mode=mode
-                        )
-                    else:
-                        result_container["response"] = agent.process_query(
-                            user_query, 
-                            callback=callback,
-                            target=target
-                        )
+                    result_container["response"] = agent.process_query(
+                        user_query, 
+                        callback=callback,
+                        target=target
+                    )
                 except Exception as ex:
                     result_container["error"] = ex
 
-            with console.status("[cyan]Agent is thinking...[/cyan]", spinner="dots"):
+            with console.status("[cyan]Agent is processing...[/cyan]", spinner="dots"):
                 agent_thread = threading.Thread(target=run_agent)
                 agent_thread.start()
                 agent_thread.join(timeout=300)
@@ -262,16 +260,23 @@ def main(mode: str = None, target: str = None):
             response = result_container["response"]
             logger.info(f"Agent finished query successfully.")
 
-            console.print("\n[dim] Response [/dim]\n")
+            console.print("\n[dim]────────────────────────────────────────────────────────────────────────────────[/dim]")
             console.print(Markdown(response if response else "No response from agent."))
-            console.print("\n[dim][/dim]")
+            console.print("[dim]────────────────────────────────────────────────────────────────────────────────[/dim]\n")
 
         except KeyboardInterrupt:
-            console.print("\n[dim]Interrupted by user. Exiting...[/dim]")
+            console.print("\n[dim]Interrupted by user. Type /quit to exit.[/dim]")
+        except EOFError:
             break
         except Exception as e:
-            logger.error(f"Unexpected CLI error: {e}", exc_info=True)
-            console.print(f"[red]Error: {str(e)[:200]}[/red]")
+            logger.error(f"Unexpected CLI error: {e}")
+            error_msg = str(e).lower()
+            if "api key" in error_msg or "provider" in error_msg:
+                console.print(f"\n[bold yellow]⚠ AI Provider Issue:[/bold yellow] Please check your API keys or quota.\n[dim]Details: {str(e)[:150]}[/dim]")
+            elif "quota" in error_msg or "rate limit" in error_msg:
+                console.print(f"\n[bold yellow]⚠ Quota Exceeded:[/bold yellow] You may have reached your AI usage limits.\n[dim]Details: {str(e)[:150]}[/dim]")
+            else:
+                console.print(f"\n[bold yellow]⚠ Notice:[/bold yellow] {str(e)[:150]}")
 
 if __name__ == "__main__":
     main()

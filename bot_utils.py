@@ -35,7 +35,9 @@ def get_config() -> dict:
         except Exception as e:
             logger.error(f"Failed to read config.yaml: {e}")
 
-    telegram_cfg = config_data.get("telegram", {})
+    telegram_cfg = config_data.get("telegram", {}) if config_data and isinstance(config_data, dict) else {}
+    if not isinstance(telegram_cfg, dict):
+        telegram_cfg = {}
     
     return {
         "telegram": {
@@ -58,9 +60,13 @@ def send_telegram_notification(
     """
     Sends a secure message to Telegram with retry logic and proper escaping.
     """
-    config = get_config()
-    token = config["telegram"]["token"]
-    chat_id = config["telegram"]["chat_id"]
+    try:
+        config = get_config()
+        token = config["telegram"]["token"]
+        chat_id = config["telegram"]["chat_id"]
+    except (KeyError, AttributeError) as e:
+        logger.warning(f"Telegram not configured, skipping notification: {e}")
+        return False
 
     if not token or not chat_id or "YOUR" in str(token):
         return False

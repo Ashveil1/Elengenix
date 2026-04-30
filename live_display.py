@@ -146,9 +146,9 @@ class LiveDisplay:
             status_text += f" | Target: {self.current_target}"
         
         return Panel(
-            Text(status_text, style="cyan"),
-            title="[bold cyan]Agent Activity Monitor[/bold cyan]",
-            border_style="cyan"
+            Text(status_text, style="red"),
+            title="[bold red]Agent Activity Monitor[/bold red]",
+            border_style="red"
         )
     
     def render_activity_log(self) -> Panel:
@@ -167,12 +167,12 @@ class LiveDisplay:
             time_str = f"[dim]{act.timestamp}[/dim]"
             
             if act.type == "thought":
-                content = f"[blue][/blue] {act.content[:60]}..."
+                content = f"[grey70][/grey70] {act.content[:60]}..."
             elif act.type == "action":
-                tool_str = f" ([cyan]{act.tool}[/cyan])" if act.tool else ""
-                content = f"[yellow]▶[/yellow] {act.content[:50]}{tool_str}"
+                tool_str = f" ([red]{act.tool}[/red])" if act.tool else ""
+                content = f"[grey70]▶[/grey70] {act.content[:50]}{tool_str}"
             elif act.type == "result":
-                content = f"[green][/green] {act.content[:60]}"
+                content = f"[bold white][/bold white] {act.content[:60]}"
             elif act.type == "error":
                 content = f"[red][/red] {act.content[:60]}"
             else:
@@ -183,7 +183,7 @@ class LiveDisplay:
         return Panel(
             "\n".join(lines),
             title="[bold]Recent Activity[/bold]",
-            border_style="blue"
+            border_style="grey70"
         )
     
     def render_stats(self) -> Panel:
@@ -197,9 +197,9 @@ class LiveDisplay:
         results = len([a for a in activities if a.type == "result"])
         errors = len([a for a in activities if a.type == "error"])
         
-        stats.append(f"[cyan]Thoughts:[/cyan] {thoughts}")
-        stats.append(f"[yellow]Actions:[/yellow] {actions}")
-        stats.append(f"[green]Results:[/green] {results}")
+        stats.append(f"[red]Thoughts:[/red] {thoughts}")
+        stats.append(f"[grey70]Actions:[/grey70] {actions}")
+        stats.append(f"[bold white]Results:[/bold white] {results}")
         if errors > 0:
             stats.append(f"[red]Errors:[/red] {errors}")
         
@@ -209,13 +209,13 @@ class LiveDisplay:
             bar_len = 20
             filled = int((progress_pct / 100) * bar_len)
             bar = "█" * filled + "░" * (bar_len - filled)
-            stats.append(f"\n[cyan]Progress:[/cyan]")
+            stats.append(f"\n[red]Progress:[/red]")
             stats.append(f"[{bar}] {progress_pct:.0f}%")
         
         return Panel(
             "\n".join(stats),
             title="[bold]Statistics[/bold]",
-            border_style="green"
+            border_style="bold white"
         )
     
     def render_footer(self) -> Panel:
@@ -301,9 +301,9 @@ def display_in_chat_mode(message: str, msg_type: str = "info"):
     if msg_type == "thought":
         console.print(f"[dim blue]• {message}[/dim blue]")
     elif msg_type == "action":
-        console.print(f"[cyan]→ {message}[/cyan]")
+        console.print(f"[red]→ {message}[/red]")
     elif msg_type == "result":
-        console.print(f"[green] {message}[/green]")
+        console.print(f"[bold white] {message}[/bold white]")
     elif msg_type == "error":
         console.print(f"[red] {message}[/red]")
     else:
@@ -330,9 +330,9 @@ def main():
         console = Console()
         
         if in_tmux:
-            console.print("[bold cyan]Agent Activity Monitor[/bold cyan] [dim](tmux mode)[/dim]\n")
+            console.print("[bold red]Agent Activity Monitor[/bold red] [dim](tmux mode)[/dim]\n")
         else:
-            console.print("[bold cyan]Agent Activity Log[/bold cyan]\n")
+            console.print("[bold red]Agent Activity Log[/bold red]\n")
         
         # Check if activity log exists and has content
         if ACTIVITY_LOG.exists():
@@ -363,12 +363,12 @@ def main():
             "target": "example.com"
         }
         console.print(Panel(
-            f"Mode: [cyan]{stats['mode']}[/cyan]\n"
-            f"Step: [yellow]{stats['step']}[/yellow]\n"
-            f"Tool: [green]{stats['current_tool']}[/green]\n"
-            f"Target: [blue]{stats['target']}[/blue]",
+            f"Mode: [red]{stats['mode']}[/red]\n"
+            f"Step: [grey70]{stats['step']}[/grey70]\n"
+            f"Tool: [bold white]{stats['current_tool']}[/bold white]\n"
+            f"Target: [grey70]{stats['target']}[/grey70]",
             title="Status",
-            border_style="cyan"
+            border_style="red"
         ))
 
 

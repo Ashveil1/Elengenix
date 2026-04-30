@@ -119,7 +119,7 @@ def main() -> None:
     config.setdefault("ai", {})
     config["ai"].setdefault("providers", {})
 
-    console.print("\n[bold cyan]AI Provider Configuration Wizard[/bold cyan]\n")
+    console.print("\n[bold red]AI Provider Configuration Wizard[/bold red]\n")
 
     # Step 1: Select provider
     provider = questionary.select(
@@ -165,10 +165,10 @@ def main() -> None:
     # Note: API keys are stored in .env, not in config.yaml
 
     if _save_config(config, config_path):
-        console.print(f"\n[green][OK] {provider.upper()} configured with model: {model}[/green]")
+        console.print(f"\n[bold white][OK] {provider.upper()} configured with model: {model}[/bold white]")
         console.print("[dim]API key saved to .env (not stored in config.yaml)[/dim]")
     else:
-        console.print("[red][FAIL] Configuration could not be saved[/red]")
+        console.print("[bold red][FAIL] Configuration could not be saved[/bold red]")
 
 
 if __name__ == "__main__":

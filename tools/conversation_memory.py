@@ -76,8 +76,7 @@ class ConversationMemory:
                     session_id TEXT PRIMARY KEY,
                     summary TEXT,
                     key_findings TEXT,
-                    tools_used TEXT,
-                    FOREIGN KEY (session_id) REFERENCES conversations(session_id)
+                    tools_used TEXT
                 )
             """)
     

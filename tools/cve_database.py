@@ -37,15 +37,15 @@ class CVEEntry:
     cvss_vector: str = ""
     severity: str = "Unknown"
     cwe_ids: List[str] = None
-    references: List[str] = None
+    ref_urls: List[str] = None
     affected_products: List[str] = None
     exploit_available: bool = False
     
     def __post_init__(self):
         if self.cwe_ids is None:
             self.cwe_ids = []
-        if self.references is None:
-            self.references = []
+        if self.ref_urls is None:
+            self.ref_urls = []
         if self.affected_products is None:
             self.affected_products = []
 
@@ -84,7 +84,7 @@ class CVEDatabase:
                 cvss_vector TEXT,
                 severity TEXT,
                 cwe_ids TEXT,  -- JSON array
-                references TEXT,  -- JSON array
+                ref_urls TEXT,  -- JSON array (renamed from references)
                 affected_products TEXT,  -- JSON array
                 exploit_available INTEGER,
                 keywords TEXT,  -- For search indexing
@@ -251,7 +251,7 @@ class CVEDatabase:
         
         # Get references
         refs = cve_data.get("references", [])
-        references = [ref.get("url", "") for ref in refs if ref.get("url")]
+        ref_urls = [ref.get("url", "") for ref in refs if ref.get("url")]
         
         # Check for exploit references
         exploit_available = any(
@@ -288,7 +288,7 @@ class CVEDatabase:
             cvss_vector=cvss_vector,
             severity=severity,
             cwe_ids=cwe_ids,
-            references=references,
+            ref_urls=ref_urls,
             affected_products=affected_products,
             exploit_available=exploit_available
         )
@@ -312,14 +312,14 @@ class CVEDatabase:
         cursor.execute("""
             INSERT INTO cves (
                 cve_id, description, published_date, last_modified,
-                cvss_score, cvss_vector, severity, cwe_ids, references,
+                cvss_score, cvss_vector, severity, cwe_ids, ref_urls,
                 affected_products, exploit_available, keywords
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             entry.cve_id, entry.description, entry.published_date,
             entry.last_modified, entry.cvss_score, entry.cvss_vector,
             entry.severity, json.dumps(entry.cwe_ids),
-            json.dumps(entry.references), json.dumps(entry.affected_products),
+            json.dumps(entry.ref_urls), json.dumps(entry.affected_products),
             1 if entry.exploit_available else 0, keywords
         ))
         
@@ -336,13 +336,13 @@ class CVEDatabase:
         cursor.execute("""
             UPDATE cves SET
                 description = ?, last_modified = ?, cvss_score = ?,
-                cvss_vector = ?, severity = ?, cwe_ids = ?, references = ?,
+                cvss_vector = ?, severity = ?, cwe_ids = ?, ref_urls = ?,
                 affected_products = ?, exploit_available = ?, keywords = ?
             WHERE cve_id = ?
         """, (
             entry.description, entry.last_modified, entry.cvss_score,
             entry.cvss_vector, entry.severity, json.dumps(entry.cwe_ids),
-            json.dumps(entry.references), json.dumps(entry.affected_products),
+            json.dumps(entry.ref_urls), json.dumps(entry.affected_products),
             1 if entry.exploit_available else 0, keywords, entry.cve_id
         ))
         
@@ -450,7 +450,7 @@ class CVEDatabase:
             cvss_vector=row[5],
             severity=row[6],
             cwe_ids=json.loads(row[7]) if row[7] else [],
-            references=json.loads(row[8]) if row[8] else [],
+            ref_urls=json.loads(row[8]) if row[8] else [],
             affected_products=json.loads(row[9]) if row[9] else [],
             exploit_available=bool(row[10])
         )

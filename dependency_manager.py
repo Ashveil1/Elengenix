@@ -93,14 +93,14 @@ def check_and_install_dependencies(check_only: bool = False, max_retries: int = 
     missing_tools = [t for t in TOOLS if not shutil.which(t)]
     
     if not missing_tools:
-        if not check_only: console.print("[bold green] All security tools are present and verified.[/bold green]")
+        if not check_only: console.print("[bold white] All security tools are present and verified.[/bold white]")
         return True
 
     if check_only:
         console.print(f"[bold red] Missing Tools: {', '.join(missing_tools)}[/bold red]")
         return False
 
-    console.print(f"[bold yellow]Security Tools Missing: {', '.join(missing_tools)}[/bold yellow]")
+    console.print(f"[bold grey70]Security Tools Missing: {', '.join(missing_tools)}[/bold grey70]")
     
     for tool in missing_tools:
         # Handle questionary None result (Ctrl+C)
@@ -118,7 +118,7 @@ def check_and_install_dependencies(check_only: bool = False, max_retries: int = 
             
             if run_with_streaming(TOOLS[tool]):
                 if verify_and_advise(tool):
-                    console.print(f"[bold green] {tool} successfully integrated.[/bold green]")
+                    console.print(f"[bold white] {tool} successfully integrated.[/bold white]")
                     success = True
                     break
             

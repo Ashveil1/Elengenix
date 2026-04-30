@@ -10,21 +10,20 @@ set -e
 
 # --- Color definitions ---
 RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-CYAN='\033[0;36m'
+WHITE='\033[1;37m'
+GRAY='\033[0;90m'
 BOLD='\033[1m'
 NC='\033[0m'
 
-info()    { echo -e "${CYAN}[INFO]${NC} $1"; }
-success() { echo -e "${GREEN}[OK]${NC} $1"; }
-warning() { echo -e "${YELLOW}[WARN]${NC} $1"; }
+info()    { echo -e "${RED}[INFO]${NC} $1"; }
+success() { echo -e "${WHITE}[OK]${NC} $1"; }
+warning() { echo -e "${GRAY}[WARN]${NC} $1"; }
 error()   { echo -e "${RED}[FAIL]${NC} $1"; exit 1; }
 
 run_with_spinner() {
     local msg="$1"
     shift
-    echo -n -e "${CYAN}[INFO]${NC} $msg "
+    echo -n -e "${RED}[INFO]${NC} $msg "
     "$@" >/dev/null 2>&1 &
     local pid=$!
     local delay=0.1
@@ -39,7 +38,7 @@ run_with_spinner() {
     wait $pid
     local status=$?
     if [ $status -eq 0 ]; then
-        echo -e "\r${GREEN}[OK]${NC} $msg   "
+        echo -e "\r${WHITE}[OK]${NC} $msg   "
     else
         echo -e "\r${RED}[FAIL]${NC} $msg   "
     fi
@@ -64,17 +63,17 @@ else
 fi
 
 clear
-echo -e "${CYAN}"
-echo "  ███████╗██╗     ███████╗███╗   ██╗ ██████╗ ███████╗███╗   ██╗██╗██╗  ██╗"
-echo "  ██╔════╝██║     ██╔════╝████╗  ██║██╔════╝ ██╔════╝████╗  ██║██║╚██╗██╔╝"
-echo "  █████╗  ██║     █████╗  ██╔██╗ ██║██║  ███╗█████╗  ██╔██╗ ██║██║ ╚███╔╝ "
-echo "  ██╔══╝  ██║     ██╔══╝  ██║╚██╗██║██║   ██║██╔══╝  ██║╚██╗██║██║ ██╔██╗ "
-echo "  ███████╗███████╗███████╗██║ ╚████║╚██████╔╝███████╗██║ ╚████║██║██╔╝ ██╗"
-echo "  ╚══════╝╚══════╝╚══════╝╚═╝  ╚═══╝ ╚═════╝ ╚══════╝╚═╝  ╚═══╝╚═╝╚═╝  ╚═╝"
+echo -e "${RED}"
+echo " ███████╗██╗     ███████╗███╗   ██╗ ██████╗ ███████╗███╗   ██╗██╗██╗  ██╗"
+echo " ██╔════╝██║     ██╔════╝████╗  ██║██╔════╝ ██╔════╝████╗  ██║██║╚██╗██╔╝"
+echo " █████╗  ██║     █████╗  ██╔██╗ ██║██║  ███╗█████╗  ██╔██╗ ██║██║ ╚███╔╝ "
+echo " ██╔══╝  ██║     ██╔══╝  ██║╚██╗██║██║   ██║██╔══╝  ██║╚██╗██║██║ ██╔██╗ "
+echo " ███████╗███████╗███████╗██║ ╚████║╚██████╔╝███████╗██║ ╚████║██║██╔╝ ██╗"
+echo " ╚══════╝╚══════╝╚══════╝╚═╝  ╚═══╝ ╚═════╝ ╚══════╝╚═╝  ╚═══╝╚═╝╚═╝  ╚═╝"
 echo -e "${NC}"
 echo -e "  ${BOLD}Termux Mobile Hunter Setup v2.0.0${NC}"
-echo -e "  ${CYAN}Universal Agent + Mobile Security${NC}"
-echo "  ──────────────────────────────────────────────"
+echo -e "  ${GRAY}Universal Agent + Mobile Security${NC}"
+echo -e "  ${GRAY}──────────────────────────────────────────────${NC}"
 echo ""
 
 # 1. Sequential System Installation
@@ -297,9 +296,9 @@ else
 fi
 
 echo ""
-echo -e "${GREEN}══════════════════════════════════════════${NC}"
-echo -e "${BOLD}   SETUP COMPLETE — HAPPY HUNTING${NC}"
-echo -e "${GREEN}══════════════════════════════════════════${NC}"
+echo -e "${RED}══════════════════════════════════════════${NC}"
+echo -e "${WHITE}   SETUP COMPLETE — HAPPY HUNTING${NC}"
+echo -e "${RED}══════════════════════════════════════════${NC}"
 echo ""
 echo -e "    ${BOLD}Installed Security Tools:${NC}"
 echo ""
@@ -307,9 +306,9 @@ echo ""
 # Show installed tools status
 for tool in subfinder httpx katana naabu dalfox ffuf arjun; do
     if command -v "$tool" >/dev/null 2>&1 || [ -f "$GOPATH/bin/$tool" ]; then
-        echo -e "    ${GREEN}${NC} $tool"
+        echo -e "    ${WHITE}●${NC} $tool"
     else
-        echo -e "    ${YELLOW}○${NC} $tool (optional)"
+        echo -e "    ${GRAY}○${NC} $tool (optional)"
     fi
 done
 
@@ -330,9 +329,9 @@ echo -e "  ${CYAN}Note:${NC} Restart Termux or run 'source ~/.bashrc' if command
 echo ""
 
 # Launch configuration wizard
-echo -e "${CYAN}══════════════════════════════════════════${NC}"
-echo -e "${BOLD}    CONFIGURATION WIZARD${NC}"
-echo -e "${CYAN}══════════════════════════════════════════${NC}"
+echo -e "${RED}══════════════════════════════════════════${NC}"
+echo -e "${WHITE}    CONFIGURATION WIZARD${NC}"
+echo -e "${RED}══════════════════════════════════════════${NC}"
 echo ""
 echo -e "  Configure your API keys and settings now?"
 echo -e "  (AI providers, Telegram, HackerOne)"

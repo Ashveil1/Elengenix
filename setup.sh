@@ -10,21 +10,20 @@ set -e
 
 # --- Color definitions ---
 RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-CYAN='\033[0;36m'
+WHITE='\033[1;37m'
+GRAY='\033[0;90m'
 BOLD='\033[1m'
 NC='\033[0m'
 
-info()    { echo -e "${CYAN}[*]${NC} $1"; }
-success() { echo -e "${GREEN}[OK]${NC} $1"; }
-warning() { echo -e "${YELLOW}[WARN]${NC} $1"; }
+info()    { echo -e "${RED}[*]${NC} $1"; }
+success() { echo -e "${WHITE}[OK]${NC} $1"; }
+warning() { echo -e "${GRAY}[WARN]${NC} $1"; }
 error()   { echo -e "${RED}[FAIL]${NC} $1"; exit 1; }
 
 run_with_spinner() {
     local msg="$1"
     shift
-    echo -n -e "${CYAN}[INFO]${NC} $msg "
+    echo -n -e "${RED}[INFO]${NC} $msg "
     "$@" >/dev/null 2>&1 &
     local pid=$!
     local delay=0.1
@@ -39,7 +38,7 @@ run_with_spinner() {
     wait $pid
     local status=$?
     if [ $status -eq 0 ]; then
-        echo -e "\r${GREEN}[OK]${NC} $msg   "
+        echo -e "\r${WHITE}[OK]${NC} $msg   "
     else
         echo -e "\r${RED}[FAIL]${NC} $msg   "
     fi
@@ -55,17 +54,17 @@ if [ ! -f "sentinel" ] && [ ! -f "main.py" ]; then
 fi
 
 [ -t 1 ] && clear || true
-echo -e "${CYAN}"
-echo "  ███████╗██╗     ███████╗███╗   ██╗ ██████╗ ███████╗███╗   ██╗██╗██╗  ██╗"
-echo "  ██╔════╝██║     ██╔════╝████╗  ██║██╔════╝ ██╔════╝████╗  ██║██║╚██╗██╔╝"
-echo "  █████╗  ██║     █████╗  ██╔██╗ ██║██║  ███╗█████╗  ██╔██╗ ██║██║ ╚███╔╝ "
-echo "  ██╔══╝  ██║     ██╔══╝  ██║╚██╗██║██║   ██║██╔══╝  ██║╚██╗██║██║ ██╔██╗ "
-echo "  ███████╗███████╗███████╗██║ ╚████║╚██████╔╝███████╗██║ ╚████║██║██╔╝ ██╗"
-echo "  ╚══════╝╚══════╝╚══════╝╚═╝  ╚═══╝ ╚═════╝ ╚══════╝╚═╝  ╚═══╝╚═╝╚═╝  ╚═╝"
+echo -e "${RED}"
+echo " ███████╗██╗     ███████╗███╗   ██╗ ██████╗ ███████╗███╗   ██╗██╗██╗  ██╗"
+echo " ██╔════╝██║     ██╔════╝████╗  ██║██╔════╝ ██╔════╝████╗  ██║██║╚██╗██╔╝"
+echo " █████╗  ██║     █████╗  ██╔██╗ ██║██║  ███╗█████╗  ██╔██╗ ██║██║ ╚███╔╝ "
+echo " ██╔══╝  ██║     ██╔══╝  ██║╚██╗██║██║   ██║██╔══╝  ██║╚██╗██║██║ ██╔██╗ "
+echo " ███████╗███████╗███████╗██║ ╚████║╚██████╔╝███████╗██║ ╚████║██║██╔╝ ██╗"
+echo " ╚══════╝╚══════╝╚══════╝╚═╝  ╚═══╝ ╚═════╝ ╚══════╝╚═╝  ╚═══╝╚═╝╚═╝  ╚═╝"
 echo -e "${NC}"
 echo -e "  ${BOLD}Professional Installation Hub v2.0.0${NC}"
-echo -e "  ${CYAN}Universal Agent + Bug Bounty Specialist${NC}"
-echo "  ──────────────────────────────────────────────"
+echo -e "  ${GRAY}Universal Agent + Bug Bounty Specialist${NC}"
+echo -e "  ${GRAY}──────────────────────────────────────────────${NC}"
 echo ""
 
 # 1. Privilege & Platform Detection
@@ -246,9 +245,9 @@ else
 fi
 
 echo ""
-echo -e "${GREEN}══════════════════════════════════════════${NC}"
-echo -e "${GREEN}   INSTALLATION SUCCESSFUL!${NC}"
-echo -e "${GREEN}══════════════════════════════════════════${NC}"
+echo -e "${RED}══════════════════════════════════════════${NC}"
+echo -e "${WHITE}   INSTALLATION SUCCESSFUL!${NC}"
+echo -e "${RED}══════════════════════════════════════════${NC}"
 echo ""
 echo -e "    ${BOLD}Installed Security Tools:${NC}"
 echo ""
@@ -256,9 +255,9 @@ echo ""
 # Show installed tools status
 for tool in subfinder httpx nuclei naabu dalfox ffuf katana arjun trufflehog; do
     if command -v "$tool" >/dev/null 2>&1 || [ -f "$GOPATH/bin/$tool" ] || [ -f "$HOME/.local/bin/$tool" ]; then
-        echo -e "    ${GREEN}${NC} $tool"
+        echo -e "    ${WHITE}●${NC} $tool"
     else
-        echo -e "    ${YELLOW}○${NC} $tool (optional/manual install)"
+        echo -e "    ${GRAY}○${NC} $tool (optional/manual install)"
     fi
 done
 
@@ -268,10 +267,8 @@ if command -v elengenix >/dev/null 2>&1; then
     echo -e "      elengenix           - Launch interactive menu"
     echo -e "      elengenix doctor    - Check tool installation"
     echo -e "      elengenix scan <target>  - Run full scan"
-else
-    echo -e "      ./sentinel          - Launch manually"
 fi
 echo ""
-echo -e "  ${CYAN}Note:${NC} If tools are not found, restart your terminal or run:"
+echo -e "  ${RED}Note:${NC} If tools are not found, restart your terminal or run:"
 echo -e "      source ~/.bashrc"
 echo ""

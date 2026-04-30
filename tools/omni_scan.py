@@ -87,21 +87,21 @@ def run_omni_scan(
     
     console.print(Panel(
         f"[bold red]  ELENGENIX FULL-SCALE MISSION v3.0[/bold red]\n"
-        f" Target: [cyan]{safe_target}[/cyan]\n"
+        f" Target: [red]{safe_target}[/red]\n"
         f"  Tools Available: {tool_count}/{len(available_tools)}\n"
         f" Rate Limit: {rate_limit} concurrent | CVSS: {'' if enable_cvss else ''}",
         border_style="red",
     ))
     
     if tool_count == 0:
-        console.print("[yellow]  Warning: No tools available. Install required binaries.[/yellow]")
+        console.print("[grey70]  Warning: No tools available. Install required binaries.[/grey70]")
         console.print("[dim]Run: elengenix doctor[/dim]")
     
     send_telegram_notification(f" Full scan v3.0 initiated: `{safe_target}`")
 
     with Progress(
         SpinnerColumn(),
-        TextColumn("[bold cyan]{task.description}"),
+        TextColumn("[bold red]{task.description}"),
         BarColumn(),
         console=console,
         transient=True,
@@ -173,11 +173,11 @@ def run_omni_scan(
 
     console.print(Panel(
         f"[bold green] MISSION COMPLETE[/bold green]\n"
-        f" Reports: [cyan]{report_dir}[/cyan]\n"
+        f" Reports: [red]{report_dir}[/red]\n"
         f" Markdown: {report_path}\n"
         f" Dashboard: {html_path}\n"
         f" JSON Data: {json_path}",
-        border_style="green",
+        border_style="bold white",
     ))
     
     # Send detailed notification
@@ -276,9 +276,9 @@ def _print_findings_table(findings: List[Dict[str, Any]]) -> None:
         severity_style = {
             "Critical": "red",
             "High": "orange3",
-            "Medium": "yellow",
-            "Low": "green",
-            "Info": "blue",
+            "Medium": "grey70",
+            "Low": "bold white",
+            "Info": "grey70",
         }.get(severity, "white")
         
         table.add_row(
@@ -324,13 +324,13 @@ def list_available_tools() -> None:
     tools = registry.list_available_tools()
     
     table = Table(title="  Registered Security Tools")
-    table.add_column("Tool", style="bold cyan")
+    table.add_column("Tool", style="bold red")
     table.add_column("Category", style="dim")
     table.add_column("Available", justify="center")
     table.add_column("Description")
     
     for name, info in sorted(tools.items()):
-        available = "[green][/green]" if info["available"] else "[red][/red]"
+        available = "[bold white][/bold white]" if info["available"] else "[red][/red]"
         table.add_row(name, info["category"], available, info["description"][:50])
     
     console.print(table)
@@ -339,7 +339,7 @@ def list_available_tools() -> None:
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
-        console.print("[yellow]Usage: python omni_scan.py <target> [--list-tools][/yellow]")
+        console.print("[grey70]Usage: python omni_scan.py <target> [--list-tools][/grey70]")
         console.print("[dim]Example: python omni_scan.py example.com[/dim]")
         sys.exit(1)
     
