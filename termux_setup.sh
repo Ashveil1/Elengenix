@@ -21,9 +21,8 @@ success() { echo -e "${GREEN}[✓]${NC} $1"; }
 warning() { echo -e "${YELLOW}[!]${NC} $1"; }
 error()   { echo -e "${RED}[✗]${NC} $1"; exit 1; }
 
-# 🛡️ ERROR TRAP - Only trap critical errors
-# Don't trap for optional tool failures
-trap 'echo -e "\n${RED}[!] Critical error during installation.${NC}";' ERR
+# 🛡️ ERROR TRAP - Disabled for this script since we handle optional failures gracefully
+# trap 'echo -e "\n${RED}[!] Critical error during installation.${NC}"; exit 1;' ERR
 
 # Verify we're in the right directory
 if [ ! -f "sentinel" ] && [ ! -f "main.py" ]; then
@@ -51,7 +50,7 @@ pkg update -y
 PKGS=(python golang git curl wget nmap openssl libxml2 libxslt libyaml clang make 
       build-essential libffi libffi-dev openssl-dev libjpeg-turbo zlib libbz2 liblzma
       python-dev sqlite ncurses readline libexpat libxml2-dev libxslt-dev
-      libsqlite libsqlite-dev binutils libcrypt libcrypt-dev)
+      libsqlite libsqlite-dev binutils libcrypt libcrypt-dev rust)
 # Note: python-venv not needed - Termux python includes venv
 for pkg in "${PKGS[@]}"; do
     pkg install -y "$pkg" || warning "Could not install $pkg. Proceeding..."
@@ -81,12 +80,21 @@ done
 # Install AI providers (all providers installed automatically)
 info "Installing AI providers (OpenAI, Anthropic, Google, Cohere, Hugging Face, Replicate)..."
 # Install all providers - user can choose which to use via environment variables
-AI_DEPS="openai anthropic google-generativeai cohere huggingface-hub replicate"
-for dep in $AI_DEPS; do
-    info "  Installing $dep..."
+# Note: Some providers may fail on Termux due to Rust compilation requirements
+AI_DEPS_CORE="openai anthropic"  # These have pre-built wheels and work reliably
+AI_DEPS_OPTIONAL="google-generativeai cohere huggingface-hub replicate"  # May fail on Termux
+
+for dep in $AI_DEPS_CORE; do
+    info "  Installing $dep (core)..."
     pip install "$dep" 2>/dev/null || warning "  $dep install had issues (continuing)"
 done
-success "AI providers installed (set API keys in config to use)"
+
+info "  Installing optional AI providers (may fail on Termux)..."
+for dep in $AI_DEPS_OPTIONAL; do
+    info "  Installing $dep (optional)..."
+    pip install "$dep" 2>/dev/null || warning "  $dep skipped (build issues on Termux)"
+done
+success "AI providers installed (OpenAI & Anthropic work best on Termux)"
 
 # Install optional dependencies (may fail on mobile, that's OK)
 info "Installing optional dependencies..."
