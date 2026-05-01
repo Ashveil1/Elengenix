@@ -4,6 +4,7 @@
 
 Elengenix is a next-generation security framework that combines the reasoning capabilities of Large Language Models (LLMs) with a professional-grade security toolchain. Built for speed, modularity, and professional automation.
 
+"Current Status: Intensive R&D Phase. Focus on core agent orchestration and security module integration."
 ---
 
 ## Key Features
