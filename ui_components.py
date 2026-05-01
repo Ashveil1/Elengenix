@@ -148,24 +148,115 @@ def show_arsenal_banner():
 # MENUS
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# MENU CATEGORIES
+# ---------------------------------------------------------------------------
+
+MENU_CATEGORIES = [
+    {
+        "title": "AI & Agent",
+        "items": [
+            ("AI Partner",      "Interactive AI assistant (chat mode)",             "ai"),
+            ("Universal Agent", "Autonomous agent — executes tasks end-to-end",    "universal"),
+            ("Autonomous",      "Fully autonomous scan with AI decision-making",   "autonomous"),
+        ]
+    },
+    {
+        "title": "Reconnaissance",
+        "items": [
+            ("Recon",           "Subdomain + asset discovery & correlation",        "recon"),
+            ("Omni-Scan",       "Full pipeline: Recon -> Vuln -> Report",           "scan"),
+            ("Bounty Intel",    "Bug bounty program analysis & predictor",         "bounty"),
+        ]
+    },
+    {
+        "title": "Exploitation & Testing",
+        "items": [
+            ("BOLA / IDOR",     "Broken access control & IDOR differential tests", "bola"),
+            ("WAF / XSS",       "WAF detection, bypass & XSS mutation engine",     "waf"),
+            ("Evasion",         "EDR/AV evasion framework (authorized use only)",  "evasion"),
+            ("Research / PoC",  "CVE research + Proof-of-Concept generator",       "research"),
+        ]
+    },
+    {
+        "title": "Analysis & Intelligence",
+        "items": [
+            ("SAST",            "Static analysis — Python, JS, Go, Java, PHP",     "sast"),
+            ("Cloud",           "Cloud/Terraform/IaC security review",             "cloud"),
+            ("Mobile / API",    "Mobile API traffic analysis & fuzzing",           "mobile"),
+            ("SOC Analyzer",    "Security log & threat intelligence analysis",      "soc"),
+        ]
+    },
+    {
+        "title": "Reports & Memory",
+        "items": [
+            ("Report",          "Generate HTML/PDF security report",               "report"),
+            ("Memory",          "View & manage AI semantic memory",               "memory"),
+            ("History",         "Browse past scan sessions & findings",            "history"),
+            ("Dashboard",       "Launch live web dashboard (browser UI)",          "dashboard"),
+        ]
+    },
+    {
+        "title": "System",
+        "items": [
+            ("Doctor",          "System health check — tools & API keys",          "doctor"),
+            ("Configure",       "Set up AI providers, Telegram, HackerOne",        "configure"),
+            ("Arsenal",         "Legacy manual tool picker",                        "arsenal"),
+            ("Telegram",        "Start Telegram bot gateway",                      "gateway"),
+            ("Update",          "Update framework via git pull",                   "update"),
+        ]
+    },
+]
+
+
 def create_main_menu() -> List[tuple]:
-    """Create main menu items.
+    """Flatten MENU_CATEGORIES into a numbered list for the interactive prompt.
 
     Returns:
         List of (title, description, command_key) tuples.
     """
-    return [
-        ("AI Partner",       "Interactive AI chat with auto tmux support",  "ai"),
-        ("Universal Agent",  "Flexible agent mode (Claude Code style)",     "universal"),
-        ("Omni-Scan",        "Full automated security scan",               "scan"),
-        ("Arsenal",          "Manual tool selection",                       "arsenal"),
-        ("Telegram",         "Start Telegram bot gateway",                 "gateway"),
-        ("Memory",           "View AI memory and history",                 "memory"),
-        ("Doctor",           "System health check",                        "doctor"),
-        ("Settings",         "Configure AI providers and options",         "configure"),
-        ("Update",           "Update framework",                           "update"),
-        ("Exit",             "Quit application",                           "exit"),
-    ]
+    flat: List[tuple] = []
+    for cat in MENU_CATEGORIES:
+        flat.extend(cat["items"])
+    flat.append(("Exit", "Quit application", "exit"))
+    return flat
+
+
+def show_categorized_menu():
+    """Render the main menu grouped by category using a rich Table."""
+    from rich.box import MINIMAL_DOUBLE_HEAD
+
+    table = Table(
+        show_header=False,
+        box=ROUNDED,
+        border_style="red",
+        padding=(0, 1),
+        show_lines=False,
+        expand=True,
+    )
+    table.add_column("Num",  style="red",   width=4,  justify="right")
+    table.add_column("Name", style="bold",  width=18)
+    table.add_column("Desc", style="dim",   min_width=30)
+
+    item_num = 1
+    for cat in MENU_CATEGORIES:
+        table.add_row("", f"[bold red]{cat['title'].upper()}[/bold red]", "", style="")
+        for title, desc, _ in cat["items"]:
+            table.add_row(f"{item_num}.", title, desc)
+            item_num += 1
+
+    # Exit row
+    table.add_row("", "[bold red]SYSTEM[/bold red]", "")
+    table.add_row(f"{item_num}.", "Exit", "Quit application")
+
+    console.print(Panel(
+        table,
+        title="[bold red] ELENGENIX — MAIN MENU [/bold red]",
+        border_style="red",
+        box=ROUNDED,
+        padding=(0, 1),
+    ))
+    console.print(f"[dim]   Enter number or type a command  |  Ctrl+C to quit[/dim]\n")
 
 
 def create_arsenal_menu() -> List[Dict[str, str]]:
@@ -175,14 +266,19 @@ def create_arsenal_menu() -> List[Dict[str, str]]:
         List of dicts with 'name', 'desc', and 'file' keys.
     """
     return [
-        {"name": "Omni-Scan",       "desc": "End-to-end: Recon -> Vuln Scan -> Report",   "file": "omni_scan.py"},
-        {"name": "Recon",           "desc": "Subdomain enumeration + HTTP probes",         "file": "base_recon.py"},
-        {"name": "Vuln Scanner",    "desc": "Nuclei CVE and misconfiguration scan",        "file": "base_scanner.py"},
-        {"name": "API Hunter",      "desc": "Discover Swagger, OpenAPI, API routes",       "file": "api_finder.py"},
-        {"name": "JS Analyzer",     "desc": "Extract secrets from JS files",               "file": "js_analyzer.py"},
-        {"name": "Param Miner",     "desc": "Fuzz URL parameters",                        "file": "param_miner.py"},
-        {"name": "Google Dorking",  "desc": "Search exposed files via Google",             "file": "dork_miner.py"},
-        {"name": "AI Research",     "desc": "Autonomous web research",                    "file": "research_tool.py"},
+        {"name": "OMNI-SCAN",       "desc": "Full pipeline: Dorking -> Recon -> Vuln -> Report",   "file": "omni_scan.py"},
+        {"name": "Recon",           "desc": "Subdomain enumeration + HTTP probes",                  "file": "base_recon.py"},
+        {"name": "Vuln Scanner",    "desc": "Nuclei CVE and misconfiguration scan",                 "file": "base_scanner.py"},
+        {"name": "API Hunter",      "desc": "Discover Swagger, OpenAPI, hidden API routes",         "file": "api_finder.py"},
+        {"name": "JS Analyzer",     "desc": "Extract secrets & paths from JS files",               "file": "js_analyzer.py"},
+        {"name": "Param Miner",     "desc": "Fuzz URL parameters for hidden vulns",                "file": "param_miner.py"},
+        {"name": "Google Dorking",  "desc": "Search exposed files & logs via Google",              "file": "dork_miner.py"},
+        {"name": "AI Research",     "desc": "Autonomous web research on specific vectors",          "file": "research_tool.py"},
+        {"name": "Cloud Scanner",   "desc": "Terraform / IaC / AWS configuration review",          "file": "cloud_scanner.py"},
+        {"name": "SAST Engine",     "desc": "Static analysis for Python, JS, Java, Go, PHP",       "file": "sast_engine.py"},
+        {"name": "Mobile API",      "desc": "Analyze mobile API traffic, Burp export, fuzzing",    "file": "mobile_api_tester.py"},
+        {"name": "SOC Analyzer",    "desc": "Security log, SIEM & threat intel analysis",           "file": "soc_analyzer.py"},
+        {"name": "Protocol Probe",  "desc": "Deep analysis: MQTT, Modbus, gRPC, IoT/ICS",         "file": "protocol_analyzer.py"},
     ]
 
 
@@ -447,6 +543,7 @@ __all__ = [
     "show_main_banner", "show_cli_banner", "show_arsenal_banner",
     # Menus
     "create_main_menu", "create_arsenal_menu", "format_menu_item",
+    "show_categorized_menu", "MENU_CATEGORIES",
     # Tables
     "create_status_table", "create_tools_table", "create_doctor_table",
     # Messages

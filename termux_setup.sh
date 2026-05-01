@@ -12,12 +12,17 @@ set -e
 RED='\033[0;31m'
 WHITE='\033[1;37m'
 GRAY='\033[0;90m'
+GREEN='\033[0;32m'
+YELLOW='\033[0;33m'
+CYAN='\033[0;36m'
+MAGENTA='\033[0;35m'
 BOLD='\033[1m'
 NC='\033[0m'
 
-info()    { echo -e "${RED}[INFO]${NC} $1"; }
-success() { echo -e "${WHITE}[OK]${NC} $1"; }
-warning() { echo -e "${GRAY}[WARN]${NC} $1"; }
+# --- Utility functions ---
+info()    { echo -e "${CYAN}[*]${NC} $1"; }
+success() { echo -e "${GREEN}[OK]${NC} $1"; }
+warning() { echo -e "${YELLOW}[WARN]${NC} $1"; }
 error()   { echo -e "${RED}[FAIL]${NC} $1"; exit 1; }
 
 run_with_spinner() {
@@ -107,33 +112,10 @@ if ! pip install --upgrade pip setuptools wheel --quiet; then warning "Pip upgra
 
 # Install core dependencies (required)
 info "Installing core dependencies..."
-CORE_DEPS="pyyaml requests python-dotenv rich tenacity nest-asyncio setuptools wheel"
+CORE_DEPS="pyyaml requests python-dotenv rich tenacity nest-asyncio setuptools wheel prompt_toolkit questionary openai anthropic google-generativeai cohere huggingface-hub replicate python-telegram-bot trafilatura googlesearch-python"
+
 for dep in $CORE_DEPS; do
-    pip install "$dep" --quiet 2>/dev/null || warning "  $dep install had issues (continuing)"
-done
-
-# Install AI providers (all providers installed automatically)
-info "Installing AI providers (OpenAI, Anthropic, Google, Cohere, Hugging Face, Replicate)..."
-# Install all providers - user can choose which to use via environment variables
-# Note: Some providers may fail on Termux due to Rust compilation requirements
-AI_DEPS_CORE="openai anthropic"  # These have pre-built wheels and work reliably
-AI_DEPS_OPTIONAL="google-generativeai cohere huggingface-hub replicate"  # May fail on Termux
-
-for dep in $AI_DEPS_CORE; do
-    run_with_spinner "Installing $dep (core)..." pip install "$dep" || warning "  $dep install had issues (continuing)"
-done
-
-info "  Installing optional AI providers (may fail on Termux)..."
-for dep in $AI_DEPS_OPTIONAL; do
-    run_with_spinner "Installing $dep (optional)..." pip install "$dep" || warning "  $dep skipped (build issues on Termux)"
-done
-success "AI providers installed (OpenAI & Anthropic work best on Termux)"
-
-# Install optional dependencies (may fail on mobile, that's OK)
-info "Installing optional dependencies..."
-OPTIONAL_DEPS="python-telegram-bot questionary trafilatura googlesearch-python"
-for dep in $OPTIONAL_DEPS; do
-    pip install "$dep" --quiet 2>/dev/null || warning "  $dep skipped (optional)"
+    run_with_spinner "Installing $dep..." pip install "$dep" || error "Failed to install $dep"
 done
 
 success "Python dependencies secured."
@@ -314,9 +296,9 @@ done
 
 # TruffleHog special message for mobile
 if command -v trufflehog >/dev/null 2>&1; then
-    echo -e "    ${GREEN}${NC} trufflehog"
+    echo -e "    ${WHITE}*${NC} trufflehog"
 else
-    echo -e "    ${YELLOW}○${NC} trufflehog (heavy for mobile - install manually if needed)"
+    echo -e "    ${GRAY}o${NC} trufflehog (heavy for mobile - install manually if needed)"
 fi
 
 echo ""
@@ -325,7 +307,7 @@ echo -e "      elengenix           - Launch interactive menu"
 echo -e "      elengenix doctor    - Check tool installation"
 echo -e "      elengenix scan <target>  - Run full scan"
 echo ""
-echo -e "  ${CYAN}Note:${NC} Restart Termux or run 'source ~/.bashrc' if commands not found"
+echo -e "  ${WHITE}Note:${NC} Restart Termux or run 'source ~/.bashrc' if commands not found"
 echo ""
 
 # Launch configuration wizard
@@ -340,12 +322,12 @@ read -p "  Run configuration wizard? [Y/n]: " -n 1 -r
 echo ""
 if [[ $REPLY =~ ^[Yy]$ ]] || [[ -z $REPLY ]]; then
     echo ""
-    echo -e "${GREEN}Launching configuration wizard...${NC}"
+    info "Launching configuration wizard..."
     "$PYTHON_BIN" -c "from tools.config_wizard import run_config_wizard; run_config_wizard()" || warning "Configuration wizard had issues"
     echo ""
-    echo -e "${GREEN}Configuration complete!${NC}"
+    success "Configuration complete!"
 else
-    echo -e "${YELLOW}Skipped configuration.${NC}"
+    warning "Skipped configuration."
     echo -e "  Run 'elengenix configure' anytime to set up API keys"
 fi
 echo ""

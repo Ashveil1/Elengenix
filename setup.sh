@@ -12,12 +12,16 @@ set -e
 RED='\033[0;31m'
 WHITE='\033[1;37m'
 GRAY='\033[0;90m'
+GREEN='\033[0;32m'
+YELLOW='\033[0;33m'
+CYAN='\033[0;36m'
+MAGENTA='\033[0;35m'
 BOLD='\033[1m'
 NC='\033[0m'
 
-info()    { echo -e "${RED}[*]${NC} $1"; }
-success() { echo -e "${WHITE}[OK]${NC} $1"; }
-warning() { echo -e "${GRAY}[WARN]${NC} $1"; }
+info()    { echo -e "${CYAN}[*]${NC} $1"; }
+success() { echo -e "${GREEN}[OK]${NC} $1"; }
+warning() { echo -e "${YELLOW}[WARN]${NC} $1"; }
 error()   { echo -e "${RED}[FAIL]${NC} $1"; exit 1; }
 
 run_with_spinner() {
@@ -123,11 +127,7 @@ else
 fi
 
 # 3.6 AI Provider Dependencies (Comprehensive support)
-info "Installing AI provider dependencies..."
-AI_DEPS="openai anthropic google-generativeai cohere huggingface-hub replicate"
-for dep in $AI_DEPS; do
-    run_with_spinner "Installing $dep..." pip install "$dep" || warning "  $dep install had issues (continuing)"
-done
+info "AI provider dependencies are installed via requirements.txt"
 success "AI providers installed (set API keys in config to use)"
 
 success "Python environment secured."

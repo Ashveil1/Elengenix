@@ -20,6 +20,7 @@ logger = logging.getLogger("elengenix.doctor")
 SECURITY_TOOLS: List[str] = [
     "subfinder", "nuclei", "httpx", "katana",
     "waybackurls", "nmap", "ffuf", "gau",
+    "naabu", "arjun", "dalfox", "trufflehog"
 ]
 
 PYTHON_MIN = (3, 10)

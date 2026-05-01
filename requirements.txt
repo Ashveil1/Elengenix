@@ -6,38 +6,42 @@
 # ═══════════════════════════════════════════════════════
 
 # ── Core Framework & Security ───────────────────────────
-pyyaml==6.0.2           #  SECURITY: CVE-2020-14343 fix
-requests==2.32.3        #  SECURITY: CVE-2023-32681 & CVE-2024-35195 fixes
-python-dotenv==1.0.1    # Secure environment variable management
+pyyaml                  # SECURITY: CVE-2020-14343 fix
+requests                # SECURITY: CVE-2023-32681 & CVE-2024-35195 fixes
+python-dotenv           # Secure environment variable management
 
 # ── AI / LLM SDKs (High Performance) ───────────────────
-openai==1.60.0          # Native Async support & latest features
-anthropic==0.40.0       # Native Claude 3.5 support
-google-generativeai==0.8.4  # Latest Gemini stability updates
+openai                  # Native Async support & latest features
+anthropic               # Native Claude 3.5 support
+google-generativeai     # Latest Gemini stability updates
+cohere                  # Native Cohere support
+huggingface-hub         # HuggingFace integration
+replicate               # Replicate AI models
 
 # ── Telegram Gateway ────────────────────────────────────
-python-telegram-bot==21.9  # Modern async handler for bot control
+python-telegram-bot     # Modern async handler for bot control
 
 # ── CLI UI & UX ─────────────────────────────────────────
-rich==13.9.4            # Technical UI rendering
-questionary==2.0.1      # Interactive CLI menus
+rich                    # Technical UI rendering
+questionary             # Interactive CLI menus
+prompt_toolkit          # Modern Gemini-style CLI sessions
 
 # ── Resilience & Async Bridge ──────────────────────────
-nest-asyncio==1.6.0     # Critical for nested event loops (Bot support)
-tenacity==9.0.0         # Advanced retry & backoff strategies
+nest-asyncio            # Critical for nested event loops (Bot support)
+tenacity                # Advanced retry & backoff strategies
 
 # ── Vector Memory & AI Context ─────────────────────────
-chromadb==0.5.23        # Vector database for semantic memory
-sentence-transformers==3.3.1  # Text embeddings for memory search
+chromadb                # Vector database for semantic memory
+sentence-transformers   # Text embeddings for memory search
 
 # ── Recon & Web Intelligence ───────────────────────────
-trafilatura==1.12.0     # High-precision web content extraction
-googlesearch-python==1.3.0 # Basic search discovery (Keep for now)
+trafilatura             # High-precision web content extraction
+googlesearch-python     # Basic search discovery (Keep for now)
 
 # -- Recommended Security Tools (Optional) ---
-# safety==3.2.11          # For continuous dependency auditing
-# pip-audit==2.7.3        # For advanced vulnerability scanning
+# safety                  # For continuous dependency auditing
+# pip-audit               # For advanced vulnerability scanning
 
 # -- Testing and Development --
-pytest==8.3.4             # Unit and integration testing
-pytest-asyncio==0.24.0    # Async test support
+pytest                    # Unit and integration testing
+pytest-asyncio            # Async test support

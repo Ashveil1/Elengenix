@@ -17,8 +17,8 @@ class ElengenixAgent:
     """Smart AI Agent that distinguishes chat from scanning."""
     
     def __init__(self, **kwargs):
-        # Initializes the universal AI client manager capable of fallback.
-        self.ai_manager = AIClientManager(preferred_order=["gemini", "openai", "groq", "ollama"])
+        # Uses the default preferred_order from AIClientManager (all providers)
+        self.ai_manager = AIClientManager()
         
     def process_universal(self, query: str, callback: Optional[Callable] = None, target: str = "", mode: str = "auto") -> str:
         """Alias for process_query in auto mode."""

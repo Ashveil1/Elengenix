@@ -336,7 +336,7 @@ Respond in JSON:
         if any(v in priority_vulns for v in ["idor", "bola", "auth"]):
             print("  [AI] Prioritizing access control testing...")
             try:
-                from tools.bola_idor_harness import BOLAHarness
+                from tools.bola_harness import BOLAHarness
                 # Note: Would need actual headers for real test
                 # This is simplified
             except Exception as e:

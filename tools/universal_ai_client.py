@@ -24,7 +24,6 @@ import os
 import time
 from dataclasses import dataclass
 from typing import Any, Dict, Generator, List, Optional
-from urllib.parse import urljoin
 
 import requests
 
@@ -59,33 +58,58 @@ class UniversalAIClient:
         "openai": {
             "base_url": "https://api.openai.com/v1",
             "env_key": "OPENAI_API_KEY",
-            "default_model": "gpt-4o-mini",
+            "default_model": "gpt-4.5-turbo",
         },
         "gemini": {
             "base_url": "https://generativelanguage.googleapis.com/v1beta/openai",  # Gemini OpenAI compatibility
             "env_key": "GEMINI_API_KEY",
-            "default_model": "gemini-1.5-flash",
+            "default_model": "gemini-3.1-pro",
         },
         "anthropic": {
             "base_url": "https://api.anthropic.com/v1",  # Claude uses different format, needs adapter
             "env_key": "ANTHROPIC_API_KEY",
-            "default_model": "claude-3-haiku-20240307",
+            "default_model": "claude-3-7-sonnet-latest",
             "custom_format": True,
         },
         "ollama": {
             "base_url": "http://localhost:11434/v1",  # Ollama OpenAI compatibility
             "env_key": None,  # No key needed for local
-            "default_model": "llama3.1:8b",
+            "default_model": "llama3.2",
         },
         "groq": {
             "base_url": "https://api.groq.com/openai/v1",
             "env_key": "GROQ_API_KEY",
-            "default_model": "llama-3.1-8b-instant",
+            "default_model": "llama-3.3-70b-versatile",
         },
         "openrouter": {
             "base_url": "https://openrouter.ai/api/v1",
             "env_key": "OPENROUTER_API_KEY",
-            "default_model": "meta-llama/llama-3.1-8b-instruct",
+            "default_model": "meta-llama/llama-3.3-70b-instruct",
+        },
+        "nvidia": {
+            "base_url": "https://integrate.api.nvidia.com/v1",
+            "env_key": "NVIDIA_API_KEY",
+            "default_model": "nvidia/nemotron-3-super-120b-a12b",
+        },
+        "deepseek": {
+            "base_url": "https://api.deepseek.com/v1",
+            "env_key": "DEEPSEEK_API_KEY",
+            "default_model": "deepseek-chat",
+        },
+        "mistral": {
+            "base_url": "https://api.mistral.ai/v1",
+            "env_key": "MISTRAL_API_KEY",
+            "default_model": "mistral-large-latest",
+        },
+        "together": {
+            "base_url": "https://api.together.xyz/v1",
+            "env_key": "TOGETHER_API_KEY",
+            "default_model": "meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo",
+        },
+        "perplexity": {
+            "base_url": "https://api.perplexity.ai",
+            "env_key": "PERPLEXITY_API_KEY",
+            "default_model": "llama-3.1-sonar-large-128k-online",
         },
     }
 
@@ -160,6 +184,18 @@ class UniversalAIClient:
             return "anthropic"
         elif os.getenv("GROQ_API_KEY"):
             return "groq"
+        elif os.getenv("NVIDIA_API_KEY"):
+            return "nvidia"
+        elif os.getenv("DEEPSEEK_API_KEY"):
+            return "deepseek"
+        elif os.getenv("MISTRAL_API_KEY"):
+            return "mistral"
+        elif os.getenv("OPENROUTER_API_KEY"):
+            return "openrouter"
+        elif os.getenv("TOGETHER_API_KEY"):
+            return "together"
+        elif os.getenv("PERPLEXITY_API_KEY"):
+            return "perplexity"
         elif os.getenv("OLLAMA_URL") or self._check_ollama():
             return "ollama"
         else:
@@ -209,6 +245,12 @@ class UniversalAIClient:
             "stream": stream,
         }
         
+        # NVIDIA-specific parameters (e.g., for reasoning models)
+        if self.provider == "nvidia":
+            payload["chat_template_kwargs"] = {"enable_thinking": True}
+            # Reasoning budget must be less than max_tokens, but for simplicity we match it or set a high value if max_tokens is very large
+            payload["reasoning_budget"] = min(max_tokens, 16384)
+        
         # Handle custom formats (Anthropic, etc.)
         if self.custom_format:
             return self._call_custom_api(payload, stream)
@@ -218,7 +260,7 @@ class UniversalAIClient:
 
     def _call_openai_api(self, payload: Dict, stream: bool) -> AIResponse:
         """Call OpenAI-compatible API."""
-        url = urljoin(self.base_url, "chat/completions")
+        url = self.base_url.rstrip('/') + '/chat/completions'
         
         for attempt in range(self.max_retries):
             try:
@@ -385,7 +427,11 @@ class AIClientManager:
         Args:
             preferred_order: List of provider names in preference order
         """
-        self.preferred_order = preferred_order or ["gemini", "openai", "groq", "ollama"]
+        self.preferred_order = preferred_order or [
+            "gemini", "openai", "anthropic", "groq", "nvidia", 
+            "deepseek", "mistral", "openrouter", "together", 
+            "perplexity", "ollama"
+        ]
         self.clients: Dict[str, UniversalAIClient] = {}
         self.active_client: Optional[UniversalAIClient] = None
         

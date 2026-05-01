@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-elengenix_launcher.py -- Elengenix CLI Launcher (v2.0.0)
+elengenix_launcher.py -- Elengenix CLI Launcher (v3.0.0)
 
 Lightweight entry point for the Elengenix Bug Bounty Automation Platform.
 Routes user commands to the appropriate subsystem modules without
@@ -63,6 +63,22 @@ def bootstrap() -> Path:
         if str(venv_bin) not in current_path:
             os.environ["PATH"] = f"{venv_bin}:{current_path}"
 
+    # Load .env file (API keys, model preferences, rate limits)
+    env_file = project_root / ".env"
+    if env_file.exists():
+        try:
+            from dotenv import load_dotenv
+            load_dotenv(env_file, override=False)
+        except ImportError:
+            # Fallback: manual .env parsing if python-dotenv is missing
+            for line in env_file.read_text(encoding="utf-8").splitlines():
+                line = line.strip()
+                if line and not line.startswith("#") and "=" in line:
+                    key, _, value = line.partition("=")
+                    key, value = key.strip(), value.strip()
+                    if key and key not in os.environ:
+                        os.environ[key] = value
+
     return project_root
 
 
@@ -71,11 +87,7 @@ def bootstrap() -> Path:
 # ---------------------------------------------------------------------------
 
 class ElengenixUI:
-    """Lightweight terminal UI with color-coded output and text-only markers.
-
-    All output methods use plain ANSI codes for fast rendering
-    without Rich library dependency.
-    """
+    """Lightweight terminal UI with color-coded output and text-only markers."""
 
     MARKERS = {
         "info":    "[*]",
@@ -88,12 +100,6 @@ class ElengenixUI:
 
     @classmethod
     def print(cls, message: str, style: str = "info"):
-        """Print a message with a colored status marker.
-
-        Args:
-            message: Text content to display.
-            style: One of 'info', 'success', 'error', 'warning', 'header', 'bold'.
-        """
         color_map = {
             "info":    Colors.CYAN,
             "success": Colors.GREEN,
@@ -102,10 +108,8 @@ class ElengenixUI:
             "header":  Colors.HEADER,
             "bold":    Colors.BOLD,
         }
-
         color = color_map.get(style, Colors.END)
         marker = cls.MARKERS.get(style, "")
-
         if marker:
             print(f"{color}{marker}{Colors.END} {message}")
         else:
@@ -114,13 +118,11 @@ class ElengenixUI:
     @classmethod
     def banner(cls):
         """Display the professional application banner."""
-        width = 56
-        line = Colors.BLUE + ("=" * width) + Colors.END
-
+        width = 62
+        line = Colors.BLUE + ("─" * width) + Colors.END
         print()
         print(line)
-        print(f"{Colors.BOLD}{Colors.CYAN}  ELENGENIX{Colors.END}  {Colors.DIM}v2.0.0{Colors.END}")
-        print(f"  {Colors.CYAN}Autonomous Bug Bounty Hunter{Colors.END}")
+        print(f"{Colors.BOLD}{Colors.CYAN}  ELENGENIX{Colors.END}  {Colors.DIM}v3.0.0  |  Universal AI + Bug Bounty Agent{Colors.END}")
         print(line)
         print()
 
@@ -132,39 +134,81 @@ class ElengenixUI:
 class ElengenixApp:
     """Main application command router.
 
-    Maps CLI arguments to handler methods. Each handler is responsible
-    for importing its own dependencies to keep startup time minimal.
+    Maps CLI arguments to handler methods. Each handler either:
+    - Handles logic directly (lightweight commands), OR
+    - Delegates to main.py via subprocess (full-featured commands).
+
+    All commands go through this router — no "Unknown command" surprises.
     """
 
-    # Commands grouped by category for help display
+    # All supported commands grouped by category (for help display)
     COMMAND_GROUPS = {
-        "Scanning": [
-            ("mission <target>",   "Start autonomous scanning mission"),
-            ("scan <target>",      "Quick security scan"),
-            ("bounty",             "Discover bug bounty programs"),
-            ("programs",           "List bug bounty programs"),
+        "AI & Agent": [
+            ("ai [query]",           "Interactive AI chat assistant"),
+            ("cli",                  "Gemini-style CLI session (prompt_toolkit)"),
+            ("universal",            "Autonomous agent mode — open-ended tasks"),
+            ("autonomous <target>",  "Fully autonomous AI-driven scan"),
+        ],
+        "Reconnaissance": [
+            ("recon <domain>",       "Subdomain + asset discovery & correlation"),
+            ("scan <target>",        "Full pipeline: Recon -> Vuln -> Report"),
+            ("mission <target>",     "Start autonomous scanning mission"),
+            ("bounty [program]",     "Bug bounty program intel & predictor"),
+            ("programs",             "List known bug bounty programs"),
+        ],
+        "Exploitation & Testing": [
+            ("bola <url>",           "BOLA / IDOR differential tests"),
+            ("waf <url>",            "WAF detection & XSS bypass engine"),
+            ("evasion",              "EDR/AV evasion framework"),
+            ("research <CVE|type>",  "CVE research + PoC generator"),
+            ("poc <vuln-type>",      "Generate custom exploit PoC"),
+        ],
+        "Analysis & Intelligence": [
+            ("sast <file|dir>",      "Static code analysis (Python, JS, Go, Java)"),
+            ("cloud <file|dir>",     "Terraform / IaC / cloud security review"),
+            ("mobile <target>",      "Mobile API traffic analysis & fuzzing"),
+            ("soc [logfile]",        "Security log & SIEM threat analysis"),
+        ],
+        "Reports & Memory": [
+            ("report [findings]",    "Generate HTML/PDF security report"),
+            ("memory",               "View & search AI semantic memory"),
+            ("history",              "Browse past scan sessions"),
+            ("dashboard",            "Launch live web dashboard (browser UI)"),
+            ("cve-update",           "Refresh local CVE database"),
         ],
         "Mission Control": [
-            ("status <mission>",   "Check mission status"),
-            ("pause <mission>",    "Pause running mission"),
-            ("resume <mission>",   "Resume paused mission"),
+            ("status <mission_id>",  "Check mission status"),
+            ("pause <mission_id>",   "Pause a running mission"),
+            ("resume <mission_id>",  "Resume a paused mission"),
         ],
-        "AI and Tools": [
-            ("ai <query>",         "Ask AI assistant"),
-            ("doctor",             "System health check"),
-            ("telegram",           "Start Telegram bot"),
+        "System": [
+            ("doctor",               "System health check — tools & API keys"),
+            ("configure",            "Set up AI providers, Telegram, HackerOne"),
+            ("gateway",              "Start Telegram bot gateway"),
+            ("arsenal",              "Manual tool selector menu"),
+            ("menu",                 "Interactive categorized menu"),
+            ("update",               "Update framework via git pull"),
+            ("help",                 "Show this help message"),
         ],
+    }
+
+    # Commands that delegate to main.py (full Rich/heavy-import pipeline)
+    DELEGATE_TO_MAIN = {
+        "ai", "cli", "universal", "autonomous",
+        "recon", "scan", "bola", "waf", "evasion",
+        "research", "poc", "sast", "cloud", "mobile", "soc",
+        "report", "memory", "history", "dashboard", "cve-update",
+        "configure", "gateway", "arsenal", "menu", "update",
+        "profile", "intel", "web", "api", "bb", "check", "test",
+        "red", "pdf", "hack", "quick", "deep", "stealth",
     }
 
     def __init__(self):
         self.root = bootstrap()
+        self.main_py = self.root / "main.py"
 
     def run(self, args: List[str]):
-        """Route the command to the appropriate handler.
-
-        Args:
-            args: Command-line arguments (sys.argv[1:]).
-        """
+        """Route the command to the appropriate handler."""
         if not args or args[0] in ["help", "-h", "--help"]:
             self.show_help()
             return
@@ -172,21 +216,35 @@ class ElengenixApp:
         command = args[0]
         remaining = args[1:]
 
-        handlers = {
-            "mission":  self.cmd_mission,
-            "bounty":   self.cmd_bounty,
-            "scan":     self.cmd_scan,
-            "programs": self.cmd_programs,
-            "status":   self.cmd_status,
-            "pause":    self.cmd_pause,
-            "resume":   self.cmd_resume,
-            "ai":       self.cmd_ai,
-            "doctor":   self.cmd_doctor,
-            "telegram": self.cmd_telegram,
+        # Commands with native handlers in this launcher
+        native_handlers = {
+            "mission":   self.cmd_mission,
+            "bounty":    self.cmd_bounty,
+            "programs":  self.cmd_programs,
+            "status":    self.cmd_status,
+            "pause":     self.cmd_pause,
+            "resume":    self.cmd_resume,
+            "doctor":    self.cmd_doctor,
+            "telegram":  self.cmd_telegram,
         }
 
-        handler = handlers.get(command, self.cmd_unknown)
-        handler(remaining)
+        if command in native_handlers:
+            native_handlers[command](remaining)
+        elif command in self.DELEGATE_TO_MAIN:
+            self._delegate(args)  # pass ALL args including command
+        else:
+            self.cmd_unknown(command)
+
+    def _delegate(self, args: List[str]):
+        """Pass command to main.py (full-featured pipeline)."""
+        if not self.main_py.exists():
+            ElengenixUI.print(f"main.py not found at {self.main_py}", "error")
+            return
+        result = subprocess.run(
+            [sys.executable, str(self.main_py)] + args,
+            cwd=str(self.root),
+        )
+        sys.exit(result.returncode)
 
     # -- Help Display -------------------------------------------------------
 
@@ -194,41 +252,41 @@ class ElengenixApp:
         """Display the categorized help menu."""
         ElengenixUI.banner()
 
-        print(f"{Colors.BOLD}Usage:{Colors.END} elengenix <command> [options]")
+        print(f"{Colors.BOLD}Usage:{Colors.END} elengenix <command> [target] [options]")
+        print()
+        print(f"  {Colors.DIM}Smart mode — just type a target:{Colors.END}")
+        print(f"    {Colors.GREEN}elengenix example.com{Colors.END}         →  auto-detect and route")
+        print(f"    {Colors.GREEN}elengenix https://api.x.com/{Colors.END}  →  BOLA / WAF workflow")
+        print(f"    {Colors.GREEN}elengenix myapp.py{Colors.END}            →  SAST static scan")
         print()
 
         for category, commands in self.COMMAND_GROUPS.items():
             print(f"  {Colors.BOLD}{category}{Colors.END}")
             for cmd, desc in commands:
-                print(f"    {Colors.CYAN}{cmd:<25}{Colors.END} {desc}")
+                print(f"    {Colors.CYAN}{cmd:<28}{Colors.END} {desc}")
             print()
 
         print(f"{Colors.BOLD}Examples:{Colors.END}")
         print(f"  {Colors.GREEN}elengenix bounty{Colors.END}")
         print(f"  {Colors.GREEN}elengenix mission example.com{Colors.END}")
         print(f"  {Colors.GREEN}elengenix doctor{Colors.END}")
+        print(f"  {Colors.GREEN}elengenix configure{Colors.END}")
+        print(f"  {Colors.GREEN}elengenix menu{Colors.END}")
         print()
 
-    # -- Command Handlers ---------------------------------------------------
+    # -- Native Command Handlers --------------------------------------------
 
     def cmd_mission(self, args):
-        """Start an autonomous scanning mission against a target.
-
-        Args:
-            args: Should contain at least one element (the target domain).
-        """
+        """Start an autonomous scanning mission against a target."""
         if not args:
             ElengenixUI.print("Usage: elengenix mission <target>", "warning")
             return
-
         target = args[0]
         ElengenixUI.print(f"Starting mission: {target}", "info")
-
         try:
             from tools.smart_scanner import SmartScanner
             scanner = SmartScanner(target=target)
             results = scanner.run()
-
             findings = len(results.get("findings", []))
             ElengenixUI.print(f"Complete. Findings: {findings}", "success")
         except Exception as e:
@@ -237,20 +295,12 @@ class ElengenixApp:
     def cmd_bounty(self, args):
         """Discover bug bounty programs from public and API sources."""
         ElengenixUI.print("Discovering programs...", "info")
-
         try:
             from tools.bounty_intelligence import BountyIntelligence
-
             api_key = os.environ.get("HACKERONE_API_KEY")
             api_user = os.environ.get("HACKERONE_API_USER")
-
             intel = BountyIntelligence(api_key=api_key, api_username=api_user)
-
-            if api_key:
-                programs = intel.discover_programs_api(500, 10)
-            else:
-                programs = intel.discover_programs_public(10)
-
+            programs = intel.discover_programs_api(500, 10) if api_key else intel.discover_programs_public(10)
             if programs:
                 ranked = intel.rank_programs(programs)
                 top = ranked[0]
@@ -263,40 +313,20 @@ class ElengenixApp:
         except Exception as e:
             ElengenixUI.print(f"Discovery failed: {e}", "error")
 
-    def cmd_scan(self, args):
-        """Run a quick security scan on the specified target.
-
-        Delegates to main.py for the full scan pipeline.
-        """
-        if not args:
-            ElengenixUI.print("Usage: elengenix scan <target>", "warning")
-            return
-
-        target = args[0]
-        ElengenixUI.print(f"Scanning {target}...", "info")
-        subprocess.run([sys.executable, "main.py", "scan", target])
-
     def cmd_programs(self, args):
         """List available bug bounty programs (alias for bounty)."""
         self.cmd_bounty(args)
 
     def cmd_status(self, args):
-        """Check the status of a running or completed mission.
-
-        Args:
-            args: Should contain the mission ID.
-        """
+        """Check the status of a running or completed mission."""
         if not args:
             ElengenixUI.print("Usage: elengenix status <mission_id>", "warning")
             return
-
         mission_id = args[0]
         ElengenixUI.print(f"Checking: {mission_id}...", "info")
-
         try:
             from tools.smart_scanner import SmartScanner
             scanner = SmartScanner.load(mission_id)
-
             if scanner:
                 status = scanner.get_status()
                 print(f"    Status:   {status.get('status', 'unknown')}")
@@ -308,18 +338,12 @@ class ElengenixApp:
             ElengenixUI.print(f"Status check failed: {e}", "error")
 
     def cmd_pause(self, args):
-        """Pause a running mission.
-
-        Args:
-            args: Should contain the mission ID.
-        """
+        """Pause a running mission."""
         if not args:
             ElengenixUI.print("Usage: elengenix pause <mission_id>", "warning")
             return
-
         mission_id = args[0]
         ElengenixUI.print(f"Pausing: {mission_id}...", "info")
-
         try:
             from tools.smart_scanner import SmartScanner
             scanner = SmartScanner.load(mission_id)
@@ -332,18 +356,12 @@ class ElengenixApp:
             ElengenixUI.print(f"Pause failed: {e}", "error")
 
     def cmd_resume(self, args):
-        """Resume a paused mission.
-
-        Args:
-            args: Should contain the mission ID.
-        """
+        """Resume a paused mission."""
         if not args:
             ElengenixUI.print("Usage: elengenix resume <mission_id>", "warning")
             return
-
         mission_id = args[0]
         ElengenixUI.print(f"Resuming: {mission_id}...", "info")
-
         try:
             from tools.smart_scanner import SmartScanner
             scanner = SmartScanner.load(mission_id)
@@ -355,38 +373,31 @@ class ElengenixApp:
         except Exception as e:
             ElengenixUI.print(f"Resume failed: {e}", "error")
 
-    def cmd_ai(self, args):
-        """Send a query to the AI assistant.
-
-        Delegates to main.py for the full AI chat pipeline.
-        """
-        if not args:
-            ElengenixUI.print("Usage: elengenix ai <query>", "warning")
-            return
-
-        query = " ".join(args)
-        ElengenixUI.print(f"Query: {query}", "info")
-        subprocess.run([sys.executable, "main.py", "ai", query])
-
     def cmd_doctor(self, args):
-        """Run the system health check.
-
-        Delegates to main.py doctor command.
-        """
+        """Run the system health check (delegates to main.py)."""
         ElengenixUI.print("Running health check...", "info")
-        subprocess.run([sys.executable, "main.py", "doctor"])
+        self._delegate(["doctor"])
 
     def cmd_telegram(self, args):
         """Start the Telegram bot gateway."""
         ElengenixUI.print("Starting Telegram bot...", "info")
-        subprocess.run([sys.executable, "bot.py"])
+        bot_py = self.root / "bot.py"
+        subprocess.run([sys.executable, str(bot_py)], cwd=str(self.root))
 
-    def cmd_unknown(self, args):
-        """Handle unrecognized commands with a helpful message."""
+    def cmd_unknown(self, command: str):
+        """Handle unrecognized commands with smart suggestion."""
         ElengenixUI.print(
-            "Unknown command. Run 'elengenix help' for available commands.",
+            f"Unknown command: '{command}'  —  run 'elengenix help' for all commands.",
             "warning"
         )
+        # Show closest match hint
+        all_cmds = list(self.DELEGATE_TO_MAIN) + list({
+            "mission", "bounty", "programs", "status", "pause", "resume",
+            "doctor", "telegram",
+        })
+        close = [c for c in all_cmds if command in c or c.startswith(command[:3])]
+        if close:
+            print(f"  Did you mean: {', '.join(close[:3])}?")
 
 
 # ---------------------------------------------------------------------------

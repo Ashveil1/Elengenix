@@ -72,13 +72,13 @@ class WelcomeWizard:
     CONFIG_FILE = Path(".config/elengenix/setup.json")
     BANNER_WIDTH = 60
     
-    # AI Providers in order of preference (free → paid)
     AI_PREFERENCES = [
-        ("Gemini (Google)", "GEMINI_API_KEY", "Free, fast", "gemini-2.0-flash"),
-        ("Groq", "GROQ_API_KEY", "Very fast, free tier", "llama-3.1-70b"),
+        ("Gemini (Google)", "GEMINI_API_KEY", "Free, fast", "gemini-3.1-pro"),
+        ("Groq", "GROQ_API_KEY", "Very fast, free tier", "llama-3.3-70b-versatile"),
+        ("NVIDIA", "NVIDIA_API_KEY", "Fast NIM endpoints, free tier", "meta/llama3-70b-instruct"),
         ("OpenRouter", "OPENROUTER_API_KEY", "Multiple models", "auto"),
-        ("OpenAI", "OPENAI_API_KEY", "Most accurate", "gpt-4o"),
-        ("Anthropic", "ANTHROPIC_API_KEY", "Best reasoning", "claude-3-opus"),
+        ("OpenAI", "OPENAI_API_KEY", "Most accurate", "gpt-4.5-turbo"),
+        ("Anthropic", "ANTHROPIC_API_KEY", "Best reasoning", "claude-3-7-sonnet-latest"),
     ]
     
     def __init__(self):
@@ -368,6 +368,7 @@ class WelcomeWizard:
         urls = {
             "Gemini (Google)": "https://aistudio.google.com/app/apikey",
             "Groq": "https://console.groq.com/keys",
+            "NVIDIA": "https://build.nvidia.com/explore/discover",
             "OpenRouter": "https://openrouter.ai/keys",
             "OpenAI": "https://platform.openai.com/api-keys",
             "Anthropic": "https://console.anthropic.com/settings/keys",

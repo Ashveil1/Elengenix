@@ -618,7 +618,54 @@ function updateSeverityChart(findings) {
     window.severityChart.data = data;
     window.severityChart.draw();
 }
-"""
+
+
+class InteractiveDashboard:
+    """
+    Standalone Interactive Dashboard entry point.
+    Integrates the base server and enhancements.
+    """
+
+    def __init__(self, host: str = "127.0.0.1", port: int = 8080):
+        self.host = host
+        self.port = port
+        self.server: Optional[DashboardServer] = None
+        self.enhancer: Optional[InteractiveDashboardEnhancer] = None
+
+    def run(self):
+        """Start the dashboard server and block."""
+        from tools.dashboard_server import DashboardServer, DashboardHandler
+        from ui_components import print_info, print_success, print_error
+        
+        try:
+            # Import MissionState here to avoid circular imports
+            from tools.mission_state import MissionState
+            mission_state = MissionState() # Global or shared state
+        except ImportError:
+            mission_state = None
+
+        try:
+            print_info(f"Initializing Interactive Dashboard on {self.host}:{self.port}")
+            self.server = DashboardServer((self.host, self.port), DashboardHandler, mission_state)
+            self.enhancer = InteractiveDashboardEnhancer(self.server)
+            
+            # Inject enhanced HTML/CSS/JS into the handler via the server if possible
+            # For simplicity, we just use the enhanced server as is
+            
+            print_success(f"Dashboard is live! Visit http://{self.host}:{self.port}")
+            print_info("Press Ctrl+C to shut down.")
+            
+            self.server.serve_forever()
+        except KeyboardInterrupt:
+            print_info("Dashboard shutting down...")
+            if self.server:
+                self.server.shutdown()
+        except Exception as e:
+            print_error(f"Dashboard failed: {e}")
+
+
+# Alias for backward compatibility or different naming conventions
+InteractiveDashboardEnhancer = InteractiveDashboardEnhancer 
 
     def generate_interactive_html(self) -> str:
         """Generate enhanced interactive dashboard HTML."""

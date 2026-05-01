@@ -316,56 +316,69 @@ class CommandSimplifier:
     def get_help_text() -> str:
         """Get organized help text by category."""
         return """
-╔══════════════════════════════════════════════════════════════════╗
-║                    ELENGENIX COMMAND GUIDE                      ║
-╚══════════════════════════════════════════════════════════════════╝
+╔══════════════════════════════════════════════════════════════════════╗
+║                    ELENGENIX  —  COMMAND REFERENCE                  ║
+╚══════════════════════════════════════════════════════════════════════╝
 
-┌──────────────────────────────────────────────────────────────────┐
-│  SMART MODE (Auto-detect input)                                │
-├──────────────────────────────────────────────────────────────────┤
-│  elengenix example.com              -> reconnaissance           │
-│  elengenix https://api.x.com        -> BOLA/WAF workflow        │
-│  elengenix findings.json            -> AI-assisted analysis      │
-│  elengenix myapp.py                 -> SAST guidance             │
-│  elengenix terraform/               -> cloud review guidance     │
-└──────────────────────────────────────────────────────────────────┘
+  SMART MODE (just type a target — Elengenix auto-routes):
+  ─────────────────────────────────────────────────────────
+    elengenix example.com            ->  Reconnaissance
+    elengenix https://api.x.com/     ->  BOLA / WAF workflow
+    elengenix findings.json          ->  AI-assisted analysis
+    elengenix myapp.py               ->  SAST static scan
+    elengenix terraform/             ->  Cloud security review
 
-┌──────────────────────────────────────────────────────────────────┐
-│  QUICK SHORTCUTS                                                │
-├──────────────────────────────────────────────────────────────────┤
-│  elengenix bb <url>                 -> BOLA workflow             │
-│  elengenix check <domain>           -> reconnaissance            │
-│  elengenix test <url>               -> WAF/XSS checks            │
-│  elengenix red                      -> red team workflow         │
-│  elengenix pdf <file>               -> report generation         │
-│  elengenix ai                       -> AI assistant              │
-└──────────────────────────────────────────────────────────────────┘
-
-┌──────────────────────────────────────────────────────────────────┐
-│  FULL COMMANDS (Explicit control)                              │
-├──────────────────────────────────────────────────────────────────┤
-│  Offensive Testing:                                             │
-│    elengenix bola <url>             BOLA/IDOR testing           │
-│    elengenix waf <url>              WAF/XSS scanner             │
-│    elengenix evasion                EDR/AV evasion              │
-│                                                                 │
-│  Reconnaissance:                                                │
-│    elengenix recon <domain>         Asset discovery             │
-│    elengenix scan <target>          Full scan pipeline          │
-│                                                                 │
-│  Analysis & Reports:                                            │
-│    elengenix report <findings>      Generate PDF report         │
-│    elengenix menu                   Interactive wizard           │
-└──────────────────────────────────────────────────────────────────┘
-
-┌──────────────────────────────────────────────────────────────────┐
-│  EXAMPLES                                                       │
-├──────────────────────────────────────────────────────────────────┤
-│  elengenix target.com                                           │
-│  elengenix bb https://api.target.com                            │
-│  elengenix burp_export.json                                     │
-│  elengenix ai                                                    │
-└──────────────────────────────────────────────────────────────────┘
-
-For detailed help: elengenix menu
+┌─────────────────────┬──────────────────────────────────────────────┐
+│  AI & AGENT         │                                              │
+├─────────────────────┼──────────────────────────────────────────────┤
+│  elengenix ai       │  Interactive AI partner (chat)               │
+│  elengenix cli      │  Gemini-style CLI session (prompt_toolkit)   │
+│  elengenix universal│  Autonomous agent mode (open-ended tasks)    │
+│  elengenix autonomous <target>                                      │
+│                     │  Fully autonomous AI scan                    │
+├─────────────────────┼──────────────────────────────────────────────┤
+│  RECONNAISSANCE     │                                              │
+├─────────────────────┼──────────────────────────────────────────────┤
+│  elengenix recon <domain>          Asset discovery + correlation   │
+│  elengenix scan <target>           Full scan pipeline              │
+│  elengenix bounty [program]        Bug bounty intel & predictor    │
+├─────────────────────┼──────────────────────────────────────────────┤
+│  EXPLOITATION       │                                              │
+├─────────────────────┼──────────────────────────────────────────────┤
+│  elengenix bola <url>              BOLA / IDOR differential tests  │
+│  elengenix waf <url>               WAF detection & XSS bypass      │
+│  elengenix evasion                 EDR / AV evasion framework      │
+│  elengenix research <CVE|type>     CVE research + PoC generator    │
+│  elengenix poc <vuln-type>         Generate custom exploit PoC     │
+├─────────────────────┼──────────────────────────────────────────────┤
+│  ANALYSIS           │                                              │
+├─────────────────────┼──────────────────────────────────────────────┤
+│  elengenix sast <file|dir>         Source code static analysis     │
+│  elengenix cloud <file|dir>        Terraform / IaC / cloud review  │
+│  elengenix mobile <target>         Mobile API analysis & fuzzing   │
+│  elengenix soc [logfile]           Security log & SIEM analysis    │
+├─────────────────────┼──────────────────────────────────────────────┤
+│  REPORTS & MEMORY   │                                              │
+├─────────────────────┼──────────────────────────────────────────────┤
+│  elengenix report [findings]       Generate HTML/PDF report        │
+│  elengenix memory                  View & search AI memory         │
+│  elengenix history                 Browse past scan sessions       │
+│  elengenix dashboard               Launch live web dashboard       │
+├─────────────────────┼──────────────────────────────────────────────┤
+│  SYSTEM             │                                              │
+├─────────────────────┼──────────────────────────────────────────────┤
+│  elengenix doctor                  System health & tool check      │
+│  elengenix configure               Set AI keys, Telegram, H1       │
+│  elengenix gateway                 Start Telegram bot              │
+│  elengenix arsenal                 Manual tool selector            │
+│  elengenix menu                    Interactive categorized menu     │
+│  elengenix cve-update              Refresh local CVE database       │
+│  elengenix update                  Update via git pull             │
+├─────────────────────┼──────────────────────────────────────────────┤
+│  SHORTCUTS          │                                              │
+├─────────────────────┼──────────────────────────────────────────────┤
+│  bb <url>           ->  bola     check <domain>  ->  recon        │
+│  test <url>         ->  waf      red              ->  evasion      │
+│  hack / ai          ->  ai chat  pdf <file>       ->  report       │
+└─────────────────────┴──────────────────────────────────────────────┘
 """

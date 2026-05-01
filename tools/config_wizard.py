@@ -144,6 +144,15 @@ class ConfigWizard:
             api_type="openai"
         ),
         AIProviderConfig(
+            name="NVIDIA",
+            env_key="NVIDIA_API_KEY",
+            base_url="https://integrate.api.nvidia.com/v1",
+            signup_url="https://build.nvidia.com/explore/discover",
+            is_free=True,
+            notes="Fast inference via NVIDIA NIM, generous free tier",
+            api_type="openai"
+        ),
+        AIProviderConfig(
             name="Ollama (Local)",
             env_key="",
             base_url="http://localhost:11434/v1",
@@ -154,15 +163,16 @@ class ConfigWizard:
     ]
 
     DEFAULT_MODELS: Dict[str, List[str]] = {
-        "Gemini (Google)": ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro", "gemini-1.0-pro"],
-        "OpenAI (GPT-4)": ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "o1-preview", "o1-mini"],
-        "Anthropic (Claude)": ["claude-3-5-sonnet-latest", "claude-3-5-haiku-latest", "claude-3-opus-latest"],
+        "Gemini (Google)": ["gemini-3.1-pro", "gemini-3.1-flash", "gemini-3.0-pro", "gemini-2.0-flash", "gemini-1.5-pro", "gemini-1.5-flash"],
+        "OpenAI (GPT-4)": ["gpt-4.5-turbo", "gpt-4o", "gpt-4o-mini", "o2-preview", "o1-preview", "o1-mini"],
+        "Anthropic (Claude)": ["claude-3-7-sonnet-latest", "claude-3-5-sonnet-latest", "claude-3-5-haiku-latest", "claude-3-opus-latest"],
         "Groq": ["llama-3.3-70b-versatile", "llama-3.1-70b-versatile", "llama-3.1-8b-instant"],
         "DeepSeek": ["deepseek-chat", "deepseek-reasoner"],
         "Mistral": ["mistral-large-latest", "mistral-small-latest", "open-mixtral-8x7b"],
         "Together AI": ["meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo", "mistralai/Mixtral-8x7B-Instruct-v0.1"],
         "OpenRouter": ["meta-llama/llama-3.3-70b-instruct", "google/gemini-2.0-flash-exp:free", "auto"],
         "Perplexity": ["llama-3.1-sonar-large-128k-online", "llama-3.1-sonar-small-128k-online"],
+        "NVIDIA": ["nvidia/nemotron-3-super-120b-a12b", "meta/llama3-70b-instruct", "mistralai/mixtral-8x22b-instruct-v0.1", "google/gemma-7b-it"],
         "Ollama (Local)": ["llama3.2", "llama3.1:8b", "mistral:7b", "codellama:7b"],
     }
     
@@ -319,7 +329,7 @@ class ConfigWizard:
         
         console.print(f"  [{len(models) + 1}] Custom (Enter identifier)")
         
-        choice = console.input(f"\nSelect model [1-{len(models) + 1}] or [S]kip: ").strip()
+        choice = console.input(f"\nSelect model [1-{len(models) + 1}] or model name or [S]kip: ").strip()
         
         if choice.lower() == 's' or not choice:
             return
@@ -332,7 +342,8 @@ class ConfigWizard:
             elif idx == len(models):
                 selected_model = console.input("Enter custom model identifier: ").strip()
         except ValueError:
-            pass
+            # User typed a model name directly (e.g. nvidia/nemotron-3-super-120b-a12b)
+            selected_model = choice
         
         if selected_model:
             self._save_env_var(model_env_key, selected_model)
@@ -348,10 +359,11 @@ class ConfigWizard:
                 "Content-Type": "application/json",
             }
             
-            # Use provided model, or fallback to default
-            test_model = model or "gpt-4o-mini"
-            if "gemini" in provider.base_url and not model:
-                test_model = "gemini-1.5-flash"
+            # Use provided model, or fallback to provider-appropriate default
+            test_model = model
+            if not test_model:
+                defaults = self.DEFAULT_MODELS.get(provider.name, [])
+                test_model = defaults[0] if defaults else "gpt-4o-mini"
             
             # Simple test request
             payload = {
@@ -360,11 +372,18 @@ class ConfigWizard:
                 "max_tokens": 10,
             }
             
+            # NVIDIA-specific: some models need extra_body parameters
+            if provider.name == "NVIDIA":
+                payload["stream"] = False
+            
+            # Build URL reliably (no urljoin which drops path segments)
+            url = provider.base_url.rstrip('/') + '/chat/completions'
+            
             resp = requests.post(
-                f"{provider.base_url}/chat/completions",
+                url,
                 headers=headers,
                 json=payload,
-                timeout=10,
+                timeout=15,
             )
             
             return resp.status_code == 200
@@ -463,17 +482,17 @@ class ConfigWizard:
         """Setup rate limits."""
         console.print("\n[bold red]Rate Limit Setup[/bold red]\n")
         
-        current = os.getenv("ELENGENIX_RATE_LIMIT", "5")
-        console.print(f"Current rate limit: [red]{current} req/s[/red]")
-        console.print("[dim]Recommended: 5 for production, 10 for testing[/dim]\n")
+        current = os.getenv("ELENGENIX_RATE_LIMIT", "40")
+        console.print(f"Current rate limit: [red]{current} RPM[/red]")
+        console.print("[dim]Recommended: 40 RPM for production, 120 RPM for testing[/dim]\n")
         
-        limit = console.input("Enter rate limit (req/s, Enter to keep current): ").strip()
+        limit = console.input("Enter rate limit (RPM, Enter to keep current): ").strip()
         
         if limit:
             try:
                 int(limit)
                 self._save_env_var("ELENGENIX_RATE_LIMIT", limit)
-                print_success(f"Saved rate limit: {limit} req/s")
+                print_success(f"Saved rate limit: {limit} RPM")
             except ValueError:
                 print_warning("Please enter a number")
     
@@ -524,9 +543,9 @@ class ConfigWizard:
         # Other settings
         console.print("\n[bold]Other Settings:[/bold]")
         default_target = os.getenv("ELENGENIX_DEFAULT_TARGET", "(none)")
-        rate_limit = os.getenv("ELENGENIX_RATE_LIMIT", "5")
+        rate_limit = os.getenv("ELENGENIX_RATE_LIMIT", "40")
         console.print(f"  Default Target: {default_target}")
-        console.print(f"  Rate Limit: {rate_limit} req/s")
+        console.print(f"  Rate Limit: {rate_limit} RPM")
         
         # .env file status
         if self.env_file.exists():

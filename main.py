@@ -14,8 +14,17 @@ import subprocess
 import argparse
 import re
 import importlib.util
+import time
+import json
 from datetime import datetime
 from pathlib import Path
+
+# --- Load .env file (API keys, model preferences, etc.) ---
+try:
+    from dotenv import load_dotenv
+    load_dotenv(override=False)  # Don't override existing env vars
+except ImportError:
+    pass  # python-dotenv not installed, user must set env vars manually
 
 # --- Rich & Interactive UI ---
 from rich.console import Console
@@ -43,35 +52,52 @@ logging.basicConfig(
 logger = logging.getLogger("elengenix.main")
 
 # ── Dependency Management ─────────────────────────────────────────────────────
+def _check_module(module_name: str) -> bool:
+    """Safely check if a module is importable, handles dotted paths & namespace packages."""
+    try:
+        spec = importlib.util.find_spec(module_name)
+        return spec is not None
+    except (ModuleNotFoundError, ValueError):
+        return False
+
+
 def ensure_dependencies():
-    """Dependency checker with graceful degradation for optional providers."""
+    """Dependency checker. Hard-fails on core packages, warns on optional AI SDKs."""
+    # These MUST be present for the framework to run at all
     core_required = {
-        "yaml": "pyyaml",
-        "rich": "rich",
-        "questionary": "questionary",
-        "requests": "requests",
-        "dotenv": "python-dotenv",
-        "tenacity": "tenacity",
+        "yaml":           "pyyaml",
+        "rich":           "rich",
+        "questionary":    "questionary",
+        "prompt_toolkit": "prompt_toolkit",
+        "requests":       "requests",
+        "dotenv":         "python-dotenv",
+        "tenacity":       "tenacity",
+        "nest_asyncio":   "nest-asyncio",
     }
-    optional_required = {
+    # These are optional — framework still runs if missing (user just can't use that provider)
+    optional_providers = {
+        "openai":              "openai",
+        "anthropic":           "anthropic",
         "google.generativeai": "google-generativeai",
-        "openai": "openai",
-        "anthropic": "anthropic",
-        "trafilatura": "trafilatura",
-        "nest_asyncio": "nest-asyncio",
+        "cohere":              "cohere",
+        "huggingface_hub":     "huggingface-hub",
+        "replicate":           "replicate",
+        "telegram":            "python-telegram-bot",
+        "trafilatura":         "trafilatura",
+        "googlesearch":        "googlesearch-python",
     }
 
-    missing_core = [pkg for mod, pkg in core_required.items() if importlib.util.find_spec(mod) is None]
+    missing_core = [pkg for mod, pkg in core_required.items() if not _check_module(mod)]
     if missing_core:
         console.print(Panel(
-            f"[grey70]Core dependencies are missing: {', '.join(missing_core)}[/grey70]\n"
-            "[dim]Run ./setup.sh (or termux_setup.sh) to complete installation.[/dim]"
+            f"[grey70]Required dependencies missing: {', '.join(missing_core)}[/grey70]\n"
+            "[dim]Run ./setup.sh (or termux_setup.sh) to install.[/dim]"
         ))
         return False
 
-    missing_optional = [pkg for mod, pkg in optional_required.items() if importlib.util.find_spec(mod) is None]
+    missing_optional = [pkg for mod, pkg in optional_providers.items() if not _check_module(mod)]
     if missing_optional:
-        logger.debug(f"Optional dependencies unavailable: {', '.join(missing_optional)}")
+        logger.debug(f"Optional providers not installed: {', '.join(missing_optional)}")
 
     return True
 
@@ -98,7 +124,9 @@ def main():
         "report", "menu", "auto", "help", "bb", "check", "test", "red", "pdf",
         "hack", "research", "poc", "autonomous", "welcome", "quick", "deep",
         "bounty", "stealth", "api", "web", "profile", "history", "programs",
-        "intel", "mission", "pause", "resume", "cli"
+        "intel", "mission", "pause", "resume", "cli",
+        # New unified commands
+        "sast", "cloud", "mobile", "soc", "dashboard",
     ]
 
     parser = argparse.ArgumentParser(description="Elengenix CLI", add_help=False)
@@ -184,20 +212,22 @@ def main():
                 for entry in recent:
                     console.print(f"  [red]elengenix {entry.command} {entry.args}[/red]")
             return
-    
+
+    # ── Shortcut Pre-Processing ── resolve aliases BEFORE auto-detect block
+    # e.g. 'elengenix bb', 'elengenix hack', 'elengenix red' (no target needed)
+    from tools.auto_detector import CommandSimplifier
+    _simplified = CommandSimplifier.simplify(args.command)
+    if _simplified != args.command:
+        args.command = _simplified
+
     # Auto-detect mode (default) - Smart routing based on target
     if args.command == "auto" or (args.command and args.target):
         # If we have both command and target, or just target without specific command
         effective_target = args.target or args.command
-        
-        # Check if command is actually a shortcut
-        from tools.auto_detector import CommandSimplifier, AutoDetector
-        simplified = CommandSimplifier.simplify(args.command)
-        
-        if simplified != args.command:
-            # It's a shortcut, use the simplified command
-            args.command = simplified
-        elif effective_target and effective_target != "auto":
+
+        # Auto-detect target type and route to correct module
+        from tools.auto_detector import AutoDetector
+        if effective_target and effective_target != "auto":
             # Auto-detect what to do with this target
             detection = AutoDetector.detect(effective_target)
             
@@ -254,35 +284,37 @@ def main():
     
     # Interactive Menu (Wizard)
     if args.command == "menu":
-        from ui_components import create_main_menu, format_menu_item
-        menu_items = create_main_menu()
-        
+        from ui_components import show_categorized_menu, create_main_menu
+        menu_items = create_main_menu()   # flat list for index lookup
+
         while True:
             try:
-                console.print("\n[bold red]Main Menu[/bold red]\n")
-                for i, (title, desc, _) in enumerate(menu_items, 1):
-                    console.print(format_menu_item(i, title, desc))
-                console.print()
-                
-                choice_num = console.input("[red]Select[/red] [dim](1-9)[/dim]: ")
+                show_categorized_menu()
+
+                choice_raw = console.input("[red]Select[/red] [dim](number or command)[/dim]: ").strip()
+
+                # Allow typing a command directly (e.g. "ai", "recon")
+                if choice_raw.isalpha() and choice_raw in [c for _, _, c in menu_items]:
+                    args.command = choice_raw
+                    break
+
                 try:
-                    idx = int(choice_num) - 1
+                    idx = int(choice_raw) - 1
                     if 0 <= idx < len(menu_items):
                         choice_key = menu_items[idx][2]
                     else:
                         console.print("[red]Invalid selection[/red]")
                         continue
                 except ValueError:
-                    console.print("[red]Invalid input[/red]")
+                    console.print("[red]Invalid input — enter a number or command name[/red]")
                     continue
-                
-                # Handle exit
+
                 if choice_key == "exit":
                     sys.exit(0)
-                
+
                 args.command = choice_key
                 break
-                
+
             except KeyboardInterrupt:
                 sys.exit(0)
 
@@ -392,8 +424,8 @@ def main():
                     try:
                         from tools.universal_ai_client import AIClientManager, AIMessage
                         
-                        # Initialize AI manager with fallback chain
-                        ai_manager = AIClientManager(preferred_order=["gemini", "openai", "groq", "ollama"])
+                        # Initialize AI manager with all providers (fallback chain)
+                        ai_manager = AIClientManager()
                         
                         if not ai_manager.active_client:
                             console.print("[grey70]No AI provider found[/grey70]")
@@ -615,6 +647,101 @@ def main():
         elif args.command == "arsenal":
             from tools_menu import show_tools_menu
             show_tools_menu()
+
+        elif args.command == "sast":
+            from ui_components import show_section, print_info, print_success, print_error
+            show_section("SAST — Static Application Security Testing")
+            target = args.target or console.input("[red]File or directory to scan[/red]: ").strip()
+            if not target:
+                print_error("Path is required")
+                return
+            try:
+                from tools.sast_engine import SASTEngine
+                engine = SASTEngine()
+                results = engine.scan(target)
+                for finding in results.get("findings", []):
+                    sev = finding.get("severity", "info").upper()
+                    color = {"CRITICAL": "red", "HIGH": "red", "MEDIUM": "grey70", "LOW": "dim"}.get(sev, "dim")
+                    console.print(f"[{color}][{sev}][/{color}] {finding.get('message', '')} [{finding.get('file', '')}:{finding.get('line', '')}]")
+                total = len(results.get("findings", []))
+                print_success(f"SAST scan complete — {total} findings")
+            except Exception as e:
+                print_error(f"SAST error: {e}")
+
+        elif args.command == "cloud":
+            from ui_components import show_section, print_info, print_success, print_error
+            show_section("Cloud / IaC Security Review")
+            target = args.target or console.input("[red]File or directory[/red] (Terraform, YAML, JSON): ").strip()
+            if not target:
+                print_error("Path is required")
+                return
+            try:
+                from tools.cloud_scanner import CloudScanner
+                scanner = CloudScanner()
+                result = scanner.scan(target)
+                for finding in result.get("findings", []):
+                    sev = finding.get("severity", "info").upper()
+                    color = {"CRITICAL": "red", "HIGH": "red", "MEDIUM": "grey70"}.get(sev, "dim")
+                    console.print(f"[{color}][{sev}][/{color}] {finding.get('message', '')}")
+                total = len(result.get("findings", []))
+                print_success(f"Cloud scan complete — {total} findings")
+            except Exception as e:
+                print_error(f"Cloud scan error: {e}")
+
+        elif args.command == "mobile":
+            from ui_components import show_section, print_info, print_success, print_error
+            show_section("Mobile API Analyzer")
+            target = args.target or console.input("[red]Target URL or Burp export file[/red]: ").strip()
+            if not target:
+                print_error("Target is required")
+                return
+            try:
+                from tools.mobile_api_tester import MobileAPITester
+                tester = MobileAPITester()
+                result = tester.analyze(target)
+                for finding in result.get("findings", []):
+                    console.print(f"[grey70][-][/grey70] {finding.get('type', '')} — {finding.get('description', '')}")
+                total = len(result.get("findings", []))
+                print_success(f"Mobile API analysis complete — {total} findings")
+            except Exception as e:
+                print_error(f"Mobile API error: {e}")
+
+        elif args.command == "soc":
+            from ui_components import show_section, print_info, print_success, print_error
+            show_section("SOC Analyzer — Security Log Intelligence")
+            target = args.target or console.input("[red]Log file or SIEM export (or press Enter for interactive)[/red]: ").strip()
+            try:
+                from tools.soc_analyzer import SOCAnalyzer
+                analyzer = SOCAnalyzer()
+                result = analyzer.analyze(target or None)
+                for alert in result.get("alerts", []):
+                    sev = alert.get("severity", "info").upper()
+                    color = {"CRITICAL": "red", "HIGH": "red", "MEDIUM": "grey70"}.get(sev, "dim")
+                    console.print(f"[{color}][{sev}][/{color}] {alert.get('message', '')}")
+                print_success(f"SOC analysis complete — {len(result.get('alerts', []))} alerts")
+            except Exception as e:
+                print_error(f"SOC analyzer error: {e}")
+
+        elif args.command == "dashboard":
+            from ui_components import show_section, print_info, print_success, print_error
+            show_section("Interactive Security Dashboard")
+            
+            host = "127.0.0.1"
+            port = 8080
+            
+            try:
+                from tools.interactive_dashboard import InteractiveDashboard
+                dash = InteractiveDashboard(host=host, port=port)
+                dash.run()
+            except Exception as e:
+                # Fallback to simple dashboard if interactive fails
+                try:
+                    from tools.dashboard_server import DashboardServer, DashboardHandler
+                    print_info(f"Fallback: Starting base dashboard on http://{host}:{port}")
+                    server = DashboardServer((host, port), DashboardHandler)
+                    server.serve_forever()
+                except Exception as ex:
+                    print_error(f"Dashboard failed to start: {ex}")
 
         elif args.command == "update":
             console.print("[dim]To update, run:[/dim]")
@@ -918,7 +1045,6 @@ def main():
                 # Save to file
                 save = console.input("[red]Save payload to file?[/red] (y/N): ").strip().lower()
                 if save in ("y", "yes"):
-                    from pathlib import Path
                     timestamp = int(time.time())
                     out_path = Path(f"reports/evasion_{tech_name.replace(' ', '_').lower()}_{timestamp}.txt")
                     out_path.parent.mkdir(exist_ok=True)
@@ -939,8 +1065,6 @@ def main():
         elif args.command == "report":
             from ui_components import show_section, print_info, print_success, print_error
             from tools.pdf_report_generator import PDFReportGenerator, ReportMetadata, format_report_summary
-            from pathlib import Path
-            import json
 
             show_section("Professional Report Generator")
             
@@ -1060,7 +1184,6 @@ def main():
             """Discover and rank bug bounty programs from HackerOne."""
             from tools.bounty_intelligence import BountyIntelligence
             from ui_components import print_info, print_success, print_error, print_warning
-            import os
             
             # Check for API credentials
             api_key = os.environ.get("HACKERONE_API_KEY")
@@ -1155,7 +1278,6 @@ def main():
             pause_after = 3  # Default: pause after 3 hours without findings
             
             # Parse pause-after option
-            import sys
             if "--pause-after" in sys.argv:
                 idx = sys.argv.index("--pause-after")
                 if idx + 1 < len(sys.argv):
