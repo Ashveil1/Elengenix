@@ -79,10 +79,10 @@ TELEGRAM_CHAT_ID=your_chat_id
 
 ## Usage
 
-### 1. Launching the CLI Launcher
-Use the launcher to access the primary interactive menu:
+### 1. Launching the CLI
+Use the following command to access the primary interactive menu:
 ```bash
-python3 elengenix_launcher.py
+elengenix cli
 ```
 
 ### 2. Common CLI Commands
