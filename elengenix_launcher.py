@@ -240,11 +240,16 @@ class ElengenixApp:
         if not self.main_py.exists():
             ElengenixUI.print(f"main.py not found at {self.main_py}", "error")
             return
-        result = subprocess.run(
-            [sys.executable, str(self.main_py)] + args,
-            cwd=str(self.root),
-        )
-        sys.exit(result.returncode)
+        try:
+            result = subprocess.run(
+                [sys.executable, str(self.main_py)] + args,
+                cwd=str(self.root),
+            )
+            sys.exit(result.returncode)
+        except KeyboardInterrupt:
+            # Handle Ctrl+C during subprocess execution
+            print(f"\n{Colors.DIM}[info] Interrupt received. Closing session...{Colors.END}")
+            sys.exit(0)
 
     # -- Help Display -------------------------------------------------------
 
@@ -406,8 +411,12 @@ class ElengenixApp:
 
 def main():
     """Application entry point. Parses sys.argv and routes to handlers."""
-    app = ElengenixApp()
-    app.run(sys.argv[1:])
+    try:
+        app = ElengenixApp()
+        app.run(sys.argv[1:])
+    except KeyboardInterrupt:
+        print(f"\n{Colors.DIM}[info] Elengenix session terminated.{Colors.END}")
+        sys.exit(0)
 
 
 if __name__ == "__main__":

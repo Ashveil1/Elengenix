@@ -1383,4 +1383,7 @@ def main():
 
 if __name__ == "__main__":
     ensure_dependencies()
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        sys.exit(0)
