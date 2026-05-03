@@ -44,76 +44,88 @@ chmod +x termux_setup.sh
 ./termux_setup.sh
 ```
 
-### Configuration
+---
 
-1. Create a .env file in the root directory.
-2. Add your API keys:
-   ```env
-   GEMINI_API_KEY=your_google_ai_key
-   TELEGRAM_BOT_TOKEN=your_bot_token
-   TELEGRAM_CHAT_ID=your_chat_id
-   ```
+## Configuration
 
-3. Run the system health check:
-   ```bash
-   python3 main.py doctor
-   ```
+Elengenix provides an interactive configuration wizard to manage your AI providers, API keys, and system preferences.
+
+### Using the Configuration Wizard
+
+Run the following command to start the interactive setup:
+```bash
+elengenix configure
+```
+*Note: If the global command is not set, use `python3 main.py configure`.*
+
+The wizard allows you to:
+1. **Manage AI Providers**: Add or update API keys for NVIDIA NIM, Google Gemini, OpenAI, Anthropic, Groq, and more.
+2. **Select Models**: Choose specific models (e.g., GPT-4o, Claude 3.5 Sonnet, Llama 3.3) for each provider.
+3. **Manage Integrations**: Setup third-party services like Telegram Bots, HackerOne API, Tavily AI, and VulnCheck.
+4. **Set Default Target**: Define a primary target for automated scans.
+5. **Configure Rate Limits**: Set global request-per-minute (RPM) limits to avoid being blocked.
+6. **System Health Check**: Run a comprehensive diagnostic to ensure all security tools are correctly installed.
+
+### Manual Configuration
+Alternatively, you can manually create a `.env` file in the root directory:
+```env
+NVIDIA_API_KEY=your_nvidia_key
+GEMINI_API_KEY=your_google_ai_key
+TELEGRAM_BOT_TOKEN=your_bot_token
+TELEGRAM_CHAT_ID=your_chat_id
+```
 
 ---
 
-## วิธีใช้งาน (Usage)
+## Usage
 
-การใช้งาน Elengenix สามารถทำได้ผ่านหลายช่องทาง ดังนี้:
-
-### 1. การใช้งานผ่าน CLI Launcher (แนะนำ)
-ใช้คำสั่งนี้เพื่อเปิดเมนูหลักของระบบ:
+### 1. Launching the CLI Launcher
+Use the launcher to access the primary interactive menu:
 ```bash
 python3 elengenix_launcher.py
 ```
 
-### 2. คำสั่งที่พบบ่อย (Common Commands)
-คุณสามารถรันคำสั่งโดยตรงผ่าน main.py:
-- ตรวจสอบความพร้อมของระบบ: `python3 main.py doctor`
-- เริ่มภารกิจความปลอดภัย: `python3 main.py mission <target>`
-- แชทกับ AI: `python3 main.py ai`
-- ใช้งานเครื่องมือ Security: `python3 main.py arsenal`
-- ตรวจสอบเป้าหมายแบบ 24/7: `python3 main.py watchman`
+### 2. Common CLI Commands
+You can run specific modules directly via the main entry point:
+- **System Check**: `elengenix doctor`
+- **Start Mission**: `elengenix mission <target>`
+- **AI Chat**: `elengenix ai`
+- **Security Tools**: `elengenix arsenal`
+- **24/7 Monitoring**: `elengenix watchman`
+- **SAST Scan**: `elengenix sast <path>`
 
 ---
 
-## สิ่งที่จำเป็นสำหรับการอัพเกรด (Upgrade Guide)
+## Upgrade Guide
 
-เพื่อให้ Elengenix ทำงานได้อย่างมีประสิทธิภาพและมีฟีเจอร์ล่าสุดเสมอ ควรทำตามขั้นตอนดังนี้:
+To keep Elengenix updated with the latest security modules and AI capabilities:
 
-1. อัพเดทซอร์สโค้ด:
+1. **Update Source Code**:
    ```bash
    git pull origin main
    ```
 
-2. อัพเดท Library ที่จำเป็น:
+2. **Update Dependencies**:
    ```bash
    pip install -r requirements.txt --upgrade
    ```
 
-3. ตรวจสอบและซ่อมแซมส่วนประกอบ:
-   รันคำสั่ง doctor เพื่อตรวจสอบว่าเครื่องมือและ Dependency ทั้งหมดพร้อมใช้งาน:
+3. **Verify Components**:
+   Run the doctor command to ensure all tools and dependencies are operational:
    ```bash
-   python3 main.py doctor
+   elengenix doctor
    ```
-
-4. อัพเดทฐานข้อมูลความรู้ (ถ้ามี):
-   หากมีการเปลี่ยนแปลงโครงสร้างฐานข้อมูล ระบบจะแจ้งเตือนเมื่อรันคำสั่ง doctor
 
 ---
 
 ## Project Structure
 
-- main.py: Core CLI entry point and command router.
-- agent_brain.py: Autonomous reasoning engine.
-- orchestrator.py: Tool execution and pipeline management.
-- ui_components.py: Standardized UI elements and design tokens.
-- tools/: Modular security tool integrations.
-- data/: Local logs, state, and vector databases.
+- `main.py`: Core CLI entry point and command router.
+- `agent_brain.py`: Autonomous reasoning engine.
+- `orchestrator.py`: Tool execution and pipeline management.
+- `ui_components.py`: Standardized UI elements and design tokens.
+- `tools/`: Modular security tool integrations.
+- `data/`: Local logs, state, and vector databases.
 
 ---
 
