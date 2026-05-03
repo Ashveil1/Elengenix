@@ -91,10 +91,8 @@ You can run specific modules directly via the main entry point:
 - **Start Mission**: `elengenix mission <target>`
 - **AI Chat**: `elengenix ai`
 - **Security Tools**: `elengenix arsenal`
-- **24/7 Monitoring**: `elengenix watchman`
 - **SAST Scan**: `elengenix sast <path>`
-
----
+- **Help command**`elengenix help`
 
 ## Upgrade Guide
 
