@@ -316,69 +316,68 @@ class CommandSimplifier:
     def get_help_text() -> str:
         """Get organized help text by category."""
         return """
-╔══════════════════════════════════════════════════════════════════════╗
-║                    ELENGENIX  —  COMMAND REFERENCE                  ║
-╚══════════════════════════════════════════════════════════════════════╝
+[bold cyan]╔══════════════════════════════════════════════════════════════════════╗[/bold cyan]
+[bold cyan]║[/bold cyan]                    [bold yellow]ELENGENIX[/bold yellow]  —  [bold white]COMMAND REFERENCE[/bold white]                  [bold cyan]║[/bold cyan]
+[bold cyan]╚══════════════════════════════════════════════════════════════════════╝[/bold cyan]
 
-  SMART MODE (just type a target — Elengenix auto-routes):
-  ─────────────────────────────────────────────────────────
-    elengenix example.com            ->  Reconnaissance
-    elengenix https://api.x.com/     ->  BOLA / WAF workflow
-    elengenix findings.json          ->  AI-assisted analysis
-    elengenix myapp.py               ->  SAST static scan
-    elengenix terraform/             ->  Cloud security review
+  [bold yellow]SMART MODE[/bold yellow] [dim](just type a target — Elengenix auto-routes):[/dim]
+  [dim]─────────────────────────────────────────────────────────[/dim]
+    [cyan]elengenix[/cyan] example.com            [dim]->[/dim]  [green]Reconnaissance[/green]
+    [cyan]elengenix[/cyan] https://api.x.com/     [dim]->[/dim]  [green]BOLA / WAF workflow[/green]
+    [cyan]elengenix[/cyan] findings.json          [dim]->[/dim]  [green]AI-assisted analysis[/green]
+    [cyan]elengenix[/cyan] myapp.py               [dim]->[/dim]  [green]SAST static scan[/green]
+    [cyan]elengenix[/cyan] terraform/             [dim]->[/dim]  [green]Cloud security review[/green]
 
-┌─────────────────────┬──────────────────────────────────────────────┐
-│  AI & AGENT         │                                              │
-├─────────────────────┼──────────────────────────────────────────────┤
-│  elengenix ai       │  Interactive AI partner (chat)               │
-│  elengenix cli      │  Gemini-style CLI session (prompt_toolkit)   │
-│  elengenix universal│  Autonomous agent mode (open-ended tasks)    │
-│  elengenix autonomous <target>                                      │
-│                     │  Fully autonomous AI scan                    │
-├─────────────────────┼──────────────────────────────────────────────┤
-│  RECONNAISSANCE     │                                              │
-├─────────────────────┼──────────────────────────────────────────────┤
-│  elengenix recon <domain>          Asset discovery + correlation   │
-│  elengenix scan <target>           Full scan pipeline              │
-│  elengenix bounty [program]        Bug bounty intel & predictor    │
-├─────────────────────┼──────────────────────────────────────────────┤
-│  EXPLOITATION       │                                              │
-├─────────────────────┼──────────────────────────────────────────────┤
-│  elengenix bola <url>              BOLA / IDOR differential tests  │
-│  elengenix waf <url>               WAF detection & XSS bypass      │
-│  elengenix evasion                 EDR / AV evasion framework      │
-│  elengenix research <CVE|type>     CVE research + PoC generator    │
-│  elengenix poc <vuln-type>         Generate custom exploit PoC     │
-├─────────────────────┼──────────────────────────────────────────────┤
-│  ANALYSIS           │                                              │
-├─────────────────────┼──────────────────────────────────────────────┤
-│  elengenix sast <file|dir>         Source code static analysis     │
-│  elengenix cloud <file|dir>        Terraform / IaC / cloud review  │
-│  elengenix mobile <target>         Mobile API analysis & fuzzing   │
-│  elengenix soc [logfile]           Security log & SIEM analysis    │
-├─────────────────────┼──────────────────────────────────────────────┤
-│  REPORTS & MEMORY   │                                              │
-├─────────────────────┼──────────────────────────────────────────────┤
-│  elengenix report [findings]       Generate HTML/PDF report        │
-│  elengenix memory                  View & search AI memory         │
-│  elengenix history                 Browse past scan sessions       │
-│  elengenix dashboard               Launch live web dashboard       │
-├─────────────────────┼──────────────────────────────────────────────┤
-│  SYSTEM             │                                              │
-├─────────────────────┼──────────────────────────────────────────────┤
-│  elengenix doctor                  System health & tool check      │
-│  elengenix configure               Set AI keys, Telegram, H1       │
-│  elengenix gateway                 Start Telegram bot              │
-│  elengenix arsenal                 Manual tool selector            │
-│  elengenix menu                    Interactive categorized menu     │
-│  elengenix cve-update              Refresh local CVE database       │
-│  elengenix update                  Update via git pull             │
-├─────────────────────┼──────────────────────────────────────────────┤
-│  SHORTCUTS          │                                              │
-├─────────────────────┼──────────────────────────────────────────────┤
-│  bb <url>           ->  bola     check <domain>  ->  recon        │
-│  test <url>         ->  waf      red              ->  evasion      │
-│  hack / ai          ->  ai chat  pdf <file>       ->  report       │
-└─────────────────────┴──────────────────────────────────────────────┘
+[dim]┌─────────────────────┬──────────────────────────────────────────────┐[/dim]
+│  [bold cyan]AI & AGENT[/bold cyan]         │                                              │
+[dim]├─────────────────────┼──────────────────────────────────────────────┤[/dim]
+│  [cyan]elengenix cli[/cyan]      │  [white]Gemini-style CLI session (prompt_toolkit)[/white]   │
+│  [cyan]elengenix universal[/cyan]│  [white]Autonomous agent mode (open-ended tasks)[/white]    │
+│  [cyan]elengenix autonomous[/cyan] <target>                                      │
+│                     │  [white]Fully autonomous AI scan[/white]                    │
+[dim]├─────────────────────┼──────────────────────────────────────────────┤[/dim]
+│  [bold cyan]RECONNAISSANCE[/bold cyan]     │                                              │
+[dim]├─────────────────────┼──────────────────────────────────────────────┤[/dim]
+│  [cyan]elengenix recon[/cyan] <domain>          [white]Asset discovery + correlation[/white]   │
+│  [cyan]elengenix scan[/cyan] <target>           [white]Full scan pipeline[/white]              │
+│  [cyan]elengenix bounty[/cyan] [program]        [white]Bug bounty intel & predictor[/white]    │
+[dim]├─────────────────────┼──────────────────────────────────────────────┤[/dim]
+│  [bold cyan]EXPLOITATION[/bold cyan]       │                                              │
+[dim]├─────────────────────┼──────────────────────────────────────────────┤[/dim]
+│  [cyan]elengenix bola[/cyan] <url>              [white]BOLA / IDOR differential tests[/white]  │
+│  [cyan]elengenix waf[/cyan] <url>               [white]WAF detection & XSS bypass[/white]      │
+│  [cyan]elengenix evasion[/cyan]                 [white]EDR / AV evasion framework[/white]      │
+│  [cyan]elengenix research[/cyan] <CVE|type>     [white]CVE research + PoC generator[/white]    │
+│  [cyan]elengenix poc[/cyan] <vuln-type>         [white]Generate custom exploit PoC[/white]     │
+[dim]├─────────────────────┼──────────────────────────────────────────────┤[/dim]
+│  [bold cyan]ANALYSIS[/bold cyan]           │                                              │
+[dim]├─────────────────────┼──────────────────────────────────────────────┤[/dim]
+│  [cyan]elengenix sast[/cyan] <file|dir>         [white]Source code static analysis[/white]     │
+│  [cyan]elengenix cloud[/cyan] <file|dir>        [white]Terraform / IaC / cloud review[/white]  │
+│  [cyan]elengenix mobile[/cyan] <target>         [white]Mobile API analysis & fuzzing[/white]   │
+│  [cyan]elengenix soc[/cyan] [logfile]           [white]Security log & SIEM analysis[/white]    │
+[dim]├─────────────────────┼──────────────────────────────────────────────┤[/dim]
+│  [bold cyan]REPORTS & MEMORY[/bold cyan]   │                                              │
+[dim]├─────────────────────┼──────────────────────────────────────────────┤[/dim]
+│  [cyan]elengenix report[/cyan] [findings]       [white]Generate HTML/PDF report[/white]        │
+│  [cyan]elengenix memory[/cyan]                  [white]View & search AI memory[/white]         │
+│  [cyan]elengenix history[/cyan]                 [white]Browse past scan sessions[/white]       │
+│  [cyan]elengenix dashboard[/cyan]               [white]Launch live web dashboard[/white]       │
+[dim]├─────────────────────┼──────────────────────────────────────────────┤[/dim]
+│  [bold cyan]SYSTEM[/bold cyan]             │                                              │
+[dim]├─────────────────────┼──────────────────────────────────────────────┤[/dim]
+│  [cyan]elengenix doctor[/cyan]                  [white]System health & tool check[/white]      │
+│  [cyan]elengenix configure[/cyan]               [white]Set AI keys, Telegram, H1[/white]       │
+│  [cyan]elengenix gateway[/cyan]                 [white]Start Telegram bot[/white]              │
+│  [cyan]elengenix arsenal[/cyan]                 [white]Manual tool selector[/white]            │
+│  [cyan]elengenix menu[/cyan]                    [white]Interactive categorized menu[/white]     │
+│  [cyan]elengenix cve-update[/cyan]              [white]Refresh local CVE database[/white]       │
+│  [cyan]elengenix update[/cyan]                  [white]Update via git pull[/white]             │
+[dim]├─────────────────────┼──────────────────────────────────────────────┤[/dim]
+│  [bold cyan]SHORTCUTS[/bold cyan]          │                                              │
+[dim]├─────────────────────┼──────────────────────────────────────────────┤[/dim]
+│  [cyan]bb[/cyan] <url>           [dim]->[/dim]  [green]bola[/green]     [cyan]check[/cyan] <domain>  [dim]->[/dim]  [green]recon[/green]        │
+│  [cyan]test[/cyan] <url>         [dim]->[/dim]  [green]waf[/green]      [cyan]red[/cyan]              [dim]->[/dim]  [green]evasion[/green]      │
+│  [cyan]hack / ai[/cyan]          [dim]->[/dim]  [green]ai chat[/green]  [cyan]pdf[/cyan] <file>       [dim]->[/dim]  [green]report[/green]       │
+[dim]└─────────────────────┴──────────────────────────────────────────────┘[/dim]
 """

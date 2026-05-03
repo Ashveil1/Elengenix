@@ -618,6 +618,8 @@ function updateSeverityChart(findings) {
     window.severityChart.data = data;
     window.severityChart.draw();
 }
+"""
+
 
 
 class InteractiveDashboard:
@@ -638,9 +640,7 @@ class InteractiveDashboard:
         from ui_components import print_info, print_success, print_error
         
         try:
-            # Import MissionState here to avoid circular imports
-            from tools.mission_state import MissionState
-            mission_state = MissionState() # Global or shared state
+            mission_state = None  # Dashboard starts without a specific mission
         except ImportError:
             mission_state = None
 
@@ -664,76 +664,9 @@ class InteractiveDashboard:
             print_error(f"Dashboard failed: {e}")
 
 
-# Alias for backward compatibility or different naming conventions
-InteractiveDashboardEnhancer = InteractiveDashboardEnhancer 
-
-    def generate_interactive_html(self) -> str:
-        """Generate enhanced interactive dashboard HTML."""
-        return """<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Elengenix Interactive Dashboard</title>
-    <link rel="stylesheet" href="/static/style.css">
-    <style>
-        /* Interactive enhancements */
-        .chart-container {
-            background: var(--bg-secondary);
-            border-radius: 8px;
-            padding: 20px;
-            margin-bottom: 20px;
-        }
-        .export-menu {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            z-index: 1000;
-        }
-        .live-indicator {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            color: var(--low);
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <header>
-            <h1> Elengenix Interactive Dashboard</h1>
-            <div class="live-indicator">● Live Updates</div>
-            <div class="export-menu">
-                <button onclick="exportJSON()" class="btn btn-primary">Export JSON</button>
-                <button onclick="exportCSV()" class="btn">Export CSV</button>
-            </div>
-        </header>
-        
-        <div class="stats-grid" id="stats">
-            <!-- Stats cards -->
-        </div>
-        
-        <div class="content-grid">
-            <div class="chart-container">
-                <h3>Severity Distribution</h3>
-                <canvas id="severity-chart"></canvas>
-            </div>
-            
-            <div class="findings-panel">
-                <h3>Findings Table</h3>
-                <div id="findings-table"></div>
-            </div>
-        </div>
-    </div>
-    
-    <script src="/static/app.js"></script>
-</body>
-</html>
-"""
-
-
 def create_sample_findings_for_demo() -> List[Dict[str, Any]]:
     """Create sample findings for dashboard demo."""
+    from datetime import datetime
     return [
         {
             "id": "f1",
@@ -763,3 +696,4 @@ def create_sample_findings_for_demo() -> List[Dict[str, Any]]:
             "timestamp": datetime.now().isoformat(),
         },
     ]
+

@@ -6,8 +6,7 @@ tools/research_tool.py — OSINT Web Research Tool (v2.0.0)
 - Returns structured result dicts
 """
 
-from __future__ import annotations
-
+import os
 import logging
 import random
 import time
@@ -41,12 +40,47 @@ def _headers() -> Dict[str, str]:
     }
 
 
-def search_web(query: str, num_results: int = 5) -> List[str]:
-    """Return a list of URLs from Google search."""
+def search_web(query: str, num_results: int = 5) -> List[Dict]:
+    """
+    Search the web using Tavily (if API key exists) or Google.
+    Returns: List[Dict] with {url, title, content}
+    """
+    tavily_key = os.getenv("TAVILY_API_KEY")
+    
+    if tavily_key:
+        try:
+            logger.info(f"Searching Tavily for: {query}")
+            resp = requests.post(
+                "https://api.tavily.com/search",
+                json={
+                    "api_key": tavily_key,
+                    "query": query,
+                    "search_depth": "smart",
+                    "max_results": num_results
+                },
+                timeout=_TIMEOUT
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            results = []
+            for r in data.get("results", []):
+                results.append({
+                    "url": r.get("url"),
+                    "title": r.get("title"),
+                    "content": r.get("content") or r.get("snippet", "")
+                })
+            return results
+        except Exception as e:
+            logger.error(f"Tavily search error: {e}")
+            # Fallback to Google
+            
+    # Google Fallback
     try:
-        return list(search(query, num_results=num_results, stop=num_results))
+        logger.info(f"Searching Google for: {query}")
+        urls = list(search(query, num_results=num_results, stop=num_results))
+        return [{"url": u, "title": "Web Result", "content": ""} for u in urls]
     except Exception as e:
-        logger.error(f"Web search error: {e}")
+        logger.error(f"Google search error: {e}")
         return []
 
 
@@ -97,15 +131,23 @@ def research_target(
     seen: set = set()
 
     for q in queries:
-        for url in search_web(q, num_results=num_results):
+        search_results = search_web(q, num_results=num_results)
+        for res in search_results:
+            url = res["url"]
             if url in seen:
                 continue
             seen.add(url)
+            
             if summarize:
-                data = extract_and_summarize(url)
-                results.append(data)
+                # If Tavily already gave us content, we might skip extraction or merge it
+                if res.get("content") and len(res["content"]) > 500:
+                     results.append({"url": url, "text": res["content"][:_MAX_TEXT], "chars": len(res["content"]), "error": ""})
+                else:
+                    data = extract_and_summarize(url)
+                    results.append(data)
             else:
                 results.append({"url": url, "text": "", "chars": 0, "error": ""})
+            
             time.sleep(0.3)  # polite delay
 
     return results

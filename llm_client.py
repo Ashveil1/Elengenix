@@ -12,6 +12,7 @@ import os
 import asyncio
 import logging
 import re
+import threading
 from pathlib import Path
 from dataclasses import dataclass
 from typing import Optional, Dict, Any, Union
@@ -58,6 +59,22 @@ class LLMResponse:
  provider: str = ""
 
 class LLMClient:
+    _shared_loop = None
+    _loop_thread = None
+    _loop_lock = threading.Lock()
+
+    @classmethod
+    def _get_shared_loop(cls):
+        with cls._loop_lock:
+            if cls._shared_loop is None:
+                cls._shared_loop = asyncio.new_event_loop()
+                def run_loop(loop):
+                    asyncio.set_event_loop(loop)
+                    loop.run_forever()
+                cls._loop_thread = threading.Thread(target=run_loop, args=(cls._shared_loop,), daemon=True)
+                cls._loop_thread.start()
+            return cls._shared_loop
+
     def __init__(self, config_path: str = "config.yaml"):
         base_dir = Path(__file__).parent.absolute()
         self.config_path = base_dir / config_path
@@ -263,31 +280,17 @@ class LLMClient:
             raise
 
     def chat(self, system_prompt: str, user_message: str) -> str:
-        """Synchronous wrapper for chat_async.
-
-        Safely bridges async-to-sync in any context, including
-        active event loops (e.g. Telegram bot handlers).
+        """Synchronous wrapper for chat_async using a persistent background loop.
+        
+        This prevents 'got Future attached to a different loop' errors when using gRPC 
+        clients (like Gemini/Anthropic) by ensuring all async execution happens on a 
+        single shared event loop, instead of creating/destroying loops with asyncio.run().
         """
+        loop = self._get_shared_loop()
+        future = asyncio.run_coroutine_threadsafe(self.chat_async(system_prompt, user_message), loop)
         try:
-            loop = asyncio.get_running_loop()
-        except RuntimeError:
-            loop = None
-
-        if loop and loop.is_running():
-            # Already inside an async context -- use nest_asyncio if available,
-            # otherwise run in a separate thread to avoid RuntimeError.
-            try:
-                import nest_asyncio
-                nest_asyncio.apply()
-                future = asyncio.ensure_future(self.chat_async(system_prompt, user_message))
-                response = loop.run_until_complete(future)
-            except (ImportError, RuntimeError):
-                import concurrent.futures
-                with concurrent.futures.ThreadPoolExecutor() as pool:
-                    response = pool.submit(
-                        asyncio.run, self.chat_async(system_prompt, user_message)
-                    ).result(timeout=120)
-        else:
-            response = asyncio.run(self.chat_async(system_prompt, user_message))
-
-        return response.content
+            response = future.result(timeout=120)
+            return response.content
+        except Exception as e:
+            logger.error(f"Error in synchronous chat execution: {e}")
+            raise

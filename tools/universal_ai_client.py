@@ -119,7 +119,7 @@ class UniversalAIClient:
         base_url: Optional[str] = None,
         api_key: Optional[str] = None,
         model: Optional[str] = None,
-        timeout: int = 60,
+        timeout: int = 150,
         max_retries: int = 3,
     ):
         """
@@ -247,9 +247,17 @@ class UniversalAIClient:
         
         # NVIDIA-specific parameters (e.g., for reasoning models)
         if self.provider == "nvidia":
-            payload["chat_template_kwargs"] = {"enable_thinking": True}
-            # Reasoning budget must be less than max_tokens, but for simplicity we match it or set a high value if max_tokens is very large
-            payload["reasoning_budget"] = min(max_tokens, 16384)
+            import os
+            param_mode = os.getenv("NVIDIA_PARAM_MODE", "auto")
+            model_lower = self.model.lower()
+            
+            if param_mode == "nemotron" or (param_mode == "auto" and "nemotron" in model_lower):
+                payload["chat_template_kwargs"] = {"enable_thinking": True}
+                payload["reasoning_budget"] = min(max_tokens, 16384)
+            elif param_mode == "disable" or (param_mode == "auto" and "deepseek" in model_lower):
+                payload["chat_template_kwargs"] = {"thinking": False}
+            elif param_mode == "enable":
+                payload["chat_template_kwargs"] = {"thinking": True}
         
         # Handle custom formats (Anthropic, etc.)
         if self.custom_format:

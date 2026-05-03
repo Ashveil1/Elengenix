@@ -119,7 +119,7 @@ def main():
     show_banner()
 
     command_choices = [
-        "ai", "universal", "scan", "gateway", "configure", "update", "doctor",
+        "universal", "scan", "gateway", "configure", "update", "doctor",
         "arsenal", "memory", "cve-update", "bola", "waf", "recon", "evasion",
         "report", "menu", "auto", "help", "bb", "check", "test", "red", "pdf",
         "hack", "research", "poc", "autonomous", "welcome", "quick", "deep",
@@ -130,7 +130,7 @@ def main():
     ]
 
     parser = argparse.ArgumentParser(description="Elengenix CLI", add_help=False)
-    parser.add_argument("command", nargs="?", default="auto", choices=command_choices)
+    parser.add_argument("command", nargs="?", default="auto", help="Command to run")
     parser.add_argument("target", nargs="?", help="Target domain or IP")
     parser.add_argument("--rate-limit", type=int, default=5, help="Max requests per second")
     parser.add_argument("--framework", type=str, default="generic", help="Target framework for PoC generation")
@@ -192,8 +192,10 @@ def main():
                 # Continue with corrected command
             else:
                 # Show help with history context
+                # Show help with history context
+                from tools.auto_detector import CommandSimplifier
                 console.print(f"[grey70]Unknown command: {args.command}[/grey70]")
-                console.print("Run 'elengenix help' for available commands")
+                console.print(CommandSimplifier.get_help_text())
                 # Show recent history
                 recent = history.get_recent_commands(hours=24, limit=5)
                 if recent:
@@ -203,8 +205,9 @@ def main():
                 return
         else:
             # No suggestion found, show help
+            from tools.auto_detector import CommandSimplifier
             console.print(f"[grey70]Unknown command: {args.command}[/grey70]")
-            console.print("Run 'elengenix help' for available commands")
+            console.print(CommandSimplifier.get_help_text())
             # Show recent history
             recent = history.get_recent_commands(hours=24, limit=5)
             if recent:
@@ -339,135 +342,6 @@ def main():
             
             console.print(f"[red]Target:[/red] {target}  [dim]Rate: {args.rate_limit} req/s[/dim]")
             run_omni_scan(target, rate_limit=args.rate_limit)
-
-        elif args.command == "ai":
-            from tools.conversation_memory import ConversationMemory, ProfessionalAIPrompts
-            from ui_components import print_info, print_success, print_error
-            
-            # Initialize conversation memory
-            memory = ConversationMemory()
-            
-            # Detect language (simple heuristic)
-            lang = "th"  # Default Thai
-            
-            # Create new session
-            session_id = memory.create_session(target=args.target, mode="bug_bounty")
-            
-            # Show professional welcome
-            console.print(ProfessionalAIPrompts.get_welcome(lang))
-            
-            # Main chat loop
-            while True:
-                try:
-                    user_input = console.input("[bold]>[/bold] ").strip()
-                    
-                    if not user_input:
-                        continue
-                    
-                    # Special commands
-                    if user_input in ["/exit", "/quit", "exit", "quit"]:
-                        console.print("[dim]Saving conversation and exiting...[/dim]")
-                        break
-                    
-                    if user_input == "/help":
-                        console.print("""
-[bold]Available commands:[/bold]
-  /exit, /quit, exit, quit  - Exit
-  /save                     - Save conversation
-  /summary                  - Show conversation summary
-  /target <url>             - Set target
-  /clear                    - Clear screen
-  (Type anything naturally)
-""")
-                        continue
-                    
-                    if user_input == "/summary":
-                        summary = memory.get_conversation_summary(session_id)
-                        console.print(summary)
-                        continue
-                    
-                    if user_input == "/save":
-                        export_path = memory.export_session(session_id, "markdown")
-                        if export_path:
-                            print_success(f"Saved conversation: {export_path}")
-                        else:
-                            print_error("Could not save")
-                        continue
-                    
-                    if user_input.startswith("/target "):
-                        new_target = user_input[8:].strip()
-                        args.target = new_target
-                        print_success(f"Set target: {new_target}")
-                        continue
-                    
-                    if user_input == "/clear":
-                        console.clear()
-                        continue
-                    
-                    # Save user message
-                    memory.add_message(session_id, "user", user_input)
-                    
-                    # Get context for AI
-                    context = memory.get_recent_context(session_id, limit=10)
-                    
-                    # Build professional prompt
-                    prompt = ProfessionalAIPrompts.build_context_aware_prompt(
-                        user_input=user_input,
-                        conversation_history=context,
-                        target=args.target,
-                        language=lang
-                    )
-                    
-                    # Call AI using Universal Client (OpenClaw-style)
-                    console.print("[dim]AI is thinking...[/dim]")
-                    
-                    try:
-                        from tools.universal_ai_client import AIClientManager, AIMessage
-                        
-                        # Initialize AI manager with all providers (fallback chain)
-                        ai_manager = AIClientManager()
-                        
-                        if not ai_manager.active_client:
-                            console.print("[grey70]No AI provider found[/grey70]")
-                            console.print("[dim]Please configure one of these:[/dim]")
-                            console.print("  • GEMINI_API_KEY (free) - https://aistudio.google.com/app/apikey")
-                            console.print("  • OPENAI_API_KEY - https://platform.openai.com/api-keys")
-                            console.print("  • Or install Ollama (no API key needed)")
-                            continue
-                        
-                        # Build messages with context
-                        messages = [
-                            AIMessage(role="system", content=prompt),
-                            AIMessage(role="user", content=user_input)
-                        ]
-                        
-                        # Get response from AI
-                        response_obj = ai_manager.chat(messages, temperature=0.7, max_tokens=2048)
-                        response = response_obj.content
-                        
-                        console.print(f"{response}\n")
-                        
-                        # Save AI response with metadata
-                        memory.add_message(session_id, "assistant", response, metadata={
-                            "provider": ai_manager.get_active_provider(),
-                            "model": response_obj.model,
-                            "usage": response_obj.usage,
-                        })
-                        
-                    except Exception as e:
-                        logger.error(f"AI error: {e}")
-                        console.print(f"[red]AI Error: {str(e)[:100]}[/red]")
-                        console.print("[dim]Check API key or use Ollama (local) instead[/dim]")
-                        
-                except KeyboardInterrupt:
-                    console.print("\n[dim]Exiting...[/dim]")
-                    break
-                except EOFError:
-                    break
-            
-            # Show summary on exit
-            console.print("\n" + memory.get_conversation_summary(session_id))
-            console.print("[dim]Conversation saved. Use 'elengenix ai' again to continue[/dim]")
 
         elif args.command == "universal":
             from ui_components import show_cli_banner

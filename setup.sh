@@ -49,6 +49,37 @@ run_with_spinner() {
     return $status
 }
 
+# Install Java Runtime Environment (required for OWASP ZAP)
+if ! command -v java >/dev/null 2>&1; then
+    info "Installing default-jre (Java Runtime) ..."
+    sudo apt-get update -y && sudo apt-get install -y default-jre
+    success "Java installed."
+else
+    info "Java already installed."
+fi
+
+# Install OWASP ZAP (headless daemon)
+ZAP_DIR="$(pwd)/tools/external/zap"
+if [ ! -d "$ZAP_DIR" ]; then
+    info "Downloading OWASP ZAP ..."
+    mkdir -p "$ZAP_DIR"
+    wget -q -O /tmp/ZAP_latest.tar.gz "https://github.com/zaproxy/zaproxy/releases/download/v2.14.0/ZAP_2_14_0_unix.tar.gz"
+    tar -xzf /tmp/ZAP_latest.tar.gz -C "$ZAP_DIR" --strip-components=1
+    rm /tmp/ZAP_latest.tar.gz
+    success "ZAP downloaded to $ZAP_DIR."
+else
+    info "OWASP ZAP already present."
+fi
+
+# Install Python zaproxy client (must be after pip install commands)
+if ! python -c "import zapv2" 2>/dev/null; then
+    info "Installing zaproxy Python client..."
+    pip install zaproxy
+    success "zaproxy client installed."
+else
+    info "zaproxy Python client already installed."
+fi
+
 #  ERROR TRAP
 trap 'echo -e "\n${RED}[!] Error occurred at line $LINENO. Installation failed.${NC}";' ERR
 

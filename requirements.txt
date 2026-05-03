@@ -45,3 +45,4 @@ googlesearch-python     # Basic search discovery (Keep for now)
 # -- Testing and Development --
 pytest                    # Unit and integration testing
 pytest-asyncio            # Async test support
+zaproxy

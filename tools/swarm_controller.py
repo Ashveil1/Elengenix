@@ -205,11 +205,7 @@ class SwarmController:
             mission = MissionState(
                 mission_id=target.mission_id,
                 target=target.target_url,
-                config={
-                    "swarm_mode": True,
-                    "swarm_target_id": target.target_id,
-                    **target.config,
-                }
+                objective=f"Swarm scan | target_id={target.target_id}",
             )
             
             # Import agent brain (lazy to avoid circular imports)

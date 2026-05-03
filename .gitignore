@@ -6,15 +6,20 @@
 config.yaml
 .env
 .env.*
+MEMORY.md
 
 # But track the examples
 !config.yaml.example
 !.env.example
+!MEMORY.md.example
 
 # Reports and discovered data
 reports/
-data/elengenix.db
+data/*.db
 data/*.log
+data/scans/
+data/wordlists/
+elengenix.db
 
 # Python artifacts
 __pycache__/
@@ -27,3 +32,4 @@ venv/
 # OS files
 .DS_Store
 Thumbs.db
+security_agent 

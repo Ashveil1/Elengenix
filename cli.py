@@ -154,16 +154,50 @@ def main(mode: str = "auto", target: str = None):
     callback = create_callback(console, use_live_display=in_tmux)
 
     # Prompt Toolkit Setup
-    commands = ['/clear', '/quit', '/exit', '/help', '/mode', '/target', '/stats', '/resume', '/compress', '/directory']
-    completer = WordCompleter(commands, ignore_case=True)
+    from prompt_toolkit.completion import Completer, Completion
+
+    class SlashCommandCompleter(Completer):
+        def __init__(self, commands):
+            self.commands = commands
+
+        def get_completions(self, document, complete_event):
+            text = document.text_before_cursor.lstrip()
+            if not text.startswith('/'):
+                return
+                
+            word = text.split(' ')[0].lower()
+            for cmd in self.commands:
+                if cmd.startswith(word):
+                    yield Completion(cmd, start_position=-len(word))
+
+    commands = ['/clear', '/quit', '/exit', '/help', '/mode', '/target', '/thinking', '/stats', '/resume', '/compress', '/directory']
+    completer = SlashCommandCompleter(commands)
     
     style = PTStyle.from_dict({
         'bottom-toolbar': 'bg:#222222 #aaaaaa',
     })
-    
+    from prompt_toolkit.filters import Always
+    from prompt_toolkit.key_binding import KeyBindings
+
+    kb = KeyBindings()
+
+    @kb.add('backspace')
+    def _(event):
+        # Delete character and force completion menu to pop back up
+        event.app.current_buffer.delete_before_cursor(count=1)
+        event.app.current_buffer.start_completion(select_first=False)
+
+    @kb.add('escape')
+    def _(event):
+        """Handle ESC to abort current session gracefully."""
+        # Raise KeyboardInterrupt to be caught by the outer loop
+        raise KeyboardInterrupt
+
     session = PromptSession(
         completer=completer,
-        style=style
+        style=style,
+        key_bindings=kb,
+        complete_while_typing=Always()
     )
 
     while True:
@@ -202,6 +236,7 @@ def main(mode: str = "auto", target: str = None):
                 console.print(" /quit        Exit the cli")
                 console.print(" /mode        Switch agent mode")
                 console.print(" /target      Set target domain")
+                console.print(" /thinking    Toggle AI thinking (enable/disable/auto)")
                 console.print(" /help        Show this help")
                 if in_tmux:
                     console.print("\n[bold cyan]Tmux Shortcuts:[/bold cyan]")
@@ -223,6 +258,41 @@ def main(mode: str = "auto", target: str = None):
                     console.print("[dim]Target cleared.[/dim]")
                 continue
 
+            if raw_input.lower().startswith("/thinking"):
+                parts = raw_input.lower().split(" ", 1)
+                valid_modes = ["auto", "nemotron", "enable", "disable", "none"]
+                if len(parts) > 1 and parts[1].strip() in valid_modes:
+                    mode_val = parts[1].strip()
+                    os.environ["NVIDIA_PARAM_MODE"] = mode_val
+                    
+                    # Update .env file as well
+                    env_file = Path(".env")
+                    if env_file.exists():
+                        lines = env_file.read_text(encoding="utf-8").splitlines()
+                        updated = False
+                        for i, line in enumerate(lines):
+                            if line.startswith("NVIDIA_PARAM_MODE="):
+                                lines[i] = f"NVIDIA_PARAM_MODE={mode_val}"
+                                updated = True
+                                break
+                        if not updated:
+                            lines.append(f"NVIDIA_PARAM_MODE={mode_val}")
+                        env_file.write_text("\n".join(lines) + "\n", encoding="utf-8")
+                    
+                    console.print(f"[green]AI Thinking Mode updated to: {mode_val}[/green]")
+                else:
+                    current = os.getenv("NVIDIA_PARAM_MODE", "auto")
+                    console.print(f"\n[bold]Current AI Thinking Mode:[/bold] {current}")
+                    console.print("Usage: /thinking <mode>")
+                    console.print("Valid modes: enable, disable, auto, nemotron, none")
+                continue
+
+            if raw_input.lower().startswith("/memory"):
+                from tools.memory_profile import show_memory_summary
+                console.print(f"\n[bold magenta]🧠 Personal AI Memory Profile[/bold magenta]")
+                summary = show_memory_summary()
+                console.print(summary)
+                continue
             user_query = sanitize_input(raw_input)
             if not user_query:
                 continue
@@ -236,23 +306,23 @@ def main(mode: str = "auto", target: str = None):
             result_container = {"response": None, "error": None}
             def run_agent():
                 try:
-                    result_container["response"] = agent.process_query(
-                        user_query, 
+                    result_container["response"] = agent.process_universal(
+                        user_query,
                         callback=callback,
-                        target=target
+                        target=target,
+                        mode="auto",
                     )
                 except Exception as ex:
                     result_container["error"] = ex
 
             with console.status("[cyan]Agent is processing...[/cyan]", spinner="dots"):
                 agent_thread = threading.Thread(target=run_agent)
+                agent_thread.daemon = True
                 agent_thread.start()
-                agent_thread.join(timeout=300)
-
-            if agent_thread.is_alive():
-                logger.error("Query timed out after 300s")
-                console.print("[red]Agent response timed out[/red]")
-                continue
+                
+                # Check for KeyboardInterrupt while waiting
+                while agent_thread.is_alive():
+                    agent_thread.join(timeout=1.0)
 
             if result_container["error"]:
                 raise result_container["error"]

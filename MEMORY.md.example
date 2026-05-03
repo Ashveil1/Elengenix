@@ -1,0 +1,42 @@
+# ═══════════════════════════════════════════════════════════════════
+# MEMORY.md — Personal AI Memory Profile
+# ═══════════════════════════════════════════════════════════════════
+#
+# This file is AUTO-GENERATED and AUTO-UPDATED by Elengenix.
+# It stores the AI's learned understanding of YOU — your name,
+# communication style, skill level, and preferences.
+#
+# ⚠️  THIS FILE IS PRIVATE — do NOT commit to git.
+#     It's in .gitignore, just like your .env file.
+#
+# You can edit this file manually at any time to correct the AI.
+# ═══════════════════════════════════════════════════════════════════
+
+## Identity
+name: ""
+preferred_language: ""       # thai / english
+nickname: ""
+
+## Communication Style
+tone: ""                     # casual / formal / technical / hacker
+verbosity: ""                # brief / normal / detailed
+expertise_level: ""          # beginner / intermediate / expert
+preferred_format: ""         # bullets / paragraphs / code-first
+
+## AI Personality Adjustments
+ai_should_use_emoji: ""      # yes / no
+ai_should_explain_basics: "" # yes / no
+ai_humor_level: ""           # none / light / lots
+
+## Frequent Targets & Interests
+frequent_targets: []
+# - example.com
+# - api.mycompany.com
+
+areas_of_interest: []
+# - web application security
+# - API testing
+# - bug bounty
+
+## Custom Notes (freeform — write anything)
+notes: ""

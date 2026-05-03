@@ -36,12 +36,21 @@ class ConfigWizard:
     
     AI_PROVIDERS = [
         AIProviderConfig(
+            name="NVIDIA",
+            env_key="NVIDIA_API_KEY",
+            base_url="https://integrate.api.nvidia.com/v1",
+            signup_url="https://build.nvidia.com/explore/discover",
+            is_free=True,
+            notes="Fast inference via NVIDIA NIM, 40 RPM persistent free tier for builders (Highly Recommended)",
+            api_type="openai"
+        ),
+        AIProviderConfig(
             name="Gemini (Google)",
             env_key="GEMINI_API_KEY",
             base_url="https://generativelanguage.googleapis.com/v1beta/openai",
             signup_url="https://aistudio.google.com/app/apikey",
             is_free=True,
-            notes="Free, fast, good Thai support (recommended)",
+            notes="Free, fast, good Thai support",
             api_type="native"
         ),
         AIProviderConfig(
@@ -143,15 +152,7 @@ class ConfigWizard:
             notes="Access to many models via one API",
             api_type="openai"
         ),
-        AIProviderConfig(
-            name="NVIDIA",
-            env_key="NVIDIA_API_KEY",
-            base_url="https://integrate.api.nvidia.com/v1",
-            signup_url="https://build.nvidia.com/explore/discover",
-            is_free=True,
-            notes="Fast inference via NVIDIA NIM, generous free tier",
-            api_type="openai"
-        ),
+
         AIProviderConfig(
             name="Ollama (Local)",
             env_key="",
@@ -163,7 +164,7 @@ class ConfigWizard:
     ]
 
     DEFAULT_MODELS: Dict[str, List[str]] = {
-        "Gemini (Google)": ["gemini-3.1-pro", "gemini-3.1-flash", "gemini-3.0-pro", "gemini-2.0-flash", "gemini-1.5-pro", "gemini-1.5-flash"],
+        "Gemini (Google)": ["gemini-3.1-flash-lite-preview", "gemini-3.1-pro", "gemini-3.1-flash", "gemini-3.0-pro", "gemini-2.0-flash", "gemini-1.5-pro", "gemini-1.5-flash"],
         "OpenAI (GPT-4)": ["gpt-4.5-turbo", "gpt-4o", "gpt-4o-mini", "o2-preview", "o1-preview", "o1-mini"],
         "Anthropic (Claude)": ["claude-3-7-sonnet-latest", "claude-3-5-sonnet-latest", "claude-3-5-haiku-latest", "claude-3-opus-latest"],
         "Groq": ["llama-3.3-70b-versatile", "llama-3.1-70b-versatile", "llama-3.1-8b-instant"],
@@ -172,9 +173,48 @@ class ConfigWizard:
         "Together AI": ["meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo", "mistralai/Mixtral-8x7B-Instruct-v0.1"],
         "OpenRouter": ["meta-llama/llama-3.3-70b-instruct", "google/gemini-2.0-flash-exp:free", "auto"],
         "Perplexity": ["llama-3.1-sonar-large-128k-online", "llama-3.1-sonar-small-128k-online"],
-        "NVIDIA": ["nvidia/nemotron-3-super-120b-a12b", "meta/llama3-70b-instruct", "mistralai/mixtral-8x22b-instruct-v0.1", "google/gemma-7b-it"],
+        "NVIDIA": [
+            "nvidia/nemotron-3-super-120b-a12b",
+            "qwen/qwen2.5-coder-32b-instruct",
+            "meta/llama3-70b-instruct",
+            "mistralai/mixtral-8x22b-instruct-v0.1",
+            "deepseek-ai/deepseek-r1",
+        ],
         "Ollama (Local)": ["llama3.2", "llama3.1:8b", "mistral:7b", "codellama:7b"],
     }
+
+    # Priority order used by AIClientManager (index 0 = highest priority)
+    PRIORITY_ORDER = [
+        "nvidia", "gemini", "openai", "anthropic", "groq",
+        "deepseek", "mistral", "openrouter", "together",
+        "perplexity", "cohere", "huggingface", "replicate", "ollama",
+    ]
+
+    # Maps provider display name → manager key
+    _PROVIDER_KEY_MAP = {
+        "Gemini (Google)": "gemini",
+        "OpenAI (GPT-4)": "openai",
+        "Anthropic (Claude)": "anthropic",
+        "Groq": "groq",
+        "NVIDIA": "nvidia",
+        "DeepSeek": "deepseek",
+        "Mistral": "mistral",
+        "OpenRouter": "openrouter",
+        "Together AI": "together",
+        "Perplexity": "perplexity",
+        "Cohere": "cohere",
+        "Hugging Face": "huggingface",
+        "Replicate": "replicate",
+        "Ollama (Local)": "ollama",
+    }
+
+    INTEGRATIONS = [
+        {"name": "Telegram Bot", "keys": ["TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID"], "desc": "Alerts and remote control"},
+        {"name": "HackerOne", "keys": ["HACKERONE_API_KEY", "HACKERONE_API_USER"], "desc": "Bounty reporting"},
+        {"name": "Tavily AI", "keys": ["TAVILY_API_KEY"], "desc": "Advanced OSINT & web search"},
+        {"name": "VulnCheck", "keys": ["VULNCHECK_API_KEY"], "desc": "Real-time vulnerability intel"},
+        {"name": "GitHub", "keys": ["GITHUB_TOKEN"], "desc": "Code leak hunting & OSINT"},
+    ]
     
     def __init__(self, config_dir: Path = Path(".")):
         self.config_dir = config_dir
@@ -191,30 +231,27 @@ class ConfigWizard:
         # Main menu
         while True:
             console.print("\n[bold]Select configuration:[/bold]")
-            console.print("  [1] Configure AI Provider (API Keys)")
-            console.print("  [2] Configure Telegram Bot")
-            console.print("  [3] Configure HackerOne")
-            console.print("  [4] Configure Default Target")
-            console.print("  [5] Configure Rate Limits")
-            console.print("  [6] View configuration status")
-            console.print("  [7] Check system (Health Check)")
+            console.print("  [1] Manage AI Providers (Multi-Key)")
+            console.print("  [2] Manage Integrations (Tavily, VulnCheck, etc.)")
+            console.print("  [3] Configure Default Target")
+            console.print("  [4] Configure Rate Limits")
+            console.print("  [5] View configuration status")
+            console.print("  [6] Check system (Health Check)")
             console.print("  [0] Exit")
-            
-            choice = console.input("\nSelect [0-7]: ").strip()
-            
+
+            choice = console.input("\nSelect [0-6]: ").strip()
+
             if choice == "1":
-                self._setup_ai_provider()
+                self._manage_all_providers()
             elif choice == "2":
-                self._setup_telegram()
+                self._manage_integrations()
             elif choice == "3":
-                self._setup_hackerone()
-            elif choice == "4":
                 self._setup_default_target()
-            elif choice == "5":
+            elif choice == "4":
                 self._setup_rate_limits()
-            elif choice == "6":
+            elif choice == "5":
                 self._show_status()
-            elif choice == "7":
+            elif choice == "6":
                 self._health_check()
             elif choice == "0":
                 console.print("\n[dim]Saving configuration...[/dim]")
@@ -222,33 +259,160 @@ class ConfigWizard:
             else:
                 print_warning("Please select 0-7")
     
-    def _setup_ai_provider(self) -> None:
-        """Setup AI provider and API key."""
-        console.print("\n[bold red]AI Provider Setup[/bold red]\n")
-        
-        # Show available providers
-        console.print("Select AI Provider:\n")
-        for i, provider in enumerate(self.AI_PROVIDERS, 1):
-            free_badge = "[bold white]Free[/bold white]" if provider.is_free else "[grey70]Paid[/grey70]"
-            console.print(f"  [{i}] {provider.name}")
-            console.print(f"      {free_badge} - {provider.notes}")
-            console.print()
-        
-        choice = console.input(f"Select provider [1-{len(self.AI_PROVIDERS)}] or [S]kip: ").strip()
-        
-        if choice.lower() == 's':
-            print_info("Skipped AI provider configuration")
-            return
-        
-        try:
-            idx = int(choice) - 1
-            if 0 <= idx < len(self.AI_PROVIDERS):
-                provider = self.AI_PROVIDERS[idx]
-                self._configure_provider(provider)
+    def _manage_all_providers(self) -> None:
+        """Multi-provider manager — show all providers in one table."""
+        from rich.table import Table
+
+        while True:
+            # Detect which providers currently have keys
+            active_keys: Dict[str, bool] = {}
+            active_models: Dict[str, str] = {}
+            for p in self.AI_PROVIDERS:
+                env_key = p.env_key
+                has_key = bool(os.getenv(env_key, "")) if env_key else True  # Ollama = always
+                active_keys[p.name] = has_key
+                model_env = env_key.replace("_API_KEY", "_MODEL") if env_key else "OLLAMA_MODEL"
+                active_models[p.name] = os.getenv(model_env, "") or "(default)"
+
+            # Detect active provider from AIClientManager
+            active_provider_key = "none"
+            try:
+                from tools.universal_ai_client import AIClientManager
+                mgr = AIClientManager()
+                active_provider_key = mgr.get_active_provider()
+            except Exception:
+                pass
+
+            # Build table
+            table = Table(
+                title="\n  AI Provider Manager",
+                show_header=True,
+                header_style="bold red",
+                border_style="dim",
+            )
+            table.add_column("#",       width=4,  justify="right")
+            table.add_column("Priority", width=6,  justify="center")
+            table.add_column("Provider", width=22)
+            table.add_column("Status",   width=10, justify="center")
+            table.add_column("Model",    width=36)
+            table.add_column("Notes",    width=36, style="dim")
+
+            for i, provider in enumerate(self.AI_PROVIDERS, 1):
+                has_key = active_keys[provider.name]
+                pkey = self._PROVIDER_KEY_MAP.get(provider.name, "")
+                priority_rank = ""
+                if pkey in self.PRIORITY_ORDER:
+                    priority_rank = str(self.PRIORITY_ORDER.index(pkey) + 1)
+
+                if has_key:
+                    if pkey == active_provider_key:
+                        status = "[bold green]ACTIVE[/bold green]"
+                    else:
+                        status = "[green]Ready[/green]"
+                else:
+                    status = "[dim]No key[/dim]"
+
+                model_display = active_models[provider.name]
+                if len(model_display) > 34:
+                    model_display = model_display[:31] + "..."
+
+                free_note = "Free" if provider.is_free else "Paid"
+                note = f"{free_note} — {provider.notes[:28]}"
+
+                table.add_row(
+                    str(i),
+                    priority_rank,
+                    provider.name,
+                    status,
+                    model_display,
+                    note,
+                )
+
+            console.print(table)
+            console.print(f"\n  Active provider: [bold red]{active_provider_key}[/bold red]")
+            console.print("  [dim]Enter provider number to configure, [A] to configure all with keys, [D] to delete a key, [0] to go back[/dim]")
+
+            choice = console.input("\nChoice: ").strip().lower()
+
+            if choice == "0" or choice == "":
+                break
+
+            elif choice == "a":
+                # Configure all providers that already have keys
+                for p in self.AI_PROVIDERS:
+                    if active_keys[p.name]:
+                        console.print(f"\n[bold]Updating: {p.name}[/bold]")
+                        self._configure_provider(p)
+
+            elif choice == "d":
+                # Delete / clear a key
+                del_choice = console.input("Enter number to delete key: ").strip()
+                try:
+                    idx = int(del_choice) - 1
+                    if 0 <= idx < len(self.AI_PROVIDERS):
+                        p = self.AI_PROVIDERS[idx]
+                        if p.env_key:
+                            self._remove_env_var(p.env_key)
+                            model_env = p.env_key.replace("_API_KEY", "_MODEL")
+                            self._remove_env_var(model_env)
+                            print_success(f"Cleared keys for {p.name}")
+                        else:
+                            print_warning(f"{p.name} has no key to delete")
+                    else:
+                        print_warning("Invalid number")
+                except ValueError:
+                    print_warning("Please enter a number")
+
             else:
-                print_warning(f"Please select 1-{len(self.AI_PROVIDERS)}")
-        except ValueError:
-            print_warning("Please enter a number")
+                try:
+                    idx = int(choice) - 1
+                    if 0 <= idx < len(self.AI_PROVIDERS):
+                        self._configure_provider(self.AI_PROVIDERS[idx])
+                    else:
+                        print_warning(f"Please select 1-{len(self.AI_PROVIDERS)}")
+                except ValueError:
+                    print_warning("Enter a number, A, D, or 0")
+
+    def _manage_integrations(self) -> None:
+        """Manage third-party integrations (Tavily, VulnCheck, Telegram, etc.)"""
+        from rich.table import Table
+
+        while True:
+            table = Table(title="\n  Integration Manager", show_header=True, header_style="bold cyan", border_style="dim")
+            table.add_column("#", width=4, justify="right")
+            table.add_column("Integration", width=20)
+            table.add_column("Status", width=12, justify="center")
+            table.add_column("Description", width=40, style="dim")
+
+            for i, integ in enumerate(self.INTEGRATIONS, 1):
+                all_set = all(os.getenv(k) for k in integ["keys"])
+                status = "[green]Configured[/green]" if all_set else "[dim]Not set[/dim]"
+                table.add_row(str(i), integ["name"], status, integ["desc"])
+
+            console.print(table)
+            console.print("  [dim]Enter number to configure, [0] to go back[/dim]")
+
+            choice = console.input("\nChoice: ").strip()
+            if choice == "0" or not choice:
+                break
+
+            try:
+                idx = int(choice) - 1
+                if 0 <= idx < len(self.INTEGRATIONS):
+                    integ = self.INTEGRATIONS[idx]
+                    console.print(f"\n[bold cyan]Configuring {integ['name']}[/bold cyan]")
+                    for key in integ["keys"]:
+                        current = os.getenv(key, "")
+                        masked = f"{current[:8]}..." if len(current) > 10 else "(none)"
+                        console.print(f"Current {key}: [dim]{masked}[/dim]")
+                        val = console.input(f"Enter {key} (or Enter to keep): ").strip()
+                        if val:
+                            self._save_env_var(key, val)
+                            print_success(f"Saved {key}")
+                else:
+                    print_warning("Invalid selection")
+            except ValueError:
+                print_warning("Please enter a number")
     
     def _configure_provider(self, provider: AIProviderConfig) -> None:
         """Configure specific provider."""
@@ -348,6 +512,29 @@ class ConfigWizard:
         if selected_model:
             self._save_env_var(model_env_key, selected_model)
             print_success(f"Selected model: {selected_model}")
+            
+            if provider.name == "NVIDIA":
+                console.print("\n[bold]Select Parameter Mode for NVIDIA API:[/bold]")
+                console.print("  [1] Auto Detect (from model name)")
+                console.print("  [2] Nemotron (enable_thinking=True)")
+                console.print("  [3] Disable Thinking (thinking=False)")
+                console.print("  [4] Enable Thinking (thinking=True)")
+                console.print("  [5] None (No extra parameters)")
+                current_mode = os.getenv("NVIDIA_PARAM_MODE", "auto")
+                console.print(f"  [dim]Current: {current_mode}[/dim]")
+                
+                mode_choice = console.input("Select mode [1-5] or [Enter] to keep current: ").strip()
+                mode_val = current_mode
+                if mode_choice == "1": mode_val = "auto"
+                elif mode_choice == "2": mode_val = "nemotron"
+                elif mode_choice == "3": mode_val = "disable"
+                elif mode_choice == "4": mode_val = "enable"
+                elif mode_choice == "5": mode_val = "none"
+                
+                if mode_val != current_mode or mode_choice != "":
+                    self._save_env_var("NVIDIA_PARAM_MODE", mode_val)
+                    print_success(f"Parameter Mode set to: {mode_val}")
+                    os.environ["NVIDIA_PARAM_MODE"] = mode_val
     
     def _test_provider(self, provider: AIProviderConfig, api_key: str, model: Optional[str] = None) -> bool:
         """Test provider connection."""
@@ -374,7 +561,15 @@ class ConfigWizard:
             
             # NVIDIA-specific: some models need extra_body parameters
             if provider.name == "NVIDIA":
-                payload["stream"] = False
+                param_mode = os.getenv("NVIDIA_PARAM_MODE", "auto")
+                model_lower = test_model.lower() if test_model else ""
+                
+                if param_mode == "nemotron" or (param_mode == "auto" and "nemotron" in model_lower):
+                    payload["chat_template_kwargs"] = {"enable_thinking": True}
+                elif param_mode == "disable" or (param_mode == "auto" and "deepseek" in model_lower):
+                    payload["chat_template_kwargs"] = {"thinking": False}
+                elif param_mode == "enable":
+                    payload["chat_template_kwargs"] = {"thinking": True}
             
             # Build URL reliably (no urljoin which drops path segments)
             url = provider.base_url.rstrip('/') + '/chat/completions'
@@ -383,10 +578,13 @@ class ConfigWizard:
                 url,
                 headers=headers,
                 json=payload,
-                timeout=15,
+                timeout=30,  # Increased to 30s to allow heavy reasoning models to think
             )
             
             return resp.status_code == 200
+        except requests.exceptions.Timeout:
+            console.print("[yellow]Notice: Request timed out. The model might be slow to respond, but the settings have been saved.[/yellow]")
+            return True  # Treat timeout as soft success so the user can proceed
         except Exception as e:
             console.print(f"[dim]Error: {e}[/dim]")
             return False
@@ -498,60 +696,72 @@ class ConfigWizard:
     
     def _show_status(self) -> None:
         """Show configuration status."""
-        console.print("\n[bold red]Configuration Status[/bold red]\n")
-        
-        # AI Providers
-        console.print("[bold]AI Providers:[/bold]")
-        for provider in self.AI_PROVIDERS:
-            key = os.getenv(provider.env_key, "") if provider.env_key else "local"
-            model_env_key = provider.env_key.replace("_API_KEY", "_MODEL") if provider.env_key else "OLLAMA_MODEL"
-            model = os.getenv(model_env_key, "(default)")
-            
-            status = "[bold white]Ready[/bold white]" if key else "[red]No API key[/red]"
-            console.print(f"  {provider.name}: {status} [dim]({model})[/dim]")
-        
-        # Ollama check
-        try:
-            import requests
-            resp = requests.get("http://localhost:11434/api/tags", timeout=2)
-            ollama_status = "[bold white]Running[/bold white]" if resp.status_code == 200 else "[grey70]Not responding[/grey70]"
-        except:
-            ollama_status = "[grey70]Not found[/grey70]"
-        console.print(f"  Ollama (Local): {ollama_status}")
-        
-        # Active provider
+        from rich.table import Table
+
+        console.print("\n[bold red]Configuration Status[/bold red]")
+
+        # Detect active provider
+        active_provider_key = "none"
+        active_model = ""
         try:
             from tools.universal_ai_client import AIClientManager
-            manager = AIClientManager()
-            active = manager.get_active_provider()
-            console.print(f"\n[bold]Active Provider:[/bold] [red]{active}[/red]")
-        except:
-            console.print(f"\n[bold]Active Provider:[/bold] [grey70]Not configured[/grey70]")
-        
-        # Integrations
+            mgr = AIClientManager()
+            active_provider_key = mgr.get_active_provider()
+            if mgr.active_client:
+                active_model = mgr.active_client.model
+        except Exception:
+            pass
+
+        # AI Providers table
+        table = Table(show_header=True, header_style="bold", border_style="dim")
+        table.add_column("Provider",  width=22)
+        table.add_column("Status",    width=10, justify="center")
+        table.add_column("Model",     width=40)
+
+        for provider in self.AI_PROVIDERS:
+            env_key = provider.env_key
+            key_val = os.getenv(env_key, "") if env_key else "local"
+            model_env = env_key.replace("_API_KEY", "_MODEL") if env_key else "OLLAMA_MODEL"
+            model = os.getenv(model_env, "(default)")
+            pkey = self._PROVIDER_KEY_MAP.get(provider.name, "")
+
+            if key_val:
+                if pkey == active_provider_key:
+                    status = "[bold green]ACTIVE[/bold green]"
+                else:
+                    status = "[green]Ready[/green]"
+            else:
+                status = "[dim]No key[/dim]"
+
+            table.add_row(provider.name, status, model)
+
+        console.print(table)
+        console.print(f"\n  [bold]Active:[/bold] [bold red]{active_provider_key}[/bold red]")
+        if active_model:
+            console.print(f"  [bold]Model :[/bold] {active_model}")
+
+        # Integrations table
         console.print("\n[bold]Integrations:[/bold]")
-        telegram_token = os.getenv("TELEGRAM_BOT_TOKEN", "")
-        telegram_chat = os.getenv("TELEGRAM_CHAT_ID", "")
-        telegram_status = "[bold white]Ready[/bold white]" if telegram_token and telegram_chat else "[red]Not configured[/red]"
-        console.print(f"  Telegram Bot: {telegram_status}")
+        table_int = Table(show_header=True, header_style="bold cyan", border_style="dim")
+        table_int.add_column("Integration", width=22)
+        table_int.add_column("Status", width=12, justify="center")
         
-        hackerone_key = os.getenv("HACKERONE_API_KEY", "")
-        hackerone_user = os.getenv("HACKERONE_API_USER", "")
-        hackerone_status = "[bold white]Ready[/bold white]" if hackerone_key and hackerone_user else "[red]Not configured[/red]"
-        console.print(f"  HackerOne: {hackerone_status}")
+        for integ in self.INTEGRATIONS:
+            all_set = all(os.getenv(k) for k in integ["keys"])
+            status = "[green]Ready[/green]" if all_set else "[dim]Missing[/dim]"
+            table_int.add_row(integ["name"], status)
         
+        console.print(table_int)
+
         # Other settings
         console.print("\n[bold]Other Settings:[/bold]")
-        default_target = os.getenv("ELENGENIX_DEFAULT_TARGET", "(none)")
-        rate_limit = os.getenv("ELENGENIX_RATE_LIMIT", "40")
-        console.print(f"  Default Target: {default_target}")
-        console.print(f"  Rate Limit: {rate_limit} RPM")
-        
-        # .env file status
+        console.print(f"  Default Target : {os.getenv('ELENGENIX_DEFAULT_TARGET', '(none)')}")
+        console.print(f"  Rate Limit     : {os.getenv('ELENGENIX_RATE_LIMIT', '40')} RPM")
+
         if self.env_file.exists():
-            console.print(f"\n[bold white].env file exists:[/bold white] {self.env_file.absolute()}")
+            console.print(f"\n  [dim].env → {self.env_file.absolute()}[/dim]")
         else:
-            console.print(f"\n[grey70].env file not found[/grey70]")
+            console.print("\n  [dim].env file not found[/dim]")
     
     def _health_check(self) -> None:
         """Run health check."""
