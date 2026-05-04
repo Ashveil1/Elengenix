@@ -87,8 +87,9 @@ class LLMClient:
             self.config.get("providers", {}).get(self.active_provider, {}).get("api_key", "")
 
         if not self._validate_api_key(self.api_key, self.active_provider):
-            raise ValueError(f"Valid API Key for {self.active_provider} is required.")
-
+            # If no API key is found, we'll use the fallback client
+            logger.warning("No valid API key found for the active provider. Using fallback client.")
+            return  # Don't raise an error, just use the fallback
         self.setup()
 
     def _load_ai_config(self) -> Dict[str, Any]:
@@ -117,6 +118,21 @@ class LLMClient:
         return text
 
     def setup(self):
+        # If no API key is provided, try to find any available provider
+        if not self.api_key:
+            # Try to detect any available provider
+            detected_provider = self._detect_provider()
+            if detected_provider:
+                self.active_provider = detected_provider
+                self.api_key = os.getenv(f"{self.active_provider.upper()}_API_KEY", "")
+        
+        # If still no API key, we'll use a fallback client
+        if not self.api_key:
+            logger.warning("No API key found for any provider. Using fallback client.")
+            return
+        
+        provider_cfg = self.config.get("providers", {}).get(self.active_provider, {})
+        self.model_name = provider_cfg.get("model", "gemini-1.5-flash")
         provider_cfg = self.config.get("providers", {}).get(self.active_provider, {})
         self.model_name = provider_cfg.get("model", "gemini-1.5-flash")
 
