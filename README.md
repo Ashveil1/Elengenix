@@ -19,7 +19,16 @@ Current Status: Intensive R&D Phase. Focus on core agent orchestration and secur
 - Professional UI: Clean, text-based terminal interface using the Rich library.
 
 ---
-Hardware & Backend SupportElengenix is designed to be hardware-agnostic, supporting a wide range of AI providers and local backends:Cloud AI Providers: Full integration with NVIDIA NIM, Google Gemini, OpenAI, Anthropic, and Groq.Local GPU Acceleration:NVIDIA: Optimized via NVIDIA NIM and CUDA-based local inference.AMD (In Progress): Currently developing Native ROCm support to enable high-performance autonomous security research on AMD Instinct and Radeon hardware. (Special thanks to AMD Developer Cloud for the upcoming development environment).
+Hardware & Backend SupportElengenix is designed to be hardware-agnostic, supporting a wide range of AI providers and local backends:
+
+Cloud AI Providers: Full integration with NVIDIA NIM, Google Gemini, OpenAI, Anthropic, and Groq.
+
+Local GPU Acceleration:
+
+NVIDIA: Optimized via NVIDIA NIM and CUDA-based local inference.
+
+AMD (In Progress): Currently developing Native ROCm support to enable high-performance autonomous security research on AMD Instinct and Radeon hardware. 
+(Special thanks to AMD Developer Cloud for the upcoming development environment).
 
 ---
 
