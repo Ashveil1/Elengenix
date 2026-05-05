@@ -19,6 +19,7 @@ data/*.db
 data/*.log
 data/scans/
 data/wordlists/
+data/vector_memory/
 elengenix.db
 
 # Python artifacts
