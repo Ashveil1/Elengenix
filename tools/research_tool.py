@@ -77,7 +77,19 @@ def search_web(query: str, num_results: int = 5) -> List[Dict]:
     # Google Fallback
     try:
         logger.info(f"Searching Google for: {query}")
-        urls = list(search(query, num_results=num_results, stop=num_results))
+        urls: List[str] = []
+        # googlesearch package has multiple API variants across versions.
+        # Try a few compatible signatures.
+        try:
+            urls = list(search(query, num_results=num_results))
+        except TypeError:
+            try:
+                urls = list(search(query, num_results=num_results, stop=num_results))
+            except TypeError:
+                try:
+                    urls = list(search(query, num=num_results, stop=num_results))
+                except TypeError:
+                    urls = list(search(query))[:num_results]
         return [{"url": u, "title": "Web Result", "content": ""} for u in urls]
     except Exception as e:
         logger.error(f"Google search error: {e}")

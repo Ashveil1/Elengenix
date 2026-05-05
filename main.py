@@ -504,7 +504,17 @@ def main():
                     return
 
             agent = AutonomousAgent(governance_mode=mode)
-            result = agent.run_autonomous_scan(args.target)
+            
+            # Check for Team Aegis (multi-agent) mode
+            import os
+            active_models = os.environ.get("ACTIVE_MODELS", "").split(",")
+            active_models = [m.strip() for m in active_models if m.strip()]
+            
+            if len(active_models) >= 2:
+                console.print(f"[bold]Team Aegis Mode[/bold]: {len(active_models)} agents collaborating")
+                result = agent.run_team_scan(args.target)
+            else:
+                result = agent.run_autonomous_scan(args.target)
 
             console.print("\n" + "="*60)
             console.print(result.summary)

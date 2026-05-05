@@ -28,7 +28,8 @@ from typing import List, Dict, Optional, Any
 # All modules should import this instead of creating their own Console()
 # ---------------------------------------------------------------------------
 
-console = Console()
+# Force color support to ensure premium aesthetics in all terminal modes
+console = Console(force_terminal=True, color_system="auto")
 
 
 # ---------------------------------------------------------------------------

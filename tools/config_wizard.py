@@ -283,6 +283,19 @@ class ConfigWizard:
             except Exception:
                 pass
 
+            # Detect team members
+            active_models_str = os.environ.get("ACTIVE_MODELS", "")
+            team_members = []
+            for m in active_models_str.split(","):
+                m = m.strip()
+                if m:
+                    if "/" in m:
+                        prov, mod = m.split("/", 1)
+                        team_members.append({"provider": prov, "model": mod})
+                    else:
+                        prov = active_provider_key
+                        team_members.append({"provider": prov, "model": m})
+
             # Build table
             table = Table(
                 title="\n  AI Provider Manager",
@@ -293,26 +306,38 @@ class ConfigWizard:
             table.add_column("#",       width=4,  justify="right")
             table.add_column("Priority", width=6,  justify="center")
             table.add_column("Provider", width=22)
-            table.add_column("Status",   width=10, justify="center")
+            table.add_column("Status",   width=16, justify="center")
             table.add_column("Model",    width=36)
             table.add_column("Notes",    width=36, style="dim")
 
             for i, provider in enumerate(self.AI_PROVIDERS, 1):
                 has_key = active_keys[provider.name]
-                pkey = self._PROVIDER_KEY_MAP.get(provider.name, "")
+                pkey = self._PROVIDER_KEY_MAP.get(provider.name, provider.name.lower())
                 priority_rank = ""
                 if pkey in self.PRIORITY_ORDER:
                     priority_rank = str(self.PRIORITY_ORDER.index(pkey) + 1)
 
+                # Check if this provider is in the team
+                in_team = False
+                team_roles = []
+                team_model_names = []
+                for idx, member in enumerate(team_members):
+                    if member["provider"] == pkey:
+                        in_team = True
+                        team_roles.append(str(idx + 1))
+                        team_model_names.append(member["model"])
+
                 if has_key:
-                    if pkey == active_provider_key:
-                        status = "[bold green]ACTIVE[/bold green]"
+                    if in_team:
+                        status = f"[bold green]ACTIVE (Team)[/bold green]"
+                        model_display = ", ".join([f"[{r}] {m}" for r, m in zip(team_roles, team_model_names)])
                     else:
                         status = "[green]Ready[/green]"
+                        model_display = active_models[provider.name]
                 else:
                     status = "[dim]No key[/dim]"
+                    model_display = active_models[provider.name]
 
-                model_display = active_models[provider.name]
                 if len(model_display) > 34:
                     model_display = model_display[:31] + "..."
 
@@ -330,12 +355,40 @@ class ConfigWizard:
 
             console.print(table)
             console.print(f"\n  Active provider: [bold red]{active_provider_key}[/bold red]")
-            console.print("  [dim]Enter provider number to configure, [A] to configure all with keys, [D] to delete a key, [0] to go back[/dim]")
+            console.print("  [dim]Enter provider number to configure, [A] all, [T] build team, [D] delete, [0] back[/dim]")
 
             choice = console.input("\nChoice: ").strip().lower()
 
             if choice == "0" or choice == "":
                 break
+
+            elif choice == "t" or choice == "p":
+                # Build Team Aegis
+                try:
+                    from cli import show_model_selector
+                    from tools.universal_ai_client import AIClientManager
+                    mgr = AIClientManager()
+                    result = show_model_selector(console, mgr)
+                    if result:
+                        final_team = result
+                        primary = final_team[0]
+                        
+                        os.environ["ACTIVE_AI_PROVIDER"] = primary["provider"]
+                        models_str = ",".join([f"{a['provider']}/{a['model']}" for a in final_team])
+                        os.environ["ACTIVE_MODELS"] = models_str
+                        
+                        self._save_env_var("ACTIVE_AI_PROVIDER", primary["provider"])
+                        self._save_env_var("ACTIVE_MODELS", models_str)
+                        
+                        for agent_dict in final_team:
+                            env_key = f"RPM_{agent_dict['provider'].upper()}_{agent_dict['model'].upper()}"
+                            rpm_val = agent_dict["rpm"]
+                            os.environ[env_key] = rpm_val
+                            self._save_env_var(env_key, rpm_val)
+                            
+                        print_success("Team Aegis configuration saved!")
+                except Exception as e:
+                    print_warning(f"Failed to launch Team Builder: {e}")
 
             elif choice == "a":
                 # Configure all providers that already have keys
@@ -477,9 +530,79 @@ class ConfigWizard:
             else:
                 print_info("Skipped configuration")
 
+    def _fetch_remote_models(self, provider: AIProviderConfig, api_key: str) -> List[str]:
+        """Fetch models from the provider's /v1/models endpoint."""
+        import requests
+        try:
+            # Most providers use /models, some might need /v1/models
+            url = provider.base_url.rstrip('/') + '/models'
+            
+            headers = {
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            }
+            
+            # Special handling for Anthropic (they don't support /v1/models easily)
+            if "anthropic" in provider.name.lower():
+                return []
+                
+            resp = requests.get(url, headers=headers, timeout=5)
+            if resp.status_code == 200:
+                data = resp.json()
+                models = []
+                
+                # OpenAI format: {"data": [{"id": "model-id", ...}, ...]}
+                if isinstance(data, dict) and "data" in data:
+                    for item in data["data"]:
+                        if isinstance(item, dict) and "id" in item:
+                            models.append(item["id"])
+                # Some APIs return a list directly
+                elif isinstance(data, list):
+                    for item in data:
+                        if isinstance(item, str):
+                            models.append(item)
+                        elif isinstance(item, dict) and "id" in item:
+                            models.append(item["id"])
+                
+                # Filter models: keep only chat/instruct models, exclude embeddings/whisper
+                chat_models = []
+                exclude_keywords = ["embedding", "whisper", "tts", "dall-e", "moderation", "vision-preview"]
+                for m in models:
+                    if not any(kw in m.lower() for kw in exclude_keywords):
+                        chat_models.append(m)
+                
+                return sorted(chat_models)
+        except Exception as e:
+            logger.debug(f"Failed to fetch remote models for {provider.name}: {e}")
+            
+        return []
+
     def _select_model(self, provider: AIProviderConfig) -> None:
         """Select model for the provider."""
-        models = self.DEFAULT_MODELS.get(provider.name, ["default"])
+        # Get current API key to attempt remote fetch
+        api_key = os.getenv(provider.env_key, "")
+        
+        # Local defaults
+        local_models = self.DEFAULT_MODELS.get(provider.name, ["default"])
+        
+        # Remote fetch
+        remote_models = []
+        if api_key and provider.name != "Ollama (Local)":
+            with console.status(f"[bold yellow]Fetching latest models for {provider.name}...[/bold yellow]"):
+                remote_models = self._fetch_remote_models(provider, api_key)
+        
+        # Combine lists
+        if remote_models:
+            # Put remote models first, then append local ones if not already present
+            models = remote_models
+            for lm in local_models:
+                if lm not in models:
+                    models.append(lm)
+            print_success(f"Discovered {len(remote_models)} models from API")
+        else:
+            models = local_models
+            if api_key and provider.name != "Ollama (Local)":
+                print_warning("Could not fetch remote models, using offline list")
         model_env_key = provider.env_key.replace("_API_KEY", "_MODEL")
         if not model_env_key: # For Ollama
              model_env_key = "OLLAMA_MODEL"

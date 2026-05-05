@@ -27,6 +27,7 @@ from tools.memory_manager import save_learning, get_summarized_learnings
 from tools.tool_registry import registry, ToolCategory, ToolResult
 from tools.cvss_calculator import CVSSCalculator, Severity
 from tools.vector_memory import remember, recall, get_context_for_ai, get_vector_memory
+from tools.memory_profile import read_memory
 from tools.universal_executor import UniversalExecutor, get_universal_executor
 from tools.cve_database import get_cve_database, format_cve_for_ai, CVEEntry
 from tools.mission_state import MissionState, GraphNode, GraphEdge
@@ -69,6 +70,64 @@ def _get_now_context() -> str:
         "RULE: If the user asks about the current date/day/time (e.g., 'วันนี้วันอะไร', 'วันที่เท่าไหร่', 'ตอนนี้กี่โมง'), "
         "you MUST answer using ONLY this time context. Do NOT guess or invent dates.\n"
     )
+
+
+def _get_memory_profile_context() -> str:
+    """Read and format the MEMORY.md profile for the AI."""
+    profile = read_memory()
+    if not profile:
+        return ""
+    
+    lines = ["### USER PROFILE & LONG-TERM KNOWLEDGE (from MEMORY.md):"]
+    for key, value in profile.items():
+        formatted_key = key.replace("_", " ").title()
+        lines.append(f"- {formatted_key}: {value}")
+    
+    return "\n".join(lines)
+
+
+def _extract_json_object(text: str) -> Optional[Dict[str, Any]]:
+    if text is None:
+        return None
+    if not isinstance(text, str):
+        text = str(text)
+    cleaned = text.strip()
+    if not cleaned:
+        return None
+
+    if "```" in cleaned:
+        if "```json" in cleaned:
+            cleaned = cleaned.split("```json", 1)[1]
+        else:
+            cleaned = cleaned.split("```", 1)[1]
+        cleaned = cleaned.split("```", 1)[0].strip()
+
+    try:
+        return json.loads(cleaned)
+    except Exception:
+        pass
+
+    m = re.search(r"\{.*\}", cleaned, re.DOTALL)
+    if not m:
+        return None
+    try:
+        return json.loads(m.group())
+    except Exception:
+        return None
+
+
+def _extract_target_from_text(text: str) -> str:
+    if not text:
+        return ""
+    tokens = re.findall(r"[a-zA-Z0-9._-]+", text.lower())
+    stop = {"scan", "recon", "pentest", "test", "bug", "bounty", "hunt", "please", "for"}
+    candidates = [t for t in tokens if t not in stop and len(t) > 1]
+    if not candidates:
+        return ""
+    t = candidates[-1]
+    if "." not in t and t.isalnum() and len(t) >= 3:
+        t = f"{t}.com"
+    return t
 
 
 class AttackPhase(Enum):
@@ -604,22 +663,52 @@ To use the CVE database, reference vulnerability types and ask for similar CVEs.
             )
 
     def _analyze_intent(self, query: str) -> str:
-        """Use AI to classify the user's intent to route the request accurately."""
-        sys_prompt = (
-            "You are an intent classifier for a security AI agent. Classify the user's input into EXACTLY ONE of the following four categories:\n"
-            "1. 'casual': Normal chat, greetings, asking for your name, general chit-chat.\n"
-            "2. 'research': Asking for information, explanations, web search, WHOIS, or technology stack details.\n"
-            "3. 'scan': Explicitly requesting to run an active scan, attack, pentest, or find vulnerabilities on a target.\n"
-            "4. 'security_chat': Asking for security advice, how to exploit something manually, code review, or PoC generation.\n"
-            "Reply ONLY with the category name (casual, research, scan, or security_chat) and nothing else."
-        )
+        """Use AI to intelligently classify user intent - AI-driven, not keyword-driven."""
+        
+        sys_prompt = """You are an intelligent intent classifier. Analyze the user's message and determine their TRUE intent.
+
+### INTENT CATEGORIES:
+1. **casual** - Social chat, greetings, asking who you are, what you can do
+   - Examples: "hi", "สวัสดี", "คุณคือใคร", "what can you do", "help"
+   - The user wants conversation, not information retrieval
+
+2. **research** - Time-sensitive info that REQUIRES live web search
+   - Examples: "ผลบอลวันนี้", "ข่าวล่าสุด", "ราคาหุ้นตอนนี้", "อากาศพรุ่งนี้"
+   - MUST be: current events, sports scores, weather forecasts, stock prices, breaking news
+   - Information that CHANGES constantly and needs fresh data
+   - NOT for: definitions, explanations, how things work (those are security_chat)
+
+3. **scan** - Requesting active security testing on a SPECIFIC target
+   - Examples: "scan example.com", "attack 192.168.1.1", "pentest google.com"
+   - MUST have a target domain/IP - not just talking about scanning in general
+   - The user wants you to run security tools against a target
+
+4. **security_chat** - Security questions, advice, code review without active scanning
+   - Examples: "how does SQL injection work", "review this code", "explain XSS"
+   - Security discussion without asking to attack a target
+   - The user wants knowledge, not tool execution
+
+### CLASSIFICATION RULES:
+- **Ask yourself**: "Does this need TODAY's data from the internet?"
+- **research** = Live sports scores, current news, weather now, stock prices TODAY (time-sensitive)
+- **security_chat** = "CVE คืออะไร", "อธิบาย SQL injection", "how does XSS work" (knowledge questions)
+- **casual** = "สวัสดี", "คุณเป็นใคร", "ช่วยอะไรได้" (social chat)
+- **scan** = "scan example.com", "pentest 192.168.1.1" (has specific target)
+- "วันนี้" + กีฬา/ข่าว/อากาศ = research (needs live data)
+- "อธิบาย/what is/how does" = security_chat (knowledge, not live data)
+
+### OUTPUT:
+Reply with ONLY ONE word: casual, research, scan, or security_chat"""
+
         
         try:
             res = self.client.chat([
                 AIMessage(role="system", content=sys_prompt),
                 AIMessage(role="user", content=query)
             ]).content
-            intent = res.strip().lower()
+            if res is None:
+                return "security_chat"
+            intent = str(res).strip().lower()
             
             for valid in ["casual", "research", "scan", "security_chat"]:
                 if valid in intent:
@@ -628,7 +717,7 @@ To use the CVE database, reference vulnerability types and ask for similar CVEs.
             return "security_chat"  # Default fallback to chat instead of scan
         except Exception as e:
             logger.warning(f"Intent classification failed: {e}")
-            return "scan" # Fallback to original behavior
+            return "security_chat" # Fallback to chat for safety
 
     def process_query(
         self, 
@@ -651,15 +740,28 @@ To use the CVE database, reference vulnerability types and ask for similar CVEs.
         intent = self._analyze_intent(user_input)
         if callback:
             callback(f"AI classified intent as: {intent.upper()}")
+
+        # Normalize scan target if user asked to scan but target wasn't set.
+        # This keeps the agent autonomous without hardcoding specific domains.
+        if intent == "scan" and not target:
+            inferred = _extract_target_from_text(user_input)
+            if inferred:
+                target = inferred
         logger.info(f"AI classified intent: {intent}")
         
         # 2. If it's a conversation or research, handle it without starting a mission
         if intent in ["casual", "research", "security_chat"] and not target:
+            # RETRIEVE MEMORY: Load past knowledge about the user/topic
+            past_memories = get_context_for_ai(user_input, target="universal", max_memories=5)
+            logger.info(f"Retrieved {len(past_memories.splitlines())} context lines from memory.")
+            
             now_context = _get_now_context()
             chat_prompt = f"""You are Elengenix AI v3.0, an expert security assistant and conversational AI.
 Intent category: {intent}
 
 {now_context}
+
+{past_memories}
 
 If the intent is 'casual', be friendly and conversational.
 If the intent is 'research', provide accurate information or web research.
@@ -670,6 +772,14 @@ Do NOT attempt to run a scan. Respond naturally in the user's language (English 
                 AIMessage(role="system", content=chat_prompt),
                 AIMessage(role="user", content=user_input)
             ]).content
+            
+            # SAVE TO MEMORY: Remember this interaction for next time
+            remember(
+                content=f"User said: {user_input} | AI responded: {response[:100]}...",
+                target="universal",
+                category="conversation"
+            )
+            
             return response.strip()
         
         # send_telegram_notification(f" Mission Started: \"{user_input}\"")
@@ -1724,7 +1834,94 @@ Use JSON format: {{"action": "run_shell|save_memory|finish", "command": "...", "
             lines.append(f"- {r.tool_name}: {len(r.findings)} findings")
         
         return "\n".join(lines)
-    
+
+    def process_team_scan(
+        self,
+        user_input: str,
+        model_names: List[str],
+        target: str,
+        callback: Optional[Callable] = None,
+    ) -> str:
+        """
+        TEAM AEGIS — Multi-Agent Collaborative Scan.
+        
+        Multiple AI models work as a team: discussing strategies,
+        assigning tasks, sharing results, and collaborating to find
+        vulnerabilities on the target.
+        
+        Args:
+            user_input: The user's scan request
+            model_names: List of model identifiers (provider/model or just model)
+            target: Target domain/IP
+            callback: Live output callback
+        """
+        from tools.multi_agent import TeamAegis
+        from tools.universal_ai_client import UniversalAIClient
+        from tools.universal_executor import get_universal_executor
+        
+        logger.info(f"Team Aegis scan started: {len(model_names)} models, target={target}")
+        
+        # Build team clients
+        team_clients = []
+        
+        for model_str in model_names:
+            try:
+                # Parse provider/model
+                if "/" in model_str:
+                    provider, model_name = model_str.split("/", 1)
+                else:
+                    provider = os.environ.get("ACTIVE_AI_PROVIDER", "auto")
+                    model_name = model_str
+                    
+                # Create a fresh client for each model
+                new_client = UniversalAIClient(
+                    provider=provider, 
+                    model=model_name
+                )
+                if new_client.is_available():
+                    team_clients.append(new_client)
+            except Exception as e:
+                logger.warning(f"Failed to load team client {model_name}: {e}")
+        
+        # Fallback: if we couldn't build enough clients, use what we have
+        if len(team_clients) < 2:
+            # Use all available clients from the manager
+            for provider, client in self.client.clients.items():
+                if client.is_available() and client not in team_clients:
+                    team_clients.append(client)
+                    if len(team_clients) >= 3:
+                        break
+        
+        if len(team_clients) < 2:
+            if callback:
+                callback("Team Aegis requires at least 2 available AI models. Falling back to single agent.")
+            return self.process_universal(user_input, callback=callback, target=target, mode="bug_bounty")
+        
+        # Initialize executor for tool execution
+        executor = get_universal_executor()
+        
+        # Create and run Team Aegis
+        team = TeamAegis(
+            clients=team_clients[:3],
+            target=target,
+            callback=callback,
+            max_rounds=30,
+        )
+        
+        # Add the user's request as initial context
+        from tools.multi_agent import TeamMessage
+        team.discussion.append(TeamMessage(
+            round=0,
+            agent_id=-1,
+            agent_role="Operator",
+            model_name="human",
+            content=f"Mission briefing: {user_input}",
+            msg_type="discussion"
+        ))
+        
+        # Run the engagement
+        return team.run_full_engagement(executor=executor)
+
     def process_universal(
         self,
         user_input: str,
@@ -1748,114 +1945,357 @@ Use JSON format: {{"action": "run_shell|save_memory|finish", "command": "...", "
         
         # send_telegram_notification(f" Universal Agent: \"{user_input}\"")
         logger.info(f"Universal mode started: {user_input}")
+
+        # AI intent classification (single source of truth)
+        intent = "security_chat"
+        try:
+            intent = self._analyze_intent(user_input)
+        except Exception as e:
+            logger.debug(f"Universal intent classification failed: {e}")
+            intent = "security_chat"
+        if callback:
+            callback(f"AI classified intent as: {intent.upper()}")
         
         # Initialize universal executor
         executor = get_universal_executor()
         
-        #  Remember this session start
-        remember(
-            f"Universal session: {user_input}. Mode: {mode}",
-            target or "universal",
-            "universal_session",
-            session_type="universal"
-        )
+        # Redundant session remember removed to prevent clogging memory history
+
         
         # Determine if this is a bug bounty task
-        is_security_task = mode == "bug_bounty" or (target and any(
-            kw in user_input.lower() for kw in [
-                "scan", "vulnerability", "exploit", "pentest", "security",
-                "find", "bug", "bounty", "hack", "test"
-            ]
-        ))
+        # Use intent first; fall back to explicit mode/target.
+        is_security_task = (
+            mode == "bug_bounty"
+            or intent == "scan"
+            or (bool(target) and intent in ("scan", "security_chat"))
+        )
+
+        # For casual/security_chat (no target), respond without tool loop.
+        # RESEARCH intent enters tool loop to use web search.
+        if intent in ["casual", "security_chat"] and not target:
+            # 🧠 MEMORY RETRIEVAL (Hybrid Approach - Increased context)
+            past_memories = get_context_for_ai(user_input, target=target or "universal", max_memories=12)
+            logger.info(f"Retrieved {len(past_memories.splitlines())} memories from the cloud.")
+            
+            now_context = _get_now_context()
+            profile_context = _get_memory_profile_context()
+            
+            # Get available tools for capability questions
+            available_tools = registry.list_available_tools()
+            tool_names = [name for name, info in available_tools.items() if info.get('available')]
+            tool_list = ", ".join(tool_names[:10]) + ("..." if len(tool_names) > 10 else "")
+            
+            # Detect language from input
+            has_thai = bool(re.search(r"[\u0E00-\u0E7F]", user_input))
+            detected_lang = "Thai" if has_thai else "English"
+            lang_instruction = "Respond in Thai language." if has_thai else "Respond in English language."
+            
+            chat_prompt = f"""You are Elengenix AI v5.0 — A Universal AI Agent specialized for Bug Bounty and Security Research.
+Intent category: {intent}
+Detected user language: {detected_lang}
+
+{now_context}
+
+### 🧠 LONG-TERM PROFILE:
+{profile_context}
+
+### 🧠 PAST CONVERSATIONS (RELEVANT CONTEXT):
+{past_memories}
+
+### YOUR IDENTITY & CAPABILITIES:
+- Name: Elengenix AI (อีเลนเจนิกซ์ เอไอ)
+- Version: v5.0
+- Primary role: Security researcher and penetration testing assistant
+
+### WHAT YOU CAN DO:
+
+[LIVE INTERNET ACCESS - Real-time data:]
+- Search Google for current news, sports scores, weather, stock prices
+- Get TODAY's information - no knowledge cutoff!
+- Research CVEs, exploits, and security advisories
+
+[SECURITY TOOLS:]
+{tool_list}
+Plus: nmap, nuclei, ffuf, dalfox, sqlmap, and 40+ security tools
+
+[GENERAL CAPABILITIES:]
+- File editing, shell commands, package installation
+- Code review and script generation
+- Web research and OSINT
+
+### LANGUAGE RULE:
+- Detect the language of the user's input
+- If user wrote Thai → respond in Thai
+- If user wrote English → respond in English
+- Respond naturally in the detected language
+
+### OTHER RULES:
+1. Do not use emojis.
+2. Do not attempt to run scans or use tools for this casual query.
+3. Answer directly based on your knowledge above.
+4. If asked what you can do, explain your capabilities including LIVE WEB SEARCH."""
+
+            direct = (self.client.chat([
+                AIMessage(role="system", content=chat_prompt),
+                AIMessage(role="user", content=user_input)
+            ]).content or "").strip()
+
+            if direct:
+                # 🧠 MEMORY STORAGE: Remember this interaction
+                remember(
+                    content=f"User interaction: {user_input} | AI Response: {direct[:150]}...",
+                    target=target or "universal",
+                    category="conversation"
+                )
+                return direct
+            # Hard fallback - deterministic based on Thai detection
+            if has_thai:
+                return "สวัสดีครับ! ผมเป็น Elengenix AI ผู้ช่วยด้านความปลอดภัย มีอะไรให้ช่วยเหลือไหมครับ?"
+            return "Hello! I'm Elengenix AI, your security research assistant. How can I help you today?"
+
+        # RESEARCH intent with no target: quick web search mode
+        if intent == "research" and not target:
+            # Allow AI to use tools for research, but stay focused on the query
+            pass
         
         # Check if this is a simple conversational query (no loop needed)
-        simple_greetings = ["hi", "hello", "hey", "สวัสดี", "หวัดดี", "sawasdee"]
+        simple_greetings = [
+            "hi", "hello", "hey", "hiya", "yo",
+            "สวัสดี", "สวัสดีครับ", "สวัสดีค่ะ",
+            "หวัดดี", "หวัดดีครับ", "หวัดดีค่ะ",
+            "สัวสดี", "สวัส", "สวัดดี", "สวัสดีจ้า",
+            "ไง", "ไงครับ", "ไงค่ะ", "ไงจ้า", "ว่าไง",
+            "sawasdee", "sawasdee krub", "sawasdee krap",
+        ]
         simple_questions = ["how are you", "what can you do", "help", "?", "who are you"]
+        normalized = user_input.lower().strip()
+        normalized_no_spaces = normalized.replace(" ", "")
+        
+        # Check if starts with Thai greeting (handle mixed Thai-English like "สวัสดี Elengenix")
+        starts_with_thai_greeting = any(
+            normalized.replace(" ", "").startswith(g.replace(" ", "")) 
+            for g in simple_greetings if re.search(r"[\u0E00-\u0E7F]", g)
+        )
+        
+        thai_only = bool(re.fullmatch(r"[\s\u0E00-\u0E7F\.!?]+", user_input.strip()))
+        is_thai_greeting = starts_with_thai_greeting or (
+            bool(re.fullmatch(r"[\s\u0E00-\u0E7F\.!?]+", user_input.strip())) and any(
+                g in user_input.strip() for g in ["สวั", "หวัด", "ดี"]
+            )
+        )
+        is_short_thai_chat = thai_only and 0 < len(user_input.strip()) <= 8
         is_simple_query = (
-            any(user_input.lower().strip().startswith(g) for g in simple_greetings) or
-            any(q in user_input.lower() for q in simple_questions)
+            any(normalized.startswith(g) for g in simple_greetings) or
+            any(q in normalized for q in simple_questions) or
+            is_thai_greeting or
+            is_short_thai_chat
         ) and not is_security_task and not target
         
         # For simple queries, respond directly without loop
         if is_simple_query:
-            simple_prompt = f"""You are Elengenix AI v2.0.0, a helpful AI assistant.
-The user said: "{user_input}"
+            wants_thai = bool(re.search(r"[\u0E00-\u0E7F]", user_input))
+            if wants_thai:
+                # Deterministic Thai response to avoid provider-dependent language drift.
+                return "สวัสดีครับ! มีอะไรให้ช่วยเหลือไหม?"
+            lang_rule = "Respond in Thai ONLY." if wants_thai else "Respond in English ONLY."
+            simple_prompt = f"""You are Elengenix AI v5.0.
+User input: "{user_input}"
+Contains Thai characters: {wants_thai}
 
-Respond naturally and briefly in the same language as the user (English or Thai).
-Keep your response short and conversational. Don't use any tools or actions."""
+### LANGUAGE RULE (STRICT):
+{lang_rule}
+- If Thai detected in input → respond in Thai language
+- If English detected → respond in English language  
+- ABSOLUTELY NO other languages (no Turkish, Spanish, French, etc.)
+- This is a HARD requirement
+
+### RESPONSE:
+Keep it short and conversational. No tools. No emojis."""
             
-            response = self.client.chat([
+            response = (self.client.chat([
                 AIMessage(role="system", content=simple_prompt),
                 AIMessage(role="user", content="Greeting")
-            ]).content
+            ]).content or "")
+            if not response.strip():
+                return "สวัสดีครับ! มีอะไรให้ช่วยเหลือไหม?" if wants_thai else "Hello! How can I help you today?"
             return response.strip()
         
         # Build system prompt based on mode
         now_context = _get_now_context()
-        if is_security_task and target:
-            base_prompt = f"""{self.base_prompt}
+        if intent == "research" and not target:
+            # RESEARCH mode: simple information retrieval - NOT a security task
+            base_prompt = f"""You are Elengenix AI in RESEARCH MODE.
 
-### UNIVERSAL AGENT MODE — BUG BOUNTY SPECIALIST
-You are now in Universal Agent mode with full system access.
-Your primary mission: Find vulnerabilities on {target}
+### USER QUERY:
+"{user_input}"
 
 {now_context}
 
-### CAPABILITIES:
-1. **File Operations**: Read, write, edit any file in the project
-2. **Package Management**: Install tools via pip, npm, apt, go install
-3. **Shell Execution**: Run commands (security filtered)
-4. **Web Research**: Search for CVEs, exploits, techniques
-5. **Strategic Planning**: Create and adapt attack plans
+### YOUR ROLE:
+Research Assistant with LIVE INTERNET ACCESS (Google Search API).
 
-### WORKFLOW:
-1. First, explore the target environment
-2. Install necessary tools if missing
-3. Create custom scripts for specific attacks
-4. Execute reconnaissance and scanning
-5. Analyze findings and chain vulnerabilities
-6. Generate comprehensive reports
+### IMPORTANT - THIS IS NOT A SECURITY TASK:
+- NO target domain/IP to scan
+- NO penetration testing required
+- NO 5-phase methodology
+- This is simple INFORMATION RETRIEVAL for the user's question
+
+### YOUR CAPABILITIES:
+- `search_web`: Search Google for live, current information
+- `finish`: Complete the task and provide the answer
+
+### WHEN TO USE search_web:
+- Current events, news, sports scores, weather, stock prices
+- Any query with "today", "now", "latest", "วันนี้", "ล่าสุด"
+- Time-sensitive information that changes constantly
+- When the user asks about something happening RIGHT NOW
+
+### WORKFLOW (Simple):
+1. Analyze what the user wants
+2. If current/live data needed → use search_web with relevant query
+3. After getting results → use finish with the answer
 
 ### RESPONSE FORMAT:
-Always respond with structured JSON:
 {{
-    "thought": "Your reasoning step-by-step",
+    "thought": "User wants [topic]. This requires live data, so I'll search Google for current information...",
     "action": {{
-        "type": "read_file|write_file|edit_file|search_file|list_dir|shell|package|search_web|run_tool|finish",
-        "params": {{...}}
+        "type": "search_web",
+        "params": {{"query": "specific search terms", "num_results": 5}}
     }},
-    "next_step": "What you plan to do next"
+    "next_step": "After getting search results, I will summarize them in the user's language"
+}}
+
+Or when done:
+{{
+    "thought": "I have the information from search results. Now I'll provide the answer.",
+    "action": {{
+        "type": "finish",
+        "params": {{"summary": "Your answer here in the user's language"}}
+    }},
+    "next_step": "Task complete"
+}}"""
+
+        elif is_security_task and target:
+            available_tools = registry.list_available_tools()
+            tool_descriptions = []
+            for name, info in available_tools.items():
+                if info.get('available'):
+                    desc = info.get('description', name)
+                    tool_descriptions.append(f"  - {name}: {desc}")
+            tools_list_str = "\n".join(tool_descriptions)
+            
+            base_prompt = f"""{self.base_prompt}
+
+### UNIVERSAL AGENT MODE — BUG BOUNTY SPECIALIST
+You are an autonomous AI security researcher. Your mission: Find vulnerabilities on {target}
+
+{now_context}
+
+### AVAILABLE TOOLS & CAPABILITIES:
+You have access to these security tools. CHOOSE which to use based on the situation:
+{tools_list_str}
+
+### VULNERABILITY DISCOVERY METHODOLOGY (Apply as needed):
+Think step-by-step which tools fit each phase:
+
+**PHASE 1: RECONNAISSANCE**
+- Subdomain enumeration: Use tools like subfinder, assetfinder, amass, or findomain
+- DNS analysis: dnsx, dnsrecon, or dig
+- Technology fingerprinting: httpx, whatweb, or webanalyze
+- Choose based on: target size, rate limits, accuracy needs
+
+**PHASE 2: PORT & SERVICE SCANNING**
+- Port scanning: nmap (comprehensive), masscan (fast wide scans), or rustscan (modern fast)
+- Service detection: nmap -sV or httpx for web services
+- Choose based on: target scope, speed requirements, stealth needs
+
+**PHASE 3: CONTENT DISCOVERY**
+- Directory brute force: ffuf, dirsearch, gobuster, or feroxbuster
+- API endpoint discovery: ffuf with wordlists or kiterunner
+- Parameter discovery: arjun or x8
+- Choose based on: target technology, rate limiting, wordlist size
+
+**PHASE 4: VULNERABILITY SCANNING**
+- General vuln scan: nuclei (templates), nuclei_scripts (custom)
+- Specific tests: dalfox (XSS), sqlmap (SQLi), crlfuzz (CRLF)
+- SSL/TLS: testssl, sslscan
+- Choose based on: initial findings, vulnerability class priorities
+
+**PHASE 5: EXPLOITATION & CHAINING**
+- Manual testing support: Create custom scripts
+- Report generation: Combine findings with CVSS scoring
+
+### DECISION PRINCIPLES:
+1. **You decide** which tool fits the current task - no fixed sequences
+2. Adapt based on results: if one tool fails, try another approach
+3. Consider stealth vs speed tradeoffs
+4. Chain findings: one discovery leads to focused testing with specific tools
+5. Install missing tools via 'package' action
+
+### RESPONSE FORMAT:
+Always respond with structured JSON showing your reasoning:
+{{
+    "thought": "Based on current findings, I should use [tool] because...",
+    "action": {{
+        "type": "run_tool|shell|search_web|package|read_file|finish",
+        "params": {{"tool": "tool_name", "target": "...", "args": "..."}}
+    }},
+    "next_step": "Based on results, I'll likely need to..."
 }}
 
 ### CURRENT CONTEXT:
 Target: {target}
-Mode: Bug Bounty Specialist
-Available Tools: {', '.join(name for name, info in registry.list_available_tools().items() if info['available'])}
+Intent: {intent}
 """
         else:
+            # General mode with security tool knowledge
+            available_tools = registry.list_available_tools()
+            tool_descriptions = []
+            for name, info in available_tools.items():
+                if info.get('available'):
+                    desc = info.get('description', name)
+                    tool_descriptions.append(f"  - {name}: {desc}")
+            tools_list_str = "\n".join(tool_descriptions) if tool_descriptions else "  (No specialized tools loaded)"
+            
             base_prompt = f"""{self.base_prompt}
 
 ### UNIVERSAL AGENT MODE — GENERAL PURPOSE
-You are a flexible AI agent that can help with any task.
+You are a flexible AI agent with LIVE INTERNET ACCESS and system tool capabilities.
 
 {now_context}
 
-### CAPABILITIES:
-1. **File Operations**: Read, write, edit files
-2. **Package Management**: pip install, npm install, apt install, etc.
-3. **Shell Commands**: Execute safe commands
-4. **Web Research**: Search internet
-5. **Bug Bounty Tools**: Use when security task detected
+### AVAILABLE TOOLS (Use as needed):
+{tools_list_str}
+
+### YOUR LIVE DATA ACCESS:
+**YOU CAN SEARCH THE LIVE INTERNET** via `search_web` action (Google Search API):
+- Current news, sports scores, weather, stock prices
+- Real-time information has NO cutoff date - you can fetch today's data
+- For ANY "latest", "today", "now" queries: YOU MUST USE search_web
+- Never say "I don't know" for time-sensitive info - FETCH it
+
+### GENERAL CAPABILITIES:
+1. **Live Web Search**: Real-time internet access via search_web
+2. **File Operations**: Read, write, edit any project files
+3. **Package Management**: Install tools (pip, npm, apt, go)
+4. **Shell Commands**: Execute safe commands
+5. **Security Tools**: Available when needed for security tasks
 
 ### RESPONSE FORMAT:
 {{
-    "thought": "Your reasoning",
+    "thought": "The user wants current info. I must use search_web to fetch live data...",
     "action": {{
-        "type": "read_file|write_file|edit_file|shell|package|search_web|finish",
-        "params": {{...}}
+        "type": "search_web|read_file|write_file|edit_file|shell|package|run_tool|finish",
+        "params": {{"query": "search terms for live data"}}
     }},
-    "next_step": "Planned next action"
+    "next_step": "Present the fetched information"
 }}
+
+### PRINCIPLES:
+- **TIME-SENSITIVE QUERIES**: Always use search_web (news, sports, weather, "today")
+- **GENERAL KNOWLEDGE**: Can answer directly or search if uncertain
+- **SECURITY**: Suggest or run appropriate security tools when asked
+- **EXPLAIN**: Always explain your tool/action choices in reasoning
 """
         
         # Get semantic context from memory
@@ -1863,10 +2303,13 @@ You are a flexible AI agent that can help with any task.
         if target:
             semantic_context = get_context_for_ai(user_input, target, max_memories=10)
         
-        # Execution loop
+        # Execution loop - adjust max steps based on intent
         history = []
         step = 0
-        max_universal_steps = 50  # More steps for complex tasks
+        # Research queries need fewer steps (search → summarize)
+        # Security tasks need more steps (recon → scan → exploit)
+        max_universal_steps = 5 if (intent == "research" and not target) else 50
+        empty_shell_count = 0
         
         while step < max_universal_steps:
             step += 1
@@ -1889,6 +2332,10 @@ You are a flexible AI agent that can help with any task.
 
 ### CURRENT STEP: {step}
 
+Rules:
+1. Do not use emojis.
+2. Never output an action of type 'shell' with an empty command.
+
 Analyze the request and determine the next action.
 If this is a complex multi-step task, break it down.
 If you need to install tools, use package action.
@@ -1898,22 +2345,32 @@ If the task is complete, use finish action.
 Respond ONLY with valid JSON."""
             
             # Get AI decision
-            response = self.client.chat([
+            response = (self.client.chat([
                 AIMessage(role="system", content=full_prompt),
                 AIMessage(role="user", content=f"Universal step {step}")
-            ]).content
+            ]).content or "")
             
             try:
-                # Extract JSON action
-                json_match = re.search(r'\{.*\}', response, re.DOTALL)
-                if json_match:
-                    action_data = json.loads(json_match.group())
-                else:
+                action_data = _extract_json_object(response)
+                if action_data is None:
                     action_data = {"action": {"type": "finish", "params": {}}, "thought": response}
+
+                if isinstance(action_data, str):
+                    try:
+                        action_data = json.loads(action_data)
+                    except Exception:
+                        action_data = {"action": {"type": "finish", "params": {}}, "thought": response}
+
+                if not isinstance(action_data, dict):
+                    action_data = {"action": {"type": "finish", "params": {}}, "thought": str(action_data)}
                 
                 action = action_data.get("action", {})
+                if not isinstance(action, dict):
+                    action = {"type": "finish", "params": {"summary": str(action)}}
                 action_type = action.get("type", "finish")
                 params = action.get("params", {})
+                if not isinstance(params, dict):
+                    params = {"summary": str(params)}
                 thought = action_data.get("thought", "No reasoning provided")
                 
                 # Log thought
@@ -1942,6 +2399,22 @@ Respond ONLY with valid JSON."""
                 logger.info(f"Universal session finished: {summary}")
                 # send_telegram_notification(f" Universal Agent Complete: {summary[:100]}")
                 return summary
+
+            if action_type == "shell":
+                cmd = (params.get("command") or "").strip()
+                if not cmd:
+                    empty_shell_count += 1
+                    if callback:
+                        callback(" shell: Empty command blocked")
+                    history.append({
+                        "step": step,
+                        "action": "shell: <empty>",
+                        "result": "Blocked empty command. Choose a different action.",
+                        "success": False,
+                    })
+                    if empty_shell_count >= 2:
+                        return "Blocked repeated empty shell commands. Please rephrase your request or provide a valid command/target."
+                    continue
             
             # Execute via universal executor
             result = executor.execute_action({"type": action_type, "params": params})

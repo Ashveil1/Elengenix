@@ -56,6 +56,28 @@ class FileEditor:
     
     def read_file(self, file_path: str, offset: int = 1, limit: int = 100) -> ExecutionResult:
         """Read file with line numbers."""
+        # Prevent accidental secret disclosure
+        sensitive_names = {
+            ".env",
+            ".env.local",
+            ".env.production",
+            "config.yaml",
+            "config.yml",
+            "secrets.json",
+            "credentials.json",
+        }
+        try:
+            if Path(file_path).name in sensitive_names:
+                return ExecutionResult(
+                    False,
+                    "",
+                    f"Access denied for sensitive file: {Path(file_path).name}",
+                    "read",
+                    {"file": file_path, "blocked": True},
+                )
+        except Exception:
+            pass
+
         path = self._validate_path(file_path)
         if not path:
             return ExecutionResult(False, "", "Invalid or unsafe path", "read", {})
@@ -534,16 +556,46 @@ class UniversalExecutor:
             )
         
         elif action_type == "search_web":
-            from tools.research_tool import search_web
+            from tools.research_tool import search_web, extract_and_summarize
             query = params.get("query", "")
             num = params.get("num_results", 5)
+            
+            # Get search results
             results = search_web(query, num)
+            
+            # Extract content from top results for better context
+            enriched_results = []
+            for r in results[:3]:  # Top 3 results
+                url = r.get("url", "")
+                title = r.get("title", "")
+                content = r.get("content", "")
+                
+                # If no content, try to extract from URL
+                if not content and url:
+                    try:
+                        extracted = extract_and_summarize(url, max_chars=1000)
+                        content = extracted.get("text", "")[:800]
+                    except Exception as e:
+                        logger.debug(f"Could not extract content from {url}: {e}")
+                
+                enriched_results.append({
+                    "url": url,
+                    "title": title,
+                    "content": content[:1000] if content else "[Visit URL for full content]"
+                })
+            
+            output_text = f"Search results for '{query}':\n\n"
+            for i, r in enumerate(enriched_results, 1):
+                output_text += f"[{i}] {r['title']}\n"
+                output_text += f"URL: {r['url']}\n"
+                output_text += f"Content: {r['content'][:500]}...\n\n"
+            
             return ExecutionResult(
                 True,
-                json.dumps(results, indent=2),
+                output_text,
                 "",
                 "search_web",
-                {"query": query, "results": len(results)}
+                {"query": query, "results": len(enriched_results)}
             )
         
         else:

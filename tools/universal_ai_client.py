@@ -58,12 +58,12 @@ class UniversalAIClient:
         "openai": {
             "base_url": "https://api.openai.com/v1",
             "env_key": "OPENAI_API_KEY",
-            "default_model": "gpt-4.5-turbo",
+            "default_model": "gpt-4o-mini",
         },
         "gemini": {
-            "base_url": "https://generativelanguage.googleapis.com/v1beta/openai",  # Gemini OpenAI compatibility
+            "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/v1",  # Corrected OpenAI compatibility URL
             "env_key": "GEMINI_API_KEY",
-            "default_model": "gemini-3.1-pro",
+            "default_model": "gemini-1.5-flash",
         },
         "anthropic": {
             "base_url": "https://api.anthropic.com/v1",  # Claude uses different format, needs adapter
@@ -170,8 +170,14 @@ class UniversalAIClient:
             self.session.headers.update({
                 "Authorization": f"Bearer {self.api_key}",
             })
+            
+        # Rate Limiting configuration
+        env_rpm_key = f"RPM_{self.model.upper()}"
+        self.rpm_limit = int(os.environ.get(env_rpm_key, "40"))
+        self.min_delay = 60.0 / max(1, self.rpm_limit)
+        self.last_request_time = 0.0
         
-        logger.info(f"Universal AI Client initialized: {provider} @ {self.base_url}, model={self.model}")
+        logger.info(f"Universal AI Client initialized: {provider} @ {self.base_url}, model={self.model}, RPM={self.rpm_limit}")
 
     def _detect_provider(self) -> str:
         """Auto-detect provider from environment variables."""
@@ -230,11 +236,19 @@ class UniversalAIClient:
         Returns:
             AIResponse with content and metadata
         """
+        # Enforce Rate Limiting
+        elapsed = time.time() - self.last_request_time
+        if elapsed < self.min_delay:
+            time.sleep(self.min_delay - elapsed)
+            
+        self.last_request_time = time.time()
+        
         # Format messages for API
         formatted_messages = [
             {"role": m.role, "content": m.content}
             for m in messages
         ]
+
         
         # Build request payload (OpenAI format)
         payload = {
@@ -408,9 +422,54 @@ class UniversalAIClient:
         """Check if the client is properly configured."""
         if not self.base_url:
             return False
-        if self.provider not in ["ollama"] and not self.api_key:
+        # Special case for Ollama which doesn't need a key
+        if self.provider == "ollama":
+            return True
+        if not self.api_key:
             return False
         return True
+
+    def fetch_available_models(self) -> List[str]:
+        """Fetch models from the provider's /v1/models endpoint."""
+        try:
+            # Special handling for Anthropic (don't support /models well)
+            if self.provider == "anthropic":
+                return [self.model, "claude-3-7-sonnet-latest", "claude-3-5-sonnet-latest", "claude-3-opus-latest"]
+
+            url = self.base_url.rstrip('/') + '/models'
+            headers = {
+                "Authorization": f"Bearer {self.api_key}",
+                "Content-Type": "application/json",
+            }
+            
+            resp = requests.get(url, headers=headers, timeout=5)
+            if resp.status_code == 200:
+                data = resp.json()
+                models = []
+                
+                if isinstance(data, dict) and "data" in data:
+                    for item in data["data"]:
+                        if isinstance(item, dict) and "id" in item:
+                            models.append(item["id"])
+                elif isinstance(data, list):
+                    for item in data:
+                        if isinstance(item, str):
+                            models.append(item)
+                        elif isinstance(item, dict) and "id" in item:
+                            models.append(item["id"])
+                
+                # Filter chat/instruct models
+                chat_models = []
+                exclude_keywords = ["embedding", "whisper", "tts", "dall-e", "moderation", "vision-preview"]
+                for m in models:
+                    if not any(kw in m.lower() for kw in exclude_keywords):
+                        chat_models.append(m)
+                
+                return sorted(chat_models) if chat_models else [self.model]
+        except Exception as e:
+            logger.debug(f"Failed to fetch remote models for {self.provider}: {e}")
+            
+        return [self.model]
 
     def get_status(self) -> Dict[str, Any]:
         """Get client status information."""
@@ -440,6 +499,13 @@ class AIClientManager:
             "deepseek", "mistral", "openrouter", "together", 
             "perplexity", "ollama"
         ]
+        # Reorder preferred_order if ACTIVE_AI_PROVIDER is set
+        active_provider = os.getenv("ACTIVE_AI_PROVIDER", "").lower()
+        if active_provider in self.preferred_order:
+            self.preferred_order.remove(active_provider)
+            self.preferred_order.insert(0, active_provider)
+            logger.info(f"Priority set to {active_provider} (from ACTIVE_AI_PROVIDER)")
+
         self.clients: Dict[str, UniversalAIClient] = {}
         self.active_client: Optional[UniversalAIClient] = None
         
@@ -495,6 +561,26 @@ class AIClientManager:
     def get_active_provider(self) -> str:
         """Get currently active provider name."""
         return self.active_client.provider if self.active_client else "none"
+
+    def get_all_providers_status(self) -> List[Dict[str, Any]]:
+        """Get status for all supported providers."""
+        status_list = []
+        # Temporarily silence logs to avoid cluttering during discovery
+        original_level = logger.level
+        logger.setLevel(logging.WARNING)
+        
+        for p_name in sorted(list(UniversalAIClient.PROVIDER_CONFIGS.keys())):
+            try:
+                temp_client = UniversalAIClient(provider=p_name)
+                status = temp_client.get_status()
+                # Check if it's currently the active one
+                status["active"] = (self.active_client and self.active_client.provider == p_name)
+                status_list.append(status)
+            except:
+                continue
+        
+        logger.setLevel(original_level)
+        return status_list
 
 
 def create_default_client() -> UniversalAIClient:

@@ -141,7 +141,7 @@ class VectorMemory:
         target: str = None,
         category: str = None,
         n_results: int = 10,
-        min_similarity: float = 0.7
+        min_similarity: float = 0.4
     ) -> List[Dict[str, Any]]:
         """
         ค้นหา memory ที่ใกล้เคียงกับ query (semantic search)
@@ -408,11 +408,11 @@ def get_context_for_ai(
         query=current_query,
         target=target,
         n_results=max_memories,
-        min_similarity=0.6
+        min_similarity=0.35
     )
     
     # Also get recent memories for this target
-    recent = vm.get_target_memories(target, limit=5)
+    recent = vm.get_target_memories(target, limit=15)
     
     # Combine and deduplicate
     seen_ids = set()

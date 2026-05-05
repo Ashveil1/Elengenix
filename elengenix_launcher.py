@@ -240,16 +240,20 @@ class ElengenixApp:
         if not self.main_py.exists():
             ElengenixUI.print(f"main.py not found at {self.main_py}", "error")
             return
+        result = None
         try:
             result = subprocess.run(
                 [sys.executable, str(self.main_py)] + args,
                 cwd=str(self.root),
             )
-            sys.exit(result.returncode)
         except KeyboardInterrupt:
-            # Handle Ctrl+C during subprocess execution
-            print(f"\n{Colors.DIM}[info] Interrupt received. Closing session...{Colors.END}")
+            # Launcher itself was interrupted during setup, just exit quietly
             sys.exit(0)
+        
+        # After subprocess finishes, check if it was interrupted
+        # return codes like -2 (SIGINT) or 130 should NOT exit the launcher if we want to return gracefully
+        if result and result.returncode not in [0, -2, 130]:
+            sys.exit(result.returncode)
 
     # -- Help Display -------------------------------------------------------
 
@@ -390,19 +394,25 @@ class ElengenixApp:
         subprocess.run([sys.executable, str(bot_py)], cwd=str(self.root))
 
     def cmd_unknown(self, command: str):
-        """Handle unrecognized commands with smart suggestion."""
-        ElengenixUI.print(
-            f"Unknown command: '{command}'  —  run 'elengenix help' for all commands.",
-            "warning"
-        )
+        """Handle unrecognized commands with smart suggestion (High Performance)."""
+        print()
+        print(f"  {Colors.RED}Σ Error:{Colors.END} Protocol '{Colors.BOLD}{command}{Colors.END}' is not recognized.")
+        print(f"  {Colors.DIM}─────────────────────────────────────────────────────────────────{Colors.END}")
+        
         # Show closest match hint
-        all_cmds = list(self.DELEGATE_TO_MAIN) + list({
+        all_cmds = sorted(list(set(list(self.DELEGATE_TO_MAIN) + [
             "mission", "bounty", "programs", "status", "pause", "resume",
-            "doctor", "telegram",
-        })
-        close = [c for c in all_cmds if command in c or c.startswith(command[:3])]
+            "doctor", "telegram", "cli", "menu", "configure"
+        ])))
+        
+        # Smart matching
+        close = [c for c in all_cmds if command in c or c.startswith(command[:2])]
         if close:
-            print(f"  Did you mean: {', '.join(close[:3])}?")
+            hints = ", ".join([f"{Colors.BOLD}{Colors.CYAN}{c}{Colors.END}" for c in close[:3]])
+            print(f"  {Colors.DIM}Did you mean:{Colors.END} {hints}?")
+        
+        print(f"  {Colors.DIM}Type{Colors.END} {Colors.BOLD}elengenix help{Colors.END} {Colors.DIM}to list all active protocols.{Colors.END}")
+        print()
 
 
 # ---------------------------------------------------------------------------

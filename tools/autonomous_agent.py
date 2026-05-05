@@ -1874,3 +1874,151 @@ class AutonomousAgent:
             if isinstance(v, list):
                 lines.append(f"  {k}: {len(v)}")
         return "\n".join(lines)
+
+    def run_team_scan(self, target: str, goal: str = None) -> ScanResult:
+        """
+        TEAM AEGIS MODE for Autonomous Agent.
+        
+        When multiple AI models are available (ACTIVE_MODELS env),
+        runs a collaborative multi-agent scan using Team Aegis.
+        The team discusses strategy and uses autonomous agent's
+        built-in action executors for tool operations.
+        """
+        import os
+        from datetime import datetime
+        
+        active_models_str = os.environ.get("ACTIVE_MODELS", "")
+        active_models = [m.strip() for m in active_models_str.split(",") if m.strip()]
+        
+        if len(active_models) < 2:
+            # Not enough models for team mode — fall back to single agent
+            print("[Team Aegis] Not enough models selected. Using single-agent mode.")
+            return self.run_autonomous_scan(target, goal=goal)
+        
+        start_time = datetime.utcnow()
+        goal = goal or "Find high-value security vulnerabilities for bug bounty"
+        
+        print(f"\n{'='*60}")
+        print(f" TEAM AEGIS — Autonomous Collaborative Scan")
+        print(f" Target: {target}")
+        print(f" Goal: {goal}")
+        print(f" Models: {', '.join(active_models)}")
+        print(f"{'='*60}\n")
+        
+        # Build team clients
+        try:
+            from tools.universal_ai_client import UniversalAIClient
+            from tools.multi_agent import TeamAegis, TeamMessage
+            from tools.universal_executor import get_universal_executor
+            
+            team_clients = []
+            
+            for model_str in active_models:
+                try:
+                    if "/" in model_str:
+                        provider, model_name = model_str.split("/", 1)
+                    else:
+                        provider = os.environ.get("ACTIVE_AI_PROVIDER", "auto")
+                        model_name = model_str
+                        
+                    new_client = UniversalAIClient(
+                        provider=provider,
+                        model=model_name
+                    )
+                    if new_client.is_available():
+                        team_clients.append(new_client)
+                except Exception as e:
+                    logger.warning(f"Failed to load team client {model_name}: {e}")
+                    
+
+            if len(team_clients) < 2:
+                print("[Team Aegis] Could not form a team. Falling back to single agent.")
+                return self.run_autonomous_scan(target, goal=goal)
+            
+            # Create executor for tool operations
+            executor = get_universal_executor()
+            
+            # Create Team Aegis with live output
+            def live_callback(msg):
+                print(msg)
+            
+            team = TeamAegis(
+                clients=team_clients[:3],
+                target=target,
+                callback=live_callback,
+                max_rounds=30,
+            )
+            
+            # Add mission briefing
+            team.discussion.append(TeamMessage(
+                round=0,
+                agent_id=-1,
+                agent_role="Operator",
+                model_name="human",
+                content=f"Mission briefing: {goal}\nTarget: {target}\n"
+                        f"Available actions: recon, http_probe, waf_detect, nuclei_scan, "
+                        f"endpoint_fuzz, bola_probe, header_audit, xss_hunt, cors_scan, "
+                        f"injection_test, subdomain_takeover, param_mine, js_recon, "
+                        f"wayback_recon, threat_model, create_custom_tool",
+                msg_type="discussion"
+            ))
+            
+            # Run the team engagement
+            report = team.run_full_engagement(executor=executor)
+            
+            end_time = datetime.utcnow()
+            duration = (end_time - start_time).seconds
+            
+            # Convert team findings to our format
+            findings = []
+            for f in team.findings:
+                findings.append({
+                    "title": f.description[:100],
+                    "description": f.description,
+                    "severity": f.severity,
+                    "source": f"team_aegis/{f.source_agent}",
+                    "evidence": f.evidence,
+                })
+            
+            # Generate predictions and report
+            predictions = self._predict_bounties(findings)
+            report_path = self._generate_report(target, findings, predictions)
+            
+            # Build state for summary
+            state = AgentState(
+                root_target=target,
+                goal=goal,
+                findings=findings,
+                iteration=team.round,
+            )
+            summary = (
+                f"Team Aegis collaborative scan complete for {target}\n"
+                f"Duration: {duration}s | Rounds: {team.round}\n"
+                f"Team size: {team.team_size} agents\n"
+                f"Findings: {len(findings)} | Actions: {len(team.tasks)}\n\n"
+                f"{report}"
+            )
+            
+            # Export JSON
+            self._export_json(target, state, predictions, duration)
+            
+            print(f"\n[Team Aegis] Complete: {duration}s | {len(findings)} findings | "
+                  f"{team.round} rounds")
+            
+            return ScanResult(
+                target=target,
+                start_time=start_time,
+                end_time=end_time,
+                findings=findings,
+                bounty_predictions=predictions,
+                tools_created=[],
+                ai_decisions=self.decision_history,
+                report_path=report_path,
+                success=True,
+                summary=summary,
+            )
+            
+        except Exception as e:
+            logger.error(f"Team Aegis failed: {e}")
+            print(f"[Team Aegis] Error: {e}. Falling back to single agent.")
+            return self.run_autonomous_scan(target, goal=goal)
