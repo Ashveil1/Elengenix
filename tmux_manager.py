@@ -105,7 +105,7 @@ class TmuxManager:
                 capture_output=True
             )
             return result.returncode == 0
-        except:
+        except Exception:
             return False
     
     def _attach_session(self):
@@ -122,7 +122,7 @@ class TmuxManager:
                 "tmux", "send-keys", "-t", f"{self.SESSION_NAME}:{self.CHAT_WINDOW}.1",
                 message, "Enter"
             ], check=False)
-        except:
+        except Exception:
             pass
     
     def get_pane_info(self) -> Tuple[bool, str]:
@@ -143,7 +143,7 @@ class TmuxManager:
             pane_num = int(pane_id.split(".")[-1])
             is_chat = pane_num % 2 == 0
             return (is_chat, pane_id)
-        except:
+        except Exception:
             return (True, "0")
     
     def setup_environment(self):

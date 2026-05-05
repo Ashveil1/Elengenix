@@ -54,19 +54,25 @@ class WAFEvasionEngine:
     Learns which mutations work against detected WAF signatures.
     """
 
-    # Known WAF indicators in responses
-    WAF_SIGNATURES = {
-        "cloudflare": ["cloudflare", "cf-ray", "__cfduid", "cloudflare-nginx"],
-        "aws_waf": ["aws waf", "awselb", "x-amzn-requestid"],
-        "modsecurity": ["mod_security", "modsecurity", "id="],
-        "akamai": ["akamaighost", "akamai"],
-        "incapsula": ["incap_ses", "visid_incap"],
-        "sucuri": ["sucuri", "x-sucuri"],
-        "fortinet": ["fortigate", "fortiweb"],
-        "f5": ["f5", "bigip", "ts"],
-        "imperva": ["imperva", "incapsula"],
-        "datadog": ["datadog", "x-datadog"],
-    }
+    # Known WAF indicators — centralized via waf_signatures module
+    @property
+    def WAF_SIGNATURES(self):
+        try:
+            from tools.waf_signatures import WAF_SIGNATURES as CENTRAL_SIGS
+            return {k: v.get("headers", []) + v.get("body", []) for k, v in CENTRAL_SIGS.items()}
+        except ImportError:
+            return {
+                "cloudflare": ["cloudflare", "cf-ray", "__cfduid", "cloudflare-nginx"],
+                "aws_waf": ["aws waf", "awselb", "x-amzn-requestid"],
+                "modsecurity": ["mod_security", "modsecurity", "id="],
+                "akamai": ["akamaighost", "akamai"],
+                "incapsula": ["incap_ses", "visid_incap"],
+                "sucuri": ["sucuri", "x-sucuri"],
+                "fortinet": ["fortigate", "fortiweb"],
+                "f5": ["f5", "bigip", "ts"],
+                "imperva": ["imperva", "incapsula"],
+                "datadog": ["datadog", "x-datadog"],
+            }
 
     def __init__(self, base_url: str, timeout: int = 15, rate_limit_rps: float = 0.8):
         self.base_url = base_url.rstrip("/") + "/"

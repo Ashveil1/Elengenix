@@ -168,7 +168,7 @@ class SwarmController:
                 try:
                     import json
                     config = json.loads(parts[2].strip())
-                except:
+                except Exception:
                     pass
             
             target = SwarmTarget(

@@ -920,7 +920,7 @@ class DashboardServer(HTTPServer):
                 "ledger": len(snapshot.get('ledger', [])),
                 "active_missions": 1 if self.mission_state.target else 0,
             }
-        except:
+        except Exception:
             return {"facts": 0, "hypotheses": 0, "ledger": 0, "active_missions": 0}
     
     def get_statistics(self) -> Dict[str, int]:
@@ -977,7 +977,7 @@ def start_dashboard(mission_state: Optional[MissionState] = None,
     if open_browser:
         try:
             webbrowser.open(url)
-        except:
+        except Exception:
             pass
     
     return port, thread

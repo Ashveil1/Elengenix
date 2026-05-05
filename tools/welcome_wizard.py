@@ -130,7 +130,7 @@ class WelcomeWizard:
             resp = requests.get("http://localhost:11434/api/tags", timeout=2)
             if resp.status_code == 200:
                 detected.append(("Ollama (Local)", "OLLAMA_URL", "running"))
-        except:
+        except Exception:
             detected.append(("Ollama (Local)", "OLLAMA_URL", "installable"))
         
         return detected
@@ -179,7 +179,7 @@ class WelcomeWizard:
                 if 0 <= idx < len(options):
                     return options[idx]
                 return options[0]
-            except:
+            except Exception:
                 return options[0]
         else:
             default_str = f" [{default}]" if default else ""

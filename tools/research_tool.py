@@ -13,8 +13,18 @@ import time
 from typing import Dict, List, Optional
 
 import requests
-import trafilatura
-from googlesearch import search
+
+try:
+    import trafilatura
+    _HAS_TRAFILATURA = True
+except ImportError:
+    _HAS_TRAFILATURA = False
+
+try:
+    from googlesearch import search
+    _HAS_GOOGLESEARCH = True
+except ImportError:
+    _HAS_GOOGLESEARCH = False
 
 logger = logging.getLogger("elengenix.research")
 
@@ -75,6 +85,9 @@ def search_web(query: str, num_results: int = 5) -> List[Dict]:
             # Fallback to Google
             
     # Google Fallback
+    if not _HAS_GOOGLESEARCH:
+        logger.warning("googlesearch-python not installed; web search unavailable")
+        return []
     try:
         logger.info(f"Searching Google for: {query}")
         urls: List[str] = []
@@ -105,6 +118,8 @@ def extract_and_summarize(url: str, max_chars: int = _MAX_TEXT) -> Dict:
         r = requests.get(url, headers=_headers(), timeout=_TIMEOUT, verify=False)
         r.raise_for_status()
 
+        if not _HAS_TRAFILATURA:
+            return {"url": url, "text": "trafilatura not installed; cannot extract content", "chars": 0, "error": "missing trafilatura"}
         text = trafilatura.extract(
             r.text,
             include_tables=False,

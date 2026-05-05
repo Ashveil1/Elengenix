@@ -133,8 +133,6 @@ class LLMClient:
         
         provider_cfg = self.config.get("providers", {}).get(self.active_provider, {})
         self.model_name = provider_cfg.get("model", "gemini-1.5-flash")
-        provider_cfg = self.config.get("providers", {}).get(self.active_provider, {})
-        self.model_name = provider_cfg.get("model", "gemini-1.5-flash")
 
         if self.active_provider == "gemini":
             import google.generativeai as genai

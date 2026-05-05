@@ -85,7 +85,7 @@ class CommandEntry:
         try:
             dt = datetime.fromisoformat(self.timestamp)
             return (datetime.utcnow() - dt).days
-        except:
+        except Exception:
             return 999
 
 
@@ -215,7 +215,7 @@ class HistoryManager:
                     recent.append(entry)
                     if len(recent) >= limit:
                         break
-            except:
+            except Exception:
                 continue
         
         return recent
@@ -420,7 +420,7 @@ class HistoryManager:
             try:
                 dt = datetime.fromisoformat(entry.timestamp)
                 hour_counts[dt.hour] = hour_counts.get(dt.hour, 0) + 1
-            except:
+            except Exception:
                 continue
         
         if hour_counts:
@@ -499,7 +499,7 @@ class HistoryManager:
             try:
                 dt = datetime.fromisoformat(entry.timestamp)
                 time_str = dt.strftime("%H:%M")
-            except:
+            except Exception:
                 time_str = "??:??"
             
             # Status indicator

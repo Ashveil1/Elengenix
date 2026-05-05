@@ -440,7 +440,7 @@ def get_context_for_ai(
             try:
                 dt = datetime.fromisoformat(timestamp)
                 time_str = dt.strftime("%Y-%m-%d")
-            except:
+            except Exception:
                 time_str = timestamp[:10]
         else:
             time_str = "unknown"

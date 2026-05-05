@@ -88,7 +88,7 @@ class ActivityLogger:
         try:
             with open(ACTIVITY_LOG, "a", encoding="utf-8") as f:
                 f.write(json.dumps(asdict(activity)) + "\n")
-        except:
+        except Exception:
             pass
     
     def get_recent(self, n: int = 20) -> List[AgentActivity]:
@@ -345,9 +345,9 @@ def main():
                             data = json.loads(line)
                             activity = AgentActivity(**data)
                             display.activity_logger.history.append(activity)
-                        except:
+                        except Exception:
                             pass
-            except:
+            except Exception:
                 pass
         
         # Start live display

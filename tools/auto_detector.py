@@ -104,7 +104,7 @@ class AutoDetector:
                     "confidence": 0.7,
                     "explanation": f"JSON file detected: {p.name}. Analyzing content...",
                 }
-            except:
+            except Exception:
                 pass
         
         # Cloud/Terraform files

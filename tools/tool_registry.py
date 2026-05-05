@@ -413,7 +413,7 @@ class HttpxTool(BaseTool):
                                 "tech": data.get("tech", []),
                                 "title": data.get("title", ""),
                             })
-                        except:
+                        except Exception:
                             pass
                 
                 return ToolResult(
@@ -470,7 +470,7 @@ class NucleiTool(BaseTool):
                     try:
                         data = json.loads(line)
                         urls.append(data.get("url", ""))
-                    except:
+                    except Exception:
                         pass
             
             if urls:
@@ -512,7 +512,7 @@ class NucleiTool(BaseTool):
                             "name": data.get("info", {}).get("name", ""),
                             "description": data.get("info", {}).get("description", ""),
                         })
-                    except:
+                    except Exception:
                         pass
         
         return ToolResult(

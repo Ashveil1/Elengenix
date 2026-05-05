@@ -192,7 +192,7 @@ class MQTTAnalyzer:
                     idx += 2
                     result["username"] = data[idx:idx+user_len].decode('utf-8', errors='ignore')
                     idx += user_len
-                except:
+                except Exception:
                     pass
             
             # Password
@@ -201,7 +201,7 @@ class MQTTAnalyzer:
                     pass_len = struct.unpack("!H", data[idx:idx+2])[0]
                     idx += 2
                     result["password"] = data[idx:idx+pass_len].decode('utf-8', errors='ignore')
-                except:
+                except Exception:
                     pass
             
             return result
@@ -235,7 +235,7 @@ class MQTTAnalyzer:
                     msg_id = struct.unpack("!H", data[idx:idx+2])[0]
                     idx += 2
                     result["message_id"] = msg_id
-                except:
+                except Exception:
                     pass
             
             # Payload
@@ -245,7 +245,7 @@ class MQTTAnalyzer:
                 # Try to decode as text
                 try:
                     result["payload_text"] = payload.decode('utf-8', errors='ignore')[:200]
-                except:
+                except Exception:
                     result["payload_hex"] = payload[:50].hex()
             
             return result
@@ -583,7 +583,7 @@ class ProtobufAnalyzer:
             
             return field_count > 0 and field_count < 100
             
-        except:
+        except Exception:
             return False
     
     def parse_protobuf(self, data: bytes, max_depth: int = 3) -> List[Dict[str, Any]]:
@@ -657,7 +657,7 @@ class ProtobufAnalyzer:
                             text = payload.decode('utf-8')
                             if all(c.isprintable() or c.isspace() for c in text):
                                 field_info["as_string"] = text[:100]
-                        except:
+                        except Exception:
                             pass
                         
                         # Check for nested protobuf
@@ -827,7 +827,7 @@ class ProtocolAnalyzer:
         """Analyze hex dump string."""
         try:
             data = bytes.fromhex(hex_data.replace(' ', '').replace('\n', ''))
-        except:
+        except Exception:
             return {"error": "Invalid hex data"}
         
         protocol = self.detect_protocol(data)

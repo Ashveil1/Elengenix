@@ -332,86 +332,142 @@ class SmartScanner:
         return result
     
     def _run_discovery_phase(self) -> Dict[str, Any]:
-        """Run discovery phase (reconnaissance)."""
-        # Placeholder: Call smart_recon tool
-        # For now, simulate
-        
-        time.sleep(2)  # Simulate work
-        
-        # Simulate findings
-        findings = [
-            {
-                "type": "subdomain",
-                "value": "api.target.com",
-                "severity": "info",
-            },
-            {
-                "type": "endpoint",
-                "value": "/api/v1/users",
-                "severity": "info",
-            },
-        ]
-        
+        """Run discovery phase (reconnaissance) using SmartReconEngine."""
+        findings = []
+        tokens_used = 5000
+
+        try:
+            from tools.smart_recon import SmartReconEngine, format_recon_for_display
+            engine = SmartReconEngine(
+                target_domain=self.target,
+                rate_limit_rps=2.0,
+                max_workers=10,
+            )
+            result = engine.run_full_recon()
+
+            for node in result.nodes:
+                t = node.asset_type
+                if t not in self.mission.assets:
+                    self.mission.assets[t] = []
+                if node.value not in self.mission.assets[t]:
+                    self.mission.assets[t].append(node.value)
+
+            for f in result.findings:
+                findings.append({
+                    "type": f.get("type", "info"),
+                    "severity": f.get("severity", "info"),
+                    "title": f.get("title", "Recon Finding"),
+                    "target": f.get("target", self.target),
+                    "description": f.get("description", ""),
+                    "source": "recon",
+                })
+
+            summary = (
+                f"Found {result.stats.get('domains', 0)} domains, "
+                f"{result.stats.get('ips', 0)} IPs, "
+                f"{result.stats.get('endpoints', 0)} endpoints"
+            )
+        except Exception as e:
+            logger.warning(f"Discovery phase error: {e}")
+            summary = f"Discovery phase error: {e}"
+
         return {
-            "summary": "Found 2 subdomains, 15 endpoints",
-            "tokens_used": 5000,
+            "summary": summary,
+            "tokens_used": tokens_used,
             "findings": findings,
         }
     
     def _run_vulnerability_scan_phase(self) -> Dict[str, Any]:
-        """Run vulnerability scan phase."""
-        # Placeholder: Call bola_harness, waf_evasion tools
-        
-        time.sleep(3)
-        
-        # Simulate findings
-        findings = [
-            {
-                "type": "BOLA",
-                "endpoint": "/api/v1/orders/{id}",
-                "severity": "high",
-                "description": "Potential IDOR vulnerability",
-            },
-        ]
-        
+        """Run vulnerability scan phase using orchestrator pipeline + BOLA/WAF tools."""
+        findings = []
+        tokens_used = 20000
+
+        try:
+            import asyncio
+            from orchestrator import run_standard_scan
+            report_dir = asyncio.run(run_standard_scan(self.target, rate_limit=5))
+            if report_dir:
+                from pathlib import Path
+                import json
+                cvss_file = Path(report_dir) / "cvss_scores.json"
+                if cvss_file.exists():
+                    for item in json.loads(cvss_file.read_text()):
+                        f = item.get("finding", {})
+                        f["tool"] = item.get("tool", "unknown")
+                        f["cvss_score"] = item.get("cvss_score", 0)
+                        f["cvss_severity"] = item.get("severity", "Unknown")
+                        findings.append(f)
+                summary = f"Orchestrator pipeline found {len(findings)} findings"
+            else:
+                summary = "Orchestrator pipeline completed with no report"
+        except Exception as e:
+            logger.warning(f"Vulnerability scan phase error: {e}")
+            summary = f"Vulnerability scan error: {e}"
+
         return {
-            "summary": "Found 1 potential BOLA vulnerability",
-            "tokens_used": 20000,
+            "summary": summary,
+            "tokens_used": tokens_used,
             "findings": findings,
         }
     
     def _run_exploit_verification_phase(self) -> Dict[str, Any]:
-        """Run exploit verification phase."""
-        # Placeholder: Call autonomous_agent
-        
-        time.sleep(2)
-        
-        # Simulate verification
-        findings = [
-            {
-                "type": "BOLA_CONFIRMED",
-                "endpoint": "/api/v1/orders/{id}",
-                "severity": "high",
-                "description": "Confirmed IDOR - can access other users' orders",
-                "cvss_score": 7.5,
-            },
-        ]
-        
+        """Run exploit verification phase using autonomous agent for deep testing."""
+        findings = []
+        tokens_used = 50000
+
+        try:
+            from tools.autonomous_agent import AutonomousAgent, AgentAction, AgentState
+            agent = AutonomousAgent(governance_mode="ask")
+            state = AgentState(
+                root_target=self.target,
+                goal="Verify and confirm discovered vulnerabilities",
+            )
+            if self.mission and hasattr(self.mission, 'assets'):
+                state.assets = dict(self.mission.assets)
+
+            action = AgentAction(
+                name="injection_test",
+                target=f"https://{self.target}",
+                reasoning="Verify findings from vulnerability scan phase",
+            )
+            from tools.autonomous_agent import _exec_injection_test
+            findings = _exec_injection_test(action, state)
+
+            confirmed = [f for f in findings if f.get("severity") in ("critical", "high")]
+            summary = f"Verified {len(confirmed)} high-severity findings out of {len(findings)} total"
+        except Exception as e:
+            logger.warning(f"Exploit verification phase error: {e}")
+            summary = f"Exploit verification error: {e}"
+
         return {
-            "summary": "Confirmed 1 vulnerability",
-            "tokens_used": 50000,
+            "summary": summary,
+            "tokens_used": tokens_used,
             "findings": findings,
         }
     
     def _run_report_generation_phase(self) -> Dict[str, Any]:
-        """Run report generation phase."""
-        # Placeholder: Call pdf_report_generator
-        
-        time.sleep(1)
-        
+        """Run report generation phase using PDF report generator."""
+        tokens_used = 10000
+
+        try:
+            from tools.pdf_report_generator import PDFReportGenerator, ReportMetadata
+            from datetime import datetime as _dt
+            meta = ReportMetadata(
+                title=f"Security Assessment — {self.target}",
+                target=self.target,
+                author="Elengenix Smart Scanner",
+                date=_dt.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
+            )
+            gen = PDFReportGenerator()
+            report_paths = gen.generate_from_findings(self.findings, meta)
+            summary = f"Report generated: {report_paths.get('html', 'N/A')}"
+        except Exception as e:
+            logger.warning(f"Report generation phase error: {e}")
+            summary = f"Report generation error: {e}"
+
         return {
-            "summary": "Report generated",
-            "tokens_used": 10000,
+            "summary": summary,
+            "tokens_used": tokens_used,
             "findings": [],
         }
     

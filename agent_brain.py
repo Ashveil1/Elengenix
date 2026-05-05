@@ -17,6 +17,7 @@ import logging
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from pathlib import Path
+from urllib.parse import urlparse
 from collections import Counter
 from dataclasses import dataclass, field
 from typing import Optional, Callable, Dict, Any, List, Set
@@ -1279,8 +1280,7 @@ Use JSON format: {{"action": "run_shell|save_memory|finish", "command": "...", "
                             )
                             if bola_gate.allowed or (
                                 bola_gate.decision == "needs_approval" and (
-                                    (callback and callback("Approve BOLA differential test? (yes/no)").lower() in ("y", "yes"))
-                                    or True  # fallback: if no interactive, skip for safety
+                                    callback and callback("Approve BOLA differential test? (yes/no)").lower() in ("y", "yes")
                                 )
                             ):
                                 if bola_gate.decision == "needs_approval":
@@ -1436,6 +1436,55 @@ Use JSON format: {{"action": "run_shell|save_memory|finish", "command": "...", "
                             display_in_chat_mode(f"[Recon] Deep asset correlation available for {len(domains_found)} domains", "info")
                 except Exception as e:
                     logger.debug(f"Smart recon integration failed: {e}")
+
+                # CORS misconfiguration scan on discovered web endpoints
+                try:
+                    from tools.cors_checker import check_cors
+                    web_endpoints = []
+                    for finding in result.findings:
+                        furl = finding.get("url", "")
+                        if furl and ("http://" in furl or "https://" in furl):
+                            web_endpoints.append(furl)
+                    for endpoint in web_endpoints[:5]:
+                        cors_result = check_cors(endpoint)
+                        for issue in cors_result.get("issues", []):
+                            mission_state.upsert_hypothesis(
+                                hyp_id=f"cors:{endpoint[:60]}",
+                                title=f"CORS Misconfiguration: {issue.get('reason', '')}",
+                                description=f"Origin tested: {issue.get('origin', '')}. {issue.get('reason', '')}",
+                                confidence=0.7 if issue.get("severity") == "high" else 0.5,
+                                status="open",
+                                tags=["cors", "misconfiguration", issue.get("severity", "medium")],
+                                evidence=issue,
+                            )
+                except Exception as e:
+                    logger.debug(f"CORS check integration failed: {e}")
+
+                # SSRF scan on URL-accepting parameters
+                try:
+                    from tools.ssrf_scanner import SSRFScanner
+                    for finding in result.findings:
+                        furl = finding.get("url", "")
+                        if not furl or not ("http://" in furl or "https://" in furl):
+                            continue
+                        # Only test endpoints that accept URL-like parameters
+                        if "?" not in furl:
+                            continue
+                        ssrf_engine = SSRFScanner(base_url=furl, rate_limit_rps=0.5)
+                        ssrf_findings = ssrf_engine.scan(url=furl)
+                        for sf in ssrf_findings:
+                            mission_state.upsert_hypothesis(
+                                hyp_id=f"ssrf:{sf.get('param', '')}:{furl[:50]}",
+                                title=sf.get("title", "SSRF Vulnerability"),
+                                description=sf.get("description", ""),
+                                confidence=sf.get("confidence", 0.5),
+                                status="open",
+                                tags=["ssrf", sf.get("severity", "high")],
+                                evidence=sf,
+                            )
+                        break  # Only test first endpoint with params
+                except Exception as e:
+                    logger.debug(f"SSRF scan integration failed: {e}")
 
                 #  REMEMBER: Store tool result in vector memory
                 remember(

@@ -71,7 +71,7 @@ def get_results_fingerprint(report_dir: str) -> str:
             # or read content for a deep hash. Let's do a fast content sample.
             try:
                 fingerprint_data += f.read_text(encoding="utf-8")[:5000] 
-            except: pass
+            except Exception: pass
             
     if not fingerprint_data:
         return "none"

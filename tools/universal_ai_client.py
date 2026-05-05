@@ -214,7 +214,7 @@ class UniversalAIClient:
         try:
             resp = requests.get("http://localhost:11434/api/tags", timeout=2)
             return resp.status_code == 200
-        except:
+        except Exception:
             return False
 
     def chat(
@@ -396,7 +396,7 @@ class UniversalAIClient:
                         delta = chunk["choices"][0].get("delta", {})
                         if "content" in delta:
                             yield delta["content"]
-                    except:
+                    except Exception:
                         pass
 
     def simple_chat(self, user_message: str, system_prompt: Optional[str] = None) -> str:
@@ -576,7 +576,7 @@ class AIClientManager:
                 # Check if it's currently the active one
                 status["active"] = (self.active_client and self.active_client.provider == p_name)
                 status_list.append(status)
-            except:
+            except Exception:
                 continue
         
         logger.setLevel(original_level)

@@ -105,9 +105,23 @@ def ensure_dependencies():
 def validate_target(target: str) -> bool:
     """Strict domain/IP validation for safety and legal compliance."""
     if not target or len(target) > 253: return False
+    import ipaddress
+    # Strip protocol and path
+    cleaned = target.replace("http://", "").replace("https://", "").split("/")[0]
+    # Block shell metacharacters
+    forbidden = ["|", "&", ";", "`", "$(", ">", "<", "\\", "'", '"', "!", "\n", "\r"]
+    if any(c in cleaned for c in forbidden):
+        return False
+    # Block private/loopback IPs
+    try:
+        ip = ipaddress.ip_address(cleaned)
+        if ip.is_private or ip.is_loopback or ip.is_reserved or ip.is_link_local:
+            return False
+    except ValueError:
+        pass  # Not an IP, continue with domain check
     # Domain and IPv4 Regex
     pattern = r"^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}|^\d{1,3}(\.\d{1,3}){3}$"
-    return bool(re.match(pattern, target.replace("http://", "").replace("https://", "").split("/")[0]))
+    return bool(re.match(pattern, cleaned))
 
 # ── Main Logic ────────────────────────────────────────────────────────────────
 def show_banner():
@@ -1317,33 +1331,11 @@ def main():
             cmd, cmd_args = expanded
             print_success(f"Profile '{args.command}' → elengenix {cmd} {' '.join(cmd_args[:3])}...")
             
-            # Re-route to actual command handler
-            args.command = cmd
-            # args._profile_expanded = True  # Mark as expanded to prevent recursion
-            
-            # Re-process with new command
-            # This is handled by falling through to the next elif blocks
-            # Store original args
-            original_target = args.target
-            args.target = None  # Will be set from cmd_args
-            
-            # Extract target from cmd_args if present
-            for arg in cmd_args:
-                if not arg.startswith("--"):
-                    args.target = arg
-                    break
-            
-            # Apply options
-            for i, arg in enumerate(cmd_args):
-                if arg.startswith("--"):
-                    key = arg[2:].replace("-", "_")
-                    if i + 1 < len(cmd_args) and not cmd_args[i + 1].startswith("--"):
-                        setattr(args, key, cmd_args[i + 1])
-                    else:
-                        setattr(args, key, True)
-            
-            # Now let the actual command handler run
-            # Fall through to the next matching elif
+            # Re-dispatch by building new argv and re-entering main
+            new_argv = [sys.argv[0], cmd] + cmd_args
+            sys.argv = new_argv
+            main()
+            return
 
         # Record successful command in history
         if args.command and args.command != "auto":

@@ -487,7 +487,7 @@ class ConfigWizard:
                     print_success("[bold white]OK[/bold white] Ollama is running!")
                 else:
                     print_warning("Ollama not responding")
-            except:
+            except Exception:
                 print_warning("Ollama not running, run 'ollama serve' first")
             
             # Save to .env
