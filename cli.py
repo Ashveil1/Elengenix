@@ -6,6 +6,7 @@ cli.py — Elengenix AI Partner Mode (v2.0.0)
 - Usage Logging & Rate Limiting
 - Non-blocking input with timeout support
 - Robust Error Handling and Thread-safe Callbacks
+- AI Usage Disclaimer & Consent Tracking (v2.1.0)
 """
 
 import os
@@ -14,6 +15,7 @@ import time
 import select
 import logging
 import threading
+import hashlib
 import warnings
 warnings.filterwarnings("ignore", category=FutureWarning)
 warnings.filterwarnings("ignore", message=".*google.generativeai.*")
@@ -28,7 +30,14 @@ from rich.panel import Panel
 
 from agent import get_agent
 from bot_utils import send_telegram_notification
-from ui_components import console, show_main_banner
+from ui_components import console, show_main_banner, render_sidebar
+from tools.overlay_menu import SettingsOverlay
+
+from rich.live import Live
+from rich.layout import Layout
+from rich.text import Text
+from rich.panel import Panel
+from rich.box import ROUNDED, MINIMAL
 
 # Logging Setup 
 LOG_FILE = Path("data/elengenix_cli.log")
@@ -43,24 +52,117 @@ logging.basicConfig(
 )
 logger = logging.getLogger("elengenix.cli")
 
-# Rate Limiting Configuration 
+# ── AI Disclaimer & Consent Management (v2.1.0) ─────────────────────────
+CONSENT_FILE = Path("data/.ai_consent_accepted")
+
+AI_DISCLAIMER_TEXT = """
+[WARNING] AI SYSTEM DISCLAIMER
+
+AI models generate responses and outputs based on complex algorithms
+and machine learning techniques. Those responses or outputs may be:
+  - Inaccurate or misleading
+  - Harmful or inappropriate
+  - Biased or incomplete
+  - Outdated or incorrect
+
+By using this AI system, you acknowledge and assume the full risk of
+any harm caused by any response or output of the model.
+
+DO NOT upload any information that is:
+  - Confidential or proprietary
+  - Personal data (PII, PHI) unless expressly permitted
+  - Classified or sensitive government information
+  - Insider information subject to trading regulations
+
+All usage is logged for security and audit purposes.
+Your behavior and inputs may be analyzed to prevent misuse.
+Source: Elengenix Security Framework
+"""
+
+def _compute_disclaimer_hash() -> str:
+    """Compute SHA256 of current disclaimer text for version tracking."""
+    return hashlib.sha256(AI_DISCLAIMER_TEXT.encode("utf-8")).hexdigest()[:16]
+
+
+def _has_user_consented() -> bool:
+    """Check if user has accepted the current disclaimer version."""
+    if not CONSENT_FILE.exists():
+        return False
+    try:
+        stored = CONSENT_FILE.read_text(encoding="utf-8").strip()
+        current_hash = _compute_disclaimer_hash()
+        return stored == current_hash
+    except Exception:
+        return False
+
+
+def _record_consent() -> None:
+    """Record that user has accepted the current disclaimer."""
+    try:
+        CONSENT_FILE.write_text(_compute_disclaimer_hash(), encoding="utf-8")
+    except Exception as e:
+        logger.warning(f"Failed to write consent file: {e}")
+
+
+def _remove_consent_record() -> None:
+    """Remove consent record (used for testing or policy updates)."""
+    if CONSENT_FILE.exists():
+        try:
+            CONSENT_FILE.unlink()
+        except Exception:
+            pass
+
+
+def show_ai_disclaimer() -> bool:
+    """
+    Display AI disclaimer and request user consent.
+
+    Returns:
+        True if user accepts, False if user declines.
+    """
+    console.print("\n[bold red]═══════════════════════════════════════════════════[/]")
+    console.print(AI_DISCLAIMER_TEXT)
+    console.print("[bold red]═══════════════════════════════════════════════════[/]\n")
+
+    # Show confirmation prompt 2 times before forcing accept/decline
+    attempts = 0
+    while attempts < 3:
+        response = input("Do you accept these terms? (yes/no): ").strip().lower()
+        if response in ("yes", "y", "accept", "agree"):
+            _record_consent()
+            console.print("[dim]Consent recorded. Proceeding...[/]\n")
+            return True
+        elif response in ("no", "n", "decline", "reject"):
+            console.print("[bold red]You must accept the terms to use the AI features.[/]")
+            return False
+        else:
+            console.print("[yellow]Please enter 'yes' or 'no'.[/]")
+            attempts += 1
+
+    # After 3 failed attempts, block usage
+    console.print("[bold red]Too many invalid attempts. Access denied.[/]")
+    return False
+
+
+# Rate Limiting Configuration (Thread-safe)
 RATE_LIMIT = 5
 RATE_WINDOW = 60
 user_requests = deque()
+_rate_limit_lock = threading.Lock()
 
 def check_rate_limit() -> bool:
-    """Returns True if within global limit for human inputs."""
-    import os
-    rate_limit = int(os.getenv("ELENGENIX_RATE_LIMIT", "40"))
-    rate_window = 60
-    
-    now = time.time()
-    while user_requests and user_requests[0] < now - rate_window:
-        user_requests.popleft()
-    if len(user_requests) >= rate_limit:
-        return False
-    user_requests.append(now)
-    return True
+    """Rate limit checker with thread-safe locking."""
+    with _rate_limit_lock:
+        rate_limit_val = int(os.getenv("ELENGENIX_RATE_LIMIT", "40"))
+        rate_window = 60
+        
+        now = time.time()
+        while user_requests and user_requests[0] < now - rate_window:
+            user_requests.popleft()
+        if len(user_requests) >= rate_limit_val:
+            return False
+        user_requests.append(now)
+        return True
 
 
 def sanitize_input(text: str, max_length: int = 2000) -> str:
@@ -389,8 +491,6 @@ def show_help_panel(console: Console):
     print("└─────────────────────────────────────────────────────────┘")
 
 def main(mode: str = "auto", target: str = None):
-    import os
-    
     in_tmux = os.environ.get("TMUX") is not None
     
     console.clear()
@@ -413,381 +513,1036 @@ def main(mode: str = "auto", target: str = None):
         console.print(f"[bold red] Failed to initialize Agent: {e}[/bold red]")
         return
 
+    # ── AI Disclaimer Consent Check (First Run or Policy Update) ──────────
+    if not _has_user_consented():
+        console.print("[bold yellow]⚠ AI SYSTEM DISCLAIMER (First Time Setup)[/bold yellow]\n")
+        accepted = show_ai_disclaimer()
+        if not accepted:
+            console.print("[bold red]Access denied. You must accept the terms to continue.[/bold red]")
+            console.print("[dim]To re-accept terms later, run: elengenix cli --accept-terms[/dim]")
+            return
+
     # Silence verbose tool/discovery logs during startup for a cleaner UI
     logging.getLogger("elengenix.agent").setLevel(logging.WARNING)
     logging.getLogger("elengenix.brain").setLevel(logging.WARNING)
     
+    # ── Session Management ─────────────────────────────────────────────────
+    from tools.session_manager import get_session_manager
+    session_mgr = get_session_manager()
+    session_mgr.start_session(target=target or "", mode=mode, model="default")
     callback = create_callback(console, use_live_display=in_tmux)
 
-    # Prompt Toolkit Setup
-    from prompt_toolkit.completion import Completer, Completion
+    # ── Persistent Sidebar + Live Layout ────────────────────────────────────
+    from rich.live import Live
+    from rich.layout import Layout
+    from rich.text import Text
+    from rich.panel import Panel
+    from rich.box import MINIMAL
 
-    class SlashCommandCompleter(Completer):
-        def __init__(self, commands):
-            self.commands = commands
+    SIDEBAR_W = 45
+    MAX_CHAT = 50
 
-        def get_completions(self, document, complete_event):
-            text = document.text_before_cursor.lstrip()
-            if not text.startswith('/'):
-                return
+    from rich.console import Group
+
+    class ChatLog:
+        """Thread-safe chat message buffer with styled message panels and scrolling."""
+        def __init__(self, max_messages=50):
+            self._messages: list[dict] = []
+            self._max = max_messages
+            self._lock = threading.Lock()
+            self._thinking = False
+            self._spinner_frames = [
+                "█ ", "▓ ", "▒ ", "░ ", "▒ ", "▓ ",
+            ]
+            self._spinner_idx = 0
+            self._thinking_start = 0
+            self._streaming_text = ""
+            self._streaming_active = False
+            self._streaming_done = False
+            # Scroll state
+            self._scroll_offset = 0
+            self._viewport_lines = 20  # Approximate lines visible in content area
+            self._is_scrolled = False
+            # Paste state
+            self._paste_buffer = ""  # Store full paste text for sending
+
+        def add(self, text: str, role: str = "system"):
+            with self._lock:
+                self._messages.append({"role": role, "text": text})
+                if len(self._messages) > self._max:
+                    self._messages = self._messages[-self._max:]
+                # Auto-reset scroll when new message arrives (unless user is actively scrolling)
+                if not self._is_scrolled:
+                    self._scroll_offset = 0
+
+        def start_streaming(self):
+            with self._lock:
+                self._streaming_text = ""
+                self._streaming_active = True
+                self._streaming_done = False
+                self._thinking = False
+
+        def append_stream(self, chunk: str):
+            with self._lock:
+                if chunk:
+                    self._streaming_text += chunk
+
+        def end_streaming(self):
+            with self._lock:
+                self._streaming_active = False
+                self._streaming_done = True
+                if self._streaming_text:
+                    self._messages.append({"role": "agent", "text": self._streaming_text})
+                    self._streaming_text = ""
+                    # Reset scroll to show latest when streaming ends
+                    if not self._is_scrolled:
+                        self._scroll_offset = 0
+
+        def set_thinking(self, state: bool):
+            with self._lock:
+                self._thinking = state
+
+        def tick_spinner(self):
+            with self._lock:
+                self._spinner_idx = (self._spinner_idx + 1) % len(self._spinner_frames)
+
+        # ─── Scroll Methods ─────────────────────────────────────
+        def scroll_up(self):
+            """Scroll up to see older messages."""
+            with self._lock:
+                max_scroll = max(0, len(self._messages) - self._viewport_lines + 5)
+                if self._scroll_offset < max_scroll:
+                    self._scroll_offset += 1
+                    self._is_scrolled = True
+
+        def scroll_down(self):
+            """Scroll down to see newer messages."""
+            with self._lock:
+                if self._scroll_offset > 0:
+                    self._scroll_offset -= 1
+                    if self._scroll_offset == 0:
+                        self._is_scrolled = False
+
+        def scroll_reset(self):
+            """Reset scroll to show latest messages."""
+            with self._lock:
+                self._scroll_offset = 0
+                self._is_scrolled = False
+
+        def get_scroll_info(self):
+            """Return (is_scrolled, offset, total)."""
+            with self._lock:
+                total = len(self._messages)
+                return self._is_scrolled, self._scroll_offset, total
+
+        def render(self) -> Group:
+            with self._lock:
+                panels = []
                 
-            word = text.split(' ')[0].lower()
-            for cmd in self.commands:
-                if cmd.startswith(word):
-                    yield Completion(cmd, start_position=-len(word))
+                # Calculate visible message range based on scroll
+                total_msgs = len(self._messages)
+                visible_start = max(0, total_msgs - self._viewport_lines - self._scroll_offset)
+                visible_end = total_msgs
+                
+                # If scrolled, show older messages first
+                if self._scroll_offset > 0:
+                    start_idx = max(0, total_msgs - self._viewport_lines - self._scroll_offset)
+                    visible_msgs = self._messages[start_idx:total_msgs]
+                else:
+                    # Show latest messages (most recent at bottom)
+                    visible_msgs = self._messages[-self._viewport_lines:] if total_msgs > self._viewport_lines else self._messages
+                
+                for msg in visible_msgs:
+                    role = msg["role"]
+                    text = msg["text"]
+                    if role == "user":
+                        t = Text.from_markup(text) if text.startswith("[") else Text(text, style="white")
+                        panels.append(Panel(t, box=ROUNDED, border_style="#FF6B6B", title="You", title_align="left", padding=(0, 1), style="on #0a0a0a"))
+                    elif role == "agent":
+                        panels.append(Panel(Markdown(text), box=ROUNDED, border_style="#555555", title="Agent", title_align="left", padding=(0, 1), style="on #0a0a0a"))
+                    elif role == "system":
+                        panels.append(Text.from_markup(text))
+                    elif role == "error":
+                        panels.append(Panel(Text.from_markup(text), box=ROUNDED, border_style="#FF4444", padding=(0, 1), style="on #0a0a0a"))
 
-    commands = ['/clear', '/quit', '/exit', '/help', '/mode', '/target', '/thinking', '/stats', '/resume', '/compress', '/directory']
-    completer = SlashCommandCompleter(commands)
-    
-    style = PTStyle.from_dict({
-        'bottom-toolbar': 'bg:#222222 #aaaaaa',
-    })
-    from prompt_toolkit.filters import Always
-    from prompt_toolkit.key_binding import KeyBindings
+                # Streaming response with spinner animation
+                if self._streaming_active:
+                    display_text = self._streaming_text
+                    if not display_text:
+                        spin = self._spinner_frames[self._spinner_idx % len(self._spinner_frames)]
+                        dots = "." * ((self._spinner_idx // 2) % 4)
+                        display_text = f"{spin} [THINKING{dots}]"
+                    panels.append(Panel(Markdown(display_text), box=ROUNDED, border_style="#555555", title="Agent", title_align="left", padding=(0, 1), style="on #0a0a0a"))
+                elif self._streaming_done and self._streaming_text:
+                    panels.append(Panel(Markdown(self._streaming_text), box=ROUNDED, border_style="#555555", title="Agent", title_align="left", padding=(0, 1), style="on #0a0a0a"))
 
-    kb = KeyBindings()
-    
-    # State variables for mode, model, and thinking (using mutable containers for cross-scope access)
-    mode_state = [mode]  # Index 0 holds current mode
-    model_state = ["default"]  # Index 0 holds current model
-    thinking_state = [False]  # Index 0 holds thinking mode ON/OFF
-    mode_changed = [False]
-    model_changed = [False]
+                if self._thinking:
+                    spin = self._spinner_frames[self._spinner_idx % len(self._spinner_frames)]
+                    dots = "." * ((self._spinner_idx // 2) % 4)
+                    thinking_text = Text()
+                    thinking_text.append(" AGENT ", style="bold white on #0a0a0a")
+                    thinking_text.append(spin, style="bold #FF6B6B on #0a0a0a")
+                    thinking_text.append(f"  THINKING{dots}", style="bold #FF6B6B on #0a0a0a")
+                    panels.append(Panel(thinking_text, box=ROUNDED, border_style="#FF6B6B", padding=(0, 1), style="on #0a0a0a"))
 
-    @kb.add('backspace')
-    def _(event):
-        # Delete character and force completion menu to pop back up
-        event.app.current_buffer.delete_before_cursor(count=1)
-        event.app.current_buffer.start_completion(select_first=False)
+                # Add scroll indicator if scrolled
+                if self._scroll_offset > 0 or total_msgs > self._viewport_lines:
+                    total = total_msgs
+                    current = max(1, total - self._viewport_lines - self._scroll_offset + 1) if self._scroll_offset > 0 else max(1, total - self._viewport_lines + 1)
+                    indicator = f"[dim]▲ Page {self._scroll_offset + 1} │ {current}-{total} messages[/dim]"
+                    panels.append(Panel(Text(indicator, style="dim"), box=MINIMAL, padding=(0, 1), style="on #111111"))
 
-    @kb.add('escape')
-    def _(event):
-        """Handle ESC to abort current session gracefully."""
-        # Raise KeyboardInterrupt to be caught by the outer loop
-        raise KeyboardInterrupt
-    
-    @kb.add('c-r')  # Ctrl+R = Toggle Research Mode ON/OFF
-    def _(event):
-        """Toggle research mode (forces web search for queries)."""
-        event.app.exit()
-        if mode_state[0] == "research":
-            mode_state[0] = "auto"
-            print("→ Research mode: OFF (auto-detect)")
-        else:
-            mode_state[0] = "research"
-            print("→ Research mode: ON (forces web search)")
-        mode_changed[0] = True
-    
-    @kb.add('c-b')  # Ctrl+B = Toggle Scan <-> Normal
-    def _(event):
-        """Toggle between Scan mode and Normal mode."""
-        event.app.exit()
-        if mode_state[0] == "scan":
-            mode_state[0] = "auto"  # Normal = auto/casual/security_chat combined
-            print("→ Mode: NORMAL (chat + security advice)")
-        else:
-            mode_state[0] = "scan"
-            print("→ Mode: SCAN (security testing)")
-        mode_changed[0] = True
-    
-    @kb.add('c-t')  # Ctrl+T = Toggle Thinking Mode ON/OFF
-    def _(event):
-        """Toggle AI thinking mode (shows reasoning)."""
-        event.app.exit()
-        import os
-        current = os.environ.get("NVIDIA_PARAM_MODE", "auto")
-        if current in ["enable", "nemotron"]:
-            os.environ["NVIDIA_PARAM_MODE"] = "disable"
-            thinking_state[0] = False
-            print("→ Thinking mode: OFF")
-        else:
-            os.environ["NVIDIA_PARAM_MODE"] = "enable"
-            thinking_state[0] = True
-            print("→ Thinking mode: ON")
-    
-    @kb.add('c-p')  # Ctrl+P for Model selector  
-    def _(event):
-        """Open model selector menu using run_in_terminal for stability."""
-        from prompt_toolkit.application import run_in_terminal
+                return Group(*panels)
+
+        def clear(self):
+            with self._lock:
+                self._messages.clear()
+
+    chat = ChatLog()
+
+    def _token_count() -> int:
+        if not hasattr(agent, "conversation_history") or not agent.conversation_history:
+            return 0
+        return sum(len(str(m.get("content", ""))) for m in agent.conversation_history) // 4
+
+    def _get_active_model() -> str:
+        active = os.environ.get("ACTIVE_MODELS", "").split(",")
+        active = [m.strip() for m in active if m.strip()]
+        if len(active) >= 2:
+            return f"Team ({len(active)} agents)"
+        if active:
+            return active[0].split("/")[-1] if "/" in active[0] else active[0]
+        if hasattr(agent, "client") and hasattr(agent.client, "active_client"):
+            return getattr(agent.client.active_client, "model", "default")
+        return model_state[0]
+
+    def _sidebar() -> Panel:
+        s = session_mgr.live
+        return render_sidebar(
+            session_name=s.name, mode=s.mode, model=_get_active_model(),
+            token_count=_token_count(), token_limit=s.token_limit,
+            target=s.target, turn_count=s.turn_count, status=s.status,
+            width=SIDEBAR_W,
+        )
+
+    def _header() -> Panel:
+        return Panel(
+            "[bold #FF6B6B] Elengenix AI Agent Framework v3.0.0 [/bold #FF6B6B]"
+            "  [dim #757575]| Ctrl+R: Research  Ctrl+B: Scan  Ctrl+T: Think  Ctrl+P: Models  Ctrl+G: Help  /quit: Exit[/dim #757575]",
+            box=MINIMAL, padding=(0, 1),
+        )
+
+    def _info_input(buf: str, cursor: int) -> Panel:
+        mode_label = {
+            "scan":    "SCAN",
+            "research": "RESEARCH",
+            "security_chat": "SEC-CHAT",
+        }.get(mode_state[0], mode_state[0].upper())
+
+        is_active = mode_state[0] in ("scan", "research")
+        mode_color = "#FF6B6B" if is_active else "#666666"
+
+        # Top section with prompt + cursor blink
+        top = Text()
         
-        def run_selector():
-            result = show_model_selector(console, agent.client)
-            if result:
-                final_team = result
-                
-                # The primary model (Strategist) is always the first one
-                primary = final_team[0]
-                provider_name = primary["provider"]
-                model_name = primary["model"]
-                
-                # Dynamically update the backend agent client
-                if provider_name in agent.client.clients:
-                    agent.client.active_client = agent.client.clients[provider_name]
-                    agent.client.active_client.model = model_name
-                else:
-                    from tools.universal_ai_client import UniversalAIClient
-                    new_client = UniversalAIClient(provider=provider_name, model=model_name)
-                    agent.client.clients[provider_name] = new_client
-                    agent.client.active_client = new_client
-                
-                # Store primary model as string, but keep list in state if needed
-                model_state[0] = model_name
-                
-                # Build the cross-provider ACTIVE_MODELS string
-                models_str = []
-                for agent_dict in final_team:
-                    models_str.append(f"{agent_dict['provider']}/{agent_dict['model']}")
-                
-                os.environ["ACTIVE_AI_PROVIDER"] = provider_name
-                os.environ["ACTIVE_MODELS"] = ",".join(models_str)
-                model_changed[0] = True
-                
-                # Save RPMs and ACTIVE_MODELS to .env
-                from tools.config_wizard import ConfigWizard
-                wizard = ConfigWizard()
-                wizard._save_env_var("ACTIVE_AI_PROVIDER", provider_name)
-                wizard._save_env_var("ACTIVE_MODELS", os.environ["ACTIVE_MODELS"])
-                
-                for agent_dict in final_team:
-                    env_key = f"RPM_{agent_dict['provider'].upper()}_{agent_dict['model'].upper()}"
-                    rpm_val = agent_dict["rpm"]
-                    os.environ[env_key] = rpm_val
-                    wizard._save_env_var(env_key, rpm_val)
-                
-                print(f"→ Team Aegis configuration saved!")
-                print(f"→ Team size: {len(final_team)} agents")
-                for i, agent_dict in enumerate(final_team):
-                    print(f"  [{i+1}] {agent_dict['provider'].upper()} / {agent_dict['model']} ({agent_dict['rpm']} RPM)")
-            
-            # Return cleanly to the prompt without redrawing the massive banner
-
-        run_in_terminal(run_selector)
-    
-    @kb.add('c-g')  # Ctrl+G for Help
-    def _(event):
-        """Show help panel."""
-        event.app.exit()
-        show_help_panel(console)
-
-    session = PromptSession(
-        completer=completer,
-        style=style,
-        key_bindings=kb,
-        complete_while_typing=Always()
-    )
-
-    while True:
-        # Reset change flags
-        mode_changed[0] = False
-        model_changed[0] = False
-        
-        try:
-            # Sticky Bottom Toolbar using prompt_toolkit
-            toolbar_html = get_bottom_toolbar(target, mode_state[0], model_state[0], thinking_state[0])
-            
-            with patch_stdout():
-                raw_input = session.prompt(
-                    HTML('<ansired>Σlengenix</ansired> <ansigray>❯</ansigray> '),
-                    bottom_toolbar=toolbar_html,
-                    style=style,
-                )
-            
-            if raw_input is None:
-                continue
-            
-            raw_input = raw_input.strip()
-            
-            if not raw_input:
-                continue
-
-            if raw_input.lower() in ["/exit", "exit", "quit", "/quit"]:
-                # Print exit summary like Gemini
-                console.print("[dim]▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀[/dim]")
-                console.print("╭──────────────────────────────────────────────────────────────────────────────╮")
-                console.print("│                                                                              │")
-                console.print("│  Agent powering down. Goodbye!                                               │")
-                console.print("│                                                                              │")
-                console.print("│  Interaction Summary                                                         │")
-                console.print("│  Session ID:                 elengenix-auto-session                          │")
-                console.print("│                                                                              │")
-                console.print("│  To resume this session: elengenix cli --resume                              │")
-                console.print("╰──────────────────────────────────────────────────────────────────────────────╯")
-                break
-                
-            if raw_input.lower() == "/clear":
-                console.clear()
-                show_main_banner()
-                continue
-
-            if raw_input.lower() == "/help":
-                print("\nAvailable Commands:")
-                print(" /clear       Clear the screen")
-                print(" /quit        Exit the cli")
-                print(" /mode        Switch agent mode")
-                print(" /target      Set target domain")
-                print(" /thinking    Toggle AI thinking (enable/disable/auto)")
-                print(" /help        Show this help")
-                print("\nKeyboard Shortcuts:")
-                print(" Ctrl+R       Toggle Research [ON/off] - forces web search")
-                print(" Ctrl+B       Toggle Scan [on/OFF] - security testing")
-                print(" Ctrl+T       Toggle Thinking [on/OFF] - show AI reasoning")
-                print(" Ctrl+P       Open model selector (Gemini models)")
-                print(" Ctrl+G       Show keyboard shortcuts help")
-                print(" Escape       Cancel current operation")
-                if in_tmux:
-                    print("\nTmux Shortcuts:")
-                    print(" Ctrl+B ← - Focus left pane (chat)")
-                    print(" Ctrl+B → - Focus right pane (logs)")
-                continue
-
-            if raw_input.lower() == "/mode":
-                selected = show_mode_selector(console)
-                if selected:
-                    mode_state[0] = selected
-                    print(f"Mode set to: {selected}")
-                continue
-
-            if raw_input.lower().startswith("/target"):
-                parts = raw_input.split(" ", 1)
-                if len(parts) > 1:
-                    target = parts[1].strip()
-                    print(f"Target set to: {target}")
-                else:
-                    target = None
-                    print("Target cleared.")
-                continue
-
-            if raw_input.lower().startswith("/thinking"):
-                parts = raw_input.lower().split(" ", 1)
-                valid_modes = ["auto", "nemotron", "enable", "disable", "none"]
-                if len(parts) > 1 and parts[1].strip() in valid_modes:
-                    mode_val = parts[1].strip()
-                    os.environ["NVIDIA_PARAM_MODE"] = mode_val
-                    
-                    # Update .env file as well
-                    env_file = Path(".env")
-                    if env_file.exists():
-                        lines = env_file.read_text(encoding="utf-8").splitlines()
-                        updated = False
-                        for i, line in enumerate(lines):
-                            if line.startswith("NVIDIA_PARAM_MODE="):
-                                lines[i] = f"NVIDIA_PARAM_MODE={mode_val}"
-                                updated = True
-                                break
-                        if not updated:
-                            lines.append(f"NVIDIA_PARAM_MODE={mode_val}")
-                        env_file.write_text("\n".join(lines) + "\n", encoding="utf-8")
-                    
-                    print(f"AI Thinking Mode updated to: {mode_val}")
-                else:
-                    current = os.getenv("NVIDIA_PARAM_MODE", "auto")
-                    print(f"\nCurrent AI Thinking Mode: {current}")
-                    print("Usage: /thinking <mode>")
-                    print("Valid modes: enable, disable, auto, nemotron, none")
-                continue
-
-            if raw_input.lower().startswith("/memory"):
-                from tools.memory_profile import show_memory_summary
-                print("\nPersonal AI Memory Profile")
-                summary = show_memory_summary()
-                print(summary)
-                continue
-            user_query = sanitize_input(raw_input)
-            if not user_query:
-                continue
-
-            if not check_rate_limit():
-                print("Rate Limit reached. Please wait a minute.")
-                continue
-
-            logger.info(f"Query: {user_query[:100]}...")
-
-            try:
-                result_container = {"response": None, "error": None}
-                def run_agent():
-                    try:
-                        # Check for Team Aegis (multi-agent) mode
-                        active_models = os.environ.get("ACTIVE_MODELS", "").split(",")
-                        active_models = [m.strip() for m in active_models if m.strip()]
-                        
-                        if len(active_models) >= 2 and target and mode_state[0] in ("scan", "bug_bounty"):
-                            # Team Aegis: Multi-agent collaboration
-                            print("Team Aegis engaged! Multiple agents collaborating...")
-                            result_container["response"] = agent.process_team_scan(
-                                user_query,
-                                model_names=active_models,
-                                target=target,
-                                callback=callback,
-                            )
-                        else:
-                            result_container["response"] = agent.process_universal(
-                                user_query,
-                                callback=callback,
-                                target=target,
-                                mode=mode_state[0],
-                            )
-                    except Exception as ex:
-                        import traceback
-                        traceback.print_exc()
-                        result_container["error"] = ex
-
-                print("Agent is thinking...")
-                agent_thread = threading.Thread(target=run_agent)
-                agent_thread.daemon = True
-                agent_thread.start()
-                
-                # Check for ESC or Ctrl+C while waiting
-                try:
-                    import select
-                    while agent_thread.is_alive():
-                        # Non-blocking check for ESC key (hex 1b)
-                        if sys.platform != "win32":
-                            dr, dw, de = select.select([sys.stdin], [], [], 0.1)
-                            if dr:
-                                char = sys.stdin.read(1)
-                                if char == '\x1b': # ESC
-                                    console.print("\n[dim]→ Thinking stopped by ESC.[/dim]")
-                                    break
-                        else:
-                            agent_thread.join(timeout=0.1)
-                except KeyboardInterrupt:
-                    console.print("\n[dim]→ Thinking aborted by user.[/dim]")
-                    # Continue to prompt
-                
-                # If thread is still alive, we interrupted the wait
-                if agent_thread.is_alive():
-                    continue
-
-                if result_container["error"]:
-                    print(f"Error: {result_container['error']}")
-                    continue
-
-                response = result_container["response"]
-                if not response:
-                    print("No response from agent (API key issue?)")
-                    continue
-                    
-                logger.info(f"Agent finished query successfully.")
-                print("-" * 80)
-                print(response)
-                print("-" * 80)
-            except Exception as e:
-                import traceback
-                traceback.print_exc()
-
-        except KeyboardInterrupt:
-            console.print("\n[dim]Interrupted by user. Type /quit to exit.[/dim]")
-        except EOFError:
-            break
-        except Exception as e:
-            logger.error(f"Unexpected CLI error: {e}")
-            error_msg = str(e).lower()
-            if "api key" in error_msg or "provider" in error_msg:
-                console.print(f"\n[bold yellow]⚠ AI Provider Issue:[/bold yellow] Please check your API keys or quota.\n[dim]Details: {str(e)[:150]}[/dim]")
-            elif "quota" in error_msg or "rate limit" in error_msg:
-                console.print(f"\n[bold yellow]⚠ Quota Exceeded:[/bold yellow] You may have reached your AI usage limits.\n[dim]Details: {str(e)[:150]}[/dim]")
+        # Paste indicator at start
+        if buf.startswith("[Pasted ~"):
+            top.append(buf, style="bold #44FF44 on #0a0a0a")
+            # Add newline and info below
+            top.append("\n")
+            top.append("  ", style="on #0a0a0a")
+            top.append("\n")
+            top.append("  ", style="on #0a0a0a")
+            top.append("\n")
+        else:
+            # Check if paste indicator mode
+            if buf.startswith("[Pasted ~") and buf.endswith("L]"):
+                top.append(buf, style="bold #44FF44 on #0a0a0a")
+                # Show cursor at end
+                top.append("▌", style="bold blink #44FF44 on #0a0a0a")
             else:
-                console.print(f"\n[bold yellow]⚠ Notice:[/bold yellow] {str(e)[:150]}")
+                top.append(" Σlengenix ❭ ", style="bold #FF6B6B on #0a0a0a")
+                if not buf:
+                    top.append("▌", style="bold blink #FF6B6B on #0a0a0a")
+                else:
+                    cur = min(cursor, len(buf))
+                    before = buf[:cur]
+                    after = buf[cur:]
+                    cursor_char = after[0] if after else "▌"
+                    remaining = after[1:] if after else ""
+                    top.append(before, style="white on #0a0a0a")
+                    top.append(cursor_char, style="bold blink white on #FF6B6B")
+                    if remaining:
+                        top.append(remaining, style="white on #0a0a0a")
+
+        top.append("\n")
+        top.append("  ", style="on #0a0a0a")
+        top.append("\n")
+        top.append("  ", style="on #0a0a0a")
+        top.append("\n")
+
+        # Info bar at bottom
+        bottom = Text()
+        bottom.append(" MODE ", style="bold #cccccc on #111111")
+        bottom.append(f" {mode_label} ", style=f"bold {mode_color} on #111111")
+        if thinking_state[0]:
+            bottom.append(" THINK ", style="bold #FF6B6B on #111111")
+        # Normal input (paste shows full text in input area now)
+        else:
+            bottom.append("      ", style="dim #777777 on #111111")
+        bottom.append(" TARGET ", style="bold #cccccc on #111111")
+        bottom.append(f" {target or '—'} ", style=f"bold {mode_color} on #111111")
+
+        combined = Text()
+        combined.append(top)
+        combined.append(bottom)
+
+        return Panel(combined, box=ROUNDED, border_style="#111111", padding=(0, 1), style="on #0a0a0a")
+
+    # ── Raw terminal input (replaces prompt_toolkit for Live compatibility) ─
+    import termios
+    import tty
+
+    class RawTerm:
+        def __enter__(self):
+            if sys.stdin.isatty():
+                self._old = termios.tcgetattr(sys.stdin.fileno())
+                tty.setcbreak(sys.stdin.fileno())
+            return self
+        def __exit__(self, *a):
+            if sys.stdin.isatty():
+                termios.tcsetattr(sys.stdin.fileno(), termios.TCSADRAIN, self._old)
+
+        def read_char(self, timeout=0.05):
+            try:
+                r, _, _ = select.select([sys.stdin], [], [], timeout)
+                return sys.stdin.read(1) if r else None
+            except (ValueError, OSError):
+                return None
+
+    # ── Command processor ───────────────────────────────────────────────────
+    mode_state = [mode]
+    model_state = ["default"]
+    thinking_state = [False]
+
+    def process_cmd(cmd: str):
+        nonlocal target
+        cmd = cmd.strip()
+        if not cmd:
+            return
+
+        chat.add(cmd, role="user")
+
+        if cmd.lower() in ("/exit", "/quit", "exit", "quit"):
+            chat.add("[dim]Agent powering down. Goodbye![/dim]")
+            raise EOFError("exit")
+
+        if cmd.lower() == "/clear":
+            chat.clear()
+            chat.add("[dim]Screen cleared. History preserved.[/dim]")
+            return
+
+        if cmd.lower() == "/reset":
+            chat.clear()
+            chat.add("[dim]Screen cleared. History reset.[/dim]")
+            if hasattr(agent, "clear_conversation_history"):
+                agent.clear_conversation_history()
+            session_mgr.live.turn_count = 0
+            session_mgr.live.token_count = 0
+            return
+
+        if cmd.lower() == "/help":
+            chat.add("")
+            chat.add("[bold #FF6B6B]Commands:[/bold #FF6B6B]")
+            chat.add("  /clear       Clear screen (keep history)")
+            chat.add("  /reset       Clear screen + reset history")
+            chat.add("  /quit        Exit")
+            chat.add("  /mode        Switch agent mode")
+            chat.add("  /target X    Set target domain")
+            chat.add("  /thinking X  Toggle AI thinking (enable/disable/auto)")
+            chat.add("  /stats       Reflection & memory stats")
+            chat.add("  /save [name] Save session")
+            chat.add("  /load [name] Load session")
+            chat.add("  /compress    Compress history (save tokens)")
+            chat.add("  /skills      List available & missing tools")
+            chat.add("  /install [X] Install a missing tool")
+            chat.add("  /team [X,X]  View or configure multi-agent team")
+            chat.add("")
+            chat.add("[bold #FF6B6B]Shortcuts:[/bold #FF6B6B]")
+            chat.add("  Ctrl+R  Research  |  Ctrl+B  Scan  |  Ctrl+T  Think")
+            chat.add("  Ctrl+P  Models    |  Ctrl+G  Help  |  Ctrl+C  Exit")
+            chat.add("  ↑/↓     History   |  Tab     Slash-complete")
+            return
+
+        if cmd.lower().startswith("/target"):
+            parts = cmd.split(" ", 1)
+            if len(parts) > 1:
+                target = parts[1].strip()
+                session_mgr.live.target = target
+                chat.add(f"[dim]Target: {target}[/dim]")
+            else:
+                target = None
+                session_mgr.live.target = ""
+                chat.add("[dim]Target cleared.[/dim]")
+            return
+
+        if cmd.lower().startswith("/thinking"):
+            parts = cmd.split(" ", 1)
+            valid = ["auto", "nemotron", "enable", "disable", "none"]
+            if len(parts) > 1 and parts[1].strip() in valid:
+                os.environ["NVIDIA_PARAM_MODE"] = parts[1].strip()
+                thinking_state[0] = parts[1].strip() in ("enable", "nemotron")
+                chat.add(f"[dim]Thinking: {parts[1].strip()}[/dim]")
+            else:
+                cur = os.getenv("NVIDIA_PARAM_MODE", "auto")
+                chat.add(f"[dim]Thinking: {cur}. Modes: {', '.join(valid)}[/dim]")
+            return
+
+        if cmd.lower() == "/mode":
+            modes = [("auto","Auto-detect"),("research","Research"),("security_chat","Security Chat"),("scan","Scan"),("casual","Casual")]
+            chat.add("[bold #FF6B6B]Modes (type /mode <name>):[/bold #FF6B6B]")
+            for k, v in modes:
+                chat.add(f"  {v} {'← current' if k == mode_state[0] else ''}")
+            return
+
+        if cmd.lower().startswith("/mode "):
+            val = cmd.split(" ", 1)[1].strip()
+            valid_modes = ["auto", "research", "security_chat", "scan", "casual"]
+            if val in valid_modes:
+                mode_state[0] = val
+                session_mgr.live.mode = val
+                chat.add(f"[dim]Mode: {val}[/dim]")
+            else:
+                chat.add(f"[dim]Invalid mode. Valid: {', '.join(valid_modes)}[/dim]")
+            return
+
+        if cmd.lower().startswith("/save"):
+            parts = cmd.split(" ", 1)
+            sname = parts[1].strip() if len(parts) > 1 else ""
+            ok = session_mgr.save_session(sname, agent)
+            chat.add(f"[dim]Session {'saved' if ok else 'failed'}: '{session_mgr.live.name}'[/dim]")
+            return
+
+        if cmd.lower().startswith("/load"):
+            parts = cmd.split(" ", 1)
+            sname = parts[1].strip() if len(parts) > 1 else ""
+            if not sname:
+                chat.add(session_mgr.format_session_list())
+                return
+            info = session_mgr.resume_session(sname, agent)
+            if info:
+                chat.add(f"[dim]Loaded '{sname}' ({info['turns']} turns)[/dim]")
+                if info.get("target"):
+                    target = info["target"]
+                    session_mgr.live.target = target
+                mode_state[0] = info.get("mode", "auto")
+                session_mgr.live.mode = mode_state[0]
+            else:
+                chat.add(f"[dim]Not found: '{sname}'[/dim]")
+            return
+
+        if cmd.lower().startswith("/stats"):
+            from tools.agent_reflection import get_reflection
+            from tools.vector_memory import get_vector_memory
+            refl = get_reflection()
+            st = refl.get_reflection_stats()
+            chat.add(f"[bold #FF6B6B]Reflection:[/bold #FF6B6B] Total={st.get('total',0)} Neg={st.get('negative',0)} Pos={st.get('positive',0)}")
+            try:
+                vm = get_vector_memory()
+                vs = vm.get_memory_stats()
+                chat.add(f"[bold #FF6B6B]Memory:[/bold #FF6B6B] Entries={vs.get('total_memories',0)} Targets={vs.get('unique_targets',0)}")
+            except Exception as e:
+                chat.add(f"[dim]Vector memory unavailable: {e}[/dim]")
+            return
+
+        if cmd.lower().startswith("/compress"):
+            from tools.context_compressor import get_compressor
+            agg = "aggressive" in cmd.lower()
+            if hasattr(agent, "conversation_history") and agent.conversation_history:
+                comp = get_compressor(aggressive=agg)
+                ch = comp.compress_and_return_history(agent.conversation_history)
+                orig = len(agent.conversation_history)
+                agent.conversation_history = ch
+                chat.add(f"[dim]Compressed: {orig} → {len(ch)} turns{' (aggressive)' if agg else ''}[/dim]")
+            else:
+                chat.add("[dim]No history.[/dim]")
+            return
+
+        if cmd.lower() == "/accept-terms":
+            _remove_consent_record()
+            chat.add("[dim]Consent cleared. Re-showing disclaimer...[/dim]")
+            return
+
+        if cmd.lower() == "/skills":
+            try:
+                from tools.skill_registry import get_skill_registry
+                registry = get_skill_registry()
+                available = registry.get_available_skills()
+                missing = registry.get_missing_skills()
+                chat.add("[bold #FF6B6B]Skills:[/bold #FF6B6B]")
+                if available:
+                    chat.add(f"[dim]READY ({len(available)}):[/dim]")
+                    for s in available:
+                        chat.add(f"  [green]{s.name}[/green]: {s.description}")
+                if missing:
+                    chat.add(f"[dim]MISSING ({len(missing)}):[/dim]")
+                    for s in missing:
+                        chat.add(f"  [red]{s.name}[/red]: {s.description}  [dim](install: {s.install_command})[/dim]")
+                if not available and not missing:
+                    chat.add("[dim]No skills registered.[/dim]")
+            except ImportError:
+                chat.add("[dim]Skill registry not available.[/dim]")
+            return
+
+        if cmd.lower().startswith("/install"):
+            segments = cmd.split()
+            parts = cmd.split(" ", 2)
+            # /install → list missing tools
+            if len(parts) < 2 or not parts[1].strip():
+                try:
+                    from tools.skill_registry import get_skill_registry
+                    registry = get_skill_registry()
+                    missing = registry.get_missing_skills()
+                    if missing:
+                        chat.add("[bold #FF6B6B]Installable tools:[/bold #FF6B6B]")
+                        for s in missing:
+                            chat.add(f"  /install {s.name}: {s.description}")
+                    else:
+                        chat.add("[dim]All known tools are already installed.[/dim]")
+                except ImportError:
+                    chat.add("[dim]Skill registry not available.[/dim]")
+                return
+
+            sub = parts[1].strip().lower()
+            # /install confirm <tool>
+            if sub == "confirm" and len(parts) == 3:
+                tool_name = parts[2].strip()
+                try:
+                    from tools.install_request import get_install_manager
+                    from tools.skill_registry import get_skill_registry
+                    mgr = get_install_manager()
+                    registry = get_skill_registry()
+                    pending = mgr.get_pending_requests()
+                    req = None
+                    for r in pending:
+                        if r.tool_name == tool_name:
+                            req = r
+                            break
+                    if not req:
+                        chat.add(f"[dim]No pending install request for: {tool_name}[/dim]")
+                        return
+                    chat.add(f"[dim]Installing {tool_name}...[/dim]")
+                    success = mgr.confirm_install(req)
+                    if success:
+                        chat.add(f"[OK] Installed: {tool_name}")
+                    else:
+                        chat.add(f"[FAIL] Could not install {tool_name}. Manual: {req.install_command}[/dim]")
+                except Exception as e:
+                    chat.add(f"[dim]Error: {e}[/dim]")
+                return
+            # /install <tool>
+            tool_name = parts[1].strip()
+            try:
+                from tools.skill_registry import get_skill_registry
+                registry = get_skill_registry()
+                skill = registry.skills.get(tool_name)
+                if not skill:
+                    chat.add(f"[dim]Unknown tool: {tool_name}. Use /skills to list available tools.[/dim]")
+                    return
+                if skill.status.value == "available":
+                    chat.add(f"[dim]{tool_name} is already installed.[/dim]")
+                    return
+                if hasattr(agent, 'request_tool_install'):
+                    result = agent.request_tool_install(tool_name, ask_first=True)
+                    chat.add(f"[INFO] {result}")
+                else:
+                    success = registry.request_install(tool_name)
+                    if success:
+                        chat.add(f"[green][OK] Installed: {tool_name}[/green]")
+                    else:
+                        chat.add(f"[red][FAIL] Could not install {tool_name}. Manual: {skill.install_command}[/red]")
+            except ImportError:
+                chat.add("[dim]Skill registry not available.[/dim]")
+            return
+
+        # Global short-answer: y/yes or n/no for pending installs (anytime)
+        lower_trim = cmd.strip().lower()
+        if lower_trim in ('y', 'yes', 'n', 'no', 'nvm', 'cancel'):
+            from tools.install_request import get_install_manager
+            mgr = get_install_manager()
+            pending = mgr.get_pending_requests()
+            if pending:
+                req = pending[0]
+                if lower_trim in ('n', 'no', 'nvm', 'cancel'):
+                    chat.add(f"[dim]Cancelled install for: {req.tool_name}[/dim]")
+                    return
+                if lower_trim in ('y', 'yes'):
+                    chat.add(f"[dim]Installing {req.tool_name}...[/dim]")
+                    success = mgr.confirm_install(req)
+                    if success:
+                        chat.add(f"[OK] Installed: {req.tool_name}")
+                    else:
+                        chat.add(f"[FAIL] Could not install {req.tool_name}. Manual: {req.install_command}[/dim]")
+                    return
+        if cmd.lower() == "/team":
+            active = [m.strip() for m in os.environ.get("ACTIVE_MODELS", "").split(",") if m.strip()]
+            if not active:
+                chat.add("[dim]No team configured. Use /team <model1,model2,model3> to set up a team.[/dim]")
+                # Show current model
+                if hasattr(agent, "client") and hasattr(agent.client, "active_client"):
+                    chat.add(f"[dim]Current model: {agent.client.active_client.model}[/dim]")
+                return
+
+            # Remove trailing comma from env var
+            active = [m for m in active if m and m != ","]
+            if len(active) < 2:
+                chat.add(f"[dim]Team needs 2-3 models. Currently using: {active}. Use /team model1,model2,model3[/dim]")
+                return
+
+            chat.add("[bold #FF6B6B]TEAM AEGIS DASHBOARD:[/bold #FF6B6B]")
+            roles = ["Strategist", "Recon Lead", "Exploit Analyst"]
+            for i, m in enumerate(active):
+                role = roles[i] if i < len(roles) else f"Agent {i+1}"
+                prov = "?"
+                if "/" in m:
+                    parts2 = m.split("/", 1)
+                    prov, mod = parts2[0], parts2[1]
+                else:
+                    mod = m
+                    prov = os.environ.get("ACTIVE_AI_PROVIDER", "?")
+                chat.add(f"  [{role}] {prov}/{mod}  [dim](status: ready)[/dim]")
+
+            chat.add(f"[dim]   Target: {target or 'not set'}[/dim]")
+            chat.add(f"[dim]   Mode: {mode_state[0]}[/dim]")
+            chat.add(f"[dim]   Use /quit to exit, any message to start team scan[/dim]")
+            return
+
+        # /team with arguments (comma-separated models)
+        if cmd.lower().startswith("/team "):
+            parts = cmd.split(" ", 1)
+            models_str = parts[1].strip() if len(parts) > 1 else ""
+            if not models_str:
+                return
+            from tools.universal_ai_client import AIClientManager
+            manager = AIClientManager()
+            # Auto-detect providers from model names
+            resolved = []
+            for m in models_str.split(","):
+                m = m.strip()
+                if not m:
+                    continue
+                if "/" in m:
+                    resolved.append(m)
+                else:
+                    prov = manager._detect_provider(m) if hasattr(manager, '_detect_provider') else "gemini"
+                    resolved.append(f"{prov}/{m}")
+            os.environ["ACTIVE_MODELS"] = ",".join(resolved)
+            chat.add(f"[dim]Team configured: {', '.join(resolved)}[/dim]")
+            if target and mode_state[0] == "scan":
+                chat.add("[dim]Ready for team scan. Start by asking about the target.[/dim]")
+            else:
+                chat.add("[dim]Set target and switch to scan mode for team operations.[/dim]")
+            return
+
+        # ── Send query to agent ─────────────────────────────────────────────
+        user_query = sanitize_input(cmd)
+        if not user_query:
+            return
+        if not check_rate_limit():
+            chat.add("Rate limit reached. Wait a moment.", role="error")
+            return
+
+        session_mgr.set_status("thinking")
+        chat.set_thinking(True)
+
+        # For simple chat, use direct streaming via UniversalAIClient
+        is_simple_chat = (not target and mode_state[0] in ("auto", "security_chat", "casual"))
+
+        if is_simple_chat:
+            chat.set_thinking(False)
+            chat.start_streaming()
+
+            def _stream_run():
+                try:
+                    from tools.universal_ai_client import UniversalAIClient, AIMessage
+
+                    # Reuse the agent's already-configured active client
+                    active_client = None
+                    if hasattr(agent, "client"):
+                        mgr = agent.client
+                        if hasattr(mgr, "active_client") and mgr.active_client is not None:
+                            active_client = mgr.active_client
+                        elif isinstance(mgr, UniversalAIClient):
+                            active_client = mgr
+
+                    if active_client is None:
+                        # Fallback: create new client using same env vars
+                        active = [m.strip() for m in os.environ.get("ACTIVE_MODELS", "").split(",") if m.strip()]
+                        model = active[0] if active else "nvidia/nemotron-3-super-120b-a12b"
+                        provider = model.split("/")[0] if "/" in model else "nvidia"
+                        active_client = UniversalAIClient(model=model, provider=provider)
+
+                    url = active_client.base_url.rstrip('/') + '/chat/completions'
+
+                    # Build system prompt from context
+                    system_prompt = "You are Elengenix AI Agent Framework, a security research assistant. Be concise and helpful."
+
+                    payload = {
+                        "model": active_client.model,
+                        "messages": [
+                            {"role": "system", "content": system_prompt},
+                            {"role": "user", "content": user_query},
+                        ],
+                        "temperature": 0.7,
+                        "max_tokens": 4096,
+                        "stream": True,
+                    }
+
+                    # NVIDIA-specific parameters
+                    if active_client.provider == "nvidia":
+                        param_mode = os.environ.get("NVIDIA_PARAM_MODE", "auto")
+                        model_lower = active_client.model.lower()
+                        if param_mode == "nemotron" or (param_mode == "auto" and "nemotron" in model_lower):
+                            payload["chat_template_kwargs"] = {"enable_thinking": True}
+                            payload["reasoning_budget"] = min(4096, 16384)
+
+                    full_response = []
+                    for chunk in active_client._stream_response(url, payload):
+                        if chunk:
+                            chat.append_stream(chunk)
+                            full_response.append(chunk)
+
+                    chat.end_streaming()
+                    session_mgr.update_turn()
+                    session_mgr.set_status("ready")
+                except Exception as ex:
+                    chat.end_streaming()
+                    chat.add(f"Error: {ex}", role="error")
+                    session_mgr.set_status("error")
+
+            t = threading.Thread(target=_stream_run, daemon=True)
+            t.start()
+            return
+
+        # For scan/research, use the full agent (non-streaming)
+        # Auto-detect if team mode should be used
+        is_scan_mode = mode_state[0] in ("scan", "bug_bounty")
+        active_models = [m.strip() for m in os.environ.get("ACTIVE_MODELS", "").split(",") if m.strip()]
+        # If user configured multiple models (via /team or env), use team
+        use_team = is_scan_mode and target and len(active_models) >= 2
+        
+        if use_team:
+            chat.add(f"[dim]Auto team mode: {len(active_models)} agents[/dim]")
+
+        try:
+            result = {"resp": None, "err": None}
+            def _run():
+                try:
+                    active = [m.strip() for m in os.environ.get("ACTIVE_MODELS", "").split(",") if m.strip()]
+                    if len(active) >= 2 and target and mode_state[0] in ("scan", "bug_bounty"):
+                        result["resp"] = agent.process_team_scan(user_query, model_names=active, target=target, callback=callback)
+                    else:
+                        result["resp"] = agent.process_universal(user_query, callback=callback, target=target, mode=mode_state[0])
+                except Exception as ex:
+                    import traceback; traceback.print_exc()
+                    result["err"] = ex
+
+            t = threading.Thread(target=_run, daemon=True)
+            t.start()
+            t.join(timeout=120)
+
+            if t.is_alive():
+                chat.add("Response timed out.", role="error")
+                session_mgr.set_status("error")
+                chat.set_thinking(False)
+                return
+            if result["err"]:
+                chat.add(f"Error: {result['err']}", role="error")
+                session_mgr.set_status("error")
+                chat.set_thinking(False)
+                return
+
+            resp = result["resp"]
+            chat.set_thinking(False)
+            if resp:
+                chat.add(resp, role="agent")
+                session_mgr.update_turn()
+                session_mgr.set_status("ready")
+            else:
+                chat.add("No response.", role="error")
+                session_mgr.set_status("error")
+        except Exception as e:
+            chat.add(f"Error: {e}", role="error")
+            session_mgr.set_status("error")
+            chat.set_thinking(False)
+
+    # ── Key handler ─────────────────────────────────────────────────────────
+    SLASH_CMDS = ["/exit", "/quit", "/clear", "/reset", "/help", "/mode",
+                  "/target", "/thinking", "/save", "/load", "/stats", "/compress", "/accept-terms",
+                  "/install", "/team", "/skills"]
+    ARROW = {"[A": "UP", "[B": "DOWN", "[C": "RIGHT", "[D": "LEFT"}
+    PAGE = {"[5~": "PAGEUP", "[6~": "PAGEDOWN"}  # Page Up / Page Down
+
+    def handle_key(ch, buf, cur_pos, history, hidx):
+        """Returns (new_buf, new_cur_pos, new_hidx, consumed). consumed=True means exit."""
+        if ch is None:
+            return buf, cur_pos, hidx, False
+        # Escape seq
+        if ch == '\x1b':
+            s1 = raw.read_char(0.05) or ""
+            if s1 == "[":
+                s2 = raw.read_char(0.05) or ""
+                act = ARROW.get(s2)
+                page_act = PAGE.get(s2)
+                if act == "UP" and history:
+                    hidx = max(0, hidx - 1); buf = history[hidx]; cur_pos = len(buf)
+                elif act == "DOWN" and history:
+                    hidx = min(len(history)-1, hidx+1); buf = history[hidx]; cur_pos = len(buf)
+                elif act == "LEFT":
+                    cur_pos = max(0, cur_pos - 1)
+                elif act == "RIGHT":
+                    cur_pos = min(len(buf), cur_pos + 1)
+                elif page_act == "PAGEUP":
+                    chat.scroll_up()
+                    return buf, cur_pos, hidx, False
+                elif page_act == "PAGEDOWN":
+                    chat.scroll_down()
+                    return buf, cur_pos, hidx, False
+            return buf, cur_pos, hidx, False
+
+        if ch == '\x03' or ch == '\x04':
+            chat.add("[dim]Session ended. Goodbye![/dim]")
+            return buf, cur_pos, hidx, True  # exit
+
+        if ch == '\x07':  # Ctrl+G help
+            chat.add(""); chat.add("[bold #FF6B6B]Shortcuts:[/bold #FF6B6B]")
+            chat.add("  Ctrl+R  Research  |  Ctrl+B  Scan  |  Ctrl+T  Think")
+            chat.add("  Ctrl+P  Models    |  Ctrl+G  Help  |  Ctrl+C  Exit")
+            chat.add("  ↑/↓     History   |  Tab     Complete")
+            chat.add("  PgUp   Scroll Up  |  PgDn   Scroll Down")
+            return buf, cur_pos, hidx, False
+
+        if ch == '\x12':  # Ctrl+R research
+            if mode_state[0] == "research":
+                mode_state[0] = "auto"; session_mgr.live.mode = "auto"
+                chat.add("[dim]Research: OFF[/dim]")
+            else:
+                mode_state[0] = "research"; session_mgr.live.mode = "research"
+                chat.add("[dim]Research: ON[/dim]")
+            return buf, cur_pos, hidx, False
+
+        if ch == '\x02':  # Ctrl+B scan
+            if mode_state[0] == "scan":
+                mode_state[0] = "auto"; session_mgr.live.mode = "auto"
+                chat.add("[dim]Mode: NORMAL[/dim]")
+            else:
+                mode_state[0] = "scan"; session_mgr.live.mode = "scan"
+                chat.add("[dim]Mode: SCAN[/dim]")
+            return buf, cur_pos, hidx, False
+
+        if ch == '\x14':  # Ctrl+T think
+            cur = os.environ.get("NVIDIA_PARAM_MODE", "auto")
+            if cur in ("enable", "nemotron"):
+                os.environ["NVIDIA_PARAM_MODE"] = "disable"; thinking_state[0] = False
+                chat.add("[dim]Thinking: OFF[/dim]")
+            else:
+                os.environ["NVIDIA_PARAM_MODE"] = "enable"; thinking_state[0] = True
+                chat.add("[dim]Thinking: ON[/dim]")
+            return buf, cur_pos, hidx, False
+
+        if ch == '\x10':  # Ctrl+P model info
+            am = os.environ.get("ACTIVE_MODELS", "")
+            chat.add(f"[dim]Active models: {am or model_state[0]}[/dim]")
+            return buf, cur_pos, hidx, False
+
+        # Scroll keys: j/k (vim-style) or Ctrl+U/D
+        if ch == 'j' and not buf:
+            chat.scroll_down()
+            return buf, cur_pos, hidx, False
+        if ch == 'k' and not buf:
+            chat.scroll_up()
+            return buf, cur_pos, hidx, False
+        if ch == '\x15':  # Ctrl+U = scroll up
+            for _ in range(3): chat.scroll_up()
+            return buf, cur_pos, hidx, False
+        if ch == '\x04':  # Ctrl+D = scroll down
+            for _ in range(3): chat.scroll_down()
+            return buf, cur_pos, hidx, False
+
+        # Ctrl+E = Settings Overlay
+        if ch == '\x05':
+            # Pause Live and open settings overlay
+            live.stop()
+            try:
+                overlay = SettingsOverlay(agent, console, target=target)
+                result = overlay.run()
+                if result == "saved":
+                    chat.add("[OK] Settings saved. Agent reloaded.", role="system")
+                elif result == "error":
+                    chat.add("[WARN] Failed to save settings. Check logs.", role="error")
+                else:
+                    chat.add("[dim]Settings cancelled.[/dim]", role="system")
+            except Exception as e:
+                chat.add(f"[ERROR] Overlay error: {e}", role="error")
+            finally:
+                live.start()
+            return buf, cur_pos, hidx, False
+
+        # Paste buffer state (module-level for handle_key)
+        if not hasattr(handle_key, '_paste_raw_buffer'):
+            handle_key._paste_raw_buffer = ""
+        if not hasattr(handle_key, '_is_pasting'):
+            handle_key._is_pasting = False
+        if not hasattr(handle_key, '_last_key_time'):
+            handle_key._last_key_time = time.time()
+
+        # Track timing for paste detection
+        current_time = time.time()
+        time_since_last = current_time - handle_key._last_key_time
+        handle_key._last_key_time = current_time
+
+        # Detect paste via rapid input (characters arriving < 5ms apart AND multiple lines)
+        if time_since_last < 0.05 and not handle_key._is_pasting:
+            # Start monitoring for rapid-fire paste
+            if buf.count('\n') >= 2:
+                handle_key._is_pasting = True
+
+        # Enter key - send on \r or \n
+        if ch == '\r' or ch == '\n':
+            # If paste indicator mode (shown in buffer), send full pasted text
+            if buf.startswith("[Pasted ~"):
+                full_text = getattr(handle_key, '_paste_content', '')
+                if full_text and full_text.strip():
+                    history.append(full_text); hidx = len(history)
+                    process_cmd(full_text)
+                handle_key._paste_content = ""
+                handle_key._is_pasting = False
+                handle_key._paste_raw_buffer = ""
+                return "", 0, hidx, False
+            
+            # If actively pasting (detected rapid input), add newline instead of sending
+            if handle_key._is_pasting:
+                handle_key._is_pasting = False  # Reset for next detection
+                buf = buf[:cur_pos] + '\n' + buf[cur_pos:]
+                cur_pos += 1
+                return buf, cur_pos, hidx, False
+            
+            # If buffer has 5+ newlines (likely paste), display indicator
+            if buf.count('\n') >= 5:
+                handle_key._paste_content = buf
+                line_count = buf.count('\n') + 1
+                buf = f"[Pasted ~{line_count}L]"
+                cur_pos = len(buf)
+                return buf, cur_pos, hidx, False
+            
+            # If buffer has newlines but < 5, require double Enter to send
+            if buf.count('\n') >= 1:
+                line_parts = buf.split('\n')
+                last_line = lines[-1] if lines else ""
+                if not last_line.strip():
+                    # Second Enter on empty line = send
+                    if buf.strip():
+                        history.append(buf); hidx = len(history)
+                        process_cmd(buf)
+                        return "", 0, hidx, False
+                else:
+                    # First Enter on non-empty line = add newline
+                    buf = buf[:cur_pos] + '\n' + buf[cur_pos:]
+                    cur_pos += 1
+                    return buf, cur_pos, hidx, False
+            
+            # Normal single-line: send
+            if buf.strip():
+                history.append(buf); hidx = len(history)
+                process_cmd(buf)
+                return "", 0, hidx, False
+            
+            return "", 0, hidx, False
+
+        if ch in ('\x7f', '\x08'):
+            if cur_pos > 0:
+                buf = buf[:cur_pos-1] + buf[cur_pos:]; cur_pos -= 1
+            return buf, cur_pos, hidx, False
+
+        if ch == '\t':
+            if buf.startswith("/"):
+                word = buf.split(" ")[0]
+                matches = [c for c in SLASH_CMDS if c.startswith(word)]
+                if len(matches) == 1:
+                    buf = matches[0] + " "; cur_pos = len(buf)
+                elif len(matches) > 1:
+                    chat.add("")
+                    for m in matches:
+                        chat.add(f"[bold #FF6B6B]{m}[/bold #FF6B6B]")
+                    chat.add("[dim]Press Tab to select[/dim]")
+            return buf, cur_pos, hidx, False
+
+        if ord(ch) >= 32:
+            buf = buf[:cur_pos] + ch + buf[cur_pos:]; cur_pos += 1
+            # Detect paste: 5+ newlines in buffer with indicator replacement
+            if not buf.startswith("[Pasted ~"):
+                line_count = buf.count('\n') + 1
+                if line_count >= 6:  # 6+ lines = paste
+                    handle_key._paste_content = buf
+                    buf = f"[Pasted ~{line_count}L]"
+                    cur_pos = len(buf)
+        
+        return buf, cur_pos, hidx, False
+
+    # ── Run Live loop ───────────────────────────────────────────────────────
+    raw = RawTerm()
+    chat.add("Welcome to Elengenix AI Agent Framework. Type /help for commands.", role="system")
+
+    with raw:
+        layout = Layout()
+        layout.split_row(
+            Layout(name="main"),
+            Layout(name="sidebar", size=SIDEBAR_W),
+        )
+        layout["main"].split_column(
+            Layout(name="header", size=2),
+            Layout(name="content"),
+            Layout(name="input", size=4),  # Start small, expand dynamically
+        )
+
+        ibuf, icur, hist, hidx = "", 0, [], 0
+
+        with Live(layout, screen=True, refresh_per_second=10) as live:
+            try:
+                while True:
+                    chat.tick_spinner()
+                    
+                    # Dynamic input height: 1 line = 1, +2 for padding
+                    lines = ibuf.count('\n') + 1 if ibuf else 1
+                    input_height = max(4, min(15, lines + 2))  # min 4, max 15
+                    
+                    # Recreate layout with new input size
+                    layout["main"].split_column(
+                        Layout(name="header", size=2),
+                        Layout(name="content"),
+                        Layout(name="input", size=input_height),
+                    )
+                    
+                    layout["sidebar"].update(_sidebar())
+                    layout["header"].update(_header())
+                    layout["content"].update(chat.render())
+                    
+                    # Dynamic input panel
+                    input_panel = _info_input(ibuf, icur)
+                    layout["input"].update(input_panel)
+
+# Read input
+                    ch = raw.read_char(0.05)
+                    exit_flag = False
+                    if ch:
+                        ibuf, icur, hidx, exit_flag = handle_key(ch, ibuf, icur, hist, hidx)
+                    if exit_flag:
+                        break
+            except (EOFError, KeyboardInterrupt):
+                chat.add("[dim]Session ended.[/dim]")
+                layout["content"].update(chat.render())
+                live.refresh()
+                time.sleep(0.3)
 
 if __name__ == "__main__":
     main()

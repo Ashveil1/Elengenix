@@ -388,7 +388,8 @@ def recall(
 def get_context_for_ai(
     current_query: str,
     target: str,
-    max_memories: int = 10
+    max_memories: int = 10,
+    conversation_history: Optional[List[Dict]] = None
 ) -> str:
     """
     สร้าง context สำหรับ AI จาก memories ที่เกี่ยวข้อง
@@ -397,6 +398,7 @@ def get_context_for_ai(
         current_query: คำถาม/คำสั่งปัจจุบัน
         target: target ที่กำลังทำงาน
         max_memories: จำนวน memory สูงสุด
+        conversation_history: รายการ conversation turns ล่าสุด (optional)
         
     Returns:
         Formatted context string สำหรับใส่ใน prompt
@@ -425,31 +427,154 @@ def get_context_for_ai(
             all_memories.append(mem)
     
     # Format as context
-    if not all_memories:
-        return "No prior knowledge about this target."
-    
     lines = ["### PREVIOUS KNOWLEDGE (from memory):"]
     
-    for i, mem in enumerate(all_memories[:max_memories], 1):
-        content = mem["content"][:200]  # จำกัดความยาว
-        category = mem["metadata"].get("category", "general")
-        timestamp = mem["metadata"].get("timestamp", "unknown")
+    if not all_memories:
+        lines.append("No prior knowledge about this target.")
+    else:
+        for i, mem in enumerate(all_memories[:max_memories], 1):
+            content = mem["content"][:200]  # จำกัดความยาว
+            category = mem["metadata"].get("category", "general")
+            timestamp = mem["metadata"].get("timestamp", "unknown")
+            
+            # Format timestamp
+            if timestamp != "unknown":
+                try:
+                    dt = datetime.fromisoformat(timestamp)
+                    time_str = dt.strftime("%Y-%m-%d")
+                except Exception:
+                    time_str = timestamp[:10]
+            else:
+                time_str = "unknown"
+            
+            lines.append(f"{i}. [{category.upper()}] ({time_str}): {content}")
         
-        # Format timestamp
-        if timestamp != "unknown":
-            try:
-                dt = datetime.fromisoformat(timestamp)
-                time_str = dt.strftime("%Y-%m-%d")
-            except Exception:
-                time_str = timestamp[:10]
-        else:
-            time_str = "unknown"
-        
-        lines.append(f"{i}. [{category.upper()}] ({time_str}): {content}")
+        lines.append(f"\n(Total {len(all_memories)} related memories in database)")
     
-    lines.append(f"\n(Total {len(all_memories)} related memories in database)")
+    # ADD: Append recent conversation turns for context
+    if conversation_history:
+        lines.append("\n### RECENT CONVERSATION (last 8 turns):")
+        recent_turns = conversation_history[-8:]  # Last 8 turns
+        for turn in recent_turns:
+            role = turn.get("role", "unknown")
+            content = turn.get("content", "")[:300]
+            if role == "user":
+                lines.append(f"[User]: {content}")
+            elif role == "assistant":
+                lines.append(f"[Agent]: {content}")
     
     return "\n".join(lines)
+
+
+def contextual_memory_search(
+    current_query: str,
+    target: str,
+    conversation_history: Optional[List[Dict]] = None,
+    max_memories: int = 12
+) -> List[Dict[str, Any]]:
+    """
+    ค้นหา memory โดยใช้ทั้ง query ปัจจุบันและบริบท conversation ก่อนหน้า
+    
+    Args:
+        current_query: คำถามปัจจุบัน
+        target: target domain/IP
+        conversation_history: รายการ conversation turns ล่าสุด
+        max_memories: จำนวนผลลัพธ์สูงสุด
+        
+    Returns:
+        List of memories deduplicated and sorted by relevance
+    """
+    vm = get_vector_memory()
+    
+    # Primary search: current query
+    primary_results = vm.search(
+        query=current_query,
+        target=target,
+        n_results=max_memories,
+        min_similarity=0.35
+    )
+    
+    # Secondary search: use last assistant response for context
+    secondary_results = []
+    if conversation_history:
+        # Get last assistant response
+        for turn in reversed(conversation_history):
+            if turn.get("role") == "assistant":
+                assistant_content = turn.get("content", "")
+                if len(assistant_content) > 20:
+                    # Search for memories related to this response
+                    secondary_results = vm.search(
+                        query=assistant_content,
+                        target=target,
+                        n_results=max_memories // 2,
+                        min_similarity=0.35
+                    )
+                break
+    
+    # Merge and deduplicate
+    seen_ids = set()
+    all_results = []
+    
+    for mem in primary_results + secondary_results:
+        mem_id = mem.get("id", str(hash(str(mem))))
+        if mem_id not in seen_ids:
+            seen_ids.add(mem_id)
+            all_results.append(mem)
+    
+    # Sort by similarity (descending)
+    all_results.sort(
+        key=lambda x: x.get("similarity", 0),
+        reverse=True
+    )
+    
+    return all_results[:max_memories]
+
+
+def persist_conversation_turns(
+    conversation_history: List[Dict],
+    target: str,
+    batch_size: int = 4
+) -> int:
+    """
+    บันทึก conversation turns ล่าสุดลง vector memory
+    
+    Args:
+        conversation_history: รายการ conversation turns
+        target: target domain/IP
+        batch_size: บันทึกทุก N turns
+        
+    Returns:
+        จำนวน turns ที่บันทึก
+    """
+    if len(conversation_history) < 2:
+        return 0
+    
+    vm = get_vector_memory()
+    count = 0
+    
+    # Only persist the last batch_size * 2 turns
+    turns_to_persist = conversation_history[-(batch_size * 2):]
+    
+    for i in range(0, len(turns_to_persist) - 1, 2):
+        user_turn = turns_to_persist[i]
+        assistant_turn = turns_to_persist[i + 1]
+        
+        if user_turn.get("role") == "user" and assistant_turn.get("role") == "assistant":
+            # Create a combined memory entry
+            content = f"Q: {user_turn['content']}\nA: {assistant_turn['content'][:500]}"
+            
+            vm.add_memory(
+                content=content,
+                target=target or "universal",
+                category="conversation",
+                metadata={
+                    "user_query": user_turn["content"][:200],
+                    "agent_response": assistant_turn["content"][:500],
+                }
+            )
+            count += 1
+    
+    return count
 
 
 def show_memory_stats():

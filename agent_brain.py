@@ -35,6 +35,7 @@ from tools.mission_state import MissionState, GraphNode, GraphEdge
 from tools.governance import Governance, GateDecision
 from tools.logic_analyzer import BusinessLogicAnalyzer
 from tools.payload_mutation import PayloadMutator
+from tools.agent_reflection import AgentReflection, get_reflection
 from live_display import get_activity_logger, display_in_chat_mode
 from bot_utils import send_telegram_notification
 
@@ -63,14 +64,31 @@ def _get_now_context() -> str:
     wd_th = thai_weekdays.get(now.weekday(), "")
     tz_display = now.tzname() or tz_name or "local"
 
+    # Thai Buddhist Era year = CE year + 543
+    be_year = now.year + 543
+    thai_date_str = f"{now.day} {_thai_month_name(now.month)} {be_year}"
+
     return (
         "### CURRENT TIME CONTEXT (AUTHORITATIVE)\n"
-        f"System time: {now.isoformat()}\n"
+        f"System time (CE): {now.isoformat()}\n"
+        f"CE year: {now.year}  |  Thai Buddhist Era (BE) year: {be_year}\n"
+        f"Thai date: {thai_date_str}\n"
         f"Timezone: {tz_display}\n"
         f"Thai weekday: {wd_th}\n"
-        "RULE: If the user asks about the current date/day/time (e.g., 'วันนี้วันอะไร', 'วันที่เท่าไหร่', 'ตอนนี้กี่โมง'), "
-        "you MUST answer using ONLY this time context. Do NOT guess or invent dates.\n"
+        "RULE: When searching or answering in Thai, ALWAYS use the Buddhist Era year "
+        f"({be_year}) not the CE year ({now.year}). "
+        "If the user asks about the current date/day/time, use ONLY this context.\n"
     )
+
+
+def _thai_month_name(month: int) -> str:
+    """Return Thai month name for a given month number (1-12)."""
+    names = [
+        "มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน",
+        "พฤษภาคม", "มิถุนายน", "กรกฎาคม", "สิงหาคม",
+        "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม",
+    ]
+    return names[month - 1] if 1 <= month <= 12 else str(month)
 
 
 def _get_memory_profile_context() -> str:
@@ -449,7 +467,8 @@ class ElengenixAgent:
         history_limit: int = 5,
         max_output_len: int = 2000,
         enable_planning: bool = True,
-        enable_cot_logging: bool = True
+        enable_cot_logging: bool = True,
+        max_history_turns: int = 20
     ):
         self.client = AIClientManager()
         self.max_steps = max_steps
@@ -458,6 +477,11 @@ class ElengenixAgent:
         self.max_output_len = max_output_len
         self.enable_planning = enable_planning
         self.enable_cot_logging = enable_cot_logging
+        self.max_history_turns = max_history_turns
+        
+        #  In-session conversation history (ordered user/assistant pairs)
+        #  Each entry is a dict: {"role": "user"|"assistant", "content": str}
+        self.conversation_history: List[Dict[str, str]] = []
         
         #  Absolute Path Resolution for Prompts
         self.base_dir = Path(__file__).parent.absolute()
@@ -475,7 +499,7 @@ class ElengenixAgent:
         #  Chain of Thought Logging
         self.cot_logger = ChainOfThoughtLogger() if enable_cot_logging else None
         
-        # � Live Activity Display
+        # Live Activity Display
         self.activity_logger = get_activity_logger()
         
         #  CVSS Calculator
@@ -495,6 +519,115 @@ class ElengenixAgent:
 
         #  Payload Mutation Engine (generates candidates only)
         self.payload_mutator = PayloadMutator()
+
+        #  Agent Reflection / Self-Feedback Tracker
+        self.reflection_tracker = get_reflection()
+
+        #  Skill Registry (Tool Awareness)
+        try:
+            from tools.skill_registry import get_skill_registry
+            self.skill_registry = get_skill_registry()
+            # Add available tools context to base prompt
+            skill_context = self.skill_registry.get_skill_context()
+            self.base_prompt = f"{self.base_prompt}\n\n{skill_context}"
+        except ImportError:
+            logger.warning("Skill registry not available")
+            self.skill_registry = None
+
+    def _append_history(self, role: str, content: str) -> None:
+        """
+        Append a message to the in-session conversation history.
+
+        Args:
+            role: Either 'user' or 'assistant'.
+            content: The message text.
+        """
+        self.conversation_history.append({"role": role, "content": content})
+        # Keep only the last N turns (each turn = 1 user + 1 assistant message)
+        max_messages = self.max_history_turns * 2
+        if len(self.conversation_history) > max_messages:
+            self.conversation_history = self.conversation_history[-max_messages:]
+        
+        # ADD: Auto-persist conversation to vector memory every 4 turns
+        if len(self.conversation_history) % 8 == 0:
+            self._persist_recent_conversation()
+    
+    def _persist_recent_conversation(self) -> None:
+        """Save recent conversation turns to vector memory for long-term recall."""
+        from tools.vector_memory import persist_conversation_turns
+        
+        # Get current target from current tree or default
+        target = self.current_tree.target if self.current_tree else "universal"
+        
+        count = persist_conversation_turns(
+            conversation_history=self.conversation_history,
+            target=target,
+            batch_size=4
+        )
+        
+        if count > 0:
+            logger.debug(f"Persisted {count} conversation turns to vector memory")
+    
+    def _check_for_negative_feedback(self, current_input: str) -> None:
+        """
+        Check if current user input is negative feedback about the previous AI response.
+        If so, record it as a reflection mistake.
+
+        Args:
+            current_input: Current user message.
+        """
+        if not self.conversation_history:
+            return
+        
+        # Get the last assistant response
+        last_assistant = None
+        last_user_query = None
+        for turn in reversed(self.conversation_history):
+            if turn["role"] == "assistant":
+                last_assistant = turn["content"]
+            elif turn["role"] == "user" and last_assistant is None:
+                last_user_query = turn["content"]
+        
+        if not last_assistant:
+            return
+        
+        # Check if current input looks like negative feedback
+        sentiment = self.reflection_tracker.classify_sentiment(current_input)
+        if sentiment == "negative" and last_user_query:
+            logger.info(
+                f"Detected negative feedback: '{current_input[:50]}...' "
+                f"about query: '{last_user_query[:50]}...'"
+            )
+            self.reflection_tracker.record_mistake(
+                original_query=last_user_query,
+                ai_response=last_assistant,
+                user_feedback=current_input,
+            )
+
+    def _build_chat_messages(self, system_prompt: str, user_input: str) -> List[AIMessage]:
+        """
+        Build the full message list to send to the AI, including prior conversation history.
+
+        Args:
+            system_prompt: The system-level instruction.
+            user_input: The current user message.
+
+        Returns:
+            List of AIMessage objects ordered: system, [history...], user.
+        """
+        messages = [AIMessage(role="system", content=system_prompt)]
+        for turn in self.conversation_history:
+            messages.append(AIMessage(role=turn["role"], content=turn["content"]))
+        messages.append(AIMessage(role="user", content=user_input))
+        return messages
+
+    def clear_conversation_history(self) -> None:
+        """
+        Clear the in-session conversation history.
+        Call this when the user runs /clear to start fresh.
+        """
+        self.conversation_history = []
+        logger.info("[OK] Conversation history cleared.")
 
     def _enhance_prompt_with_cve_context(self):
         """Enhance system prompt with CVE database capabilities."""
@@ -769,11 +902,12 @@ If the intent is 'research', provide accurate information or web research.
 If the intent is 'security_chat', provide expert cybersecurity advice or code examples.
 Do NOT attempt to run a scan. Respond naturally in the user's language (English or Thai)."""
             
-            response = self.client.chat([
-                AIMessage(role="system", content=chat_prompt),
-                AIMessage(role="user", content=user_input)
-            ]).content
-            
+            messages = self._build_chat_messages(chat_prompt, user_input)
+            response = (self.client.chat(messages).content or "").strip()
+
+            if response:
+                self._append_history("user", user_input)
+                self._append_history("assistant", response)
             # SAVE TO MEMORY: Remember this interaction for next time
             remember(
                 content=f"User said: {user_input} | AI responded: {response[:100]}...",
@@ -781,7 +915,7 @@ Do NOT attempt to run a scan. Respond naturally in the user's language (English 
                 category="conversation"
             )
             
-            return response.strip()
+            return response
         
         # send_telegram_notification(f" Mission Started: \"{user_input}\"")
         logger.info(f"Starting mission: {user_input}")
@@ -1971,6 +2105,56 @@ Use JSON format: {{"action": "run_shell|save_memory|finish", "command": "...", "
         # Run the engagement
         return team.run_full_engagement(executor=executor)
 
+    def request_tool_install(self, tool_name: str, ask_first: bool = True) -> str:
+        """
+        Request to install a missing security tool.
+        
+        Args:
+            tool_name: Name of the tool to install
+            ask_first: If True, only create a pending request (don't install until user confirms)
+            
+        Returns:
+            Status message — either "Please confirm: ..." or "[OK] Installed"
+        """
+        if not self.skill_registry:
+            return "[FAIL] Skill registry not available."
+        
+        skill = self.skill_registry.skills.get(tool_name)
+        if not skill:
+            return f"[FAIL] Unknown tool: {tool_name}"
+        
+        if skill.status.value == "available":
+            return f"[OK] {tool_name} is already installed."
+        
+        from tools.install_request import get_install_manager
+        mgr = get_install_manager()
+        
+        # Check if already pending
+        for r in mgr.get_pending_requests():
+            if r.tool_name == tool_name:
+                return f"[PENDING] {tool_name} is already waiting for install confirmation."
+        
+        req = mgr.request(
+            tool_name=tool_name,
+            description=skill.description,
+            install_command=skill.install_command,
+            reason=f"AI recommended for current scenario: {skill.description}"
+        )
+        
+        if ask_first:
+            return (
+                f"[INSTALL REQUEST] {tool_name}\n"
+                f"  Description: {skill.description}\n"
+                f"  Install: {skill.install_command}\n"
+                f"  To confirm: type '/install confirm {tool_name}' or 'y'"
+            )
+        
+        # Auto-install without asking
+        success = mgr.confirm_install(req)
+        if success:
+            return f"[OK] Successfully installed {tool_name}"
+        return f"[FAIL] Could not install {tool_name}. Manual: {skill.install_command}"
+
     def process_universal(
         self,
         user_input: str,
@@ -2005,6 +2189,9 @@ Use JSON format: {{"action": "run_shell|save_memory|finish", "command": "...", "
         if callback:
             callback(f"AI classified intent as: {intent.upper()}")
         
+        # 🧠 SELF-REFLECTION: Check if current input is negative feedback about previous response
+        self._check_for_negative_feedback(user_input)
+        
         # Initialize universal executor
         executor = get_universal_executor()
         
@@ -2023,8 +2210,18 @@ Use JSON format: {{"action": "run_shell|save_memory|finish", "command": "...", "
         # RESEARCH intent enters tool loop to use web search.
         if intent in ["casual", "security_chat"] and not target:
             # 🧠 MEMORY RETRIEVAL (Hybrid Approach - Increased context)
-            past_memories = get_context_for_ai(user_input, target=target or "universal", max_memories=12)
+            past_memories = get_context_for_ai(
+                user_input, 
+                target=target or "universal", 
+                max_memories=12,
+                conversation_history=self.conversation_history
+            )
             logger.info(f"Retrieved {len(past_memories.splitlines())} memories from the cloud.")
+            
+            # 🧠 SELF-REFLECTION CHECK: Look for past mistakes
+            reflection_caution = self.reflection_tracker.retrieve_caution(user_input)
+            if reflection_caution:
+                logger.info(f"AgentReflection warning retrieved for query")
             
             now_context = _get_now_context()
             profile_context = _get_memory_profile_context()
@@ -2050,6 +2247,8 @@ Detected user language: {detected_lang}
 
 ### 🧠 PAST CONVERSATIONS (RELEVANT CONTEXT):
 {past_memories}
+
+{reflection_caution}
 
 ### YOUR IDENTITY & CAPABILITIES:
 - Name: Elengenix AI (อีเลนเจนิกซ์ เอไอ)
@@ -2084,13 +2283,14 @@ Plus: nmap, nuclei, ffuf, dalfox, sqlmap, and 40+ security tools
 3. Answer directly based on your knowledge above.
 4. If asked what you can do, explain your capabilities including LIVE WEB SEARCH."""
 
-            direct = (self.client.chat([
-                AIMessage(role="system", content=chat_prompt),
-                AIMessage(role="user", content=user_input)
-            ]).content or "").strip()
+            messages = self._build_chat_messages(chat_prompt, user_input)
+            direct = (self.client.chat(messages).content or "").strip()
 
             if direct:
-                # 🧠 MEMORY STORAGE: Remember this interaction
+                # Store this turn in conversation history for context
+                self._append_history("user", user_input)
+                self._append_history("assistant", direct)
+                # MEMORY STORAGE: Remember this interaction in vector store
                 remember(
                     content=f"User interaction: {user_input} | AI Response: {direct[:150]}...",
                     target=target or "universal",
@@ -2138,7 +2338,7 @@ Plus: nmap, nuclei, ffuf, dalfox, sqlmap, and 40+ security tools
             any(q in normalized for q in simple_questions) or
             is_thai_greeting or
             is_short_thai_chat
-        ) and not is_security_task and not target
+        ) and not is_security_task and not target and intent not in ("research", "scan")
         
         # For simple queries, respond directly without loop
         if is_simple_query:
@@ -2181,7 +2381,14 @@ Keep it short and conversational. No tools. No emojis."""
 {now_context}
 
 ### YOUR ROLE:
-Research Assistant with LIVE INTERNET ACCESS (Google Search API).
+Research Assistant with LIVE INTERNET ACCESS via DuckDuckGo / Tavily search.
+
+### ANTI-HALLUCINATION RULES (CRITICAL):
+- You MUST call search_web before answering any live/current question.
+- ONLY report facts that appear in the actual search results returned to you.
+- Do NOT invent scores, results, prices, or any data.
+- If search results are incomplete or unclear, say so honestly.
+- Always include the source URL when citing a result.
 
 ### IMPORTANT - THIS IS NOT A SECURITY TASK:
 - NO target domain/IP to scan
@@ -2190,7 +2397,7 @@ Research Assistant with LIVE INTERNET ACCESS (Google Search API).
 - This is simple INFORMATION RETRIEVAL for the user's question
 
 ### YOUR CAPABILITIES:
-- `search_web`: Search Google for live, current information
+- `search_web`: Search live internet (DuckDuckGo/Tavily) for current information
 - `finish`: Complete the task and provide the answer
 
 ### WHEN TO USE search_web:
@@ -2198,11 +2405,13 @@ Research Assistant with LIVE INTERNET ACCESS (Google Search API).
 - Any query with "today", "now", "latest", "วันนี้", "ล่าสุด"
 - Time-sensitive information that changes constantly
 - When the user asks about something happening RIGHT NOW
+- Follow-up questions referencing the previous search topic (e.g. "แล้วยูฟ่าล่ะ")
 
 ### WORKFLOW (Simple):
-1. Analyze what the user wants
-2. If current/live data needed → use search_web with relevant query
-3. After getting results → use finish with the answer
+1. Analyze what the user wants (including follow-up context from conversation history)
+2. Use search_web with the most specific query including the Thai BE year if relevant
+3. Summarize ONLY what the search results actually say — cite sources
+4. Use finish action with the real answer
 
 ### RESPONSE FORMAT:
 {{
@@ -2225,12 +2434,21 @@ Or when done:
 }}"""
 
         elif is_security_task and target:
+            # Get available tools from skill registry
+            available_skills = self.skill_registry.get_available_skills() if self.skill_registry else []
+            missing_skills = self.skill_registry.get_missing_skills() if self.skill_registry else []
+            
             available_tools = registry.list_available_tools()
             tool_descriptions = []
             for name, info in available_tools.items():
                 if info.get('available'):
                     desc = info.get('description', name)
                     tool_descriptions.append(f"  - {name}: {desc}")
+            
+            # Add skill registry info
+            available_list = "\n".join([f"  - {s.name}: {s.description}" for s in available_skills]) if available_skills else "  (No additional tools registered)"
+            missing_list = "\n".join([f"  - {s.name}: {s.description} [MISSING - install: {s.install_command}]" for s in missing_skills[:5]]) if missing_skills else ""
+            
             tools_list_str = "\n".join(tool_descriptions)
             
             base_prompt = f"""{self.base_prompt}
@@ -2243,6 +2461,16 @@ You are an autonomous AI security researcher. Your mission: Find vulnerabilities
 ### AVAILABLE TOOLS & CAPABILITIES:
 You have access to these security tools. CHOOSE which to use based on the situation:
 {tools_list_str}
+
+### SKILL REGISTRY:
+Additional tools available:
+{available_list}
+
+{"MISSING TOOLS (can request install):" + "\n" + missing_list if missing_list else ""}
+
+### TOOL RECOMMENDATION:
+If a tool is missing and would be useful, ask the user with a format like:
+"Tool [name] is useful for [purpose] but not installed. Shall I install it? (Command: [install_command])"
 
 ### VULNERABILITY DISCOVERY METHODOLOGY (Apply as needed):
 Think step-by-step which tools fit each phase:
@@ -2446,7 +2674,9 @@ Respond ONLY with valid JSON."""
             if action_type == "finish":
                 summary = params.get("summary", "Task completed")
                 logger.info(f"Universal session finished: {summary}")
-                # send_telegram_notification(f" Universal Agent Complete: {summary[:100]}")
+                # Store this exchange in session history so future turns can reference it
+                self._append_history("user", user_input)
+                self._append_history("assistant", summary)
                 return summary
 
             if action_type == "shell":
@@ -2478,9 +2708,13 @@ Respond ONLY with valid JSON."""
             
             # Callback
             if callback:
-                status = "" if result.success else ""
-                output_preview = (result.output if result.success else result.error)[:150]
-                callback(f"{status} {action_type}: {output_preview}...")
+                status = "[OK]" if result.success else "[FAIL]"
+                if action_type == "search_web":
+                    # Show real content snippet so AI has context, not just "..."
+                    preview = (result.output if result.success else result.error)[:300]
+                else:
+                    preview = (result.output if result.success else result.error)[:150]
+                callback(f"{status} {action_type}: {preview}")
             
             #  Remember important results
             if result.success and action_type in ["shell", "run_tool", "search_web"]:

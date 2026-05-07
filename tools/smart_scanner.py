@@ -152,6 +152,8 @@ class SmartScanner:
         # Findings tracking
         self.findings: List[Dict] = []
         self.phase_results: Dict[str, Any] = {}
+        self._assets: Dict[str, Any] = {}  # Local asset cache (MissionState has no assets attr)
+
         
         # Timing
         self.start_time = datetime.utcnow()
@@ -347,10 +349,10 @@ class SmartScanner:
 
             for node in result.nodes:
                 t = node.asset_type
-                if t not in self.mission.assets:
-                    self.mission.assets[t] = []
-                if node.value not in self.mission.assets[t]:
-                    self.mission.assets[t].append(node.value)
+                if t not in self._assets:
+                    self._assets[t] = []
+                if node.value not in self._assets[t]:
+                    self._assets[t].append(node.value)
 
             for f in result.findings:
                 findings.append({
@@ -385,7 +387,29 @@ class SmartScanner:
         try:
             import asyncio
             from orchestrator import run_standard_scan
-            report_dir = asyncio.run(run_standard_scan(self.target, rate_limit=5))
+
+            # Handle nested event loop gracefully
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                loop = None
+
+            if loop is not None:
+                import concurrent.futures
+                def _run_in_new_loop():
+                    new_loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(new_loop)
+                    try:
+                        return new_loop.run_until_complete(run_standard_scan(self.target, rate_limit=5))
+                    finally:
+                        new_loop.close()
+
+                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                    future = executor.submit(_run_in_new_loop)
+                    report_dir = future.result(timeout=300)
+            else:
+                report_dir = asyncio.run(run_standard_scan(self.target, rate_limit=5))
+
             if report_dir:
                 from pathlib import Path
                 import json
@@ -422,8 +446,7 @@ class SmartScanner:
                 root_target=self.target,
                 goal="Verify and confirm discovered vulnerabilities",
             )
-            if self.mission and hasattr(self.mission, 'assets'):
-                state.assets = dict(self.mission.assets)
+            state.assets = dict(self._assets)  # Use local asset cache
 
             action = AgentAction(
                 name="injection_test",
