@@ -75,7 +75,7 @@ class TestSettingsOverlay:
         overlay = SettingsOverlay(mock_agent, mock_console)
         items = overlay._build_provider_items()
         gemini = next(i for i in items if i["id"] == "gemini")
-        assert "✓" in gemini["label"]
+        assert "[OK]" in gemini["label"]
         if old:
             os.environ["GEMINI_API_KEY"] = old
         else:

@@ -29,6 +29,7 @@ from tools.tool_registry import registry, ToolCategory, ToolResult
 from tools.cvss_calculator import CVSSCalculator, Severity
 from tools.vector_memory import remember, recall, get_context_for_ai, get_vector_memory
 from tools.memory_profile import read_memory
+from tools.memory_persistence import get_memory_persistence, save_message as _sqlite_save_message, load_conversation as _sqlite_load_conversation, clear_session as _sqlite_clear_session, get_context_status as _get_context_status
 from tools.universal_executor import UniversalExecutor, get_universal_executor
 from tools.cve_database import get_cve_database, format_cve_for_ai, CVEEntry
 from tools.mission_state import MissionState, GraphNode, GraphEdge
@@ -534,21 +535,158 @@ class ElengenixAgent:
             logger.warning("Skill registry not available")
             self.skill_registry = None
 
-    def _append_history(self, role: str, content: str) -> None:
-        """
-        Append a message to the in-session conversation history.
+        # Load persistent conversation from SQLite (cross-session memory)
+        self._load_persistent_conversation()
 
-        Args:
-            role: Either 'user' or 'assistant'.
-            content: The message text.
+    def _load_persistent_conversation(self) -> None:
+        """Restore previous session conversation from SQLite."""
+        try:
+            model_name = ""
+            if hasattr(self, "client") and hasattr(self.client, "active_client"):
+                model_name = getattr(self.client.active_client, "model", "")
+            loaded = _sqlite_load_conversation("default")
+            if loaded:
+                self.conversation_history = loaded
+                logger.info(f"Loaded {len(loaded)} messages from persistent memory")
+        except Exception as e:
+            logger.debug(f"Could not load persistent conversation: {e}")
+
+    def _save_to_persistent_memory(self, role: str, content: str) -> None:
+        """Save a message to SQLite for cross-session persistence."""
+        try:
+            model_name = ""
+            if hasattr(self, "client") and hasattr(self.client, "active_client"):
+                model_name = getattr(self.client.active_client, "model", "")
+            token_est = len(content) // 4
+            _sqlite_save_message("default", role, content, model_name, token_est)
+        except Exception as e:
+            logger.debug(f"Could not save to persistent memory: {e}")
+
+    def _check_context_overflow(self) -> bool:
         """
+        Check if conversation is approaching context limit.
+        Returns True if summarization was triggered.
+        """
+        try:
+            model_name = ""
+            if hasattr(self, "client") and hasattr(self.client, "active_client"):
+                model_name = getattr(self.client.active_client, "model", "")
+            status = _get_context_status("default", model_name)
+            if status["is_near_full"]:
+                logger.warning(
+                    f"Context at {status['percent']:.1f}% "
+                    f"({status['used_tokens']} / {status['capacity']} tokens) - "
+                    "triggering auto-compress"
+                )
+                self._summarize_old_conversation()
+                return True
+        except Exception as e:
+            logger.debug(f"Context check failed: {e}")
+        return False
+
+    def _summarize_old_conversation(self) -> None:
+        """
+        Compress old conversation turns into a summary to free context space.
+        Keeps first and last few turns intact, summarizes the middle portion.
+        """
+        if len(self.conversation_history) <= 6:
+            return
+
+        try:
+            kept_turns = 3
+            middle_start = kept_turns
+            middle_end = len(self.conversation_history) - kept_turns
+
+            if middle_end <= middle_start:
+                return
+
+            middle_messages = self.conversation_history[middle_start:middle_end]
+            if not middle_messages:
+                return
+
+            summary_parts = []
+            for msg in middle_messages:
+                label = "User" if msg["role"] == "user" else "Assistant"
+                summary_parts.append(f"{label}: {msg['content'][:300]}")
+
+            middle_text = "\n\n".join(summary_parts)
+
+            model_name = ""
+            if hasattr(self, "client") and hasattr(self.client, "active_client"):
+                model_name = getattr(self.client.active_client, "model", "")
+
+            if model_name and "claude" in model_name.lower():
+                model_for_summary = model_name
+            else:
+                model_for_summary = model_name
+
+            compress_prompt = (
+                "Summarize the following conversation turns into a concise summary "
+                "that preserves all important information, decisions, and findings. "
+                "Keep it under 400 words. Write in English.\n\n"
+                f"CONVERSATION TURNS TO SUMMARIZE:\n{middle_text}\n\n"
+                "Provide a summary that captures:\n"
+                "1. Main topics discussed and goals\n"
+                "2. Key findings or discoveries\n"
+                "3. Tools used and results\n"
+                "4. Important decisions or next steps\n\n"
+                "SUMMARY:"
+            )
+
+            summary_response = self.client.chat([
+                AIMessage(role="user", content=compress_prompt)
+            ])
+
+            summary_text = summary_response.content if summary_response else ""
+            if not summary_text or len(summary_text.strip()) < 20:
+                logger.warning("Summarization returned empty, skipping compress")
+                return
+
+            summary_entry = {
+                "role": "assistant",
+                "content": (
+                    f"[COMPRESSED SUMMARY of {len(middle_messages)} earlier turns]: "
+                    f"{summary_text.strip()}"
+                )
+            }
+
+            self.conversation_history = (
+                self.conversation_history[:middle_start]
+                + [summary_entry]
+                + self.conversation_history[middle_end:]
+            )
+
+            total_msgs = len(self.conversation_history)
+            logger.info(
+                f"Compressed {len(middle_messages)} turns into summary. "
+                f"History now has {total_msgs} messages."
+            )
+
+            try:
+                _sqlite_clear_session("default")
+                conv_tokens = 0
+                for msg in self.conversation_history:
+                    token_est = len(msg["content"]) // 4
+                    conv_tokens += token_est
+                    _sqlite_save_message(
+                        "default", msg["role"], msg["content"],
+                        model_name, token_est
+                    )
+            except Exception as e:
+                logger.debug(f"Failed to update SQLite after compress: {e}")
+
+        except Exception as e:
+            logger.error(f"Failed to summarize old conversation: {e}")
+
+    def _append_history(self, role: str, content: str) -> None:
+        """Append a message to the in-session conversation history and persist to SQLite."""
         self.conversation_history.append({"role": role, "content": content})
-        # Keep only the last N turns (each turn = 1 user + 1 assistant message)
         max_messages = self.max_history_turns * 2
         if len(self.conversation_history) > max_messages:
             self.conversation_history = self.conversation_history[-max_messages:]
-        
-        # ADD: Auto-persist conversation to vector memory every 4 turns
+
+        self._save_to_persistent_memory(role, content)
+
         if len(self.conversation_history) % 8 == 0:
             self._persist_recent_conversation()
     
@@ -2175,7 +2313,10 @@ Use JSON format: {{"action": "run_shell|save_memory|finish", "command": "...", "
         - Bug bounty specialization when target provided
         """
         import json
-        
+
+        # Phase 2: Check context overflow before processing (auto-compress at 80%)
+        self._check_context_overflow()
+
         # send_telegram_notification(f" Universal Agent: \"{user_input}\"")
         logger.info(f"Universal mode started: {user_input}")
 

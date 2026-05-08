@@ -37,6 +37,7 @@ from rich.live import Live
 from rich.layout import Layout
 from rich.text import Text
 from rich.panel import Panel
+from rich.align import Align
 from rich.box import ROUNDED, MINIMAL
 
 # Logging Setup 
@@ -815,8 +816,13 @@ def main(mode: str = "auto", target: str = None):
 
         def read_char(self, timeout=0.05):
             try:
+                if not sys.stdin.isatty():
+                    return None
+                import select
                 r, _, _ = select.select([sys.stdin], [], [], timeout)
-                return sys.stdin.read(1) if r else None
+                if not r:
+                    return None
+                return sys.stdin.read(1)
             except (ValueError, OSError):
                 return None
 
@@ -831,6 +837,7 @@ def main(mode: str = "auto", target: str = None):
         if not cmd:
             return
 
+        print(f"DEBUG process_cmd: {repr(cmd[:30])}", file=sys.stderr)
         chat.add(cmd, role="user")
 
         if cmd.lower() in ("/exit", "/quit", "exit", "quit"):
@@ -847,6 +854,12 @@ def main(mode: str = "auto", target: str = None):
             chat.add("[dim]Screen cleared. History reset.[/dim]")
             if hasattr(agent, "clear_conversation_history"):
                 agent.clear_conversation_history()
+            try:
+                from tools.memory_persistence import clear_session
+                clear_session("default")
+                chat.add("[dim]Persistent memory cleared.[/dim]")
+            except Exception:
+                pass
             session_mgr.live.turn_count = 0
             session_mgr.live.token_count = 0
             return
@@ -956,14 +969,27 @@ def main(mode: str = "auto", target: str = None):
             return
 
         if cmd.lower().startswith("/compress"):
-            from tools.context_compressor import get_compressor
-            agg = "aggressive" in cmd.lower()
-            if hasattr(agent, "conversation_history") and agent.conversation_history:
-                comp = get_compressor(aggressive=agg)
+            if hasattr(agent, "_summarize_old_conversation") and agent.conversation_history:
+                before = len(agent.conversation_history)
+                try:
+                    agent._summarize_old_conversation()
+                    after = len(agent.conversation_history)
+                    chat.add(f"[dim]Compressed via LLM: {before} → {after} messages[/dim]")
+                except Exception as e:
+                    chat.add(f"[dim]LLM compress failed: {e}, trying legacy...[/dim]")
+                    from tools.context_compressor import get_compressor
+                    comp = get_compressor(aggressive="aggressive" in cmd.lower())
+                    ch = comp.compress_and_return_history(agent.conversation_history)
+                    orig = len(agent.conversation_history)
+                    agent.conversation_history = ch
+                    chat.add(f"[dim]Compressed: {orig} → {len(ch)} turns (legacy)[/dim]")
+            elif hasattr(agent, "conversation_history") and agent.conversation_history:
+                from tools.context_compressor import get_compressor
+                comp = get_compressor(aggressive="aggressive" in cmd.lower())
                 ch = comp.compress_and_return_history(agent.conversation_history)
                 orig = len(agent.conversation_history)
                 agent.conversation_history = ch
-                chat.add(f"[dim]Compressed: {orig} → {len(ch)} turns{' (aggressive)' if agg else ''}[/dim]")
+                chat.add(f"[dim]Compressed: {orig} → {len(ch)} turns[/dim]")
             else:
                 chat.add("[dim]No history.[/dim]")
             return
@@ -1235,42 +1261,34 @@ def main(mode: str = "auto", target: str = None):
             chat.add(f"[dim]Auto team mode: {len(active_models)} agents[/dim]")
 
         try:
-            result = {"resp": None, "err": None}
             def _run():
                 try:
                     active = [m.strip() for m in os.environ.get("ACTIVE_MODELS", "").split(",") if m.strip()]
                     if len(active) >= 2 and target and mode_state[0] in ("scan", "bug_bounty"):
-                        result["resp"] = agent.process_team_scan(user_query, model_names=active, target=target, callback=callback)
+                        resp = agent.process_team_scan(user_query, model_names=active, target=target, callback=callback)
                     else:
-                        result["resp"] = agent.process_universal(user_query, callback=callback, target=target, mode=mode_state[0])
+                        resp = agent.process_universal(user_query, callback=callback, target=target, mode=mode_state[0])
+                    
+                    # Add response to chat (thread-safe)
+                    if resp:
+                        chat.set_thinking(False)
+                        chat.add(resp, role="agent")
+                        session_mgr.update_turn()
+                        session_mgr.set_status("ready")
+                    else:
+                        chat.set_thinking(False)
+                        chat.add("No response.", role="error")
+                        session_mgr.set_status("error")
                 except Exception as ex:
                     import traceback; traceback.print_exc()
-                    result["err"] = ex
+                    chat.set_thinking(False)
+                    chat.add(f"Error: {ex}", role="error")
+                    session_mgr.set_status("error")
 
             t = threading.Thread(target=_run, daemon=True)
             t.start()
-            t.join(timeout=120)
-
-            if t.is_alive():
-                chat.add("Response timed out.", role="error")
-                session_mgr.set_status("error")
-                chat.set_thinking(False)
-                return
-            if result["err"]:
-                chat.add(f"Error: {result['err']}", role="error")
-                session_mgr.set_status("error")
-                chat.set_thinking(False)
-                return
-
-            resp = result["resp"]
-            chat.set_thinking(False)
-            if resp:
-                chat.add(resp, role="agent")
-                session_mgr.update_turn()
-                session_mgr.set_status("ready")
-            else:
-                chat.add("No response.", role="error")
-                session_mgr.set_status("error")
+            # Don't block - let the thread run in background
+            return
         except Exception as e:
             chat.add(f"Error: {e}", role="error")
             session_mgr.set_status("error")
@@ -1285,6 +1303,7 @@ def main(mode: str = "auto", target: str = None):
 
     def handle_key(ch, buf, cur_pos, history, hidx):
         """Returns (new_buf, new_cur_pos, new_hidx, consumed). consumed=True means exit."""
+        print(f"HANDLE_KEY: ch={repr(ch)} buf={repr(buf[:20])}", file=sys.stderr)
         if ch is None:
             return buf, cur_pos, hidx, False
         # Escape seq
@@ -1369,25 +1388,6 @@ def main(mode: str = "auto", target: str = None):
             for _ in range(3): chat.scroll_down()
             return buf, cur_pos, hidx, False
 
-        # Ctrl+E = Settings Overlay
-        if ch == '\x05':
-            # Pause Live and open settings overlay
-            live.stop()
-            try:
-                overlay = SettingsOverlay(agent, console, target=target)
-                result = overlay.run()
-                if result == "saved":
-                    chat.add("[OK] Settings saved. Agent reloaded.", role="system")
-                elif result == "error":
-                    chat.add("[WARN] Failed to save settings. Check logs.", role="error")
-                else:
-                    chat.add("[dim]Settings cancelled.[/dim]", role="system")
-            except Exception as e:
-                chat.add(f"[ERROR] Overlay error: {e}", role="error")
-            finally:
-                live.start()
-            return buf, cur_pos, hidx, False
-
         # Paste buffer state (module-level for handle_key)
         if not hasattr(handle_key, '_paste_raw_buffer'):
             handle_key._paste_raw_buffer = ""
@@ -1438,7 +1438,7 @@ def main(mode: str = "auto", target: str = None):
             # If buffer has newlines but < 5, require double Enter to send
             if buf.count('\n') >= 1:
                 line_parts = buf.split('\n')
-                last_line = lines[-1] if lines else ""
+                last_line = line_parts[-1] if line_parts else ""
                 if not last_line.strip():
                     # Second Enter on empty line = send
                     if buf.strip():
@@ -1506,11 +1506,22 @@ def main(mode: str = "auto", target: str = None):
         )
 
         ibuf, icur, hist, hidx = "", 0, [], 0
+        show_overlay = [False]
+        overlay_obj = [None]
 
         with Live(layout, screen=True, refresh_per_second=10) as live:
+            debug_iter = [0]
             try:
                 while True:
-                    chat.tick_spinner()
+                    debug_iter[0] += 1
+                    if debug_iter[0] % 20 == 0:
+                        print(f"DEBUG loop: {debug_iter[0]}", file=sys.stderr)
+                    try:
+                        chat.tick_spinner()
+                    except Exception as e:
+                        import traceback
+                        traceback.print_exc()
+                        break
                     
                     # Dynamic input height: 1 line = 1, +2 for padding
                     lines = ibuf.count('\n') + 1 if ibuf else 1
@@ -1525,17 +1536,63 @@ def main(mode: str = "auto", target: str = None):
                     
                     layout["sidebar"].update(_sidebar())
                     layout["header"].update(_header())
-                    layout["content"].update(chat.render())
-                    
-                    # Dynamic input panel
-                    input_panel = _info_input(ibuf, icur)
-                    layout["input"].update(input_panel)
+                    if show_overlay[0]:
+                        try:
+                            layout["content"].update(
+                                Align.center(overlay_obj[0].render(), vertical="middle")
+                            )
+                            layout["input"].update(
+                                Panel("[dim]Settings Overlay - Esc to cancel, Enter to select[/dim]")
+                            )
+                        except Exception as e:
+                            print(f"[RENDER ERROR] {e}", file=sys.stderr)
+                            show_overlay[0] = False
+                            overlay_obj[0] = None
+                    else:
+                        try:
+                            layout["content"].update(chat.render())
+                            input_panel = _info_input(ibuf, icur)
+                            layout["input"].update(input_panel)
+                        except Exception as e:
+                            import traceback
+                            traceback.print_exc()
+                            print(f"RENDER ERROR: {e}", file=sys.stderr)
 
 # Read input
                     ch = raw.read_char(0.05)
                     exit_flag = False
                     if ch:
-                        ibuf, icur, hidx, exit_flag = handle_key(ch, ibuf, icur, hist, hidx)
+                        if ch == '\x05':
+                            if show_overlay[0]:
+                                show_overlay[0] = False
+                                overlay_obj[0] = None
+                            else:
+                                overlay_obj[0] = SettingsOverlay(agent, console, target=target)
+                                show_overlay[0] = True
+                        elif show_overlay[0]:
+                            try:
+                                result = overlay_obj[0].handle_char(ch)
+                            except Exception as e:
+                                print(f"[DEBUG] handle_char EXCEPTION: {e}", file=sys.stderr)
+                                result = None
+                            if result == "exit":
+                                show_overlay[0] = False
+                                overlay_obj[0] = None
+                            elif result == "saved":
+                                chat.add("[OK] Settings saved. Agent reloaded.", role="system")
+                                show_overlay[0] = False
+                                overlay_obj[0] = None
+                            elif result == "error":
+                                chat.add("[WARN] Failed to save settings. Check logs.", role="error")
+                                show_overlay[0] = False
+                                overlay_obj[0] = None
+                        else:
+                            print(f"DEBUG: handle_key called with ch={repr(ch)}", file=sys.stderr)
+                            old_ibuf = ibuf
+                            ibuf, icur, hidx, exit_flag = handle_key(ch, ibuf, icur, hist, hidx)
+                            print(f"DEBUG: handle_key returned ibuf={repr(ibuf[:20])}", file=sys.stderr)
+                            if exit_flag:
+                                print(f"DEBUG exit_flag=True, breaking!", file=sys.stderr)
                     if exit_flag:
                         break
             except (EOFError, KeyboardInterrupt):
