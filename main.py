@@ -138,7 +138,7 @@ def main():
         "report", "menu", "auto", "help", "bb", "check", "test", "red", "pdf",
         "hack", "research", "poc", "autonomous", "welcome", "quick", "deep",
         "bounty", "stealth", "api", "web", "profile", "history", "programs",
-        "intel", "mission", "pause", "resume", "cli",
+        "intel", "mission", "pause", "resume", "cli", "cli-textual", "cli-legacy", "clitest",
         # New unified commands
         "sast", "cloud", "mobile", "soc", "dashboard",
     ]
@@ -150,8 +150,13 @@ def main():
     parser.add_argument("--framework", type=str, default="generic", help="Target framework for PoC generation")
     parser.add_argument("--version", type=str, default="", help="Target version for PoC generation")
     parser.add_argument("--mode", type=str, default="ask", choices=["strict", "ask", "auto"], help="Governance mode for autonomous operations")
+    parser.add_argument("--smart-scan", action="store_true", help="Use intelligent smart scan with file relationship analysis and finding correlation")
     
     args, _ = parser.parse_known_args()
+
+    # Set environment variable for smart scan mode (propagates to watchman/bot)
+    if args.smart_scan:
+        os.environ["ELENGENIX_SMART_SCAN"] = "1"
 
     # Welcome wizard on first run (before processing command)
     if args.command == "welcome":
@@ -161,7 +166,7 @@ def main():
         return
     
     # Auto-run welcome if first time (unless running specific commands)
-    skip_welcome_commands = ["doctor", "configure", "update", "welcome", "cli"]
+    skip_welcome_commands = ["doctor", "configure", "update", "welcome", "cli", "cli-textual"]
     if args.command not in skip_welcome_commands:
         from tools.welcome_wizard import WelcomeWizard
         wizard = WelcomeWizard()
@@ -355,14 +360,11 @@ def main():
                 pass  # Spinner shows while loading
             
             console.print(f"[red]Target:[/red] {target}  [dim]Rate: {args.rate_limit} req/s[/dim]")
-            run_omni_scan(target, rate_limit=args.rate_limit)
+            run_omni_scan(target, rate_limit=args.rate_limit, use_smart_scan=args.smart_scan)
 
         elif args.command == "universal":
-            from ui_components import show_cli_banner
-            show_cli_banner("universal")
-            
-            import cli
-            cli.main(mode="universal")
+            from cli_textual import main as cli_textual_main
+            cli_textual_main()
 
         elif args.command == "gateway":
             bot_path = Path(__file__).parent / "bot.py"
@@ -382,6 +384,14 @@ def main():
             run_config_wizard()
 
         elif args.command == "cli":
+            from cli_textual import main as cli_textual_main
+            cli_textual_main()
+
+        elif args.command in ("cli-textual", "clitest"):
+            from cli_textual import main as cli_textual_main
+            cli_textual_main()
+
+        elif args.command == "cli-legacy":
             from cli import main as cli_main
             cli_main()
 
@@ -520,7 +530,6 @@ def main():
             agent = AutonomousAgent(governance_mode=mode)
             
             # Check for Team Aegis (multi-agent) mode
-            import os
             active_models = os.environ.get("ACTIVE_MODELS", "").split(",")
             active_models = [m.strip() for m in active_models if m.strip()]
             
