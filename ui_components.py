@@ -108,16 +108,8 @@ MARKERS = {
 # ---------------------------------------------------------------------------
 
 def show_main_banner():
-    """Display the main application banner with gradient ASCII art."""
-    # Rich gradient text simulation via line-by-line coloring
-    gradient_colors = [
-        "#ff4444",  # Light Red
-        "#ff4444",  # Red
-        "#ff4444",  # Crimson
-        "#ff6b6b",  # Firebrick
-        "#ff4444",  # Dark Red
-        "#ff4444",  # Light Red
-    ]
+    """Display the main application banner with red ASCII art."""
+    console.print()
 
     ascii_art = [
         " ███████╗██╗     ███████╗███╗   ██╗ ██████╗ ███████╗███╗   ██╗",
@@ -128,16 +120,9 @@ def show_main_banner():
         " ╚══════╝╚══════╝╚══════╝╚═╝  ╚═══╝ ╚═════╝ ╚══════╝╚═╝  ╚═══╝",
     ]
 
-    console.print()
-    
-    # Print ASCII art with gradient effect
-    for i, line in enumerate(ascii_art):
-        color = gradient_colors[i % len(gradient_colors)]
-        console.print(f"  [bold {color}]{line}[/bold {color}]")
-
-    # Decorative separator with gradient
+    for line in ascii_art:
+        console.print(f"  [bold #ff4444]{line}[/bold #ff4444]")
     console.print(f"  [dim #ff4444]{'═' * 72}[/dim #ff4444]")
-    
     console.print(f"  [bold #ffffff]              Universal AI & Bug Bounty Agent               [/bold #ffffff]")
     console.print(f"  [dim #ffffff]                   Aegis Protocol Active                    [/dim #ffffff]")
     console.print()
@@ -150,7 +135,7 @@ def show_main_banner():
     info_table.add_row(
         "[bold white][OK] System Online[/bold white]",
         "[bold white][WARN] Security Mode Active[/bold white]",
-        "[bold #ff4444][INFO] v3.0.0[/bold #ff4444]",
+        "[bold #ffffff][INFO] v99999 (god nine is the best)[/bold #ffffff]",
     )
     console.print(Panel(
         info_table,
@@ -186,7 +171,7 @@ def show_arsenal_banner():
     """Display the Security Arsenal banner with vibrant styling."""
     console.print()
     console.print(f"  [bold #ff4444]❖ Security Arsenal ❖[/bold #ff4444]")
-    console.print(f"  [dim]Select a tool to begin  |  Press ESC to cancel  |  v3.0.0[/dim]")
+    console.print(f"  [dim]Select a tool to begin  |  Press ESC to cancel  |  v99999[/dim]")
     console.print(f"  [dim #737373]{'─' * 70}[/dim #737373]")
     console.print()
 
@@ -941,7 +926,7 @@ def render_sidebar(
 
     # Footer
     lines.append(sep)
-    lines.append(f"  [dim #666666]v3.0.0[/dim #666666]  [dim #555555]Elengenix AI Agent Framework[/dim #555555]")
+    lines.append(f"  [dim #737373]v99999 (god nine is the best)[/dim #737373]  [dim #777777]Elengenix AI Agent Framework[/dim #777777]")
 
     sidebar_text = "\n".join(lines)
     return Panel(sidebar_text, border_style="#ff4444", box=ROUNDED, padding=(0, 0), width=width)

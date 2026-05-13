@@ -46,16 +46,16 @@ logger = logging.getLogger("elengenix.cli_textual")
 
 # ── Theme: Black, Red, White, Gray, Orange ──────────────────────────────
 BASE    = "#000000"
-MANTLE  = "#0d0d0d"
-CRUST   = "#0a0a0a"
-SURFACE = "#333333"
+MANTLE  = "#111111"
+CRUST   = "#0d0d0d"
+SURFACE = "#444444"
 TEXT    = "#ffffff"
-SUBTEXT = "#a3a3a3"
-MUTED   = "#737373"
+SUBTEXT = "#cccccc"
+MUTED   = "#777777"
 RED     = "#ff4444"
 ORANGE  = "#ff6b6b"
 WHITE   = "#ffffff"
-GRAY    = "#525252"
+GRAY    = "#888888"
 
 # ── Aliases ─────────────────────────────────────────────────────────────
 COLOR_OK       = WHITE
@@ -75,12 +75,12 @@ AGENT_NAMES  = {1: "Elengix 1", 2: "Elengix 2", 3: "Elengix 3"}
 AGENT_COLORS = {1: WHITE, 2: GRAY, 3: MUTED}
 
 ASCII_BANNER = f"""\
-    [{RED}] ███████╗██╗     ███████╗███╗   ██╗ ██████╗ ███████╗███╗   ██╗[/]
-    [{RED}] ██╔════╝██║     ██╔════╝████╗  ██║██╔════╝ ██╔════╝████╗  ██║[/]
-    [{ORANGE}] █████╗  ██║     █████╗  ██╔██╗ ██║██║  ███╗█████╗  ██╔██╗ ██║[/]
-    [{ORANGE}] ██╔══╝  ██║     ██╔══╝  ██║╚██╗██║██║   ██║██╔══╝  ██║╚██╗██║[/]
-    [{WHITE}] ███████╗███████╗███████╗██║ ╚████║╚██████╔╝███████╗██║ ╚████║[/]
-    [{WHITE}] ╚══════╝╚══════╝╚══════╝╚═╝  ╚═══╝ ╚═════╝ ╚══════╝╚═╝  ╚═══╝[/]"""
+    [{RED}] ███████╗██╗     ███████╗███╗   ██╗ ██████╗ ███████╗███╗   ██╗
+    ██╔════╝██║     ██╔════╝████╗  ██║██╔════╝ ██╔════╝████╗  ██║
+    █████╗  ██║     █████╗  ██╔██╗ ██║██║  ███╗█████╗  ██╔██╗ ██║
+    ██╔══╝  ██║     ██╔══╝  ██║╚██╗██║██║   ██║██╔══╝  ██║╚██╗██║
+    ███████╗███████╗███████╗██║ ╚████║╚██████╔╝███████╗██║ ╚████║
+    ╚══════╝╚══════╝╚══════╝╚═╝  ╚═══╝ ╚═════╝ ╚══════╝╚═╝  ╚═══╝[/]"""
 
 HELP_TEXT = f"""\
 [{COLOR_ACCENT}]━━━ COMMANDS ━━━[/{COLOR_ACCENT}]
@@ -112,13 +112,17 @@ class Sidebar(Container):
     Sidebar {{
         width: 38;
         height: 1fr;
-        background: {CRUST};
-        border: solid {COLOR_BORDER};
+        background: {MANTLE};
+        border: solid {RED};
         margin: 0 0 0 1;
         padding: 0 1;
         overflow-y: auto;
     }}
     """
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self._data: dict = {}
 
     def compose(self) -> ComposeResult:
         yield Static("", id="sidebar_content")
@@ -273,17 +277,17 @@ class SettingsOverlayWidget(Widget, can_focus=True):
     SettingsOverlayWidget.visible {{ display: block; }}
     #settings_panel {{
         width: 76; height: auto; max-height: 80%; min-height: 22;
-        background: {CRUST}; border: wide {COLOR_ACCENT}; padding: 0;
+        background: {MANTLE}; border: wide {RED}; padding: 0;
     }}
     #settings_header {{
         width: 1fr; height: 1; content-align: center middle;
-        background: {COLOR_ACCENT}; color: {CRUST};
+        background: {RED}; color: {WHITE};
         text-style: bold;
     }}
     #settings_content {{ width: 1fr; height: auto; background: transparent; padding: 1 2; }}
     #settings_footer {{
         width: 1fr; height: 1; content-align: center middle;
-        color: {COLOR_MUTED}; background: {MANTLE};
+        color: {MUTED}; background: {CRUST};
     }}
     """
 
@@ -346,26 +350,26 @@ class ElengenixTextualApp(App):
     }}
     #header {{
         height: 1; background: {MANTLE};
-        color: {COLOR_DIM}; content-align: center middle;
-        border-bottom: solid {COLOR_BORDER};
+        color: {TEXT}; content-align: center middle;
+        border-bottom: solid {RED};
     }}
     #main_row {{ height: 1fr; layer: base; }}
     #chat_col {{ width: 1fr; height: 1fr; background: {BASE}; }}
     #chat_area {{
         height: 1fr; background: {BASE};
-        border: none; padding: 0 1;
+        border: solid {RED}; padding: 0 1;
     }}
     #input_row {{
         height: auto; margin: 0 1;
-        background: {MANTLE}; border: solid {COLOR_BORDER}; padding: 0;
+        background: {MANTLE}; border: solid {RED}; padding: 0;
     }}
     #user_input {{
         height: 3; border: none;
-        border-left: thick {COLOR_ACCENT};
-        background: {MANTLE}; color: {COLOR_TEXT};
+        border-left: thick {RED};
+        background: {MANTLE}; color: {TEXT};
         padding: 0 1;
     }}
-    #user_input:focus {{ border-left: thick {COLOR_HIGHLIGHT}; }}
+    #user_input:focus {{ border-left: thick {ORANGE}; }}
     """
 
     BINDINGS = [
