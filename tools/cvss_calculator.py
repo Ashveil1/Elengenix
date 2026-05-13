@@ -12,11 +12,9 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 from enum import Enum
 
-# Safe import for LLMClient (may require nest_asyncio)
-try:
-    from llm_client import LLMClient
-except ImportError:
-    LLMClient = None  # Fallback for environments without full dependencies
+# LLMClient was removed — use UniversalAIClient from tools/universal_ai_client.py instead.
+# CVSS AI assistance requires AIClientManager; this import is kept as None for backward compat.
+LLMClient = None
 
 logger = logging.getLogger("elengenix.cvss")
 

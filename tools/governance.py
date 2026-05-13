@@ -2,20 +2,22 @@
 
 Governance & permission gates for autonomous security operations.
 
-Goal:
-- Prevent unsafe actions without explicit approval
-- Provide audit trail for decisions
+Risk classification (v3.0):
+  DESTRUCTIVE  → Blocked unconditionally (rm -rf /, dd, mkfs, fork bomb)
+  PRIVILEGED   → Requires user approval  (sudo, install, write to /etc, /usr)
+  SAFE         → Always allowed          (everything else)
 
-This is intentionally lightweight and Termux-friendly.
+The default is full freedom.  Only truly dangerous patterns are denied.
 """
 
 from __future__ import annotations
 
 import json
 import logging
+import re
 import sqlite3
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -25,7 +27,7 @@ _DB_PATH = Path(__file__).parent.parent / "data" / "governance_audit.db"
 
 
 def _now() -> str:
-    return datetime.utcnow().isoformat()
+    return datetime.now(timezone.utc).isoformat()
 
 
 def _db_path() -> Path:
@@ -62,49 +64,95 @@ def init_db() -> None:
 @dataclass
 class GateDecision:
     allowed: bool
-    risk_level: str
-    decision: str  # allow|deny|needs_approval
+    risk_level: str        # destructive | privileged | safe
+    decision: str          # allow | deny | needs_approval
     rationale: str = ""
+
+    def __post_init__(self) -> None:
+        self.risk_level = self.risk_level.upper()
 
 
 class Governance:
-    """Policy engine to gate actions."""
+    """Policy engine to gate actions.
+
+    Rules:
+      DESTRUCTIVE → ``decision = "deny"``, never executed.
+      PRIVILEGED  → ``decision = "needs_approval"`` unless
+                    ``require_approval_high_risk`` is ``False``.
+      SAFE        → ``decision = "allow"``, always.
+    """
+
+    # ── Patterns: if matched → DESTRUCTIVE (blocked) ──────────────────
+    _DESTRUCTIVE = re.compile(
+        r"rm\s+(-rf|--recursive)\s+/"
+        r"|dd\s+if=.*of=\/dev"
+        r"|mkfs\.[a-z0-9]+\s+/dev"
+        r"|>\s*/dev/sd"
+        r"|:\s*\(\s*\)\s*\{\s*:\|:\&\s*\};"
+        r"|chmod\s+777\s+/\s*$"
+        r"|chown\s+.*\s+/\s*$"
+        r"|shutdown\s+-[rh]\s+now"
+        r"|reboot\s*$"
+        r"|halt\s*$"
+        r"|dd\s+if=/dev/urandom"
+        r"|fdisk\s+/dev"
+        r"|parted\s+/dev"
+        r"|mkswap\s+/dev"
+        , re.IGNORECASE,
+    )
+
+    # ── Patterns: if matched → PRIVILEGED (needs approval) ────────────
+    _PRIVILEGED = re.compile(
+        r"^\s*sudo\s"
+        r"|^\s*pkexec\s"
+        r"|^\s*doas\s"
+        r"|pip\s+install"
+        r"|pip3\s+install"
+        r"|npm\s+install\s+-g"
+        r"|apt\s+install"
+        r"|apt-get\s+install"
+        r"|dnf\s+install"
+        r"|yum\s+install"
+        r"|brew\s+install"
+        r"|pacman\s+-S"
+        r"|go\s+install"
+        r"|cargo\s+install"
+        r"|gem\s+install"
+        r"|chmod\s+[0-7]"
+        r"|chown\s+"
+        r"|>[/\"]"
+        r"|>>[/\"]"
+        r"|curl.*-o\s+/"
+        r"|wget.*-O\s+/"
+        r"|mv\s+.*\s+/usr"
+        r"|mv\s+.*\s+/etc"
+        r"|cp\s+.*\s+/usr"
+        r"|cp\s+.*\s+/etc"
+        r"|rm\s+/"
+        r"|kill\s+-9"
+        r"|useradd\s"
+        r"|passwd\s"
+        r"|usermod\s"
+        r"|systemctl\s+(stop|disable|mask)"
+        r"|service\s+\w+\s+stop"
+        , re.IGNORECASE,
+    )
 
     def __init__(self, require_approval_high_risk: bool = True):
         self.require_approval_high_risk = require_approval_high_risk
         init_db()
 
     def classify_risk(self, action: Dict[str, Any]) -> str:
-        """
-        Classify risk based on tool and command intent.
+        """Return ``DESTRUCTIVE``, ``PRIVILEGED``, or ``SAFE``."""
+        cmd = (action.get("command") or "").strip()
+        if not cmd:
+            return "SAFE"
 
-        This is intentionally conservative. Anything ambiguous becomes high.
-        """
-        tool = (action.get("tool") or "").lower().strip()
-        cmd = (action.get("command") or "").lower()
-
-        # Pure read-only / discovery tools
-        low_tools = {"subfinder", "httpx", "katana", "waybackurls", "gau", "whois", "dig"}
-
-        # Active scanners / fuzzers (can stress target)
-        medium_tools = {"naabu", "nmap", "ffuf", "arjun", "nuclei"}
-
-        # Exploitation-style tools
-        high_tools = {"dalfox", "trufflehog"}
-
-        if tool in low_tools:
-            return "low"
-        if tool in medium_tools:
-            return "medium"
-        if tool in high_tools:
-            return "high"
-
-        # Heuristics for explicit exploit intent
-        if any(x in cmd for x in ["exploit", "reverse", "shell", "payload", "rce", "deserial", "xss", "sqli"]):
-            return "high"
-
-        # Unknown tool/action => high
-        return "high"
+        if self._DESTRUCTIVE.search(cmd):
+            return "DESTRUCTIVE"
+        if self._PRIVILEGED.search(cmd):
+            return "PRIVILEGED"
+        return "SAFE"
 
     def gate(
         self,
@@ -113,30 +161,50 @@ class Governance:
         action: Dict[str, Any],
         callback: Optional[Any] = None,
     ) -> GateDecision:
-        """Return whether an action is allowed; request approval if needed."""
+        """Return a decision for *action*.
+
+        DESTRUCTIVE commands are unconditionally denied.
+        PRIVILEGED commands require interactive user approval.
+        SAFE commands are always allowed.
+        """
         risk = self.classify_risk(action)
 
-        # Low/medium allowed by default
-        if risk in {"low", "medium"}:
-            decision = GateDecision(allowed=True, risk_level=risk, decision="allow", rationale="Policy: low/medium risk")
+        if risk == "DESTRUCTIVE":
+            decision = GateDecision(
+                allowed=False,
+                risk_level=risk,
+                decision="deny",
+                rationale="Destructive command blocked by governance policy.",
+            )
             self.audit(mission_id, target, action, decision)
             return decision
 
-        # High risk
-        if not self.require_approval_high_risk:
-            decision = GateDecision(allowed=True, risk_level=risk, decision="allow", rationale="Policy: approvals disabled")
+        if risk == "PRIVILEGED":
+            if not self.require_approval_high_risk:
+                decision = GateDecision(
+                    allowed=True,
+                    risk_level=risk,
+                    decision="allow",
+                    rationale="Policy: approvals disabled.",
+                )
+                self.audit(mission_id, target, action, decision)
+                return decision
+
+            decision = GateDecision(
+                allowed=False,
+                risk_level=risk,
+                decision="needs_approval",
+                rationale="Privileged action requires human approval.",
+            )
             self.audit(mission_id, target, action, decision)
             return decision
 
-        # If callback available, ask user; otherwise block
-        if callback:
-            callback("Approval required: high-risk action requested")
-
+        # SAFE
         decision = GateDecision(
-            allowed=False,
+            allowed=True,
             risk_level=risk,
-            decision="needs_approval",
-            rationale="High-risk action requires human approval",
+            decision="allow",
+            rationale="Safe action allowed by policy.",
         )
         self.audit(mission_id, target, action, decision)
         return decision

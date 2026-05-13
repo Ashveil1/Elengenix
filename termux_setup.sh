@@ -112,7 +112,7 @@ if ! pip install --upgrade pip setuptools wheel --quiet; then warning "Pip upgra
 
 # Install core dependencies (required)
 info "Installing core dependencies..."
-CORE_DEPS="pyyaml requests python-dotenv rich tenacity nest-asyncio setuptools wheel prompt_toolkit questionary openai anthropic google-generativeai cohere huggingface-hub replicate python-telegram-bot trafilatura googlesearch-python"
+CORE_DEPS="pyyaml requests python-dotenv rich tenacity nest-asyncio setuptools wheel prompt_toolkit questionary openai anthropic google-generativeai cohere huggingface-hub replicate python-telegram-bot trafilatura googlesearch-python ddgs textual"
 
 for dep in $CORE_DEPS; do
     run_with_spinner "Installing $dep..." pip install "$dep" || error "Failed to install $dep"
@@ -120,7 +120,11 @@ done
 
 success "Python dependencies secured."
 
-# 2.5 Vector Memory (Lightweight for mobile)
+# 2.5 Token counting (optional — improves accuracy)
+info "Installing tokenizer..."
+pip install tiktoken 2>/dev/null && success "Tokenizer installed" || true
+
+# 2.6 Vector Memory (Lightweight for mobile)
 info "Installing Vector Memory system..."
 # Note: ChromaDB requires onnxruntime which is not available on Android/Termux
 # We skip ChromaDB on mobile and use SQLite fallback instead (already built-in)
@@ -142,7 +146,12 @@ declare -A GO_TOOLS=(
 info "Installing lightweight Go tools..."
 for tool in "${!GO_TOOLS[@]}"; do
     if ! command -v "$tool" >/dev/null 2>&1; then
-        if ! run_with_spinner "Installing $tool (Go)..." go install -v "${GO_TOOLS[$tool]}"; then
+        CMD="go install -v ${GO_TOOLS[$tool]}"
+        # katana requires CGO_ENABLED=1 for the latest versions
+        if [ "$tool" = "katana" ]; then
+            CMD="CGO_ENABLED=1 $CMD"
+        fi
+        if ! run_with_spinner "Installing $tool (Go)..." $CMD; then
             warning "  Could not install $tool (skipping)"
         fi
     else
@@ -168,7 +177,7 @@ fi
 # ffuf - Fuzzer (optional on mobile)
 if ! command -v ffuf >/dev/null 2>&1; then
     info "  Installing ffuf (web fuzzer)..."
-    if go install -v github.com/ffuf/ffuf@latest 2>/dev/null; then
+    if go install -v github.com/ffuf/ffuf/v2@latest 2>/dev/null; then
         success "  ffuf installed"
     else
         warning "  ffuf installation failed (optional)"

@@ -19,7 +19,7 @@ import json
 import logging
 import re
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
 from collections import Counter
@@ -162,7 +162,7 @@ class SOCAnalyzer:
         try:
             # Handle various JSON formats
             alert_id = json_data.get("alert_id") or json_data.get("id") or f"json:{hash(str(json_data)) % 1000000:06d}"
-            timestamp = json_data.get("timestamp") or json_data.get("@timestamp") or datetime.utcnow().isoformat()
+            timestamp = json_data.get("timestamp") or json_data.get("@timestamp") or datetime.now(timezone.utc).isoformat()
             severity = (json_data.get("severity") or json_data.get("level") or "medium").lower()
             
             # Normalize severity

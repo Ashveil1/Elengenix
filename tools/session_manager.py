@@ -23,7 +23,7 @@ import logging
 import os
 import time
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -89,11 +89,11 @@ class SessionManager:
             The session name (auto-generated or provided).
         """
         if not name:
-            name = f"session-{datetime.utcnow().strftime('%Y%m%d-%H%M%S')}"
+            name = f"session-{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}"
 
         self.live = LiveSessionState(
             name=name,
-            created_at=datetime.utcnow().isoformat(),
+            created_at=datetime.now(timezone.utc).isoformat(),
             target=target,
             mode=mode,
             model=model,
@@ -143,7 +143,7 @@ class SessionManager:
         """
         session_name = name or self.live.name or f"session-{int(time.time())}"
         session_path = self._session_path(session_name)
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(timezone.utc).isoformat()
 
         conversation_history = []
         if agent and hasattr(agent, "conversation_history"):
@@ -225,7 +225,7 @@ class SessionManager:
             )
 
             # Update last modified
-            data["last_modified"] = datetime.utcnow().isoformat()
+            data["last_modified"] = datetime.now(timezone.utc).isoformat()
             session_path.write_text(
                 json.dumps(data, indent=2, ensure_ascii=False),
                 encoding="utf-8",

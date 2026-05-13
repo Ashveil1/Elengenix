@@ -30,7 +30,7 @@ import logging
 import re
 import time
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 from urllib.parse import urlparse
@@ -1590,7 +1590,7 @@ class AutonomousAgent:
                     f"ai={'yes' if self.ai_client else 'fallback'})")
 
     def run_autonomous_scan(self, target: str, goal: str = None) -> ScanResult:
-        start_time = datetime.utcnow()
+        start_time = datetime.now(timezone.utc)
 
         _display(f"\n[Autonomous Mode] Starting scan on: {target}")
         _display(f"[Governance] Mode: {self.governance_mode}")
@@ -1623,7 +1623,7 @@ class AutonomousAgent:
                     break
 
                 state.iteration = i + 1
-                elapsed = int((datetime.utcnow() - start_time).total_seconds())
+                elapsed = int((datetime.now(timezone.utc) - start_time).total_seconds())
 
                 # ── Progress indicator with severity breakdown ──────
                 sev_counts = {"critical": 0, "high": 0, "medium": 0, "low": 0, "info": 0}
@@ -1698,7 +1698,7 @@ class AutonomousAgent:
         except KeyboardInterrupt:
             _display("\n[Interrupted] Generating partial report...")
 
-        end_time = datetime.utcnow()
+        end_time = datetime.now(timezone.utc)
         duration = (end_time - start_time).seconds
 
         # Bounty predictions
@@ -1734,7 +1734,7 @@ class AutonomousAgent:
             scans_dir = Path("data/scans")
             scans_dir.mkdir(parents=True, exist_ok=True)
             domain = _to_domain(target)
-            ts = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+            ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
             out_path = scans_dir / f"{domain}_{ts}.json"
             payload = {
                 "target": target,
@@ -1848,7 +1848,7 @@ class AutonomousAgent:
                 title=f"Autonomous Security Assessment — {target}",
                 target=target,
                 author="Elengenix Autonomous AI v5.0",
-                date=datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
+                date=datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),
             )
             gen = PDFReportGenerator()
             paths = gen.generate_from_findings(findings, meta)
@@ -1891,7 +1891,7 @@ class AutonomousAgent:
         built-in action executors for tool operations.
         """
         import os
-        from datetime import datetime
+        from datetime import datetime, timezone
         
         active_models_str = os.environ.get("ACTIVE_MODELS", "")
         active_models = [m.strip() for m in active_models_str.split(",") if m.strip()]
@@ -1901,7 +1901,7 @@ class AutonomousAgent:
             _display("[Team Aegis] Not enough models selected. Using single-agent mode.")
             return self.run_autonomous_scan(target, goal=goal)
         
-        start_time = datetime.utcnow()
+        start_time = datetime.now(timezone.utc)
         goal = goal or "Find high-value security vulnerabilities for bug bounty"
         
         _display(f"\n{'='*60}")
@@ -1972,7 +1972,7 @@ class AutonomousAgent:
             # Run the team engagement
             report = team.run_full_engagement(executor=executor)
             
-            end_time = datetime.utcnow()
+            end_time = datetime.now(timezone.utc)
             duration = (end_time - start_time).seconds
             
             # Convert team findings to our format

@@ -22,7 +22,7 @@ import subprocess
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
 from urllib.parse import urlparse
@@ -39,8 +39,8 @@ class AssetNode:
     asset_type: str  # domain, ip, port, endpoint, tech, cdn, cloud
     value: str  # Actual value (e.g., "api.example.com", "192.168.1.1")
     properties: Dict[str, Any] = field(default_factory=dict)
-    first_seen: str = field(default_factory=lambda: datetime.utcnow().isoformat())
-    last_seen: str = field(default_factory=lambda: datetime.utcnow().isoformat())
+    first_seen: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    last_seen: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     confidence: float = 1.0
     sources: List[str] = field(default_factory=list)  # Which tools discovered this
 
@@ -106,7 +106,7 @@ class SmartReconEngine:
         if node.id in self._nodes:
             # Update existing
             existing = self._nodes[node.id]
-            existing.last_seen = datetime.utcnow().isoformat()
+            existing.last_seen = datetime.now(timezone.utc).isoformat()
             existing.properties.update(node.properties)
             existing.sources = list(set(existing.sources + node.sources))
             existing.confidence = max(existing.confidence, node.confidence)

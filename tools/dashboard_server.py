@@ -25,10 +25,10 @@ import socket
 import threading
 import time
 import webbrowser
-from datetime import datetime
+from datetime import datetime, timezone
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import parse_qs, urlparse
 
 from tools.mission_state import MissionState
@@ -95,7 +95,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
         """Export all findings as JSON."""
         findings = self.server.dashboard.get_all_findings()
         export_data = {
-            "export_time": datetime.utcnow().isoformat(),
+            "export_time": datetime.now(timezone.utc).isoformat(),
             "tool": "Elengenix v2.0.0",
             "total_findings": len(findings),
             "findings": findings,
@@ -246,7 +246,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
         
         <footer>
             <p>Elengenix v2.0.0 - Autonomous Offensive-Defensive System</p>
-            <p>Generated: {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')} UTC</p>
+            <p>Generated: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')} UTC</p>
         </footer>
     </div>
 </body>
@@ -290,7 +290,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
 <body>
     <div class="container">
         <h1> Elengenix Security Assessment Report</h1>
-        <p><strong>Generated:</strong> {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')} UTC</p>
+        <p><strong>Generated:</strong> {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')} UTC</p>
         <p><strong>Total Findings:</strong> {len(findings)}</p>
         
         <h2>Findings</h2>

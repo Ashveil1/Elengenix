@@ -147,7 +147,9 @@ async def start_watching(target_list_path: str = "targets_to_watch.txt", interva
                             "Identify NEW changes, critical vulnerabilities, or increased risk. "
                             "Provide a concise summary for a professional security alert."
                         )
-                        analysis = agent.process_query(query, target=target)
+                        # Check for smart scan mode via env var
+                        smart_scan = os.environ.get("ELENGENIX_SMART_SCAN", "") == "1"
+                        analysis = agent.process_query(query, target=target, use_smart_scan=smart_scan)
                         
                         if analysis:
                             send_telegram_notification(f"[ALERT] *WATCHMAN ALERT: {target}*\n\n{analysis[:3500]}")

@@ -37,7 +37,7 @@ import logging
 import os
 import time
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -55,7 +55,7 @@ class SetupConfig:
     auto_update: bool
     telemetry: bool
     first_run_complete: bool = False
-    setup_at: str = field(default_factory=lambda: datetime.utcnow().isoformat())
+    setup_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
 
 class WelcomeWizard:
@@ -189,7 +189,6 @@ class WelcomeWizard:
     def _show_spinner(self, message: str, duration: float = 1.0) -> None:
         """Show animated spinner."""
         import sys
-        import time
         
         spinner = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
         end_time = time.time() + duration

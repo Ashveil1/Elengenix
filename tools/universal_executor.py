@@ -19,7 +19,7 @@ import json
 from pathlib import Path
 from typing import Dict, List, Optional, Union, Any
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 
 logger = logging.getLogger("elengenix.universal")
 
@@ -140,7 +140,7 @@ class FileEditor:
             self.edit_history.append({
                 "action": "write",
                 "file": str(path),
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
                 "chars": len(content)
             })
             
@@ -194,7 +194,7 @@ class FileEditor:
             self.edit_history.append({
                 "action": "edit",
                 "file": str(path),
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
                 "old_len": len(old_string),
                 "new_len": len(new_string)
             })
@@ -421,35 +421,28 @@ class UniversalExecutor:
         self.execution_history: List[Dict] = []
     
     def is_safe_command(self, command: str) -> tuple[bool, str]:
-        """Check if command is safe to execute."""
+        """Check if command is safe to execute.
+
+        Uses Governance classification:
+          DESTRUCTIVE → blocked
+          PRIVILEGED  → needs interactive approval (handled by caller)
+          SAFE        → allowed
+        """
         if not command or not command.strip():
             return False, "Empty command"
-        
-        # Check dangerous patterns
+
+        # Block dangerous patterns unconditionally
         for pattern in self.DANGEROUS_PATTERNS:
             if re.search(pattern, command, re.IGNORECASE):
                 return False, f"Blocked dangerous pattern: {pattern}"
-        
-        # Check binary is allowed
+
         try:
-            args = shlex.split(command.strip())
-            if not args:
-                return False, "Empty command"
-            
-            binary = os.path.basename(args[0])
-            
-            # Allow if in allowlist
-            if binary in self.ALLOWED_COMMANDS:
-                return True, ""
-            
-            # Special case: scripts in project directory
-            if command.startswith("./") or command.startswith("python"):
-                return True, ""
-            
-            return False, f"Command '{binary}' not in allowlist. Allowed: {', '.join(sorted(self.ALLOWED_COMMANDS))[:100]}..."
-            
+            shlex.split(command.strip())
         except ValueError as e:
             return False, f"Parse error: {e}"
+
+        # Everything else is allowed (privileged actions gated by the caller)
+        return True, ""
     
     def execute_shell(self, command: str, timeout: int = 300, cwd: str = None) -> ExecutionResult:
         """Execute shell command with safety checks."""
@@ -474,7 +467,7 @@ class UniversalExecutor:
             # Log execution
             self.execution_history.append({
                 "command": command,
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
                 "success": result.returncode == 0,
                 "exit_code": result.returncode
             })

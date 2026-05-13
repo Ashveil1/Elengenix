@@ -37,7 +37,7 @@ import logging
 import time
 import uuid
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
@@ -156,8 +156,8 @@ class SmartScanner:
 
         
         # Timing
-        self.start_time = datetime.utcnow()
-        self.last_finding_time = datetime.utcnow()
+        self.start_time = datetime.now(timezone.utc)
+        self.last_finding_time = datetime.now(timezone.utc)
     
     def run(self, start_phase: int = 0) -> Dict[str, Any]:
         """
@@ -244,7 +244,7 @@ class SmartScanner:
                     new_findings = phase_result["findings"]
                     self.findings.extend(new_findings)
                     self.mission.add_finding()
-                    self.last_finding_time = datetime.utcnow()
+                    self.last_finding_time = datetime.now(timezone.utc)
                     self.progress.add_finding(len(new_findings))
                     
                     # Notify about findings
@@ -272,7 +272,7 @@ class SmartScanner:
             self.mission.update_phase("completed")
             results["findings"] = self.findings
             results["phases_completed"] = list(self.phase_results.keys())
-            results["duration_seconds"] = (datetime.utcnow() - self.start_time).total_seconds()
+            results["duration_seconds"] = (datetime.now(timezone.utc) - self.start_time).total_seconds()
             
             self.progress.finish(f"Scan complete - {len(self.findings)} findings")
             
@@ -474,12 +474,12 @@ class SmartScanner:
 
         try:
             from tools.pdf_report_generator import PDFReportGenerator, ReportMetadata
-            from datetime import datetime as _dt
+            from datetime import datetime, timezone as _dt
             meta = ReportMetadata(
                 title=f"Security Assessment — {self.target}",
                 target=self.target,
                 author="Elengenix Smart Scanner",
-                date=_dt.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
+                date=datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),
             )
             gen = PDFReportGenerator()
             report_paths = gen.generate_from_findings(self.findings, meta)
@@ -508,7 +508,7 @@ class SmartScanner:
         if not self.pause_after_hours:
             return False
         
-        time_since_finding = (datetime.utcnow() - self.last_finding_time).total_seconds() / 3600
+        time_since_finding = (datetime.now(timezone.utc) - self.last_finding_time).total_seconds() / 3600
         return time_since_finding >= self.pause_after_hours
     
     def _pause_mission(self, reason: str) -> None:

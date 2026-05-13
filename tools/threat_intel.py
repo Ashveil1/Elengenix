@@ -22,7 +22,7 @@ import hashlib
 import json
 import logging
 import sqlite3
-from datetime import datetime, timedelta
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
 
@@ -121,7 +121,7 @@ class ThreatIntelDB:
         metadata: Optional[Dict[str, Any]] = None,
     ) -> bool:
         """Add or update an IOC in the database."""
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(timezone.utc).isoformat()
         conn = sqlite3.connect(str(_DB_PATH), timeout=10)
         try:
             # Check if exists
@@ -189,7 +189,7 @@ class ThreatIntelDB:
 
     def get_recent(self, hours: int = 24) -> List[Dict[str, Any]]:
         """Get IOCs seen in last N hours."""
-        since = (datetime.utcnow() - timedelta(hours=hours)).isoformat()
+        since = (datetime.now(timezone.utc) - timedelta(hours=hours)).isoformat()
         conn = sqlite3.connect(str(_DB_PATH), timeout=10)
         try:
             rows = conn.execute(

@@ -43,7 +43,7 @@ import re
 import sqlite3
 import time
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 from urllib.parse import urljoin, urlparse
@@ -68,7 +68,7 @@ class BountyProgram:
     out_of_scope: List[str] = field(default_factory=list)
     response_time_hours: Optional[int] = None
     is_public: bool = True
-    cached_at: str = field(default_factory=lambda: datetime.utcnow().isoformat())
+    cached_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     
     # Scoring fields
     score_total: float = 0.0
@@ -491,7 +491,7 @@ class BountyIntelligence:
         cursor = conn.cursor()
         
         # Check cache age
-        cutoff = (datetime.utcnow() - timedelta(hours=self.CACHE_TTL_HOURS)).isoformat()
+        cutoff = (datetime.now(timezone.utc) - timedelta(hours=self.CACHE_TTL_HOURS)).isoformat()
         
         cursor.execute("""
             SELECT * FROM programs 
@@ -701,7 +701,7 @@ def run_cli():
         cached = intel._get_cached_programs(limit=50)
         print(f"\n  Cached programs: {len(cached)}")
         for prog in cached[:5]:
-            age = (datetime.utcnow() - datetime.fromisoformat(prog.cached_at)).hours
+            age = (datetime.now(timezone.utc) - datetime.fromisoformat(prog.cached_at)).hours
             print(f"    • {prog.name} ({age}h ago)")
     
     else:

@@ -11,12 +11,15 @@ Purpose:
 
 from __future__ import annotations
 
+import logging
 import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from ui_components import console, print_info, print_success, print_warning, print_error
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -219,6 +222,9 @@ class ConfigWizard:
     def __init__(self, config_dir: Path = Path(".")):
         self.config_dir = config_dir
         self.env_file = config_dir / ".env"
+        # Restrict permissions on existing .env if it exists
+        if self.env_file.exists():
+            self.env_file.chmod(0o600)
     
     def run(self) -> None:
         """Run the configuration wizard."""
@@ -907,8 +913,9 @@ class ConfigWizard:
         # Add new line
         lines.append(f"{key}={value}")
         
-        # Write back
+        # Write back with restricted permissions (owner read/write only)
         self.env_file.write_text("\n".join(lines) + "\n")
+        self.env_file.chmod(0o600)
     
     def _remove_env_var(self, key: str) -> None:
         """Remove environment variable from .env file."""

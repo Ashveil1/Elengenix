@@ -16,7 +16,7 @@ import re
 import importlib.util
 import time
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 # --- Load .env file (API keys, model preferences, etc.) ---
@@ -109,7 +109,7 @@ def validate_target(target: str) -> bool:
     # Strip protocol and path
     cleaned = target.replace("http://", "").replace("https://", "").split("/")[0]
     # Block shell metacharacters
-    forbidden = ["|", "&", ";", "`", "$(", ">", "<", "\\", "'", '"', "!", "\n", "\r"]
+    forbidden = ["|", "&", ";", "`", "$(", "${", ">", "<", "\\", "'", '"', "!", "\n", "\r"]
     if any(c in cleaned for c in forbidden):
         return False
     # Block private/loopback IPs
@@ -1005,7 +1005,7 @@ def main():
                     title=title,
                     target=target,
                     author=author,
-                    date=datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S'),
+                    date=datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S'),
                 )
                 
                 generator = PDFReportGenerator()

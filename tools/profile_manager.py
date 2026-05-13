@@ -44,7 +44,7 @@ import json
 import logging
 import shutil
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -61,7 +61,7 @@ class CommandProfile:
     options: Dict[str, Any]
     env_vars: Dict[str, str]
     created_by: str  # built-in or user
-    created_at: str = field(default_factory=lambda: datetime.utcnow().isoformat())
+    created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     usage_count: int = 0
     tags: List[str] = field(default_factory=list)
 

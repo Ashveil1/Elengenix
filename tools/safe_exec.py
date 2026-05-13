@@ -1,6 +1,5 @@
 """
 tools/safe_exec.py — Allowlisted Subprocess Executor (v2.0.0)
-- Strict binary allowlist
 - No shell=True, metacharacter blocking
 - Timeout & output size limits
 - Structured return with stdout/stderr/exit_code
@@ -9,20 +8,16 @@ tools/safe_exec.py — Allowlisted Subprocess Executor (v2.0.0)
 from __future__ import annotations
 
 import logging
-import os
 import shlex
 import subprocess
 from typing import Dict, Union
 
 logger = logging.getLogger("elengenix.safe_exec")
 
-ALLOWED_BINARIES: frozenset = frozenset({
-    "nmap", "curl", "wget",
-    "subfinder", "nuclei", "httpx", "katana",
-    "waybackurls", "ffuf", "gau", "amass",
-    "hakrawler", "gospider", "assetfinder",
-    "python3", "python",
-})
+# Binary allowlist has been removed in favour of Governance-based classification.
+# safe_exec now only enforces: shell=False, metacharacter blocking, timeout, output limits.
+# Authorisation is handled by tools/governance.py (SAFE / PRIVILEGED / DESTRUCTIVE).
+ALLOWED_BINARIES: frozenset = frozenset()  # kept as empty sentinel for backward compat
 
 FORBIDDEN_CHARS: tuple = ("|", "&", ";", "`", "$(", ">", "<", "\\", "\n", "\r")
 MAX_OUTPUT = 50_000  # chars
@@ -34,7 +29,10 @@ def execute_safely(
     cwd: str | None = None,
 ) -> Dict[str, Union[str, int, bool]]:
     """
-    Safely execute an allowlisted shell command.
+    Safely execute a shell command with metacharacter protection.
+
+    Binary allowlisting has been removed.  Governance-based classification
+    (tools/governance.py) handles authorisation upstream.
 
     Returns:
         {
@@ -61,10 +59,6 @@ def execute_safely(
     except ValueError as e:
         return error_result(f"Parse error: {e}")
 
-    binary = os.path.basename(args[0])
-    if binary not in ALLOWED_BINARIES:
-        return error_result(f"'{binary}' is not in the security allowlist.")
-
     logger.info(f"Executing: {command_str}")
     try:
         result = subprocess.run(
@@ -85,7 +79,7 @@ def execute_safely(
     except subprocess.TimeoutExpired:
         return error_result(f"Command timed out after {timeout}s.")
     except FileNotFoundError:
-        return error_result(f"Binary '{binary}' not found on this system.")
+        return error_result(f"Binary not found on this system.")
     except Exception as e:
         logger.error(f"Execution error: {e}")
         return error_result(str(e))

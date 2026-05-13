@@ -46,7 +46,7 @@ import json
 import logging
 import sqlite3
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
@@ -61,7 +61,7 @@ class TokenUsage:
     tokens_input: int
     tokens_output: int
     cost_usd: float
-    timestamp: str = field(default_factory=lambda: datetime.utcnow().isoformat())
+    timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     mission_id: Optional[str] = None
 
 
@@ -269,7 +269,7 @@ class TokenManager:
     
     def get_usage_today(self) -> Dict[str, float]:
         """Get total usage for today."""
-        today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+        today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
         
         conn = sqlite3.connect(self.DB_PATH)
         cursor = conn.cursor()
@@ -295,7 +295,7 @@ class TokenManager:
     
     def get_usage_month(self) -> Dict[str, float]:
         """Get total usage for this month."""
-        month_start = datetime.utcnow().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        month_start = datetime.now(timezone.utc).replace(day=1, hour=0, minute=0, second=0, microsecond=0)
         
         conn = sqlite3.connect(self.DB_PATH)
         cursor = conn.cursor()

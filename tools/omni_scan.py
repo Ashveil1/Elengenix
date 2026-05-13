@@ -55,10 +55,11 @@ def sanitize_target(target: str) -> str:
 
 
 def run_omni_scan(
-    target: str, 
+    target: str,
     rate_limit: int = 5,
     use_new_tools: bool = True,
-    enable_cvss: bool = True
+    enable_cvss: bool = True,
+    use_smart_scan: bool = False
 ) -> None:
     """
     CLI entry point. Runs the full pipeline synchronously (wraps async).
@@ -112,9 +113,10 @@ def run_omni_scan(
             # Use updated orchestrator with registry support
             report_dir = asyncio.run(
                 run_standard_scan(
-                    safe_target, 
+                    safe_target,
                     rate_limit=rate_limit,
-                    use_registry=use_new_tools
+                    use_registry=use_new_tools,
+                    use_smart_scan=use_smart_scan,
                 )
             )
             progress.update(task, description="Processing results...")

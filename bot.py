@@ -238,7 +238,9 @@ async def cmd_ask(update: Update, context: ContextTypes.DEFAULT_TYPE):
         asyncio.create_task(context.bot.send_message(chat_id=chat_id, text=f"{msg}", parse_mode="Markdown"))
 
     try:
-        response = await run_in_thread(agent.process_query, query, bot_callback)
+        # Check for smart scan mode via env var
+        smart_scan = os.environ.get("ELENGENIX_SMART_SCAN", "") == "1"
+        response = await run_in_thread(agent.process_query, query, bot_callback, use_smart_scan=smart_scan)
         if response:
             await safe_reply(update, f"*Agent Findings:*\n\n{response[:3800]}")
     except Exception as e:

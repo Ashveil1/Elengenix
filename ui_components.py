@@ -148,9 +148,9 @@ def show_main_banner():
     info_table.add_column(justify="center", min_width=20)
     info_table.add_column(justify="center", min_width=20)
     info_table.add_row(
-        "[bold #4CAF50][OK] System Online[/bold #4CAF50]",
-        "[bold #FFB74D][WARN] Security Mode Active[/bold #FFB74D]",
-        "[bold #90CAF9][INFO] v3.0.0[/bold #90CAF9]",
+        "[bold white][OK] System Online[/bold white]",
+        "[bold white][WARN] Security Mode Active[/bold white]",
+        "[bold #FF6B6B][INFO] v3.0.0[/bold #FF6B6B]",
     )
     console.print(Panel(
         info_table,
@@ -843,6 +843,7 @@ def render_sidebar(
     turn_count: int = 0,
     status: str = "ready",
     width: int = 45,
+    scroll_info: str = "",
 ) -> Panel:
     """Render the right sidebar panel with live session status.
 
@@ -926,9 +927,17 @@ def render_sidebar(
     lines.append(gap)
 
     lines.append(f"  [bold white]SHORTCUTS[/bold white]")
-    lines.append(f"  [dim #888888]Ctrl+R[/dim #888888][dim #999999] Research   [/dim #999999][dim #888888]Ctrl+B[/dim #888888][dim #999999] Mode[/dim #999999]")
+    lines.append(f"  [dim #888888]Ctrl+R[/dim #888888][dim #999999] Research  [/dim #999999][dim #888888]Ctrl+B[/dim #888888][dim #999999] Mode[/dim #999999]")
     lines.append(f"  [dim #888888]Ctrl+T[/dim #888888][dim #999999] Think     [/dim #999999][dim #888888]Ctrl+P[/dim #888888][dim #999999] Models[/dim #999999]")
     lines.append(f"  [dim #888888]Ctrl+G[/dim #888888][dim #999999] Help      [/dim #999999][dim #888888]↑↓[/dim #888888][dim #999999]   History[/dim #999999]")
+    lines.append(f"  [dim #888888]Ctrl+E[/dim #888888][dim #999999] Settings  (Overlay menu)[/dim #999999]")
+    
+    # Scroll indicator
+    if scroll_info:
+        lines.append(gap)
+        lines.append(f"  [bold #FF6B6B]SCROLL[/bold #FF6B6B]")
+        lines.append(f"  [dim #90CAF9]{scroll_info}[/dim #90CAF9]")
+        lines.append(f"  [dim #888888]j/k or ↑↓ to scroll[/dim #888888]")
 
     # Footer
     lines.append(sep)

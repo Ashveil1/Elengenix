@@ -50,7 +50,7 @@ import logging
 import re
 import time
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -84,7 +84,7 @@ class CommandEntry:
         """Get age in days."""
         try:
             dt = datetime.fromisoformat(self.timestamp)
-            return (datetime.utcnow() - dt).days
+            return (datetime.now(timezone.utc) - dt).days
         except Exception:
             return 999
 
@@ -140,7 +140,7 @@ class HistoryManager:
         try:
             data = {
                 "entries": [asdict(e) for e in self.entries[-self.MAX_HISTORY:]],
-                "saved_at": datetime.utcnow().isoformat(),
+                "saved_at": datetime.now(timezone.utc).isoformat(),
             }
             self.HISTORY_FILE.write_text(json.dumps(data, indent=2), encoding="utf-8")
         except Exception as e:
@@ -169,7 +169,7 @@ class HistoryManager:
             if entry.command == command and entry.args == args:
                 # Update existing entry
                 entry.run_count += 1
-                entry.timestamp = datetime.utcnow().isoformat()
+                entry.timestamp = datetime.now(timezone.utc).isoformat()
                 entry.duration_seconds = duration
                 entry.success = success
                 entry.findings_count = findings
@@ -180,7 +180,7 @@ class HistoryManager:
         entry = CommandEntry(
             command=command,
             args=args,
-            timestamp=datetime.utcnow().isoformat(),
+            timestamp=datetime.now(timezone.utc).isoformat(),
             duration_seconds=duration,
             success=success,
             findings_count=findings,
@@ -205,7 +205,7 @@ class HistoryManager:
     
     def get_recent_commands(self, hours: int = 24, limit: int = 10) -> List[CommandEntry]:
         """Get commands from last N hours."""
-        cutoff = datetime.utcnow() - timedelta(hours=hours)
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
         
         recent = []
         for entry in reversed(self.entries):
@@ -317,7 +317,7 @@ class HistoryManager:
                 suggestions.append(f"autonomous {last.target} -- Full AI scan")
         
         # Time-based suggestions
-        hour = datetime.utcnow().hour
+        hour = datetime.now(timezone.utc).hour
         if 9 <= hour <= 17:  # Work hours
             if "quick" not in [s.split()[0] for s in suggestions]:
                 suggestions.insert(0, "quick <target> -- Fast check")

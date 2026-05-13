@@ -44,14 +44,20 @@ from rich.box import ROUNDED, MINIMAL
 LOG_FILE = Path("data/elengenix_cli.log")
 LOG_FILE.parent.mkdir(exist_ok=True)
 
+# Use a stream handler for module-level logging to avoid unclosed file warnings.
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s",
     handlers=[
-        logging.FileHandler(LOG_FILE, encoding="utf-8"),
+        logging.StreamHandler(),
     ]
 )
 logger = logging.getLogger("elengenix.cli")
+
+# Dedicated file logger (created once, flushed properly).
+_file_handler = logging.FileHandler(LOG_FILE, encoding="utf-8")
+_file_handler.setFormatter(logging.Formatter("%(asctime)s - %(levelname)s - %(message)s"))
+logger.addHandler(_file_handler)
 
 # ── AI Disclaimer & Consent Management (v2.1.0) ─────────────────────────
 CONSENT_FILE = Path("data/.ai_consent_accepted")
@@ -167,18 +173,56 @@ def check_rate_limit() -> bool:
 
 
 def sanitize_input(text: str, max_length: int = 2000) -> str:
-    """Sanitize and truncate user input for safety."""
+    """Sanitize and truncate user input for safety.
+
+    Uses character-class allowlisting to prevent prompt-injection and
+    code-execution payloads from reaching the AI agent.
+    """
     text = text.strip()
+    if not text:
+        return ""
+
     if len(text) > max_length:
         logger.warning(f"Input truncated from {len(text)} to {max_length}")
         text = text[:max_length]
-    
-    dangerous = ["__import__", "eval(", "exec(", "os.system"]
-    for pattern in dangerous:
-        if pattern in text.lower():
+
+    # ── Blocklist (defense-in-depth, catches obvious injection) ──────
+    dangerous_exact = [
+        "__import__", "eval(", "exec(", "os.system", "os.popen",
+        "subprocess", "__builtins__", "open(__", "breakpoint(",
+        "compile(", "getattr(", "setattr(", "delattr(",
+    ]
+    text_lower = text.lower()
+    for pattern in dangerous_exact:
+        if pattern in text_lower:
             logger.warning(f"Dangerous pattern blocked: {pattern}")
-            console.print(f"[bold red] Security Alert: Patterns like '{pattern}' are restricted.[/bold red]")
+            console.print(f"[bold red] Security Alert: Pattern '{pattern}' is restricted.[/bold red]")
             return ""
+
+    # ── Normalise whitespace in function-call-like patterns ──────────
+    #     "eval (" -> "eval("  so the blocklist above can catch it.
+    import re as _re
+    text = _re.sub(r"\b(exec|eval)\s*\(", r"\1(", text, flags=_re.IGNORECASE)
+
+    # ── Character-class allowlisting ─────────────────────────────────
+    #     The vast majority of legitimate inputs (URLs, filenames,
+    #     search queries, Thai text) fit within these ranges.
+    allowed = _re.compile(
+        r"^[\w \.\,\/\:\;\?\&\=\+\~\@\#\%\!\*\-\(\)\[\]\{\}'\""
+        r"\u0E00-\u0E7F"           # Thai
+        r"\u4E00-\u9FFF"           # CJK (Chinese, Japanese)
+        r"\u3040-\u309F"           # Hiragana
+        r"\u30A0-\u30FF"           # Katakana
+        r"\u0400-\u04FF"           # Cyrillic
+        r"\u0600-\u06FF"           # Arabic
+        r"]*$",
+        _re.UNICODE,
+    )
+    if not allowed.match(text):
+        logger.warning(f"Input contains disallowed characters: {text[:100]!r}")
+        console.print("[bold red] Security Alert: Input contains disallowed characters.[/bold red]")
+        return ""
+
     return text
 
 def get_secure_input(prompt: str, timeout: int = 300) -> Optional[str]:
@@ -689,9 +733,15 @@ def main(mode: str = "auto", target: str = None):
                 # Add scroll indicator if scrolled
                 if self._scroll_offset > 0 or total_msgs > self._viewport_lines:
                     total = total_msgs
-                    current = max(1, total - self._viewport_lines - self._scroll_offset + 1) if self._scroll_offset > 0 else max(1, total - self._viewport_lines + 1)
-                    indicator = f"[dim]▲ Page {self._scroll_offset + 1} │ {current}-{total} messages[/dim]"
-                    panels.append(Panel(Text(indicator, style="dim"), box=MINIMAL, padding=(0, 1), style="on #111111"))
+                    # Calculate scrollbar position
+                    visible_lines = min(self._viewport_lines, total)
+                    if total > visible_lines:
+                        scroll_pos = int((self._scroll_offset / max(1, total - visible_lines)) * 10)
+                        scrollbar = "█" * scroll_pos + "░" * (10 - scroll_pos)
+                    else:
+                        scrollbar = "██████████"
+                    indicator = f"[#FF6B6B]|{scrollbar}|[/] [dim]j/k scroll[/dim]"
+                    panels.append(Panel(Text(indicator, style="white"), box=MINIMAL, padding=(0, 1), style="on #111111"))
 
                 return Group(*panels)
 
@@ -704,7 +754,8 @@ def main(mode: str = "auto", target: str = None):
     def _token_count() -> int:
         if not hasattr(agent, "conversation_history") or not agent.conversation_history:
             return 0
-        return sum(len(str(m.get("content", ""))) for m in agent.conversation_history) // 4
+        from tools.token_counter import count_tokens
+        return sum(count_tokens(str(m.get("content", ""))) for m in agent.conversation_history)
 
     def _get_active_model() -> str:
         active = os.environ.get("ACTIVE_MODELS", "").split(",")
@@ -719,17 +770,26 @@ def main(mode: str = "auto", target: str = None):
 
     def _sidebar() -> Panel:
         s = session_mgr.live
+        # Get scroll info
+        is_scrolled, offset, total = chat.get_scroll_info()
+        # Calculate scroll percentage
+        if total > 10:
+            scroll_pct = min(100, int((offset / max(1, total - 10)) * 100))
+            scroll_bar = "█" * int(scroll_pct / 10) + "░" * (10 - int(scroll_pct / 10))
+            scroll_info = f"  [{scroll_bar}] {scroll_pct}% (j/k scroll)"
+        else:
+            scroll_info = ""
         return render_sidebar(
             session_name=s.name, mode=s.mode, model=_get_active_model(),
             token_count=_token_count(), token_limit=s.token_limit,
             target=s.target, turn_count=s.turn_count, status=s.status,
-            width=SIDEBAR_W,
+            width=SIDEBAR_W, scroll_info=scroll_info,
         )
 
     def _header() -> Panel:
         return Panel(
             "[bold #FF6B6B] Elengenix AI Agent Framework v3.0.0 [/bold #FF6B6B]"
-            "  [dim #757575]| Ctrl+R: Research  Ctrl+B: Scan  Ctrl+T: Think  Ctrl+P: Models  Ctrl+G: Help  /quit: Exit[/dim #757575]",
+            "  [dim #757575]| Ctrl+R: Research  Ctrl+B: Scan  Ctrl+T: Think  Ctrl+P: Models  Ctrl+E: Settings  Ctrl+G: Help  /quit: Exit[/dim #757575]",
             box=MINIMAL, padding=(0, 1),
         )
 
@@ -818,7 +878,6 @@ def main(mode: str = "auto", target: str = None):
             try:
                 if not sys.stdin.isatty():
                     return None
-                import select
                 r, _, _ = select.select([sys.stdin], [], [], timeout)
                 if not r:
                     return None
@@ -883,7 +942,7 @@ def main(mode: str = "auto", target: str = None):
             chat.add("")
             chat.add("[bold #FF6B6B]Shortcuts:[/bold #FF6B6B]")
             chat.add("  Ctrl+R  Research  |  Ctrl+B  Scan  |  Ctrl+T  Think")
-            chat.add("  Ctrl+P  Models    |  Ctrl+G  Help  |  Ctrl+C  Exit")
+            chat.add("  Ctrl+P  Models    |  Ctrl+E  Settings  |  Ctrl+G  Help  |  Ctrl+C  Exit")
             chat.add("  ↑/↓     History   |  Tab     Slash-complete")
             return
 
@@ -1336,7 +1395,7 @@ def main(mode: str = "auto", target: str = None):
         if ch == '\x07':  # Ctrl+G help
             chat.add(""); chat.add("[bold #FF6B6B]Shortcuts:[/bold #FF6B6B]")
             chat.add("  Ctrl+R  Research  |  Ctrl+B  Scan  |  Ctrl+T  Think")
-            chat.add("  Ctrl+P  Models    |  Ctrl+G  Help  |  Ctrl+C  Exit")
+            chat.add("  Ctrl+P  Models    |  Ctrl+E  Settings  |  Ctrl+G  Help  |  Ctrl+C  Exit")
             chat.add("  ↑/↓     History   |  Tab     Complete")
             chat.add("  PgUp   Scroll Up  |  PgDn   Scroll Down")
             return buf, cur_pos, hidx, False
@@ -1477,7 +1536,7 @@ def main(mode: str = "auto", target: str = None):
                     chat.add("[dim]Press Tab to select[/dim]")
             return buf, cur_pos, hidx, False
 
-        if ord(ch) >= 32:
+        if len(ch) == 1 and ord(ch) >= 32:
             buf = buf[:cur_pos] + ch + buf[cur_pos:]; cur_pos += 1
             # Detect paste: 5+ newlines in buffer with indicator replacement
             if not buf.startswith("[Pasted ~"):
@@ -1491,7 +1550,15 @@ def main(mode: str = "auto", target: str = None):
 
     # ── Run Live loop ───────────────────────────────────────────────────────
     raw = RawTerm()
-    chat.add("Welcome to Elengenix AI Agent Framework. Type /help for commands.", role="system")
+    # Welcome banner with ASCII logo
+    chat.add("    [bold #FF6B6B] ███████╗██╗     ███████╗███╗   ██╗ ██████╗ ███████╗███╗   ██╗[/bold #FF6B6B]", role="system")
+    chat.add("    [bold #FF4757] ██╔════╝██║     ██╔════╝████╗  ██║██╔════╝ ██╔════╝████╗  ██║[/bold #FF4757]", role="system")
+    chat.add("    [bold #DC143C] █████╗  ██║     █████╗  ██╔██╗ ██║██║  ███╗█████╗  ██╔██╗ ██║[/bold #DC143C]", role="system")
+    chat.add("    [bold #B22222] ██╔══╝  ██║     ██╔══╝  ██║╚██╗██║██║   ██║██╔══╝  ██║╚██╗██║[/bold #B22222]", role="system")
+    chat.add("    [bold #8B0000] ███████╗███████╗███████╗██║ ╚████║╚██████╔╝███████╗██║ ╚████║[/bold #8B0000]", role="system")
+    chat.add("    [dim #FF6B6B] ╚══════╝╚══════╝╚══════╝╚═╝  ╚═══╝ ╚═════╝ ╚══════╝╚═╝  ╚═══╝[/dim #FF6B6B]", role="system")
+    chat.add("           [dim #90CAF9]Universal AI & Bug Bounty Agent[/dim #90CAF9]", role="system")
+    chat.add("           [dim]Type /help for commands[/dim]", role="system")
 
     with raw:
         layout = Layout()
@@ -1586,13 +1653,8 @@ def main(mode: str = "auto", target: str = None):
                                 chat.add("[WARN] Failed to save settings. Check logs.", role="error")
                                 show_overlay[0] = False
                                 overlay_obj[0] = None
-                        else:
-                            print(f"DEBUG: handle_key called with ch={repr(ch)}", file=sys.stderr)
-                            old_ibuf = ibuf
+                        elif not show_overlay[0]:
                             ibuf, icur, hidx, exit_flag = handle_key(ch, ibuf, icur, hist, hidx)
-                            print(f"DEBUG: handle_key returned ibuf={repr(ibuf[:20])}", file=sys.stderr)
-                            if exit_flag:
-                                print(f"DEBUG exit_flag=True, breaking!", file=sys.stderr)
                     if exit_flag:
                         break
             except (EOFError, KeyboardInterrupt):

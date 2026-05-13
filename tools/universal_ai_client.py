@@ -7,6 +7,7 @@ Design Principle (OpenClaw-style):
 - OpenAI-compatible format (universal standard)
 - Support: OpenAI, Gemini, Anthropic, Ollama, LocalAI, etc.
 - Easy provider switching (just change base_url + key)
+- Async via httpx (optional); falls back to synchronous requests.
 
 Providers with OpenAI-compatible API:
 - OpenAI (native)
@@ -18,12 +19,22 @@ Providers with OpenAI-compatible API:
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import os
 import time
 from dataclasses import dataclass
 from typing import Any, Dict, Generator, List, Optional
+
+# Primary transport: httpx (async-capable, faster).
+# Fallback: requests (synchronous, always available).
+try:
+    import httpx as _httpx
+    HTTPX_AVAILABLE = True
+except ImportError:
+    _httpx = None  # type: ignore[assignment]
+    HTTPX_AVAILABLE = False
 
 import requests
 
@@ -398,6 +409,81 @@ class UniversalAIClient:
                             yield delta["content"]
                     except Exception:
                         pass
+
+    async def chat_async(
+        self,
+        messages: List[AIMessage],
+        temperature: float = 0.7,
+        max_tokens: int = 4096,
+    ) -> AIResponse:
+        """Async chat completion via httpx (falls back to thread-pool executor).
+
+        When ``httpx`` is installed the HTTP call is truly non-blocking.
+        Otherwise the synchronous ``requests`` call is offloaded to a
+        thread pool so the caller's event loop is not blocked.
+        """
+        formatted_messages = [
+            {"role": m.role, "content": m.content}
+            for m in messages
+        ]
+        payload = {
+            "model": self.model,
+            "messages": formatted_messages,
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+            "stream": False,
+        }
+
+        if self.custom_format:
+            return self._call_custom_api(payload, stream=False)
+
+        url = self.base_url.rstrip("/") + "/chat/completions"
+
+        # Rate-limit enforcement (same as sync path).
+        elapsed = time.time() - self.last_request_time
+        if elapsed < self.min_delay:
+            await asyncio.sleep(self.min_delay - elapsed)
+        self.last_request_time = time.time()
+
+        if HTTPX_AVAILABLE:
+            return await self._call_openai_api_async(url, payload)
+        else:
+            loop = asyncio.get_running_loop()
+            resp = await loop.run_in_executor(
+                None, lambda: self._call_openai_api(payload, stream=False)
+            )
+            return resp
+
+    async def _call_openai_api_async(self, url: str, payload: Dict) -> AIResponse:
+        """Async HTTP POST via httpx."""
+        headers = {
+            "Content-Type": "application/json",
+        }
+        if self.api_key:
+            headers["Authorization"] = f"Bearer {self.api_key}"
+
+        for attempt in range(self.max_retries):
+            try:
+                async with _httpx.AsyncClient(timeout=self.timeout) as client:
+                    resp = await client.post(url, json=payload, headers=headers)
+                    resp.raise_for_status()
+                    data = resp.json()
+
+                choice = data["choices"][0]
+                return AIResponse(
+                    content=choice["message"]["content"],
+                    model=data.get("model", self.model),
+                    usage=data.get("usage", {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}),
+                    raw_response=data,
+                )
+
+            except Exception as e:
+                if attempt < self.max_retries - 1:
+                    wait = 2 ** attempt
+                    logger.debug(f"httpx attempt {attempt+1} failed: {e}, retrying in {wait}s")
+                    await asyncio.sleep(wait)
+                    continue
+                raise
 
     def simple_chat(self, user_message: str, system_prompt: Optional[str] = None) -> str:
         """

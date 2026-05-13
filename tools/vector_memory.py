@@ -1,6 +1,7 @@
 """
 tools/vector_memory.py — Semantic Vector Memory System (v1.0.0)
 - ChromaDB-based vector storage for persistent AI memory
+- SQLite FTS5 fallback (built-in, zero deps) when ChromaDB unavailable
 - Semantic search: ค้นหาคล้ายกัน ไม่ใช่ตรงตัว
 - จำทุก conversation, finding, decision ตลอดกาล
 - Cross-session memory: เริ่มใหม่ก็ยังจำได้
@@ -9,21 +10,22 @@ tools/vector_memory.py — Semantic Vector Memory System (v1.0.0)
 import logging
 import hashlib
 import json
-from datetime import datetime
+import sqlite3
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Union
 from dataclasses import dataclass, asdict
 
 logger = logging.getLogger("elengenix.vector_memory")
 
-# Try to import ChromaDB, fallback to SQLite if not available
+# Try to import ChromaDB, fallback to SQLite FTS5 if not available
 try:
     import chromadb
     from chromadb.config import Settings
     CHROMADB_AVAILABLE = True
 except ImportError:
     CHROMADB_AVAILABLE = False
-    logger.warning("ChromaDB not available. Falling back to SQLite.")
+    logger.info("ChromaDB not installed — using SQLite FTS5 fallback (zero deps).")
 
 
 @dataclass
@@ -109,7 +111,7 @@ class VectorMemory:
             logger.warning("VectorMemory not initialized, storing in SQLite fallback")
             return self._fallback_add(content, target, category, metadata)
         
-        timestamp = datetime.utcnow().isoformat()
+        timestamp = datetime.now(timezone.utc).isoformat()
         memory_id = self._generate_id(content, target, timestamp)
         
         # Build document for embedding
@@ -265,8 +267,8 @@ class VectorMemory:
     def delete_target_memories(self, target: str) -> int:
         """ลบทุก memory ของ target นั้น"""
         if not self._initialized:
-            return 0
-        
+            return self._fallback_delete_target(target)
+
         try:
             self.collection.delete(
                 where={"target": target.lower().strip()}
@@ -280,7 +282,7 @@ class VectorMemory:
     def get_memory_stats(self) -> Dict[str, Any]:
         """สถิติของ memory database"""
         if not self._initialized:
-            return {"status": "fallback", "count": 0}
+            return self._fallback_stats()
         
         try:
             count = self.collection.count()
@@ -298,37 +300,200 @@ class VectorMemory:
             return {"status": "error", "error": str(e)}
     
     # ═════════════════════════════════════════════════════════════════
-    # FALLBACK: SQLite mode (เมื่อ ChromaDB ไม่พร้อมใช้งาน)
+    # FALLBACK: SQLite FTS5 mode (เมื่อ ChromaDB ไม่พร้อมใช้งาน)
     # ═════════════════════════════════════════════════════════════════
-    
-    def _fallback_add(self, content, target, category, metadata):
-        """Fallback to SQLite memory_manager"""
+    #
+    # SQLite FTS5 (Full-Text Search v5) is built into Python's sqlite3
+    # module — no extra dependencies.  It provides BM25-ranked keyword
+    # search, which is vastly better than a single "summary blob".
+    # ═════════════════════════════════════════════════════════════════
+
+    _FTS_DB_PATH: Optional[Path] = None
+
+    def _fts_db(self) -> Path:
+        if self._FTS_DB_PATH is None:
+            self.__class__._FTS_DB_PATH = self.persist_dir / "fts_memory.db"
+        return self._FTS_DB_PATH
+
+    def _init_fts(self) -> None:
+        """Create the FTS5 table if it does not exist."""
+        self.persist_dir.mkdir(parents=True, exist_ok=True)
+        with sqlite3.connect(str(self._fts_db())) as conn:
+            conn.execute("PRAGMA journal_mode=WAL")
+            conn.execute("""
+                CREATE VIRTUAL TABLE IF NOT EXISTS memories_fts USING fts5(
+                    content,
+                    target     UNINDEXED,
+                    category   UNINDEXED,
+                    timestamp  UNINDEXED,
+                    metadata   UNINDEXED,
+                    tokenize='unicode61'
+                )
+            """)
+
+    def _fallback_add(
+        self,
+        content: str,
+        target: str,
+        category: str = "general",
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> Optional[str]:
+        """Store a memory in the FTS5 index."""
         try:
-            from tools.memory_manager import save_learning
-            save_learning(target, content, category)
-            return "fallback"
+            self._init_fts()
+            timestamp = datetime.now(timezone.utc).isoformat()
+            memory_id = self._generate_id(content, target, timestamp)
+            meta_json = json.dumps(metadata or {}, ensure_ascii=False)
+
+            with sqlite3.connect(str(self._fts_db())) as conn:
+                conn.execute(
+                    "INSERT INTO memories_fts (rowid, content, target, category, timestamp, metadata) "
+                    "VALUES (?, ?, ?, ?, ?, ?)",
+                    (int(memory_id, 16) % (2**63), content, target.lower().strip(),
+                     category.lower(), timestamp, meta_json),
+                )
+            logger.debug(f"[FTS] Added memory: {memory_id[:8]}... for {target}")
+            return memory_id
         except Exception as e:
-            logger.error(f"Fallback add failed: {e}")
+            logger.error(f"[FTS] Add failed: {e}")
             return None
-    
-    def _fallback_search(self, query, target, category, limit):
-        """Fallback search using exact match"""
-        try:
-            from tools.memory_manager import get_summarized_learnings
-            summary = get_summarized_learnings(target or "global", max_chars=2000)
-            return [{"content": summary, "metadata": {}, "similarity": 1.0}]
-        except Exception as e:
-            logger.error(f"Fallback search failed: {e}")
+
+    def _fallback_search(
+        self,
+        query: str,
+        target: Optional[str] = None,
+        category: Optional[str] = None,
+        n_results: int = 10,
+    ) -> List[Dict[str, Any]]:
+        """Full-text search via FTS5 with BM25 ranking."""
+        fts_db = self._fts_db()
+        if not fts_db.exists():
             return []
-    
-    def _fallback_get_target(self, target, category, limit):
-        """Fallback get target"""
         try:
-            from tools.memory_manager import get_summarized_learnings
-            summary = get_summarized_learnings(target, max_chars=5000)
-            return [{"content": summary, "metadata": {"target": target}}]
+            self._init_fts()
+            # Escape FTS5 special characters and build query
+            safe_query = " NEAR ".join(query.split())
+            safe_query = " OR ".join(
+                f'"{w}"' if " " not in w else w
+                for w in safe_query.split()
+            )
+
+            sql = (
+                "SELECT rowid, content, target, category, timestamp, metadata, "
+                "       rank "
+                "FROM memories_fts "
+                "WHERE memories_fts MATCH ? "
+            )
+            params: List[Any] = [safe_query]
+
+            if target:
+                sql += "AND target = ? "
+                params.append(target.lower().strip())
+            if category:
+                sql += "AND category = ? "
+                params.append(category.lower())
+
+            sql += "ORDER BY rank LIMIT ?"
+            params.append(n_results)
+
+            with sqlite3.connect(str(fts_db)) as conn:
+                rows = conn.execute(sql, params).fetchall()
+
+            results = []
+            for rowid, content, tgt, cat, ts, meta_json, rank in rows:
+                meta = json.loads(meta_json) if meta_json else {}
+                meta.update({"target": tgt, "category": cat, "timestamp": ts})
+                # Convert FTS5 rank (0 = perfect match) to similarity (0-1)
+                similarity = max(0.0, min(1.0, 1.0 - rank / 10.0))
+                results.append({
+                    "id": str(rowid),
+                    "content": content,
+                    "metadata": meta,
+                    "similarity": similarity,
+                })
+
+            return results
         except Exception as e:
+            logger.error(f"[FTS] Search failed: {e}")
             return []
+
+    def _fallback_get_target(
+        self,
+        target: str,
+        category: Optional[str] = None,
+        limit: int = 100,
+    ) -> List[Dict[str, Any]]:
+        """Get all memories for a target from FTS5."""
+        fts_db = self._fts_db()
+        if not fts_db.exists():
+            return []
+        try:
+            self._init_fts()
+            sql = "SELECT rowid, content, target, category, timestamp, metadata FROM memories_fts WHERE target = ?"
+            params: List[Any] = [target.lower().strip()]
+            if category:
+                sql += " AND category = ?"
+                params.append(category.lower())
+            sql += " ORDER BY rowid DESC LIMIT ?"
+            params.append(limit)
+
+            with sqlite3.connect(str(fts_db)) as conn:
+                rows = conn.execute(sql, params).fetchall()
+
+            results = []
+            for rowid, content, tgt, cat, ts, meta_json in rows:
+                meta = json.loads(meta_json) if meta_json else {}
+                meta.update({"target": tgt, "category": cat, "timestamp": ts})
+                results.append({
+                    "id": str(rowid),
+                    "content": content,
+                    "metadata": meta,
+                })
+            return results
+        except Exception as e:
+            logger.error(f"[FTS] Get target failed: {e}")
+            return []
+
+    def _fallback_delete_target(self, target: str) -> int:
+        """Delete all memories for a target from FTS5."""
+        fts_db = self._fts_db()
+        if not fts_db.exists():
+            return 0
+        try:
+            self._init_fts()
+            with sqlite3.connect(str(fts_db)) as conn:
+                cursor = conn.execute(
+                    "DELETE FROM memories_fts WHERE target = ?",
+                    (target.lower().strip(),),
+                )
+                return cursor.rowcount
+        except Exception as e:
+            logger.error(f"[FTS] Delete failed: {e}")
+            return 0
+
+    def _fallback_stats(self) -> Dict[str, Any]:
+        """Get statistics from FTS5 store."""
+        fts_db = self._fts_db()
+        if not fts_db.exists():
+            return {"status": "fallback_uninitialized", "count": 0}
+        try:
+            self._init_fts()
+            with sqlite3.connect(str(fts_db)) as conn:
+                count = conn.execute("SELECT COUNT(*) FROM memories_fts").fetchone()[0]
+                targets = [
+                    r[0] for r in conn.execute(
+                        "SELECT DISTINCT target FROM memories_fts ORDER BY target"
+                    ).fetchall()
+                ]
+            return {
+                "status": "fallback_fts5",
+                "total_memories": count,
+                "unique_targets": len(targets),
+                "targets": targets[:20],
+                "persist_directory": str(self.persist_dir),
+            }
+        except Exception as e:
+            return {"status": "error", "error": str(e)}
 
 
 # Global instance

@@ -167,7 +167,11 @@ class TeamAegis:
         self.findings: List[Finding] = []
         self.tasks: List[TaskAssignment] = []
         self.task_queue: List[tuple] = []  # Priority queue: (priority, task) tuples
+        self.shared_intel: List[str] = []  # intelligence shared across agents
         self.round = 0
+        # Context compression
+        self._compress_threshold = 3500   # tokens — compress when discussion exceeds this
+        self._compress_check_interval = 3  # check every N rounds
         self.team_size = len(clients)
         self.finished = False
         
@@ -271,6 +275,40 @@ class TeamAegis:
             lines.append(f"{target}: {str(memory)[:500]}")
         return "\n".join(lines)
 
+    # ── Shared Intelligence (cross-agent awareness) ───────────────────
+
+    def _share_intel(self, agent_id: int, insight: str) -> None:
+        """Share a key insight from one agent to the entire team.
+
+        Called automatically after a tool returns findings.  Other agents
+        will see this in their ``_format_shared_intel()`` context.
+        """
+        role = self.roles[agent_id]["name"] if agent_id < len(self.roles) else f"Agent{agent_id}"
+        entry = f"[{role}] {insight[:300]}"
+        if entry not in self.shared_intel:
+            self.shared_intel.append(entry)
+            logger.info(f"Shared intel from {role}: {insight[:80]}...")
+
+    def _format_shared_intel(self) -> str:
+        """Format shared intelligence and pending tasks for agent prompt."""
+        lines = []
+
+        if self.shared_intel:
+            lines.append("### SHARED INTELLIGENCE (from teammates):")
+            for entry in self.shared_intel[-10:]:
+                lines.append(f"  {entry}")
+
+        # Show pending tasks from the queue
+        pending = [t for t in self.task_queue if t[3].get("type") != "suggested"]
+        suggested = [t for t in self.task_queue if t[3].get("type") == "suggested"]
+        if suggested:
+            lines.append("\n### PENDING TASKS (suggested by teammates — claim one):")
+            for _, _, agent_id, action in suggested:
+                desc = action.get("description", "Unknown task")[:150]
+                lines.append(f"  - {desc}")
+
+        return "\n".join(lines)
+
     def _push_task(self, priority: int, agent_id: int, action: Dict):
         """Add a task to the priority queue (lower number = higher priority)."""
         if priority < 0:
@@ -298,6 +336,71 @@ class TeamAegis:
         except Exception as e:
             logger.debug(f"Memory save failed: {e}")
 
+    # ── Context Compression ────────────────────────────────────────────
+
+    def _estimate_discussion_tokens(self) -> int:
+        """Estimate total tokens in the discussion board."""
+        from tools.token_counter import count_tokens
+        total = 0
+        for msg in self.discussion:
+            total += count_tokens(msg.content)
+            total += count_tokens(msg.agent_role)
+        return total
+
+    def _compress_discussion(self) -> None:
+        """Compress middle portion of discussion when token count is high.
+
+        Keeps the first 2 and last 8 messages intact.  The remainder is
+        summarised by the first available AI client.
+        """
+        total = self._estimate_discussion_tokens()
+        if total < self._compress_threshold:
+            return
+        if len(self.discussion) <= 12:
+            return  # too few messages to bother
+
+        keep_head = 2
+        keep_tail = 8
+        middle = self.discussion[keep_head:-keep_tail]
+        if not middle:
+            return
+
+        head_msgs = self.discussion[:keep_head]
+        tail_msgs = self.discussion[-keep_tail:]
+
+        middle_text = "\n---\n".join(
+            f"[{m.agent_role}] R{m.round}: {m.content[:400]}"
+            for m in middle
+        )
+
+        try:
+            client = self.clients[0]  # first available AI
+            summary = client.simple_chat(
+                f"Summarise the following team discussion in 3-5 sentences. "
+                f"Focus on: key findings, tools used, decisions made, and next steps.\n\n"
+                f"{middle_text}",
+                system_prompt="You are a concise summariser. Output only the summary, no preamble.",
+            )
+            summary_text = summary.strip() if summary else ""
+            if len(summary_text) < 20:
+                return  # garbage summary, skip
+
+            compressed = TeamMessage(
+                round=self.round,
+                agent_id=-1,
+                agent_role="[COMPRESSED]",
+                model_name="system",
+                content=f"Earlier discussion compressed:\n{summary_text}",
+                msg_type="discussion",
+            )
+            self.discussion = head_msgs + [compressed] + tail_msgs
+            logger.info(
+                f"Compressed {len(middle)} discussion messages into summary "
+                f"(was {total} tokens)"
+            )
+        except Exception as e:
+            logger.debug(f"Discussion compression failed: {e}")
+
     def _build_agent_prompt(self, agent_id: int, phase: str = "discuss") -> str:
         """Build the full prompt for a specific agent."""
         role = self.roles[agent_id]
@@ -311,6 +414,7 @@ class TeamAegis:
         
         discussion_history = self._format_discussion_history()
         findings_summary = self._format_findings()
+        shared_intel = self._format_shared_intel()
         
         # Get available tools from skill registry
         tools_context = ""
@@ -335,6 +439,9 @@ class TeamAegis:
 
 ### CURRENT FINDINGS
 {findings_summary}
+
+### SHARED INTELLIGENCE
+{shared_intel}
 
 ### TEAM DISCUSSION HISTORY
 {discussion_history}
@@ -373,15 +480,19 @@ Respond with JSON:
         }}
     ],
     "tool_recommendation": "Suggest a specific tool from the available list for teammates to try",
-    "needs_help": false,
-    "help_request": ""
-}}
-```
-
-- Set `action.type` to `"none"` if you just want to discuss without executing anything
-- Set `action.type` to `"finish"` if you believe the scan is complete
-- Set `needs_help` to `true` if you are stuck and need teammates' input
-- `findings` is optional — only include if you discovered something
+        "needs_help": false,
+        "help_request": "",
+        "suggest_task": ""  // Optional: suggest a task for teammates (e.g., "Run nuclei on api.1win.com")
+    }}
+    ```
+    
+    - Set `action.type` to `"none"` if you just want to discuss without executing anything
+    - Set `action.type` to `"finish"` if you believe the scan is complete
+    - Set `needs_help` to `true` if you are stuck and need teammates' input
+    - Set `suggest_task` to recommend a task for a teammate (it goes into the team task queue)
+    - `findings` is optional — only include if you discovered something
+      - **IMPORTANT**: If you're confirming a FINDING another agent reported, add `"confirmed_by": "your_agent_name"` to the finding
+      - New findings start unconfirmed until at least one other agent confirms them
 
 ### RULES
 1. Be concise and actionable — no fluff
@@ -512,25 +623,57 @@ Respond with JSON:
                         self.callback(f"       {line}")
                 if self.async_callback:
                     self.async_callback(agent_id, role["name"], "executed", exec_result[:300])
-        
+
+                # Share key intel with the team
+                if exec_result and len(exec_result) > 10:
+                    action_desc = action.get("description", action_type)
+                    self._share_intel(agent_id, f"{action_desc} → {exec_result[:200]}")
+
         # Handle findings
         for finding_data in action_data.get("findings", []):
             if isinstance(finding_data, dict) and finding_data.get("description"):
-                finding = Finding(
-                    source_agent=role["name"],
-                    description=finding_data["description"],
-                    severity=finding_data.get("severity", "info"),
-                    evidence=finding_data.get("evidence", ""),
-                )
-                self.findings.append(finding)
-                # Save to vector memory for cross-session recall
-                self._save_memory(finding)
-                if self.callback:
+                # Check if this is a confirmation of an existing unconfirmed finding
+                confirmed_by = finding_data.get("confirmed_by", "")
+                existing = None
+                if confirmed_by:
+                    for f in self.findings:
+                        if f.description.strip().lower() == finding_data["description"].strip().lower() and not f.confirmed_by:
+                            existing = f
+                            break
+
+                if existing:
+                    # Confirmed by another agent
+                    existing.confirmed_by.append(confirmed_by)
+                    existing.severity = finding_data.get("severity", existing.severity)
+                    if self.callback:
+                        sev = existing.severity.upper()
+                        self.callback(f"    ** CONFIRMED [{sev}] by {confirmed_by}: {existing.description}")
+                    self._share_intel(agent_id, f"CONFIRMED [{existing.severity.upper()}] {existing.description} (confirmed by {confirmed_by})")
+                else:
+                    # New finding (starts unconfirmed)
+                    finding = Finding(
+                        source_agent=role["name"],
+                        description=finding_data["description"],
+                        severity=finding_data.get("severity", "info"),
+                        evidence=finding_data.get("evidence", ""),
+                    )
+                    self.findings.append(finding)
+                    self._save_memory(finding)
                     sev = finding_data.get("severity", "info").upper()
-                    self.callback(f"    ** FINDING [{sev}]: {finding_data['description']}")
+                    self._share_intel(agent_id, f"UNCONFIRMED [{sev}] {finding_data['description']} — waiting for teammate confirmation")
+                    if self.callback:
+                        self.callback(f"    ** UNCONFIRMED [{sev}]: {finding_data['description']}")
                 if self.async_callback:
                     self.async_callback(agent_id, role["name"], "finding", finding_data["description"])
-        
+
+        # Handle task suggestions
+        suggested = action_data.get("suggest_task", "").strip()
+        if suggested and len(suggested) > 5:
+            self._push_task(priority=3, agent_id=agent_id, action={"type": "suggested", "description": suggested})
+            self._share_intel(agent_id, f"SUGGESTED TASK: {suggested[:200]}")
+            if self.callback:
+                self.callback(f"    >> TASK SUGGESTED: {suggested[:200]}")
+
         # Handle help request
         if action_data.get("needs_help"):
             help_req = action_data.get("help_request", "Need input from teammates")
@@ -707,6 +850,10 @@ Respond with JSON:
             should_continue = self.run_round(executor=executor)
             if not should_continue:
                 break
+
+            # Auto-compress discussion if it gets too long
+            if self.round > 0 and self.round % self._compress_check_interval == 0:
+                self._compress_discussion()
         
         # Generate final report
         return self._generate_final_report()

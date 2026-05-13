@@ -11,7 +11,7 @@ import sqlite3
 import json
 from contextlib import contextmanager
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -115,7 +115,7 @@ def save_preferences(pref: UserPreferences):
             json.dumps(pref.favorite_targets),
             pref.language,
             pref.theme,
-            datetime.utcnow().isoformat()
+            datetime.now(timezone.utc).isoformat()
         ))
 
 def add_favorite_target(user_id: int, target: str):

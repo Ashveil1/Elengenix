@@ -121,7 +121,7 @@ info "STEP 1/5: Installing system dependencies..."
 if [[ "$OS" == "Linux" ]]; then
     if [ -f /etc/debian_version ]; then
         sudo apt-get update -qq
-        sudo apt-get install -y python3 python3-pip python3-venv golang git curl libyaml-dev build-essential
+        sudo apt-get install -y python3 python3-pip python3-venv golang git curl libpcap-dev libyaml-dev build-essential
     elif [ -f /etc/arch-release ]; then
         sudo pacman -Sy --noconfirm python python-pip go git curl libyaml base-devel
     elif [ -f /etc/fedora-release ]; then
@@ -149,7 +149,19 @@ fi
 if ! pip install --upgrade pip --quiet; then error "Failed to upgrade pip"; fi
 if ! pip install -r requirements.txt --quiet; then error "Failed to install requirements.txt"; fi
 
-# 3.5 Vector Memory Dependencies (ChromaDB + Sentence Transformers)
+# 3.5 Textual TUI Framework (for mouse/scroll support)
+info "Installing Textual TUI framework..."
+if pip install textual --quiet; then
+    success "Textual TUI framework installed"
+else
+    warning "Textual installation had issues (optional)"
+fi
+
+# 3.6 Token counting (optional — improves accuracy, fallback works without)
+info "Installing tokenizer (optional)..."
+pip install tiktoken --quiet 2>/dev/null || true
+
+# 3.7 Vector Memory Dependencies (ChromaDB + Sentence Transformers)
 info "Installing Vector Memory system (ChromaDB)..."
 if pip install chromadb sentence-transformers --quiet 2>/dev/null; then
     success "Vector Memory system installed"
@@ -176,13 +188,18 @@ declare -A GO_TOOLS=(
     ["naabu"]="github.com/projectdiscovery/naabu/v2/cmd/naabu@latest"
     ["katana"]="github.com/projectdiscovery/katana/cmd/katana@latest"
     ["dalfox"]="github.com/hahwul/dalfox/v2@latest"
-    ["ffuf"]="github.com/ffuf/ffuf@latest"
+    ["ffuf"]="github.com/ffuf/ffuf/v2@latest"
 )
 
 info "Installing Go-based security tools..."
 for tool in "${!GO_TOOLS[@]}"; do
     if ! command -v "$tool" >/dev/null 2>&1; then
-        if ! run_with_spinner "Installing $tool (Go)..." go install -v "${GO_TOOLS[$tool]}"; then
+        CMD="go install -v ${GO_TOOLS[$tool]}"
+        # katana requires CGO_ENABLED=1 for the latest versions
+        if [ "$tool" = "katana" ]; then
+            CMD="CGO_ENABLED=1 $CMD"
+        fi
+        if ! run_with_spinner "Installing $tool (Go)..." $CMD; then
             warning "  Could not install $tool (may require manual installation)"
         fi
     else
@@ -211,24 +228,42 @@ fi
 # 4.3 TruffleHog - Secret Detection
 if ! command -v trufflehog >/dev/null 2>&1; then
     info "Installing TruffleHog (secret scanner)..."
-    info "  Downloading TruffleHog installer..."
-    
-    # Try official installer first
-    if curl -sSfL https://raw.githubusercontent.com/trufflesecurity/trufflehog/main/scripts/install.sh | sh -s -- -b /usr/local/bin 2>/dev/null; then
+    info "  Fetching latest release from GitHub..."
+
+    TRUFFLE_URL=$(curl -s https://api.github.com/repos/trufflesecurity/trufflehog/releases/latest 2>/dev/null | grep "browser_download_url.*linux_amd64" | cut -d '"' -f 4)
+
+    if [ -n "$TRUFFLE_URL" ]; then
+        # Download checksums first
+        CHECKSUMS_URL=$(echo "$TRUFFLE_URL" | sed 's/linux_amd64\.tar\.gz/checksums.txt/')
+        curl -sL "$CHECKSUMS_URL" -o /tmp/trufflehog_checksums.txt 2>/dev/null || true
+
+        # Download binary archive
+        curl -sL "$TRUFFLE_URL" -o /tmp/trufflehog.tar.gz
+
+        # Verify checksum if we have one
+        if [ -f /tmp/trufflehog_checksums.txt ] && [ -s /tmp/trufflehog_checksums.txt ]; then
+            EXPECTED_HASH=$(grep "trufflehog_linux_amd64" /tmp/trufflehog_checksums.txt 2>/dev/null | awk '{print $1}')
+            if [ -n "$EXPECTED_HASH" ]; then
+                COMPUTED_HASH=$(sha256sum /tmp/trufflehog.tar.gz | awk '{print $1}')
+                if [ "$EXPECTED_HASH" != "$COMPUTED_HASH" ]; then
+                    warning "  Checksum mismatch! Skipping TruffleHog installation"
+                    rm -f /tmp/trufflehog.tar.gz /tmp/trufflehog_checksums.txt
+                    continue
+                fi
+                success "  Checksum verified"
+            fi
+        else
+            info "  No checksum file available, installing without verification"
+        fi
+
+        tar -xzf /tmp/trufflehog.tar.gz -C /tmp/
+        sudo mv /tmp/trufflehog /usr/local/bin/trufflehog 2>/dev/null || mv /tmp/trufflehog "$GOPATH/bin/trufflehog"
+        chmod +x /usr/local/bin/trufflehog 2>/dev/null || chmod +x "$GOPATH/bin/trufflehog"
+        rm -f /tmp/trufflehog.tar.gz /tmp/trufflehog_checksums.txt
         success "  TruffleHog installed to /usr/local/bin"
     else
-        # Fallback: manual download latest release
-        info "  Trying manual download..."
-        TRUFFLE_URL=$(curl -s https://api.github.com/repos/trufflesecurity/trufflehog/releases/latest | grep "browser_download_url.*linux_amd64" | cut -d '"' -f 4)
-        if [ -n "$TRUFFLE_URL" ]; then
-            curl -sL "$TRUFFLE_URL" -o /tmp/trufflehog.tar.gz
-            tar -xzf /tmp/trufflehog.tar.gz -C /tmp/
-            sudo mv /tmp/trufflehog /usr/local/bin/trufflehog 2>/dev/null || mv /tmp/trufflehog "$GOPATH/bin/trufflehog"
-            chmod +x /usr/local/bin/trufflehog 2>/dev/null || chmod +x "$GOPATH/bin/trufflehog"
-            success "  TruffleHog installed"
-        else
-            warning "  Could not install TruffleHog (manual installation required)"
-        fi
+        warning "  Could not determine latest release URL (API rate limit?)"
+        warning "  Install manually: https://github.com/trufflesecurity/trufflehog"
     fi
 else
     success "  TruffleHog already installed"

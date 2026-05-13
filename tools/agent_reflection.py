@@ -20,7 +20,7 @@ import json
 import logging
 import sqlite3
 from dataclasses import dataclass, asdict
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -51,7 +51,7 @@ def _db_path() -> Path:
 
 
 def _now() -> str:
-    return datetime.utcnow().isoformat()
+    return datetime.now(timezone.utc).isoformat()
 
 
 def init_db() -> None:

@@ -105,7 +105,8 @@ class MemoryPersistence:
             for msg in conversation:
                 role = msg.get("role", "")
                 content = msg.get("content", "")
-                token_est = len(content) // 4
+                from tools.token_counter import count_tokens
+                token_est = count_tokens(content)
                 total_tokens += token_est
                 cursor.execute(
                     "INSERT INTO messages (session_id, role, content, token_count) VALUES (?, ?, ?, ?)",

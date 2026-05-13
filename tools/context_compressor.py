@@ -21,9 +21,6 @@ from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger("elengenix.compressor")
 
-# Average tokens per character (rough estimate for English)
-TOKENS_PER_CHAR = 0.25
-
 # Minimum characters to keep for recent turns
 RECENT_TURN_CHARS = 500
 
@@ -73,7 +70,8 @@ class ContextCompressor:
 
     def estimate_tokens(self, text: str) -> int:
         """Estimate token count for a string."""
-        return int(len(text) * TOKENS_PER_CHAR)
+        from tools.token_counter import count_tokens
+        return count_tokens(text)
 
     def is_security_relevant(self, content: str) -> bool:
         """Check if content contains security-relevant information."""

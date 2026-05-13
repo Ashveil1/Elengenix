@@ -17,7 +17,7 @@ import logging
 import sqlite3
 from contextlib import contextmanager
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Generator, List, Optional, Tuple
 
@@ -134,7 +134,7 @@ def init_db() -> None:
         )
 
 def _now() -> str:
-    return datetime.utcnow().isoformat()
+    return datetime.now(timezone.utc).isoformat()
 
 def _j(obj: Any) -> str:
     return json.dumps(obj, ensure_ascii=False)

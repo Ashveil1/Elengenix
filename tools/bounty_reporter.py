@@ -20,7 +20,7 @@ import json
 import logging
 import re
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -46,7 +46,7 @@ class FindingArtifact:
 class BountyReporter:
     def __init__(self, target: str, output_dir: Optional[Path] = None):
         self.target = target
-        self.timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+        self.timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
         if output_dir is None:
             safe_target = re.sub(r"[^a-zA-Z0-9._-]", "_", target)[:80]
             self.base_dir = Path("reports") / "bounty" / f"{safe_target}_{self.timestamp}"
@@ -81,7 +81,7 @@ class BountyReporter:
 
         # Header
         lines.append(f"# Bug Bounty Report: {self.target}")
-        lines.append(f"**Date**: {datetime.utcnow().isoformat()}Z")
+        lines.append(f"**Date**: {datetime.now(timezone.utc).isoformat()}Z")
         lines.append(f"**Tool**: Elengenix v2.0.0 - Expert System")
         lines.append("")
 
@@ -160,7 +160,7 @@ class BountyReporter:
         """Export machine-readable JSON report."""
         data = {
             "target": self.target,
-            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
             "tool": "Elengenix v2.0.0",
             "findings": [
                 {

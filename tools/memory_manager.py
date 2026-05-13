@@ -12,7 +12,7 @@ import logging
 import os
 import sqlite3
 from contextlib import contextmanager
-from datetime import datetime, timedelta
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Generator, List, Tuple
 
@@ -136,7 +136,7 @@ def delete_target_memory(target: str) -> int:
 def prune_old_learnings(days: int = _MAX_AGE_DAYS) -> int:
     """Remove learnings older than `days`. Returns count pruned."""
     init_db()
-    cutoff = (datetime.utcnow() - timedelta(days=days)).isoformat()
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
     with _get_conn() as conn:
         cursor = conn.execute(
             "DELETE FROM learnings WHERE created < ?", (cutoff,)

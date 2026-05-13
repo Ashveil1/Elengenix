@@ -32,7 +32,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger("elengenix.telegram_bridge")
@@ -102,7 +102,7 @@ class TelegramBridge:
             f"*Mission Started*\n\n"
             f"ID: `{mission_id}`\n"
             f"Target: `{target}`\n"
-            f"Time: {datetime.utcnow().strftime('%H:%M UTC')}\n\n"
+            f"Time: {datetime.now(timezone.utc).strftime('%H:%M UTC')}\n\n"
             f"Use `/status {mission_id}` to track progress"
         )
         return self._send_message(message)

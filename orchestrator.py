@@ -15,7 +15,7 @@ import ipaddress
 import shutil
 from pathlib import Path
 from urllib.parse import urlparse
-from typing import Optional, List, Set
+from typing import Optional, List, Set, Any
 
 # Safe import for nest_asyncio (for async compatibility)
 try:
@@ -28,6 +28,9 @@ from rich.console import Console
 from rich.panel import Panel
 from tools.tool_registry import registry, ToolCategory, ToolResult
 from tools.cvss_calculator import CVSSCalculator
+from file_relationship_mapper import FileRelationshipGraph, get_scan_recommendations
+from scan_engine_bridge import smart_scan as smart_scan_bridge
+from scan_engine_upgrade import SmartOrchestrator, ScanState, FindingCorrelator
 from bot_utils import send_telegram_notification
 
 # ── Setup ───────────────────────────────────────────────────
@@ -168,23 +171,24 @@ async def run_registry_pipeline(
     """Run all available tools from registry."""
     semaphore = asyncio.Semaphore(rate_limit)
     results = []
-    
+
     # Get all registered tools or filtered list
     if tool_filter:
         tools = [registry.get_tool(name) for name in tool_filter if registry.get_tool(name)]
     else:
         # Get recommended chain for web targets
         tools = registry.get_recommended_chain("web")
-    
+
     # Filter available tools
     available_tools = [t for t in tools if t and t.is_available]
-    
+
     if not available_tools:
         console.print("[grey70][WARN] No tools available in registry[/grey70]")
+        _suggest_missing_tools(tools, target)
         return results
-    
+
     console.print(f"[red][RUN] Running {len(available_tools)} tools from registry...[/red]")
-    
+
     # Execute each tool
     for tool in available_tools:
         try:
@@ -195,18 +199,113 @@ async def run_registry_pipeline(
                 semaphore
             )
             results.append(result)
-            
+
             if result.success and result.findings:
                 console.print(f"  [bold white][OK] {tool.metadata.name}: {len(result.findings)} findings[/bold white]")
             elif result.success:
                 console.print(f"  [dim][ ] {tool.metadata.name}: No findings[/dim]")
             else:
                 console.print(f"  [red][FAIL] {tool.metadata.name}: {result.error_message[:50]}...[/red]")
-                
+
         except Exception as e:
             logger.error(f"Pipeline error for {tool.metadata.name}: {e}")
-    
+
     return results
+
+
+def _suggest_missing_tools(
+    tools: List[Any],
+    target: str = "",
+) -> None:
+    """ตรวจสอบ tools ที่จำเป็นแต่ยังไม่มี และเสนอให้ผู้ใช้ติดตั้งแบบอัตโนมัติ"""
+    missing = [t for t in tools if t and not t.is_available]
+    if not missing:
+        return
+
+    from dependency_manager import TOOLS as INSTALLABLE_TOOLS, run_with_streaming, verify_and_advise
+
+    auto_install = []
+    manual_install = []
+
+    for tool in missing:
+        name = tool.metadata.name
+        if name in INSTALLABLE_TOOLS:
+            auto_install.append(name)
+        else:
+            manual_install.append(name)
+
+    if not auto_install and not manual_install:
+        return
+
+    console.print("\n[bold yellow]  Tools Required But Missing:[/bold yellow]")
+
+    if auto_install:
+        console.print(f"  [red]{' '.join(auto_install)}[/red]")
+
+        from rich.panel import Panel
+        from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn
+        import questionary
+        try:
+            install_now = questionary.confirm(
+                "Install missing tools now?",
+                default=True,
+            ).ask()
+        except Exception:
+            install_now = False
+
+        if install_now:
+            from dependency_manager import check_prerequisites
+            if not check_prerequisites():
+                console.print("[bold red]Missing Go or Git — cannot install[/bold red]")
+                return
+
+            succeeded = []
+            failed = []
+            for tool_name in auto_install:
+                cmd = INSTALLABLE_TOOLS[tool_name]
+                with Progress(
+                    SpinnerColumn(),
+                    TextColumn(f"[bold yellow]Installing {tool_name}..."),
+                    BarColumn(),
+                    console=console,
+                    transient=True,
+                ) as progress:
+                    progress.add_task("", total=None)
+                    ok = run_with_streaming(cmd)
+                if ok and verify_and_advise(tool_name):
+                    console.print(f"  [bold green][OK] {tool_name}[/bold green]")
+                    succeeded.append(tool_name)
+                else:
+                    console.print(f"  [bold red][FAIL] {tool_name}[/bold red]")
+                    console.print(f"     Manual: [dim]{' '.join(cmd)}[/dim]")
+                    failed.append(tool_name)
+
+            if succeeded:
+                console.print(f"\n[bold green]Installed: {', '.join(succeeded)}[/bold green]")
+            if failed:
+                console.print(f"[yellow]Failed: {', '.join(failed)}[/yellow]")
+
+    if manual_install:
+        from rich.table import Table
+        tbl = Table(show_header=False, box=None)
+        tbl.add_column(style="yellow", width=12)
+        tbl.add_column(style="dim", width=60)
+        for name in manual_install:
+            cmd = _manual_cmd(name)
+            tbl.add_row(name, cmd)
+        console.print("\n[bold yellow]Need manual install:[/bold yellow]")
+        console.print(tbl)
+
+
+def _manual_cmd(tool_name: str) -> str:
+    """คืนค่า command สำหรับติดตั้ง tool ที่ต้องทำ manual."""
+    cmds = {
+        "dalfox": "go install github.com/hahwul/dalfox/v2@latest",
+        "arjun": "pip install arjun",
+        "trufflehog": "curl -sSfL https://raw.githubusercontent.com/trufflesecurity/trufflehog/main/scripts/install.sh | sh -s -- -b /usr/local/bin",
+        "nmap": "sudo apt-get install nmap  # or: brew install nmap",
+    }
+    return cmds.get(tool_name, f"See docs for: {tool_name}")
 
 def calculate_cvss_for_results(results: List[ToolResult]) -> List[dict]:
     """Calculate CVSS scores for all findings."""
@@ -276,17 +375,20 @@ async def run_standard_scan(
     rate_limit: int = 5, 
     timeout: int = 600,
     use_registry: bool = True,
-    tool_filter: List[str] = None
+    tool_filter: List[str] = None,
+    use_smart_scan: bool = False,
 ) -> Optional[str]:
     """
     Run standard scan pipeline.
-    
+
     Args:
         target: Target domain or IP
         rate_limit: Max concurrent operations
         timeout: Global timeout
         use_registry: Use new Tool Registry (True) or legacy mode (False)
         tool_filter: Optional list of specific tools to run
+        use_smart_scan: Use intelligent smart scan with file relationship
+                        analysis and finding correlation (default: False)
     """
     if not is_in_scope(target):
         console.print(f"[bold red]SCOPE VIOLATION: {target}[/bold red]")
@@ -306,34 +408,58 @@ async def run_standard_scan(
 
     try:
         if use_registry:
-            # Modern Tool Registry approach
-            results = await asyncio.wait_for(
-                run_registry_pipeline(normalized, report_dir, rate_limit, tool_filter),
-                timeout=timeout
-            )
-            
-            # Calculate CVSS scores
-            scored_findings = calculate_cvss_for_results(results)
-            
-            # Save CVSS results
-            import json
-            cvss_file = report_dir / "cvss_scores.json"
-            cvss_file.write_text(json.dumps(scored_findings, indent=2))
-            
-            # Print summary
-            print_findings_summary(results)
-            
-            # Summary stats
-            total_findings = sum(len(r.findings) for r in results)
-            critical = len([s for s in scored_findings if s["severity"] == "Critical"])
-            high = len([s for s in scored_findings if s["severity"] == "High"])
-            
-            console.print(f"\n[bold green][OK] Scan complete: {len(results)} tools, {total_findings} findings[/bold green]")
-            
-            if critical > 0:
-                console.print(f"[bold red][CRITICAL] {critical} findings require immediate attention![/bold red]")
-            if high > 0:
-                console.print(f"[bold orange3][HIGH] {high} findings need review[/bold orange3]")
+            if use_smart_scan:
+                # Smart scan with file relationship analysis
+                orchestrator = SmartOrchestrator(max_concurrency=rate_limit)
+                state, correlator = await orchestrator.run_smart_scan(
+                    target=normalized,
+                    report_dir=report_dir,
+                    tools=tool_filter,
+                    rate_limit=rate_limit,
+                    correlate=True,
+                    use_smart_chain=True,
+                )
+                
+                # Calculate CVSS scores from smart scan state
+                if state and state.results:
+                    from tools.cvss_calculator import CVSSCalculator
+                    calculator = CVSSCalculator(use_ai=False)
+                    for result in state.results.values():
+                        for finding in result.findings:
+                            calculator.calculate_from_tool_result(
+                                result.tool_name, finding, "unknown"
+                            )
+                
+                console.print(f"\n[bold green][OK] Smart scan complete[/bold green]")
+            else:
+                # Modern Tool Registry approach (original)
+                results = await asyncio.wait_for(
+                    run_registry_pipeline(normalized, report_dir, rate_limit, tool_filter),
+                    timeout=timeout
+                )
+                
+                # Calculate CVSS scores
+                scored_findings = calculate_cvss_for_results(results)
+                
+                # Save CVSS results
+                import json
+                cvss_file = report_dir / "cvss_scores.json"
+                cvss_file.write_text(json.dumps(scored_findings, indent=2))
+                
+                # Print summary
+                print_findings_summary(results)
+                
+                # Summary stats
+                total_findings = sum(len(r.findings) for r in results)
+                critical = len([s for s in scored_findings if s["severity"] == "Critical"])
+                high = len([s for s in scored_findings if s["severity"] == "High"])
+                
+                console.print(f"\n[bold green][OK] Scan complete: {len(results)} tools, {total_findings} findings[/bold green]")
+                
+                if critical > 0:
+                    console.print(f"[bold red][CRITICAL] {critical} findings require immediate attention![/bold red]")
+                if high > 0:
+                    console.print(f"[bold orange3][HIGH] {high} findings need review[/bold orange3]")
             
         else:
             # Legacy mode (fallback)

@@ -25,14 +25,27 @@ python-telegram-bot     # Modern async handler for bot control
 rich                    # Technical UI rendering
 questionary             # Interactive CLI menus
 prompt_toolkit          # Modern Gemini-style CLI sessions
+textual                 # TUI framework with native mouse/scroll support
 
 # ── Resilience & Async Bridge ──────────────────────────
 nest-asyncio            # Critical for nested event loops (Bot support)
 tenacity                # Advanced retry & backoff strategies
 
-# ── Vector Memory & AI Context ─────────────────────────
-chromadb                # Vector database for semantic memory
-sentence-transformers   # Text embeddings for memory search
+# ── Token Counting ─────────────────────────────────────
+tiktoken                # Accurate token counting (auto-detected, lightweight)
+
+# ── Vector Memory (OPTIONAL — heavy deps) ──────────────
+# chromadb + sentence-transformers = ~2 GB.
+# The system works without them (SQLite fallback).
+# Install only if you need semantic vector search:
+#   pip install chromadb sentence-transformers
+# chromadb
+# sentence-transformers
+
+# ── Async HTTP (OPTIONAL) ──────────────────────────────
+# httpx provides async HTTP for AI client.
+# Falls back to requests (sync) automatically.
+# httpx
 
 # ── Recon & Web Intelligence ───────────────────────────
 trafilatura             # High-precision web content extraction

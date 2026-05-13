@@ -27,7 +27,7 @@ import subprocess
 import sys
 import tempfile
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
@@ -45,7 +45,7 @@ class ToolSpec:
     entry_point: str
     safety_level: str
     requires_approval: bool = True
-    created_at: str = field(default_factory=lambda: datetime.utcnow().isoformat())
+    created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     ai_reasoning: str = ""
 
 
@@ -112,7 +112,7 @@ class AIGovernance:
             "action": action,
             "details": details,
             "approved": approved,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         })
         
         return approved
@@ -455,7 +455,7 @@ Respond with complete new code.
             )
             
             # Backup old version
-            backup_path = self.AI_TOOLS_DIR / f"{tool_name}_backup_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.py"
+            backup_path = self.AI_TOOLS_DIR / f"{tool_name}_backup_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.py"
             (self.AI_TOOLS_DIR / f"{tool_name}.py").rename(backup_path)
             
             # Save improved version
