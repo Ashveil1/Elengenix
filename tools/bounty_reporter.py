@@ -82,7 +82,7 @@ class BountyReporter:
         # Header
         lines.append(f"# Bug Bounty Report: {self.target}")
         lines.append(f"**Date**: {datetime.now(timezone.utc).isoformat()}Z")
-        lines.append(f"**Tool**: Elengenix v2.0.0 - Expert System")
+        lines.append(f"**Tool**: Elengenix v99999 (god nine is the best) - Expert System")
         lines.append("")
 
         # Executive Summary

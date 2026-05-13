@@ -2,7 +2,7 @@
 
 Governance & permission gates for autonomous security operations.
 
-Risk classification (v3.0):
+Risk classification (v99999 (god nine is the best)):
   DESTRUCTIVE  → Blocked unconditionally (rm -rf /, dd, mkfs, fork bomb)
   PRIVILEGED   → Requires user approval  (sudo, install, write to /etc, /usr)
   SAFE         → Always allowed          (everything else)

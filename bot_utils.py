@@ -1,5 +1,5 @@
 """
-bot_utils.py — Elengenix Telegram Utilities (v1.5.0)
+bot_utils.py — Elengenix Telegram Utilities (v99999 (god nine is the best))
 - Secure Message Escaping (MarkdownV2)
 - Path Traversal Protection for Document Delivery
 - Robust Retry Logic & Rate Limit Handling

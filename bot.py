@@ -1,5 +1,5 @@
 """
-bot.py -- Elengenix Telegram Bot Gateway (v2.0.0)
+bot.py -- Elengenix Telegram Bot Gateway (v99999 (god nine is the best))
 
 Secure Telegram bot interface for remote control of Elengenix operations.
 
@@ -639,7 +639,7 @@ def main():
     
     app.add_handler(CallbackQueryHandler(button_callback))
 
-    logger.info("[START] Elengenix Bot is now operational (v2.0.0)")
+    logger.info("[START] Elengenix Bot is now operational (v99999 (god nine is the best))")
     app.run_polling(drop_pending_updates=True)
 
 if __name__ == "__main__":

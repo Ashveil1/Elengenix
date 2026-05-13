@@ -1,5 +1,5 @@
 """
-tools/install_request.py — AI Tool Installation Request System (v1.0.0)
+tools/install_request.py — AI Tool Installation Request System (v99999 (god nine is the best))
 
 เมื่อ AI คิดว่าควรใช้ tool ไหน แต่ยังไม่ติดตั้ง → ขอให้ผู้ใช้ยืนยัน
 แล้ว auto-install ให้

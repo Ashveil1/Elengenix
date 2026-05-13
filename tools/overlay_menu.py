@@ -110,8 +110,8 @@ class SettingsOverlay:
         # Build title
         title = self._get_title()
         lines = Text()
-        lines.append(f"\n{title}\n", style="bold #FF6B6B")
-        lines.append("=" * 40 + "\n\n", style="#FF6B6B")
+        lines.append(f"\n{title}\n", style="bold #ff4444")
+        lines.append("=" * 40 + "\n\n", style="#ff4444")
 
         # Build items
         for i, item in enumerate(self._items):
@@ -122,7 +122,7 @@ class SettingsOverlay:
             is_selected = (i == self._selected_idx)
             if is_selected:
                 prefix = " >"
-                style = "bold #FF6B6B on #1a1a1a"
+                style = "bold #ff4444 on #1a1a1a"
             else:
                 prefix = "  "
                 style = "white on #0a0a0a"
@@ -141,7 +141,7 @@ class SettingsOverlay:
             box=ROUNDED,
             width=width,
             style="on #0a0a0a",
-            border_style="#FF6B6B",
+            border_style="#ff4444",
             padding=(1, 2),
         )
 

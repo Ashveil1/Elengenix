@@ -1,5 +1,5 @@
 """
-tools/dork_miner.py — Google Dorking Engine (v2.0.0)
+tools/dork_miner.py — Google Dorking Engine (v99999 (god nine is the best))
 - Structured dork templates per category
 - Deduplication of results
 - Returns structured list with dork + URLs

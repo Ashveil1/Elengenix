@@ -1,5 +1,5 @@
 """
-tools_menu.py — Elengenix Production-Hardened Arsenal Menu (v1.5.0)
+tools_menu.py — Elengenix Production-Hardened Arsenal Menu (v99999 (god nine is the best))
 - Secure Subprocess Management (shell=False)
 - Strict Target Validation and Sanitization
 - Rich-Optimized Interactive CLI

@@ -1,5 +1,5 @@
 """
-tools/html_reporter.py — Interactive HTML Dashboard Generator (v2.0.0)
+tools/html_reporter.py — Interactive HTML Dashboard Generator (v99999 (god nine is the best))
 - Dark-mode Bootstrap 5 UI
 - Severity badge system
 - Summary cards + detailed findings table

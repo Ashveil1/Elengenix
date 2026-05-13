@@ -1,5 +1,5 @@
 """
-tools/cors_checker.py — CORS Misconfiguration Detector (v2.0.0)
+tools/cors_checker.py — CORS Misconfiguration Detector (v99999 (god nine is the best))
 - Tests multiple attack origins
 - Detects wildcard, reflected-origin, and credential combos
 - Returns structured severity-tagged results

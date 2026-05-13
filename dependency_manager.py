@@ -1,5 +1,5 @@
 """
-dependency_manager.py — Elengenix Resilient Tool Installer (v1.5.0)
+dependency_manager.py — Elengenix Resilient Tool Installer (v99999 (god nine is the best))
 - Prerequisite Verification (Go & Git)
 - Streaming Subprocess Output (Memory efficient)
 - Post-install Verification & PATH Guidance

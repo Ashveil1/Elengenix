@@ -1,5 +1,5 @@
 """
-tools/base_recon.py — Subdomain & URL Enumeration (v2.0.0)
+tools/base_recon.py — Subdomain & URL Enumeration (v99999 (god nine is the best))
 - Subfinder + Waybackurls + GAU (if available)
 - Python-native deduplication & sorting
 - Returns path to unique subdomains file

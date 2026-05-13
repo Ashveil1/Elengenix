@@ -1,5 +1,5 @@
 """
-tools/api_finder.py — API Documentation & Endpoint Discovery (v2.0.0)
+tools/api_finder.py — API Documentation & Endpoint Discovery (v99999 (god nine is the best))
 - Common API/swagger/openapi endpoint probing
 - Concurrent requests with threading
 - Returns structured results with status codes

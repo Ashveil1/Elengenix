@@ -1,5 +1,5 @@
 """
-tools/doctor.py — System Health Check & Auto-Repair (v2.0.0)
+tools/doctor.py — System Health Check & Auto-Repair (v99999 (god nine is the best))
 - Checks Python version, config, all security tools
 - Checks AI provider connectivity
 - Auto-repair mode: installs missing tools via setup.sh hint

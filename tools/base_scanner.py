@@ -1,5 +1,5 @@
 """
-tools/base_scanner.py — Nuclei Vulnerability Scanner Wrapper (v2.0.0)
+tools/base_scanner.py — Nuclei Vulnerability Scanner Wrapper (v99999 (god nine is the best))
 - Severity filtering
 - Auto-skips if nuclei not installed
 - Returns parsed findings list

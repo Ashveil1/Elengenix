@@ -1,5 +1,5 @@
 """
-agent_brain.py — Elengenix Intelligent Hunting Engine (v3.0.0)
+agent_brain.py — Elengenix Intelligent Hunting Engine (v99999 (god nine is the best))
 - Strategic Planning Module (Attack Tree Generation)
 - Chain of Thought Logging
 - Tool Selection Intelligence
@@ -1948,7 +1948,7 @@ Use JSON format: {{"action": "run_shell|save_memory|finish", "command": "...", "
             detected_lang = "Thai" if has_thai else "English"
             lang_instruction = "Respond in Thai language." if has_thai else "Respond in English language."
             
-            chat_prompt = f"""You are Elengenix AI v5.0 — A Universal AI Agent specialized for Bug Bounty and Security Research.
+            chat_prompt = f"""You are Elengenix AI v99999 (god nine is the best) — A Universal AI Agent specialized for Bug Bounty and Security Research.
 Intent category: {intent}
 Detected user language: {detected_lang}
 
@@ -1964,7 +1964,7 @@ Detected user language: {detected_lang}
 
 ### YOUR IDENTITY & CAPABILITIES:
 - Name: Elengenix AI (อีเลนเจนิกซ์ เอไอ)
-- Version: v5.0
+- Version: v99999 (god nine is the best)
 - Primary role: Security researcher and penetration testing assistant
 
 ### WHAT YOU CAN DO:

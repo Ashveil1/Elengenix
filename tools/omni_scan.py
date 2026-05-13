@@ -1,5 +1,5 @@
 """
-tools/omni_scan.py — Elengenix Full-Scale Scan Entry Point (v3.0.0)
+tools/omni_scan.py — Elengenix Full-Scale Scan Entry Point (v99999 (god nine is the best))
 - Coordinates the complete hunting pipeline with Tool Registry
 - Enhanced with CVSS scoring and new tool integrations
 - recon → port scan → live-check → vuln-scan → secrets → fuzzing → report
@@ -98,7 +98,7 @@ def run_omni_scan(
         console.print("[grey70]  Warning: No tools available. Install required binaries.[/grey70]")
         console.print("[dim]Run: elengenix doctor[/dim]")
     
-    send_telegram_notification(f" Full scan v3.0 initiated: `{safe_target}`")
+    send_telegram_notification(f" Full scan v99999 (god nine is the best) initiated: `{safe_target}`")
 
     with Progress(
         SpinnerColumn(),

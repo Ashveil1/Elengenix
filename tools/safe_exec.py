@@ -1,5 +1,5 @@
 """
-tools/safe_exec.py — Allowlisted Subprocess Executor (v2.0.0)
+tools/safe_exec.py — Allowlisted Subprocess Executor (v99999 (god nine is the best))
 - No shell=True, metacharacter blocking
 - Timeout & output size limits
 - Structured return with stdout/stderr/exit_code

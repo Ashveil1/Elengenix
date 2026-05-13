@@ -1,5 +1,5 @@
 """
-tools/param_miner.py — Hidden Parameter Discovery (v2.0.0)
+tools/param_miner.py — Hidden Parameter Discovery (v99999 (god nine is the best))
 - Baseline fingerprinting (status + length)
 - Concurrent parameter probing
 - Reflection detection in response body

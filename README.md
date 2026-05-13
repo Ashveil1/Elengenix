@@ -1,34 +1,38 @@
-# Elengenix AI Framework
+# ELENGENIX v99999 (god nine is the best)
 
-The Universal AI Agent for Bug Bounty and Security Research.
+**The Universal AI Agent for Bug Bounty and Security Research.**
 
-Elengenix is a next-generation security framework that combines the reasoning capabilities of Large Language Models (LLMs) with a professional-grade security toolchain. Built for speed, modularity, and professional automation.
-
-Current Status: Intensive R&D Phase. Focus on core agent orchestration and security module integration.
+Elengenix is a next-generation security framework that combines the reasoning capabilities of Large Language Models (LLMs) with a professional-grade security toolchain. AI plans, executes, and adapts — no fixed methodology, full autonomy.
 
 ---
 
 ## Key Features
 
-- Autonomous Agent: Intelligent reasoning for multi-step security missions.
-- Universal Mode: A versatile interface for any task beyond security.
-- Security Arsenal: Integrated tools including Subfinder, Nuclei, Httpx, Katana, and more.
-- Permanent Memory: Vector-based semantic memory for recalling past findings and interactions.
-- Telegram Gateway: Remote control and monitoring via secure Telegram bot.
-- Watchman Daemon: 24/7 continuous target monitoring with change detection.
-- Professional UI: Clean, text-based terminal interface using the Rich library.
+- **Autonomous AI Agent** — AI thinks, plans, and executes. No fixed methodology. Full shell access. Writes its own tools.
+- **Multi-Agent Team (Team Aegis)** — Up to 3 AI models collaborate in real-time. Share findings, confirm vulnerabilities, assign tasks.
+- **Governance System** — Commands classified as SAFE (auto), PRIVILEGED (ask user), DESTRUCTIVE (blocked).
+- **Security Arsenal** — 90+ integrated tools: Subfinder, Nuclei, Httpx, Katana, Dalfox, FFUF, Naabu, TruffleHog, Arjun, and more.
+- **Permanent Memory** — ChromaDB vector memory (SQLite FTS5 fallback, zero deps). Cross-session recall.
+- **CVSS Scoring** — All findings auto-scored with CVSS 3.1/4.0, CVE database lookup, exploit chain analysis.
+- **Telegram Gateway** — Remote control and monitoring via Telegram bot.
+- **Watchman Daemon** — 24/7 continuous target monitoring with change detection and AI analysis.
+- **Professional TUI** — Textual v6.0 interface with sidebar, governance bar, multi-agent display.
+- **Tool Auto-Install** — Detects missing tools and asks user before installing.
 
 ---
-Hardware & Backend SupportElengenix is designed to be hardware-agnostic, supporting a wide range of AI providers and local backends:
 
-Cloud AI Providers: Full integration with NVIDIA NIM, Google Gemini, OpenAI, Anthropic, and Groq.
+## Hardware & Backend Support
 
-Local GPU Acceleration:
-
-NVIDIA: Optimized via NVIDIA NIM and CUDA-based local inference.
-
-AMD (In Progress): Currently developing Native ROCm support to enable high-performance autonomous security research on AMD Instinct and Radeon hardware. 
-(Special thanks to AMD Developer Cloud for the upcoming development environment).
+| Provider | Status |
+|----------|--------|
+| OpenAI (GPT-4o, GPT-4o-mini) | Full |
+| Anthropic (Claude 3.5 Sonnet, 3 Opus) | Full |
+| Google Gemini (1.5 Flash, 1.5 Pro) | Full |
+| Groq (Llama 3, Mixtral) | Full |
+| NVIDIA NIM (Nemotron, Llama) | Full |
+| DeepSeek, Mistral, Perplexity, OpenRouter | Full |
+| Ollama (local, all models) | Full |
+| AMD ROCm | In Progress |
 
 ---
 
@@ -37,115 +41,176 @@ AMD (In Progress): Currently developing Native ROCm support to enable high-perfo
 ### Prerequisites
 
 - Python 3.10+
-- Go 1.20+ (for security tools)
+- Go 1.20+ (for security tool compilation)
 - Git
 
 ### Installation
 
 ```bash
-# Clone the repository
 git clone https://github.com/Ashveil1/Elengenix.git
 cd Elengenix
 
-# For Linux/Ubuntu users:
-chmod +x setup.sh
-./setup.sh
+# Linux/Ubuntu:
+chmod +x setup.sh && ./setup.sh
 
-# For Termux (Android) users:
-chmod +x termux_setup.sh
-./termux_setup.sh
+# Termux (Android):
+chmod +x termux_setup.sh && ./termux_setup.sh
+
+# Or just Python deps:
+pip install -r requirements.txt
 ```
 
 ---
 
 ## Configuration
 
-Elengenix provides an interactive configuration wizard to manage your AI providers, API keys, and system preferences.
-
-### Using the Configuration Wizard
-
-Run the following command to start the interactive setup:
 ```bash
 elengenix configure
 ```
-*Note: If the global command is not set, use `python3 main.py configure`.*
 
-The wizard allows you to:
-1. **Manage AI Providers**: Add or update API keys for NVIDIA NIM, Google Gemini, OpenAI, Anthropic, Groq, and more.
-2. **Select Models**: Choose specific models (e.g., GPT-4o, Claude 3.5 Sonnet, Llama 3.3) for each provider.
-3. **Manage Integrations**: Setup third-party services like Telegram Bots, HackerOne API, Tavily AI, and VulnCheck.
-4. **Set Default Target**: Define a primary target for automated scans.
-5. **Configure Rate Limits**: Set global request-per-minute (RPM) limits to avoid being blocked.
-6. **System Health Check**: Run a comprehensive diagnostic to ensure all security tools are correctly installed.
+Interactive wizard for:
+1. **AI Providers** — API keys for OpenAI, Gemini, Anthropic, Groq, NVIDIA, etc.
+2. **Model Selection** — Choose specific models per provider.
+3. **Integrations** — Telegram Bot, HackerOne API, Tavily AI, VulnCheck.
+4. **Rate Limits** — Global RPM limits per model.
+5. **System Health** — Verify all security tools are installed.
 
-### Manual Configuration
-Alternatively, you can manually create a `.env` file in the root directory:
+### Manual `.env`
+
 ```env
-NVIDIA_API_KEY=your_nvidia_key
-GEMINI_API_KEY=your_google_ai_key
-TELEGRAM_BOT_TOKEN=your_bot_token
-TELEGRAM_CHAT_ID=your_chat_id
+OPENAI_API_KEY=sk-...
+GEMINI_API_KEY=...
+ANTHROPIC_API_KEY=...
+TELEGRAM_BOT_TOKEN=...
+ACTIVE_MODELS=openai/gpt-4o-mini,gemini/gemini-1.5-flash,anthropic/claude-3-haiku
 ```
 
 ---
 
 ## Usage
 
-### 1. Launching the CLI
-Use the following command to access the primary interactive menu:
+### Full-Scale Scan
+
 ```bash
-elengenix cli
+elengenix scan example.com
+elengenix scan example.com --smart-scan      # Smart Orchestrator
 ```
 
-### 2. Common CLI Commands
-You can run specific modules directly via the main entry point:
-- **System Check**: `elengenix doctor`
-- **Start Mission**: `elengenix mission <target>`
-- **AI Chat**: `elengenix ai`
-- **Security Tools**: `elengenix arsenal`
-- **SAST Scan**: `elengenix sast <path>`
-- **Help command**`elengenix help`
+### AI Chat (TUI)
 
-## Upgrade Guide
+```bash
+elengenix cli                               # Textual TUI (recommended)
+elenginx ai                                 # AI partner mode
+```
 
-To keep Elengenix updated with the latest security modules and AI capabilities:
+### Multi-Agent Team
 
-1. **Update Source Code**:
-   ```bash
-   git pull origin main
-   ```
+```bash
+export ACTIVE_MODELS="openai/gpt-4o,anthropic/claude-3-sonnet,gemini/gemini-1.5-pro"
+elenginx cli
+# Then: /talk 1  /talk 2  /talk 3  /talk all
+```
 
-2. **Update Dependencies**:
-   ```bash
-   pip install -r requirements.txt --upgrade
-   ```
+### Single Commands
 
-3. **Verify Components**:
-   Run the doctor command to ensure all tools and dependencies are operational:
-   ```bash
-   elengenix doctor
-   ```
+| Command | Description |
+|---------|-------------|
+| `elenginx doctor` | System health check |
+| `elenginx mission <target>` | Start a mission |
+| `elenginx arsenal` | Browse security tools |
+| `elenginx sast <path>` | Static code analysis |
+| `elenginx research <cve>` | Vulnerability research |
+| `elenginx bounty <program>` | Bounty program intel |
+| `elenginx report` | View last scan report |
+| `elenginx help` | Show all commands |
+
+### TUI Keyboard Shortcuts
+
+| Key | Action |
+|-----|--------|
+| `Ctrl+R` | Toggle research mode |
+| `Ctrl+B` | Toggle scan mode |
+| `Ctrl+T` | Toggle thinking mode |
+| `Ctrl+P` | Show active model |
+| `Ctrl+G` | Help |
+| `Ctrl+E` | Settings overlay |
+| `Ctrl+U/D` | Scroll up/down |
+| `↑/↓` | Input history |
+
+---
+
+## Architecture
+
+```
+main.py ───── CLI Entry Point
+  ├─ route → orchestrator.py (scan pipeline)
+  │            └─ ToolRegistry → BaseTool.execute() → shell=False
+  ├─ route → cli_textual.py (Textual TUI v6)
+  │            └─ agent_brain.py (ElengenixAgent)
+  │                 ├─ AIClientManager (universal_ai_client)
+  │                 ├─ Governance (SAFE/PRIVILEGED/DESTRUCTIVE)
+  │                 ├─ ToolRegistry (90+ plugins)
+  │                 ├─ AnalysisPipeline (13 analyzers)
+  │                 └─ VectorMemory (ChromaDB / FTS5)
+  └─ route → multi_agent.py (Team Aegis)
+               └─ 3 AI agents: discuss, share intel, confirm findings
+```
+
+### Agent Freedom Model
+
+```
+User Input
+  └─ Governance.gate(command)
+       ├─ DESTRUCTIVE (rm -rf /, dd, mkfs, fork bomb) → DENY
+       ├─ PRIVILEGED (sudo, pip install, go install) → ASK USER
+       └─ SAFE (everything else: curl, nuclei, python3, ...) → RUN
+```
 
 ---
 
 ## Project Structure
 
-- `main.py`: Core CLI entry point and command router.
-- `agent_brain.py`: Autonomous reasoning engine.
-- `orchestrator.py`: Tool execution and pipeline management.
-- `ui_components.py`: Standardized UI elements and design tokens.
-- `tools/`: Modular security tool integrations.
-- `data/`: Local logs, state, and vector databases.
+```
+├── main.py                 # CLI entry point, command router
+├── agent_brain.py          # ElengenixAgent — core AI engine (2450 lines)
+├── cli_textual.py          # Textual TUI v6 (Catppuccin theme)
+├── cli.py                  # Legacy CLI mode
+├── orchestrator.py         # Tool pipeline orchestrator
+├── ui_components.py        # Shared UI components (Catppuccin theme)
+├── tools/
+│   ├── analysis_pipeline.py    # 13 post-finding analyzers
+│   ├── governance.py           # Risk classification engine
+│   ├── universal_ai_client.py  # OpenAI-compatible AI client
+│   ├── universal_executor.py   # Universal shell executor
+│   ├── safe_exec.py            # Metacharacter-safe execution
+│   ├── vector_memory.py        # ChromaDB / FTS5 memory
+│   ├── token_counter.py        # tiktoken token counting
+│   ├── multi_agent.py          # Team Aegis engine
+│   ├── tool_registry.py        # Plugin system (90+ tools)
+│   ├── session_manager.py      # Session persistence
+│   └── ... (80+ more tool modules)
+├── prompts/
+│   └── system_prompt.txt       # AI system prompt
+├── data/                       # Runtime data, logs, memory
+├── tests/                      # pytest test suite
+├── setup.sh                    # Linux installer
+├── termux_setup.sh             # Termux (Android) installer
+└── requirements.txt            # Python dependencies
+```
 
 ---
 
-## Contributing
+## Test
 
-We welcome contributions from the security and AI community. Please refer to CONTRIBUTING.md for our coding standards and development guidelines.
+```bash
+python3 -m pytest tests/ -v
+```
+
+---
 
 ## License
 
-This project is licensed under the GPL License - see the LICENSE file for details.
+GPL License — see [LICENSE](LICENSE).
 
 ---
 
