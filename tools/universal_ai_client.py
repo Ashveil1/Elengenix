@@ -344,9 +344,9 @@ class UniversalAIClient:
         raise NotImplementedError(f"Custom format for {self.provider} not implemented")
 
     def _call_anthropic(self, payload: Dict, stream: bool) -> AIResponse:
-        """Call Anthropic Claude API."""
+        """Call Anthropic Claude API with retry logic."""
         url = "https://api.anthropic.com/v1/messages"
-        
+
         # Convert OpenAI format to Anthropic format
         system_msg = ""
         messages = []
@@ -355,7 +355,7 @@ class UniversalAIClient:
                 system_msg = m["content"]
             else:
                 messages.append({"role": m["role"], "content": m["content"]})
-        
+
         anthropic_payload = {
             "model": self.model,
             "max_tokens": payload["max_tokens"],
@@ -363,27 +363,45 @@ class UniversalAIClient:
             "system": system_msg,
             "messages": messages,
         }
-        
+
         headers = {
             "Content-Type": "application/json",
             "x-api-key": self.api_key,
             "anthropic-version": "2023-06-01",
         }
-        
-        resp = requests.post(url, json=anthropic_payload, headers=headers, timeout=self.timeout)
-        resp.raise_for_status()
-        data = resp.json()
-        
-        return AIResponse(
-            content=data["content"][0]["text"],
-            model=data["model"],
-            usage={
-                "prompt_tokens": data["usage"]["input_tokens"],
-                "completion_tokens": data["usage"]["output_tokens"],
-                "total_tokens": data["usage"]["input_tokens"] + data["usage"]["output_tokens"],
-            },
-            raw_response=data,
-        )
+
+        for attempt in range(self.max_retries):
+            try:
+                resp = self.session.post(url, json=anthropic_payload, headers=headers, timeout=self.timeout)
+                resp.raise_for_status()
+                data = resp.json()
+
+                return AIResponse(
+                    content=data["content"][0]["text"],
+                    model=data["model"],
+                    usage={
+                        "prompt_tokens": data["usage"]["input_tokens"],
+                        "completion_tokens": data["usage"]["output_tokens"],
+                        "total_tokens": data["usage"]["input_tokens"] + data["usage"]["output_tokens"],
+                    },
+                    raw_response=data,
+                )
+            except requests.exceptions.HTTPError as e:
+                if e.response.status_code == 401:
+                    logger.error("Authentication failed - check API key")
+                    raise
+                elif attempt < self.max_retries - 1:
+                    time.sleep(2 ** attempt)
+                    continue
+                raise
+            except requests.exceptions.RequestException as e:
+                logger.debug(f"API request failed (attempt {attempt+1}): {e}")
+                if attempt < self.max_retries - 1:
+                    time.sleep(2 ** attempt)
+                    continue
+                raise
+
+        raise RuntimeError("Max retries exceeded")
 
     def _stream_response(self, url: str, payload: Dict) -> Generator[str, None, None]:
         """Stream response from API."""
