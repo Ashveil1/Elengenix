@@ -167,6 +167,7 @@ class TeamAegis:
         self.findings: List[Finding] = []
         self.tasks: List[TaskAssignment] = []
         self.task_queue: List[tuple] = []  # Priority queue: (priority, task) tuples
+        self._task_queue_lock: threading.Lock = threading.Lock()
         self.shared_intel: List[str] = []  # intelligence shared across agents
         self.round = 0
         # Context compression
@@ -298,9 +299,10 @@ class TeamAegis:
             for entry in self.shared_intel[-10:]:
                 lines.append(f"  {entry}")
 
-        # Show pending tasks from the queue
-        pending = [t for t in self.task_queue if t[3].get("type") != "suggested"]
-        suggested = [t for t in self.task_queue if t[3].get("type") == "suggested"]
+        # Show pending tasks from the queue (thread-safe read)
+        with self._task_queue_lock:
+            pending = [t for t in self.task_queue if t[3].get("type") != "suggested"]
+            suggested = [t for t in self.task_queue if t[3].get("type") == "suggested"]
         if suggested:
             lines.append("\n### PENDING TASKS (suggested by teammates — claim one):")
             for _, _, agent_id, action in suggested:
@@ -313,13 +315,15 @@ class TeamAegis:
         """Add a task to the priority queue (lower number = higher priority)."""
         if priority < 0:
             priority = 0
-        heappush(self.task_queue, (priority, time.time(), agent_id, action))
+        with self._task_queue_lock:
+            heappush(self.task_queue, (priority, time.time(), agent_id, action))
 
     def _pop_task(self) -> Optional[tuple]:
-        """Pop highest priority task from queue."""
-        if not self.task_queue:
-            return None
-        return heappop(self.task_queue)
+        """Pop the highest priority task."""
+        with self._task_queue_lock:
+            if not self.task_queue:
+                return None
+            return heappop(self.task_queue)
 
     def _save_memory(self, finding: Finding):
         """Save a finding to vector memory for future sessions."""
