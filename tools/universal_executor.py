@@ -351,20 +351,23 @@ class PackageManager:
             )
         
         cmd_template = self.MANAGERS[manager][action]
-        cmd = cmd_template.format(package=package or "", binary=package or "" if " " not in str(package) else package.split()[-1])
-        
+        safe_package = (package or "").strip()
+        # Build command using list form — NOT string formatting — to prevent injection.
+        cmd_str = cmd_template.format(package=safe_package, binary=safe_package.split()[-1] if safe_package and " " not in safe_package else safe_package)
+        args = shlex.split(cmd_str)
+
         try:
             result = subprocess.run(
-                shlex.split(cmd),
+                args,
                 capture_output=True,
                 text=True,
                 timeout=300,
                 shell=False
             )
-            
+
             output = result.stdout if result.stdout else result.stderr
             success = result.returncode == 0
-            
+
             return ExecutionResult(
                 success,
                 output[:5000],  # Limit output size
@@ -385,26 +388,6 @@ class UniversalExecutor:
     """
     
     # Flexible allowlist - allows more than just security tools
-    ALLOWED_COMMANDS = frozenset({
-        # Package managers
-        "pip", "npm", "apt", "apt-get", "yum", "dnf", "brew", "pacman",
-        "gem", "bundle", "composer", "cargo", "go", "conda", "poetry",
-        # Common tools
-        "curl", "wget", "git", "ssh", "scp", "rsync",
-        "grep", "find", "awk", "sed", "cut", "sort", "uniq",
-        "cat", "head", "tail", "less", "more", "vim", "nano",
-        "ls", "cd", "pwd", "mkdir", "rm", "cp", "mv", "touch",
-        "chmod", "chown", "ps", "top", "htop", "kill", "pkill",
-        "tar", "gzip", "gunzip", "zip", "unzip",
-        "ping", "traceroute", "netstat", "ss", "lsof",
-        "python", "python3", "node", "ruby", "php", "perl",
-        "echo", "printenv", "export", "source",
-        # Security tools
-        "nmap", "masscan", "subfinder", "nuclei", "httpx", "katana",
-        "waybackurls", "ffuf", "gau", "amass", "hakrawler", "gospider",
-        "assetfinder", "dalfox", "arjun", "naabu", "trufflehog",
-    })
-    
     DANGEROUS_PATTERNS = [
         r"rm\s+-rf\s+/",
         r"dd\s+if=.*of=/dev/[sh]d",
