@@ -357,11 +357,11 @@ class ElengenixTextualApp(App):
     #chat_col {{ width: 1fr; height: 1fr; background: {BASE}; }}
     #chat_area {{
         height: 1fr; background: {BASE};
-        border: solid {RED}; padding: 0 1;
+        padding: 0 1;
     }}
     #input_row {{
         height: auto; margin: 0 1;
-        background: {MANTLE}; border: solid {RED}; padding: 0;
+        background: {MANTLE}; border: none; padding: 0;
     }}
     #user_input {{
         height: 3; border: none;
@@ -415,7 +415,7 @@ class ElengenixTextualApp(App):
                 yield ProgressBar(id="progress_bar")
                 yield StatusBar(id="status_bar")
                 with Vertical(id="input_row"):
-                    yield Input(placeholder="> ", id="user_input")
+                    yield Input(placeholder="try it!", id="user_input")
             yield Sidebar(id="sidebar")
         yield SettingsOverlayWidget(id="settings_overlay")
 

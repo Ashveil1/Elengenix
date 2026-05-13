@@ -33,4 +33,6 @@ venv/
 # OS files
 .DS_Store
 Thumbs.db
-security_agent 
+
+# Session files
+data/sessions/
