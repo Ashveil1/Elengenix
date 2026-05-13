@@ -338,19 +338,27 @@ class VectorMemory:
         category: str = "general",
         metadata: Optional[Dict[str, Any]] = None,
     ) -> Optional[str]:
-        """Store a memory in the FTS5 index."""
+        """Store a memory in the FTS5 index with deduplication."""
         try:
             self._init_fts()
             timestamp = datetime.now(timezone.utc).isoformat()
             memory_id = self._generate_id(content, target, timestamp)
-            meta_json = json.dumps(metadata or {}, ensure_ascii=False)
+            rowid = int(memory_id, 16) % (2**63)
 
             with sqlite3.connect(str(self._fts_db())) as conn:
+                # Check for duplicate by rowid (derived from content hash)
+                existing = conn.execute(
+                    "SELECT 1 FROM memories_fts WHERE rowid = ?", (rowid,)
+                ).fetchone()
+                if existing:
+                    logger.debug(f"[FTS] Duplicate memory skipped: {memory_id[:8]}...")
+                    return memory_id
+
                 conn.execute(
                     "INSERT INTO memories_fts (rowid, content, target, category, timestamp, metadata) "
                     "VALUES (?, ?, ?, ?, ?, ?)",
-                    (int(memory_id, 16) % (2**63), content, target.lower().strip(),
-                     category.lower(), timestamp, meta_json),
+                    (rowid, content, target.lower().strip(),
+                     category.lower(), timestamp, json.dumps(metadata or {}, ensure_ascii=False)),
                 )
             logger.debug(f"[FTS] Added memory: {memory_id[:8]}... for {target}")
             return memory_id
@@ -371,12 +379,9 @@ class VectorMemory:
             return []
         try:
             self._init_fts()
-            # Escape FTS5 special characters and build query
-            safe_query = " NEAR ".join(query.split())
-            safe_query = " OR ".join(
-                f'"{w}"' if " " not in w else w
-                for w in safe_query.split()
-            )
+            # Build FTS5 query: prefix each word with + for AND matching
+            words = query.split()
+            safe_query = " ".join(f'"+{w}"' for w in words if w) or query
 
             sql = (
                 "SELECT rowid, content, target, category, timestamp, metadata, "
