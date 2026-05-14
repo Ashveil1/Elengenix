@@ -91,8 +91,9 @@ HELP_TEXT = f"""\
   /target <x>  Set target domain
   /talk <n>    Talk to agent 1,2,3 or all
   /session     Session info
-  /session new New session
-  /session list List sessions
+  /session new New session (auto-save current)
+  /session list List saved sessions
+  /session load <id> Load a saved session
   /stats       Memory stats
   /team        Show team
 
@@ -197,6 +198,11 @@ class Sidebar(Container):
             f"[bold {COLOR_TEXT}]CONTEXT[/]",
             f"  {bar}",
             f"  {tokens}/{limit}  [{COLOR_DIM}]{pct}%[/]",
+            div,
+            f"[bold {COLOR_TEXT}]SHORTCUTS[/]",
+            f"  [{COLOR_DIM}]Ctrl+R[/] Research  [{COLOR_DIM}]Ctrl+B[/] Scan",
+            f"  [{COLOR_DIM}]Ctrl+T[/] Thinking  [{COLOR_DIM}]Ctrl+P[/] Model",
+            f"  [{COLOR_DIM}]Ctrl+G[/] Help      [{COLOR_DIM}]Ctrl+E[/] Settings",
             div,
             f"[{COLOR_DIM}]\u2514\u2500 v99999 Elengix[/]",
         ])
@@ -328,6 +334,11 @@ class SettingsOverlayWidget(Widget, can_focus=True):
         event.stop()
         r = self._overlay.handle_char(char) if self._overlay else "exit"
         if r == "exit": self.hide()
+        elif r and r.startswith("load_session:"):
+            sid = r.split(":", 1)[1]
+            self.hide()
+            if hasattr(self.app, "_load_session_by_id"):
+                self.app._load_session_by_id(sid)
         elif r == "saved":
             self.app._chat_write_system(f"[{COLOR_OK}]Settings saved.[/]")
             if hasattr(self.app, "_agent") and self.app._agent:
@@ -386,12 +397,13 @@ class ElengenixTextualApp(App):
         Binding("down", "history_down", "", show=False),
     ]
 
-    def __init__(self, target: str = "", mode: str = "auto", **kwargs):
+    def __init__(self, target: str = "", mode: str = "auto", session_id: str = "", **kwargs):
         super().__init__(**kwargs)
         self.target        = target
         self.mode          = mode
         self.thinking      = False
-        self.session_name  = f"sess-{time.strftime('%m%d-%H%M%S')}"
+        self._load_sid     = session_id  # session to load at start
+        self.session_name  = session_id or ""
         self.turn_count    = 0
         self.tools_run     = 0
         self.findings      = 0
@@ -402,6 +414,7 @@ class ElengenixTextualApp(App):
         self._talk_to      = "all"
         self._team_active  = False
         self._session_mgr  = None
+        self._pending_session = None
         self._cached_chat: RichLog | None = None
         self._cached_sidebar: Sidebar | None = None
         self._last_sidebar_update: float = 0.0
@@ -422,11 +435,20 @@ class ElengenixTextualApp(App):
     def on_mount(self) -> None:
         self._chat().write(Text("\n"))
         self._chat().write(Text.from_markup(ASCII_BANNER))
-        self._chat_write_system(f"[{COLOR_DIM}]Target: {self.target or '(none)'}  |  /help for commands[/]")
         try:
             from tools.session_manager import SessionManager
             self._session_mgr = SessionManager()
-            self._session_mgr.start_session(name=self.session_name, target=self.target, mode=self.mode)
+            if self._load_sid:
+                # Load session data (applied to agent after agent loads)
+                self._pending_session = self._session_mgr.resume_session(self._load_sid)
+                if self._pending_session:
+                    self.session_name = self._load_sid
+                    self.target = self._pending_session.get("target", self.target)
+                    self.mode = self._pending_session.get("mode", self.mode)
+                    self.turn_count = self._pending_session.get("turns", 0)
+                else:
+                    self._chat_write_system(f"Session not found: {self._load_sid}")
+                    self._load_sid = ""
         except: pass
         self._update_sidebar()
         self.set_focus(self.query_one("#user_input", Input))
@@ -435,10 +457,38 @@ class ElengenixTextualApp(App):
     @work(thread=True)
     def _load_agent(self) -> None:
         try:
+            logging.getLogger().setLevel(logging.WARNING)
             self._agent = get_agent()
-            if self._agent: _ = self._agent.governance
+            if self._agent:
+                _ = self._agent.governance
+                # Apply pending session data to agent
+                if hasattr(self, "_pending_session") and self._pending_session:
+                    from tools.session_manager import SessionManager
+                    mgr = SessionManager()
+                    mgr.resume_session(self._load_sid, agent=self._agent)
+                    self._pending_session = None
+                    # Replay saved conversation into the chat display
+                    self.call_from_thread(self._replay_history)
+                else:
+                    # Fresh session — clear whatever SQLite loaded
+                    self._agent.conversation_history = []
         except Exception as e:
             self.call_from_thread(self._chat_write_error, f"Agent load: {e}")
+        finally:
+            logging.getLogger().setLevel(logging.INFO)
+
+    def _ensure_session(self) -> str:
+        """Auto-create session if none active, return session name."""
+        if self.session_name:
+            return self.session_name
+        from tools.session_manager import generate_session_id
+        self.session_name = generate_session_id()
+        try:
+            if self._session_mgr:
+                self._session_mgr.start_session(name=self.session_name, target=self.target, mode=self.mode)
+        except: pass
+        self._update_sidebar()
+        return self.session_name
 
     # ── UI Helpers ───────────────────────────────────────────────────────
     def _chat(self) -> RichLog:
@@ -510,6 +560,46 @@ class ElengenixTextualApp(App):
             )
         except: pass
 
+    @work(thread=True)
+    def _send_to_agent(self, text: str, callback=None) -> None:
+        """Call agent in background thread."""
+        if self._processing: return
+        self._processing = True
+        self.call_from_thread(self._update_sidebar)
+        self.call_from_thread(lambda: self.query_one("#thinking_bar", ThinkingWidget).show())
+        try:
+            if self._agent is None: raise RuntimeError("Agent not ready.")
+
+            # Hook governance into _execute_tool for live display
+            if hasattr(self._agent, "_execute_tool"):
+                orig = self._agent._execute_tool
+                def wrap(ad, cb=None):
+                    cmd = ad.get("command", "")[:120]
+                    risk = "SAFE"
+                    try: risk = self._agent.governance.classify_risk(ad)
+                    except: pass
+                    self.call_from_thread(self._chat_write_governance, cmd, risk)
+                    if self.mode == "scan" and risk == "SAFE":
+                        self.tools_run += 1
+                        self.call_from_thread(self._update_sidebar)
+                    return orig(ad, cb)
+                self._agent._execute_tool = wrap
+
+            if hasattr(self._agent, "process_universal"):
+                resp = self._agent.process_universal(text, target=self.target or "", mode=self.mode)
+            else:
+                resp = self._agent.process_query(user_input=text, target=self.target or "")
+
+            if resp: self.call_from_thread(self._chat_write_agent, str(resp))
+            else: self.call_from_thread(self._chat_write_error, "No response.")
+        except Exception as exc:
+            logger.error(f"Agent: {exc}")
+            self.call_from_thread(self._chat_write_error, str(exc))
+        finally:
+            self._processing = False
+            self.call_from_thread(lambda: self.query_one("#thinking_bar", ThinkingWidget).hide())
+            self.call_from_thread(self._update_sidebar)
+
     # ── Input ────────────────────────────────────────────────────────────
     def on_input_submitted(self, event: Input.Submitted) -> None:
         text = event.value.strip()
@@ -518,6 +608,8 @@ class ElengenixTextualApp(App):
         if not self.history or self.history[-1] != text: self.history.append(text)
         self.history_idx = -1
         if self._handle_slash(text): return
+        # Auto-create session on first message
+        self._ensure_session()
         self._chat_write_user(text)
         self.turn_count += 1
         self._update_sidebar()
@@ -579,90 +671,122 @@ class ElengenixTextualApp(App):
             parts = text.split(maxsplit=2); sub = parts[1].strip() if len(parts) > 1 else ""
             if sub == "new":
                 self._save_session()
+                from tools.session_manager import generate_session_id
+                self.session_name = generate_session_id()
+                if self._session_mgr:
+                    self._session_mgr.start_session(name=self.session_name, target=self.target, mode=self.mode)
                 if self._agent and hasattr(self._agent,"clear_conversation_history"): self._agent.clear_conversation_history()
                 self.turn_count = 0; self.tools_run = 0; self.findings = 0
                 self._chat().clear()
-                self._chat_write_system("New session.")
+                self._chat_write_system(f"New session: {self.session_name}")
                 self._update_sidebar(); return True
             if sub == "list" and self._session_mgr:
                 ss = self._session_mgr.list_sessions()
                 if not ss: self._chat_write_system("No saved sessions.")
                 else:
-                    lines = ["[bold]Sessions:[/bold]"]
-                    for s in ss[-10:]: lines.append(f"  [{COLOR_DIM}]{s.name}[/]  turns={s.turn_count}")
+                    lines = ["[bold]Sessions:[/bold]", f"  [{COLOR_DIM}]Use /session load <name> to resume[/]"]
+                    for s in ss[-10:]:
+                        sid = s.name
+                        marker = "  >" if sid == self.session_name else "   "
+                        lines.append(f"  {marker} [{COLOR_DIM}]{sid}[/]  turns={s.turn_count}  [{COLOR_DIM}]{s.target or '-'}[/]")
                     self._chat().write(Text.from_markup("\n".join(lines)))
+                return True
+            if sub == "load" and len(parts) > 2 and self._session_mgr:
+                sid = parts[2].strip()
+                info = self._session_mgr.resume_session(sid, agent=self._agent)
+                if info:
+                    self.session_name = sid
+                    self.target = info.get("target", self.target)
+                    self.mode = info.get("mode", self.mode)
+                    self.turn_count = info.get("turns", 0)
+                    self._chat().clear()
+                    self._chat_write_system(f"Loaded session: {sid}")
+                    self._replay_history()
+                    self._update_sidebar()
+                else:
+                    self._chat_write_system(f"Session not found: {sid}")
                 return True
             self._chat_write_system(f"Session: {self.session_name}  Turns: {self.turn_count}"); return True
         if low.startswith("/"): self._chat_write_system(f"Unknown: {low}  (/help)"); return True
         return False
 
-    def _save_session(self) -> None:
+    def _save_session(self) -> str:
+        """Save current session and return session name/ID."""
+        sid = self.session_name
         try:
-            if self._session_mgr:
-                self._session_mgr.save_session(name=self.session_name, agent=self._agent, target=self.target, mode=self.mode)
+            if self._session_mgr and sid:
+                self._session_mgr.save_session(name=sid, agent=self._agent, target=self.target, mode=self.mode)
         except: pass
+        return sid
 
-    # ── Agent ────────────────────────────────────────────────────────────
-    @work(thread=True)
-    def _send_to_agent(self, text: str, callback=None) -> None:
-        if self._processing: return
-        self._processing = True
-        self.call_from_thread(self._update_sidebar)
-        self.call_from_thread(lambda: self.query_one("#thinking_bar", ThinkingWidget).show())
-        try:
-            if self._agent is None: raise RuntimeError("Agent not ready.")
-            if hasattr(self._agent, "_execute_tool"):
-                orig = self._agent._execute_tool
-                def wrap(ad, cb=None):
-                    cmd = ad.get("command","")[:120]
-                    risk = "SAFE"
-                    try: risk = self._agent.governance.classify_risk(ad)
-                    except: pass
-                    self.call_from_thread(self._chat_write_governance, cmd, risk)
-                    if self.mode == "scan" and risk == "SAFE":
-                        self.tools_run += 1
-                        self.call_from_thread(self._update_sidebar)
-                    return orig(ad, cb)
-                self._agent._execute_tool = wrap
-            if hasattr(self._agent, "process_universal"):
-                resp = self._agent.process_universal(text, target=self.target or "", mode=self.mode)
-            else:
-                resp = self._agent.process_query(user_input=text, target=self.target or "")
-            if resp: self.call_from_thread(self._chat_write_agent, str(resp))
-            else: self.call_from_thread(self._chat_write_error, "No response.")
-        except Exception as exc:
-            logger.error(f"Agent: {exc}")
-            self.call_from_thread(self._chat_write_error, str(exc))
-        finally:
-            self._processing = False
-            self.call_from_thread(lambda: self.query_one("#thinking_bar", ThinkingWidget).hide())
-            self.call_from_thread(self._update_sidebar)
+    def _replay_history(self) -> None:
+        """Replay agent conversation_history into the RichLog display."""
+        if not self._agent or not hasattr(self._agent, "conversation_history"):
+            return
+        for msg in self._agent.conversation_history:
+            role = msg.get("role", "")
+            content = msg.get("content", "")
+            if not content:
+                continue
+            if role == "user":
+                self._chat_write_user(content[:500])
+            elif role == "assistant":
+                self._chat_write_agent(content[:500])
 
-    # ── Actions ──────────────────────────────────────────────────────────
+    def _load_session_by_id(self, sid: str) -> None:
+        """Load a saved session by ID."""
+        if not sid or not self._session_mgr:
+            return
+        self._save_session()
+        from tools.session_manager import SessionManager
+        mgr = SessionManager()
+        info = mgr.resume_session(sid, agent=self._agent)
+        if info:
+            self.session_name = sid
+            self.target = info.get("target", self.target)
+            self.mode = info.get("mode", self.mode)
+            self.turn_count = info.get("turns", 0)
+            self._chat().clear()
+            self._chat_write_system(f"Session loaded: {sid}  ({self.turn_count} turns)")
+            self._replay_history()
+            self._update_sidebar()
+        else:
+            self._chat_write_system(f"Session not found: {sid}")
+
+    def action_app_exit(self) -> None:
+        sid = self._save_session()
+        logger.info(f"Session {sid} saved on exit")
+        from rich.console import Console
+        Console().print(f"\n  [bold #ff4444]Thank you for using Elengenix![/bold #ff4444]")
+        Console().print(f"  [dim #737373]Session:[/dim] [bold #ffffff]{sid}[/bold #ffffff]")
+        Console().print(f"  [dim #737373]To resume:[/dim] [bold #ffffff]elenginx cli -s {sid}[/bold #ffffff]\n")
+        self.exit()
+
     def action_toggle_research(self) -> None:
         self.mode = "research" if self.mode != "research" else "auto"
-        self._update_sidebar(); self._chat_write_system(f"Research: {'ON' if self.mode=='research' else 'OFF'}")
+        self._update_sidebar()
+        self._chat_write_system(f"[{COLOR_WARN}]Research: {'ON' if self.mode == 'research' else 'OFF'}[/]")
 
     def action_toggle_scan(self) -> None:
         self.mode = "scan" if self.mode != "scan" else "auto"
-        self._update_sidebar(); self._chat_write_system(f"Scan: {'ON' if self.mode=='scan' else 'OFF'}")
+        self._update_sidebar()
+        self._chat_write_system(f"[{COLOR_WARN}]Scan: {'ON' if self.mode == 'scan' else 'OFF'}[/]")
 
     def action_toggle_think(self) -> None:
         self.thinking = not self.thinking
         os.environ["NVIDIA_PARAM_MODE"] = "enable" if self.thinking else "disable"
-        self._update_sidebar(); self._chat_write_system(f"Thinking: {'ON' if self.thinking else 'OFF'}")
+        self._update_sidebar()
+        self._chat_write_system(f"[{COLOR_WARN}]Thinking: {'ON' if self.thinking else 'OFF'}[/]")
 
     def action_show_model(self) -> None:
-        self._chat_write_system(f"Model: {os.environ.get('ACTIVE_MODELS','default')}")
+        models = os.environ.get("ACTIVE_MODELS", "default")
+        self._chat_write_system(f"[{COLOR_INFO}]Active model(s): {models}[/]")
 
     def action_show_help(self) -> None:
         self._chat().write(Text.from_markup(HELP_TEXT))
 
     def action_show_settings(self) -> None:
         self.query_one("#settings_overlay", SettingsOverlayWidget).show()
-
-    def action_app_exit(self) -> None:
-        self._save_session(); self.exit()
 
     def action_scroll_up(self) -> None:
         try: self._chat().scroll_up(10)
@@ -692,8 +816,15 @@ class ElengenixTextualApp(App):
                 inp.cursor_position = len(inp.value)
 
 
-def main(target: str = "", mode: str = "auto") -> None:
-    ElengenixTextualApp(target=target, mode=mode).run()
+def main(target: str = "", mode: str = "auto", session_id: str = "") -> None:
+    app = ElengenixTextualApp(target=target, mode=mode, session_id=session_id)
+    app.run()
 
 if __name__ == "__main__":
-    main()
+    import sys
+    sid = ""
+    if "-s" in sys.argv:
+        idx = sys.argv.index("-s")
+        if idx + 1 < len(sys.argv):
+            sid = sys.argv[idx + 1]
+    main(session_id=sid)

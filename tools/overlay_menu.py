@@ -25,6 +25,7 @@ from rich.box import ROUNDED
 logger = logging.getLogger("elengenix.overlay")
 
 MENU_ITEMS = [
+    {"id": "sessions", "label": "Sessions", "icon": "[S]"},
     {"id": "agent_setup", "label": "Agent Setup", "icon": "[1]"},
     {"id": "api_keys", "label": "API Keys", "icon": "[2]"},
     {"id": "rate_limits", "label": "Rate Limits", "icon": "[3]"},
@@ -191,6 +192,7 @@ class SettingsOverlay:
         if self._current_layer == "main":
             return "exit"
         back_map = {
+            "sessions": "main",
             "agent_setup": "main",
             "api_keys": "main",
             "rate_limits": "main",
@@ -208,6 +210,11 @@ class SettingsOverlay:
     def _navigate_to(self, item_id: str) -> Optional[str]:
         """Navigate to a sub-layer."""
         if self._current_layer == "main":
+            if item_id == "sessions":
+                self._current_layer = "sessions"
+                self._selected_idx = 0
+                self._update_items()
+                return None
             if item_id in ("agent_setup", "api_keys", "rate_limits", "skills", "mode_settings"):
                 self._current_layer = item_id
                 self._selected_idx = 0
@@ -253,6 +260,12 @@ class SettingsOverlay:
                 self._update_items()
             return None
 
+        if self._current_layer == "sessions":
+            if item_id.startswith("sess_"):
+                session_id = item_id.replace("sess_", "")
+                return f"load_session:{session_id}"
+            return None
+
         if self._current_layer == "mode_settings":
             if item_id.startswith("mode_"):
                 mode = item_id.replace("mode_", "")
@@ -268,6 +281,7 @@ class SettingsOverlay:
     def _update_items(self) -> None:
         builders = {
             "main": self._build_main_items,
+            "sessions": self._build_sessions_items,
             "agent_setup": self._build_agent_items,
             "provider_select": self._build_provider_items,
             "model_select": self._build_model_items,
@@ -286,6 +300,24 @@ class SettingsOverlay:
         items.append({"id": "", "label": "", "action": ""})
         items.append({"id": "save_and_apply", "label": "[SAVE] Save & Apply", "action": "save"})
         items.append({"id": "exit", "label": "[BACK] Exit", "action": "exit"})
+        return items
+
+    def _build_sessions_items(self):
+        items = [{"id": "", "label": "--- Select a session to load ---", "action": ""}]
+        try:
+            from tools.session_manager import SessionManager
+            mgr = SessionManager()
+            sessions = mgr.list_sessions()
+            if not sessions:
+                items.append({"id": "", "label": "  (no saved sessions)", "action": ""})
+            else:
+                for s in sessions[-15:]:
+                    label = f"  {s.name}  [{s.target or '-'}]  {s.turns}turns"
+                    items.append({"id": f"sess_{s.name}", "label": label, "action": ""})
+        except Exception as e:
+            items.append({"id": "", "label": f"  Error: {e}", "action": ""})
+        items.append({"id": "", "label": "", "action": ""})
+        items.append({"id": "back", "label": "[B] Back", "action": "back"})
         return items
 
     def _build_agent_items(self):

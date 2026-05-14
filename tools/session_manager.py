@@ -21,6 +21,8 @@ from __future__ import annotations
 import json
 import logging
 import os
+import secrets
+import string
 import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -30,6 +32,13 @@ from typing import Any, Dict, List, Optional
 logger = logging.getLogger("elengenix.session")
 
 SESSIONS_DIR = Path("data/sessions")
+
+
+def generate_session_id() -> str:
+    """Generate a short readable session ID (e.g. k7x3p9m2)."""
+    import secrets, string
+    alphabet = string.ascii_lowercase + string.digits
+    return ''.join(secrets.choice(alphabet) for _ in range(9))
 
 
 def _ensure_sessions_dir() -> Path:
@@ -89,7 +98,7 @@ class SessionManager:
             The session name (auto-generated or provided).
         """
         if not name:
-            name = f"session-{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}"
+            name = generate_session_id()
 
         self.live = LiveSessionState(
             name=name,
