@@ -523,7 +523,59 @@ class UniversalExecutor:
                 params.get("timeout", 300),
                 params.get("cwd")
             )
-        
+
+        elif action_type == "run_tool":
+            from tools.tool_registry import registry, ToolResult
+            import asyncio, time
+            from pathlib import Path
+
+            tool_name = params.get("tool", "")
+            tool_target = params.get("target", "")
+            tool_args = params.get("args", "")
+            tool_list = params.get("tools", [])
+
+            # Support parallel execution: if "tools" is a list, run all concurrently
+            if tool_list:
+                targets = [tool_target] * len(tool_list) if tool_target else [""] * len(tool_list)
+                async def _run_parallel():
+                    sem = asyncio.Semaphore(5)
+                    async def _run_one(name, tgt):
+                        t = registry.get_tool(name)
+                        if not t or not t.is_available:
+                            return ToolResult(False, name, error_message=f"{name} not available")
+                        rd = Path("reports") / f"run_{name}_{int(time.time())}"
+                        rd.mkdir(parents=True, exist_ok=True)
+                        return await t.execute(tgt, rd, sem)
+                    results = await asyncio.gather(*[_run_one(n, t) for n, t in zip(tool_list, targets)])
+                    lines = [f"[{r.tool_name}] {len(r.findings)} findings" for r in results]
+                    total = sum(len(r.findings) for r in results)
+                    return "\n".join(lines), total
+                try:
+                    output, total_findings = asyncio.run(_run_parallel())
+                    return ExecutionResult(True, output, "", "run_tool", {"tools": tool_list, "total_findings": total_findings})
+                except Exception as e:
+                    return ExecutionResult(False, "", str(e), "run_tool", params)
+
+            # Single tool execution
+            if not tool_name:
+                return ExecutionResult(False, "", "No tool specified", "run_tool", params)
+            tool = registry.get_tool(tool_name)
+            if not tool or not tool.is_available:
+                return ExecutionResult(False, "", f"Tool '{tool_name}' not available", "run_tool", params)
+            report_dir = Path("reports") / f"run_{tool_name}_{int(time.time())}"
+            report_dir.mkdir(parents=True, exist_ok=True)
+            try:
+                async def _run():
+                    sem = asyncio.Semaphore(3)
+                    return await tool.execute(tool_target, report_dir, sem)
+                result = asyncio.run(_run())
+                output = result.output or f"{len(result.findings)} findings"
+                return ExecutionResult(result.success, output[:5000], result.error_message or "", "run_tool", {
+                    "tool": tool_name, "findings": len(result.findings), "target": tool_target
+                })
+            except Exception as e:
+                return ExecutionResult(False, "", str(e), "run_tool", params)
+
         elif action_type == "package":
             return self.package_manager.execute(
                 params.get("manager", "pip"),
@@ -573,7 +625,88 @@ class UniversalExecutor:
                 "search_web",
                 {"query": query, "results": len(enriched_results)}
             )
-        
+
+        elif action_type == "bounty_intel":
+            from tools.bounty_intelligence import BountyIntelligence
+            program = params.get("program", "")
+            result = []
+            try:
+                bi = BountyIntelligence()
+                if program:
+                    programs = bi.discover_programs_public(limit=20)
+                    result = [p for p in programs if program.lower() in p.name.lower()][:5]
+                else:
+                    result = bi.discover_programs_public(limit=10)
+                output = "\n".join([f"  - {p.name}: ${p.min_bounty}-${p.max_bounty} ({p.state})" for p in result])
+                return ExecutionResult(True, output or "No programs found.", "", "bounty_intel", {"count": len(result)})
+            except Exception as e:
+                return ExecutionResult(False, "", str(e), "bounty_intel", params)
+
+        elif action_type == "github_search":
+            from tools.github_intel import search_code
+            query = params.get("query", "")
+            if not query:
+                return ExecutionResult(False, "", "No query specified", "github_search", params)
+            try:
+                results = search_code(query)
+                output = "\n".join([f"  - {r.get('repo', '?')}: {r.get('file', '?')}" for r in results[:10]])
+                return ExecutionResult(True, output or "No results.", "", "github_search", {"count": len(results)})
+            except Exception as e:
+                return ExecutionResult(False, "", str(e), "github_search", params)
+
+        elif action_type == "cve_lookup":
+            from tools.cve_database import get_cve_database
+            cve_id = params.get("cve_id", "")
+            keyword = params.get("keyword", "")
+            try:
+                db = get_cve_database()
+                if cve_id:
+                    entry = db.get_cve(cve_id)
+                    output = f"{entry.cve_id}: {entry.description[:200]}" if entry else "Not found."
+                elif keyword:
+                    results = db.search_cves(keyword, limit=5)
+                    output = "\n".join([f"  - {r.cve_id}: {r.description[:100]}" for r in results])
+                else:
+                    output = "Specify cve_id or keyword."
+                return ExecutionResult(True, output, "", "cve_lookup", {})
+            except Exception as e:
+                return ExecutionResult(False, "", str(e), "cve_lookup", params)
+
+        elif action_type == "js_analyze":
+            from tools.js_analyzer import analyze_js
+            url = params.get("url", "")
+            if not url:
+                return ExecutionResult(False, "", "No URL specified", "js_analyze", params)
+            try:
+                result = analyze_js(url)
+                secrets = result.get("secrets", [])
+                endpoints = result.get("endpoints", [])
+                lines = [f"Found {len(secrets)} secrets, {len(endpoints)} endpoints"]
+                for s in secrets[:5]:
+                    lines.append(f"  [SECRET] {s.get('type','?')}: {str(s.get('value',''))[:80]}")
+                for e in endpoints[:5]:
+                    lines.append(f"  [ENDPOINT] {e}")
+                return ExecutionResult(True, "\n".join(lines), "", "js_analyze", {"secrets": len(secrets), "endpoints": len(endpoints)})
+            except Exception as e:
+                return ExecutionResult(False, "", str(e), "js_analyze", params)
+
+        elif action_type == "check_takeover":
+            from tools.subdomain_takeover import check_single_subdomain
+            subdomain = params.get("subdomain", "")
+            if not subdomain:
+                return ExecutionResult(False, "", "No subdomain specified", "check_takeover", params)
+            try:
+                result = check_single_subdomain(subdomain)
+                if result:
+                    vuln = result.get("vulnerable", False)
+                    service = result.get("service", "unknown")
+                    output = f"TAKEOVER {'YES' if vuln else 'NO'} — {subdomain} → {service}"
+                else:
+                    output = f"No takeover risk detected for {subdomain}"
+                return ExecutionResult(True, output, "", "check_takeover", {"vulnerable": bool(result)})
+            except Exception as e:
+                return ExecutionResult(False, "", str(e), "check_takeover", params)
+
         else:
             return ExecutionResult(
                 False,
@@ -592,31 +725,22 @@ You can perform these actions:
 
 ### File Operations
 - `read_file`: Read file with line numbers
-- `write_file`: Create new file
-- `edit_file`: Strategic edit (replace specific text)
-- `search_file`: Search pattern with context
-- `list_dir`: List directory contents
+- `write_file`: Create/edit file content
+- `search_file`: Search within files using regex
 
-### Package Management
-- `package`: Install/uninstall packages (pip, npm, apt, go, gem)
+### Shell & Tools
+- `shell`: Execute any command (respects security restrictions)
+- `run_tool`: Run a security tool from the registry (subfinder, nuclei, httpx, etc.)
+- `package`: Install/uninstall packages via pip, npm, apt, go
 
-### Shell Execution
-- `shell`: Run shell commands (security filtered)
+### Web & Intelligence
+- `search_web`: Search the live internet (Google/DuckDuckGo/Tavily)
+- `bounty_intel`: Look up bug bounty programs (HackerOne)
+- `github_search`: Search GitHub for leaked secrets, credentials, or code
+- `cve_lookup`: Search the local CVE database by CVE ID or keyword
 
-### Web Research
-- `search_web`: Search internet for information
-
-### Response Format
-Always respond with JSON:
-```json
-{
-  "type": "action_type",
-  "params": {...},
-  "reasoning": "why you're doing this"
-}
-```
-
-For multi-step tasks, chain multiple actions.
+### Finish
+- `finish`: Complete the task with a summary
 """
 
 

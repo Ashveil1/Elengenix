@@ -47,6 +47,8 @@ class SettingsOverlay:
         """Reset overlay state."""
         self._current_layer = "main"
         self._selected_idx = 0
+        self._scroll_offset = 0
+        self._max_visible = 14
         self._search = ""
         self._agent_config: List[Dict[str, str]] = self._load_agent_config()
         self._rate_limits = [40, 40, 40]
@@ -54,6 +56,8 @@ class SettingsOverlay:
         self._model_cache: Dict[str, Tuple[float, List[str]]] = {}
         self._agent_idx = 0
         self._current_provider = ""
+        self._custom_url = ""
+        self._custom_step = ""
         self._editing_provider = ""
         self._items: List[Dict] = []
         self._update_items()
@@ -63,20 +67,49 @@ class SettingsOverlay:
         # Arrow keys - must have full escape sequence
         if ch == "\x1b[A" or ch == "\x1b[OA":
             self._selected_idx = max(0, self._selected_idx - 1)
+            self._adjust_scroll()
             return None
         if ch == "\x1b[B" or ch == "\x1b[OB":
             self._selected_idx = min(len(self._items) - 1, self._selected_idx + 1)
+            self._adjust_scroll()
             return None
         if ch == "\x1b[C" or ch == "\x1b[OC":
             return None
         if ch == "\x1b[D" or ch == "\x1b[OD":
             return None
+
+        # Custom URL input: capture ALL printable characters FIRST
+        if self._current_layer == "custom_url":
+            if ch.isprintable() and len(ch) == 1:
+                self._custom_url += ch
+                self._update_items()
+                return None
+            if ch == "\x7f" and self._custom_url:
+                self._custom_url = self._custom_url[:-1]
+                self._update_items()
+                return None
+            if ch in ("\r", "\n") and self._custom_url:
+                self._agent_config[self._agent_idx] = {
+                    "provider": "custom",
+                    "model": self._custom_url,
+                }
+                self._current_layer = "agent_setup"
+                self._selected_idx = min(self._agent_idx, len(self._agent_config) - 1)
+                self._update_items()
+                return "saved"
+            # Esc to cancel custom URL
+            if ch == "\x1b" and len(ch) == 1:
+                return self._go_back()
+            return None
+
         # Vim-style navigation: j=down, k=up
         if ch == "j":
             self._selected_idx = min(len(self._items) - 1, self._selected_idx + 1)
+            self._adjust_scroll()
             return None
         if ch == "k":
             self._selected_idx = max(0, self._selected_idx - 1)
+            self._adjust_scroll()
             return None
         # Enter
         if ch in ("\r", "\n"):
@@ -96,11 +129,42 @@ class SettingsOverlay:
         if ch.lower() == "q":
             return "exit"
 
-        return None
+        # In model_select, any printable char starts search filtering
+        if self._current_layer == "model_select" and ch.isprintable() and len(ch) == 1 and not ch.isspace():
+            self._search += ch
+            self._update_items()
+            self._selected_idx = 0
+            return None
+
+        # Backspace in search: remove last char
+        if ch == "\x7f" and self._current_layer == "model_select" and self._search:
+            self._search = self._search[:-1]
+            self._update_items()
+            self._selected_idx = 0
+            return None
+
+            return None
+
+    def _adjust_scroll(self) -> None:
+        """Keep the selected item centered in the visible window."""
+        if not self._items:
+            return
+        total = len(self._items)
+        margin = 2
+        # If selection goes above scroll window
+        if self._selected_idx < self._scroll_offset + margin:
+            self._scroll_offset = max(0, self._selected_idx - margin)
+        # If selection goes below scroll window
+        if self._selected_idx > self._scroll_offset + self._max_visible - margin - 1:
+            self._scroll_offset = min(
+                total - self._max_visible,
+                self._selected_idx - self._max_visible + margin + 1,
+            )
+        # Clamp
+        self._scroll_offset = max(0, min(self._scroll_offset, total - self._max_visible))
 
     def render(self) -> Panel:
         """Build a Rich Panel representing the current overlay state."""
-        # Approximate panel width
         try:
             width = min(int(self.console.width * 0.7), 78)
         except AttributeError:
@@ -108,26 +172,40 @@ class SettingsOverlay:
         if width < 30:
             width = 30
 
-        # Build title
         title = self._get_title()
         lines = Text()
         lines.append(f"\n{title}\n", style="bold #ff4444")
         lines.append("=" * 40 + "\n\n", style="#ff4444")
 
-        # Build items
-        for i, item in enumerate(self._items):
+        # Show search text in model_select
+        if self._current_layer == "model_select" and self._search:
+            lines.append(f"  Search: {self._search}\n\n", style="dim #ff6b6b")
+
+        # Show a scrollable window of items
+        total = len(self._items)
+        start = self._scroll_offset
+        end = min(start + self._max_visible, total)
+
+        for i in range(start, end):
+            item = self._items[i]
             label = item.get("label", "???")
             if not label:
                 lines.append("\n")
                 continue
             is_selected = (i == self._selected_idx)
             if is_selected:
-                prefix = " >"
-                style = "bold #ff4444 on #1a1a1a"
+                prefix = "\u25b6 "
+                style = "bold #ffffff on #ff4444"
             else:
                 prefix = "  "
                 style = "white on #0a0a0a"
             lines.append(f"{prefix} {label}\n", style=style)
+
+        # Scroll indicators
+        if start > 0:
+            lines.append(f"\n  \u25b2 more above\n", style="dim #737373")
+        if end < total:
+            lines.append(f"  \u25bc more below ({total - end})\n", style="dim #737373")
 
         # Footer
         lines.append("\n")
@@ -136,7 +214,6 @@ class SettingsOverlay:
         else:
             lines.append("[j/k or Arrow: Navigate]  [Enter: Select]  [q/B: Back]\n", style="dim")
 
-        # Wrap in panel
         panel = Panel(
             Align.center(lines, vertical="middle"),
             box=ROUNDED,
@@ -145,7 +222,6 @@ class SettingsOverlay:
             border_style="#ff4444",
             padding=(1, 2),
         )
-
         return panel
 
     def _handle_enter(self) -> Optional[str]:
@@ -193,6 +269,7 @@ class SettingsOverlay:
             return "exit"
         back_map = {
             "sessions": "main",
+            "custom_url": "main",
             "agent_setup": "main",
             "api_keys": "main",
             "rate_limits": "main",
@@ -234,15 +311,25 @@ class SettingsOverlay:
 
         if self._current_layer == "provider_select":
             self._current_provider = item_id
+            if item_id == "custom":
+                return "show_custom_url"
             self._current_layer = "model_select"
-            self._selected_idx = 0
             self._fetch_models(item_id)
+            self._selected_idx = 0
             self._search = ""
             self._update_items()
             return None
 
         if self._current_layer == "model_select":
             if not item_id.startswith("["):
+                if item_id.startswith("manual:"):
+                    # Keep user on model_select so they can type more
+                    return None
+                # For custom provider, save URL as env var + model name
+                if self._current_provider == "custom":
+                    url = getattr(self, "_custom_url", "")
+                    if url:
+                        os.environ["CUSTOM_API_BASE"] = url
                 self._agent_config[self._agent_idx] = {
                     "provider": self._current_provider,
                     "model": item_id,
@@ -282,6 +369,7 @@ class SettingsOverlay:
         builders = {
             "main": self._build_main_items,
             "sessions": self._build_sessions_items,
+            "custom_url": self._build_custom_url_items,
             "agent_setup": self._build_agent_items,
             "provider_select": self._build_provider_items,
             "model_select": self._build_model_items,
@@ -320,6 +408,17 @@ class SettingsOverlay:
         items.append({"id": "back", "label": "[B] Back", "action": "back"})
         return items
 
+    def _build_custom_url_items(self):
+        url = getattr(self, "_custom_url", "")
+        items = [
+            {"id": "", "label": "--- ENTER CUSTOM API URL ---", "action": ""},
+            {"id": "", "label": f"  URL: {url or '(start typing...)'}", "action": ""},
+        ]
+        if url:
+            items.append({"id": "", "label": "", "action": ""})
+            items.append({"id": "", "label": "  Press ENTER to confirm", "action": ""})
+        return items
+
     def _build_agent_items(self):
         roles = ["Strategist", "Recon Lead", "Exploit"]
         items = []
@@ -334,13 +433,20 @@ class SettingsOverlay:
         items.append({"id": "back_to_main", "label": "[BACK] Back to Settings", "action": "back"})
         return items
 
+    ALL_PROVIDERS = [
+        "openai", "gemini", "anthropic", "groq", "nvidia",
+        "deepseek", "mistral", "openrouter", "together", "perplexity",
+        "cohere", "huggingface", "replicate", "ollama",
+    ]
+
     def _build_provider_items(self):
         items = []
-        providers = ["nvidia", "gemini", "openai", "anthropic", "deepseek", "groq", "mistral"]
-        for prov in providers:
+        for prov in self.ALL_PROVIDERS:
             has_key = bool(os.environ.get(f"{prov.upper()}_API_KEY"))
-            status = "[OK]" if has_key else "[WARN] (no key)"
+            status = "[OK]" if has_key else ""
             items.append({"id": prov, "label": f"{prov.upper()} {status}", "action": ""})
+        items.append({"id": "", "label": "", "action": ""})
+        items.append({"id": "custom", "label": "CUSTOM (OpenAI-compatible URL)", "action": ""})
         items.append({"id": "", "label": "", "action": ""})
         items.append({"id": "back_to_agents", "label": "[BACK] Back to Agent Setup", "action": "back"})
         return items
@@ -348,6 +454,10 @@ class SettingsOverlay:
     def _build_model_items(self):
         items = []
         provider = self._current_provider
+        if provider == "custom":
+            url = getattr(self, "_custom_url", "")
+            items.append({"id": "", "label": f"  API: {url}", "action": ""})
+            items.append({"id": "", "label": "", "action": ""})
         models = self._get_cached_models(provider)
         search = self._search.lower()
         if search:
@@ -355,15 +465,16 @@ class SettingsOverlay:
         for m in models[:50]:
             items.append({"id": m, "label": m, "action": ""})
         if not items:
-            items.append({"id": "", "label": "(No models found)", "action": ""})
+            items.append({"id": "", "label": "(No models — enter manually below or type to search)", "action": ""})
+        items.append({"id": "", "label": "", "action": ""})
+        items.append({"id": f"manual:{provider}", "label": f"TYPE MODEL NAME MANUALLY: {provider}/<model>", "action": ""})
         items.append({"id": "", "label": "", "action": ""})
         items.append({"id": "back_to_provider", "label": "[BACK] Back to Provider", "action": "back"})
         return items
 
     def _build_api_key_items(self):
         items = []
-        providers = ["nvidia", "gemini", "openai", "anthropic", "deepseek"]
-        for prov in providers:
+        for prov in self.ALL_PROVIDERS:
             key_val = os.environ.get(f"{prov.upper()}_API_KEY", "")
             masked = "****" + key_val[-4:] if len(key_val) > 4 else "(not set)"
             items.append({"id": f"key_{prov}", "label": f"{prov.upper()}: {masked}", "action": ""})
@@ -450,6 +561,61 @@ class SettingsOverlay:
 
     # ── Save & Reload ────────────────────────────────────────────
 
+    def handle_custom_url(self, url: str) -> None:
+        """Save the custom URL, signal to ask for API key next."""
+        if not url:
+            return
+        self._custom_url = url
+        self._custom_step = "apikey"
+        self._current_provider = "custom"
+
+    def handle_custom_apikey(self, apikey: str) -> None:
+        """Save API key, fetch models, go to model selection."""
+        if apikey:
+            os.environ["CUSTOM_API_KEY"] = apikey
+        url = getattr(self, "_custom_url", "")
+
+        # Derive models endpoint
+        models_url = url.rstrip("/")
+        if models_url.endswith("/chat/completions"):
+            models_url = models_url.replace("/chat/completions", "/models")
+        elif models_url.endswith("/v1"):
+            models_url += "/models"
+        else:
+            models_url += "/models"
+
+        models = []
+        try:
+            import requests
+            headers = {}
+            if apikey:
+                headers["Authorization"] = f"Bearer {apikey}"
+            resp = requests.get(models_url, headers=headers, timeout=5)
+            if resp.status_code == 200:
+                data = resp.json()
+                raw = data.get("data", data if isinstance(data, list) else [])
+                for item in raw:
+                    if isinstance(item, dict):
+                        mid = item.get("id", "")
+                        if mid:
+                            models.append(mid)
+                    elif isinstance(item, str):
+                        models.append(item)
+        except Exception:
+            pass
+
+        now = time.time()
+        if models:
+            self._model_cache["custom"] = (now, models)
+        else:
+            self._model_cache["custom"] = (now, ["(No models fetched — type manually below)"])
+
+        self._custom_step = ""
+        self._current_layer = "model_select"
+        self._selected_idx = 0
+        self._search = ""
+        self._update_items()
+
     def _save_and_apply(self) -> str:
         try:
             active_models = []
@@ -523,6 +689,7 @@ class SettingsOverlay:
     def _get_title(self) -> str:
         titles = {
             "main": "[CONFIG] ELENGENIX SETTINGS",
+            "sessions": "[SESSIONS] LOAD SESSION",
             "agent_setup": "[AGENT] AGENT SETUP",
             "provider_select": "[PROVIDER] SELECT PROVIDER",
             "model_select": "[MODEL] SELECT MODEL",
@@ -531,5 +698,6 @@ class SettingsOverlay:
             "rate_limits": "[RATE] RATE LIMITS",
             "skills": "[SKILLS] SKILLS & TOOLS",
             "mode_settings": "[MODE] MODE SETTINGS",
+            "custom_url": "[CUSTOM] ENTER API URL",
         }
         return titles.get(self._current_layer, "[CONFIG] SETTINGS")

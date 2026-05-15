@@ -464,13 +464,90 @@ def show_model_selector(console: Console, manager) -> Optional[tuple[str, List[s
                     provider_choices.append({"name": f"{p['provider'].upper():<12} {status_label}", "value": p["provider"]})
                 
                 provider_choices.append(questionary.Separator())
+                provider_choices.append({"name": "CUSTOM (OpenAI-compatible URL)", "value": "custom"})
                 provider_choices.append({"name": "Back", "value": None})
                 
                 selected_provider = questionary.select("    Choose Provider:", choices=provider_choices).ask()
                 if not selected_provider:
                     continue
                     
-                # Step 2: Select Model
+                # Step 2: Handle custom provider
+                if selected_provider == "custom":
+                    custom_url = questionary.text("    Enter API base URL:").ask()
+                    if not custom_url:
+                        continue
+                    custom_key = questionary.text("    Enter API key (or leave empty):").ask()
+                    # Save to env AND .env file for persistence
+                    import os
+                    os.environ["CUSTOM_API_BASE"] = custom_url
+                    if custom_key:
+                        os.environ["CUSTOM_API_KEY"] = custom_key
+                    # Save to .env file for persistence
+                    try:
+                        env_path = Path(__file__).parent / ".env"
+                        if not env_path.exists():
+                            env_path.write_text("")
+                        lines = env_path.read_text().splitlines()
+                        # Remove old entries
+                        lines = [l for l in lines if not l.startswith("CUSTOM_API_BASE=") and not l.startswith("CUSTOM_API_KEY=")]
+                        lines.append(f"CUSTOM_API_BASE={custom_url}")
+                        if custom_key:
+                            lines.append(f"CUSTOM_API_KEY={custom_key}")
+                        # Remove trailing empty lines
+                        while lines and not lines[-1].strip():
+                            lines.pop()
+                        lines.append("")
+                        env_path.write_text("\n".join(lines))
+                    except Exception:
+                        pass
+                    
+                    # Fetch models from {url}/models
+                    models_url = custom_url.rstrip("/")
+                    if models_url.endswith("/chat/completions"):
+                        models_url = models_url.replace("/chat/completions", "/models")
+                    elif models_url.endswith("/v1"):
+                        models_url += "/models"
+                    else:
+                        models_url += "/models"
+                    
+                    print(f"\n  Fetching models from {models_url}...")
+                    available_models = []
+                    try:
+                        import requests
+                        headers = {}
+                        if custom_key:
+                            headers["Authorization"] = f"Bearer {custom_key}"
+                        resp = requests.get(models_url, headers=headers, timeout=5)
+                        if resp.status_code == 200:
+                            data = resp.json()
+                            raw = data.get("data", data if isinstance(data, list) else [])
+                            for item in raw:
+                                if isinstance(item, dict):
+                                    mid = item.get("id", "")
+                                    if mid:
+                                        available_models.append(mid)
+                                elif isinstance(item, str):
+                                    available_models.append(item)
+                    except Exception as e:
+                        print(f"  Could not fetch models: {e}")
+                    
+                    if not available_models:
+                        available_models = ["(type manually below)"]
+                    
+                    selected_model = questionary.select(
+                        f"    Choose Model for Agent {agent_idx+1}:",
+                        choices=available_models + ["TYPE MANUALLY"]
+                    ).ask()
+                    
+                    if selected_model == "TYPE MANUALLY":
+                        selected_model = questionary.text("    Enter model name:").ask()
+                    if not selected_model:
+                        continue
+                    
+                    current_team[agent_idx] = {"provider": "custom", "model": selected_model}
+                    continue
+
+                # Step 2: Select Model for regular provider
                 client = manager.clients.get(selected_provider)
                 if not client:
                     from tools.universal_ai_client import UniversalAIClient

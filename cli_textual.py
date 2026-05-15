@@ -100,7 +100,7 @@ HELP_TEXT = f"""\
 [{COLOR_ACCENT}]━━━ SHORTCUTS ━━━[/{COLOR_ACCENT}]
   Ctrl+R Research  Ctrl+B Scan
   Ctrl+T Thinking  Ctrl+P Model
-  Ctrl+G Help      Ctrl+E Settings
+  Ctrl+G Help      Ctrl+S Settings
   Ctrl+U ↑10  Ctrl+D ↓10
   ↑↓ History       / Slash commands"""
 
@@ -200,9 +200,9 @@ class Sidebar(Container):
             f"  {tokens}/{limit}  [{COLOR_DIM}]{pct}%[/]",
             div,
             f"[bold {COLOR_TEXT}]SHORTCUTS[/]",
-            f"  [{COLOR_DIM}]Ctrl+R[/] Research  [{COLOR_DIM}]Ctrl+B[/] Scan",
-            f"  [{COLOR_DIM}]Ctrl+T[/] Thinking  [{COLOR_DIM}]Ctrl+P[/] Model",
-            f"  [{COLOR_DIM}]Ctrl+G[/] Help      [{COLOR_DIM}]Ctrl+E[/] Settings",
+        f"  [{COLOR_DIM}]Ctrl+R[/] Research  [{COLOR_DIM}]Ctrl+B[/] Scan",
+        f"  [{COLOR_DIM}]Ctrl+T[/] Thinking  [{COLOR_DIM}]Ctrl+P[/] Model",
+        f"  [{COLOR_DIM}]Ctrl+G[/] Help      [{COLOR_DIM}]Ctrl+S[/] Settings",
             div,
             f"[{COLOR_DIM}]\u2514\u2500 v99999 Elengix[/]",
         ])
@@ -273,8 +273,24 @@ class ProgressBar(Static):
     def hide(self) -> None: self.remove_class("visible")
 
 
+# ── Custom URL Input ──────────────────────────────────────────────────
+CUSTOM_URL_INPUT_CSS = """
+#custom_url_row {
+    height: 3; display: none; margin: 0 1;
+    background: #0d0d0d; border: solid #ff4444;
+}
+#custom_url_row.visible { display: block; }
+#custom_url_input {
+    height: 3; border: none; background: #0d0d0d;
+    color: #ffffff; padding: 0 1;
+}
+"""
+
+
 # ── Settings Overlay ─────────────────────────────────────────────────────
 class SettingsOverlayWidget(Widget, can_focus=True):
+    """Floating settings modal — dims the background, centres a panel."""
+
     DEFAULT_CSS = f"""
     SettingsOverlayWidget {{
         layer: overlay; align: center middle;
@@ -295,15 +311,20 @@ class SettingsOverlayWidget(Widget, can_focus=True):
         width: 1fr; height: 1; content-align: center middle;
         color: {MUTED}; background: {CRUST};
     }}
+    {CUSTOM_URL_INPUT_CSS}
     """
 
     def compose(self) -> ComposeResult:
         with Vertical(id="settings_panel"):
             yield Static("  SETTINGS  ", id="settings_header")
             yield Static("", id="settings_content", markup=True)
+            with Horizontal(id="custom_url_row"):
+                yield Input(placeholder="Enter API base URL (e.g. http://localhost:11434/v1)...", id="custom_url_input")
             yield Static("  \u2191\u2193 Navigate  \u23ce Select  Esc Close  S Save", id="settings_footer")
 
-    def on_mount(self) -> None: self._overlay = None; self._reload()
+    def on_mount(self) -> None:
+        self._overlay = None
+        self._reload()
 
     def _reload(self) -> None:
         try:
@@ -319,14 +340,84 @@ class SettingsOverlayWidget(Widget, can_focus=True):
         else:
             w.update(Panel(f"[{COLOR_ERR}]Unavailable. Esc to close.[/]", border_style=COLOR_DIM))
 
-    def show(self) -> None: self._reload(); self._redraw(); self.add_class("visible"); self.focus()
+    def show(self) -> None:
+        self._reload(); self._redraw(); self.add_class("visible")
+        # Disable chat input so it doesn't steal keystrokes
+        try:
+            self.app.query_one("#user_input", Input).disabled = True
+        except: pass
+        self.app.set_timer(0.0, lambda: self.focus())
+
     def hide(self) -> None:
         self.remove_class("visible")
-        try: self.app.query_one("#user_input", Input).focus()
+        self.query_one("#custom_url_row").remove_class("visible")
+        # Re-enable chat input
+        try:
+            inp = self.app.query_one("#user_input", Input)
+            inp.disabled = False
+            inp.focus()
         except: pass
+
+    def _show_custom_url(self) -> None:
+        """Show the custom URL input field."""
+        self.query_one("#settings_content", Static).update("")
+        row = self.query_one("#custom_url_row")
+        row.add_class("visible")
+        inp = self.query_one("#custom_url_input", Input)
+        inp.value = ""
+        inp.focus()
+
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        """Handle Enter on custom URL / API key / model name input."""
+        if event.input.id != "custom_url_input":
+            return
+        val = event.value.strip()
+        if not val or not self._overlay:
+            self.query_one("#custom_url_row").remove_class("visible")
+            self._redraw()
+            self.app.set_timer(0.0, lambda: self.focus())
+            return
+
+        step = getattr(self._overlay, "_custom_step", "")
+        inp = self.query_one("#custom_url_input", Input)
+
+        if step == "apikey":
+            # Entered URL, now entering API key → fetch models
+            self._overlay.handle_custom_apikey(val)
+            self.query_one("#custom_url_row").remove_class("visible")
+            self._redraw()
+            self.app.set_timer(0.0, lambda: self.focus())
+        elif step == "model":
+            # Entered model name for custom
+            url = getattr(self._overlay, "_custom_url", "")
+            if url:
+                os.environ["CUSTOM_API_BASE"] = url
+            self._overlay._agent_config[self._overlay._agent_idx] = {
+                "provider": "custom",
+                "model": val,
+            }
+            self._overlay._save_and_apply()
+            self._overlay._custom_step = ""
+            self.query_one("#custom_url_row").remove_class("visible")
+            self._redraw()
+            self.app.set_timer(0.0, lambda: self.focus())
+        else:
+            # First: entering the URL
+            self._overlay.handle_custom_url(val)
+            inp.value = ""
+            inp.placeholder = "Enter API key (or leave empty and press Enter)..."
+            inp.focus()
 
     def on_key(self, event) -> None:
         if not self.has_class("visible"): return
+
+        # If custom URL input is visible, let the Input widget handle keys.
+        # on_input_submitted will handle Enter.
+        if self.query_one("#custom_url_row").has_class("visible"):
+            if event.key == "escape":
+                self.hide()
+            return
+
         key = event.key
         cmap = {"escape": "\x1b", "enter": "\r", "up": "\x1b[A", "down": "\x1b[B", "left": "\x1b[D", "right": "\x1b[C"}
         char = cmap.get(key, event.character or "")
@@ -334,6 +425,8 @@ class SettingsOverlayWidget(Widget, can_focus=True):
         event.stop()
         r = self._overlay.handle_char(char) if self._overlay else "exit"
         if r == "exit": self.hide()
+        elif r == "show_custom_url":
+            self._show_custom_url()
         elif r and r.startswith("load_session:"):
             sid = r.split(":", 1)[1]
             self.hide()
@@ -349,7 +442,10 @@ class SettingsOverlayWidget(Widget, can_focus=True):
             self.hide()
         elif r == "error":
             self.app._chat_write_system(f"[{COLOR_ERR}]Settings failed.[/]"); self.hide()
-        else: self._redraw()
+        else:
+            # Hide custom URL input when leaving custom mode
+            self.query_one("#custom_url_row").remove_class("visible")
+            self._redraw()
 
 
 # ── Main App ─────────────────────────────────────────────────────────────
@@ -381,6 +477,12 @@ class ElengenixTextualApp(App):
         padding: 0 1;
     }}
     #user_input:focus {{ border-left: thick {ORANGE}; }}
+    #suggest_box {{
+        height: auto; max-height: 8;
+        background: {MANTLE}; color: {TEXT};
+        border: solid {RED}; margin: 0 1; padding: 0 1;
+        overflow-y: auto; display: none;
+    }}
     """
 
     BINDINGS = [
@@ -389,7 +491,7 @@ class ElengenixTextualApp(App):
         Binding("ctrl+t", "toggle_think", "Think", priority=True),
         Binding("ctrl+p", "show_model", "Model", priority=True),
         Binding("ctrl+g", "show_help", "Help", priority=True),
-        Binding("ctrl+e", "show_settings", "Settings", priority=True),
+        Binding("ctrl+s", "show_settings", "Settings", priority=True),
         Binding("ctrl+c", "app_exit", "Exit", priority=True),
         Binding("ctrl+u", "scroll_up", "", show=False, priority=True),
         Binding("ctrl+d", "scroll_down", "", show=False, priority=True),
@@ -428,6 +530,7 @@ class ElengenixTextualApp(App):
                 yield ProgressBar(id="progress_bar")
                 yield StatusBar(id="status_bar")
                 with Vertical(id="input_row"):
+                    yield Static("", id="suggest_box", markup=True)
                     yield Input(placeholder="try it!", id="user_input")
             yield Sidebar(id="sidebar")
         yield SettingsOverlayWidget(id="settings_overlay")
@@ -600,7 +703,64 @@ class ElengenixTextualApp(App):
             self.call_from_thread(lambda: self.query_one("#thinking_bar", ThinkingWidget).hide())
             self.call_from_thread(self._update_sidebar)
 
+    def on_key(self, event) -> None:
+        """Ensure shortcuts work even when Input has focus."""
+        ov = self.query_one("#settings_overlay", SettingsOverlayWidget)
+        if ov.has_class("visible"):
+            # When URL input is active, let it handle keys directly.
+            # Chat input is disabled so it can't steal keystrokes.
+            if ov.query_one("#custom_url_row").has_class("visible"):
+                return  # Don't stop event — custom_url_input handles it
+            event.stop()
+            ov.on_key(event)
+            return
+
+        key = event.key
+        if key == "ctrl+s":
+            event.stop(); self.action_show_settings(); return
+        if key == "ctrl+t":
+            event.stop(); self.action_toggle_think(); return
+        if key == "ctrl+r":
+            event.stop(); self.action_toggle_research(); return
+        if key == "ctrl+b":
+            event.stop(); self.action_toggle_scan(); return
+        if key == "ctrl+p":
+            event.stop(); self.action_show_model(); return
+        if key == "ctrl+g":
+            event.stop(); self.action_show_help(); return
+        if key == "ctrl+c":
+            event.stop(); self.action_app_exit(); return
+
     # ── Input ────────────────────────────────────────────────────────────
+    SLASH_COMMANDS = [
+        "/clear", "/reset", "/quit", "/exit",
+        "/mode auto", "/mode research", "/mode scan", "/mode casual",
+        "/target <domain>",
+        "/talk 1", "/talk 2", "/talk 3", "/talk all",
+        "/session", "/session new", "/session list", "/session load <id>",
+        "/stats", "/team", "/help",
+    ]
+
+    def on_input_changed(self, event: Input.Changed) -> None:
+        """Show slash command suggestions when typing /."""
+        text = event.value
+        box = self.query_one("#suggest_box", Static)
+        if not text or not text.startswith("/"):
+            box.styles.display = "none"
+            return
+        parts = text.split()
+        if len(parts) == 1:
+            prefix = parts[0].lower()
+            matches = [c for c in self.SLASH_COMMANDS if c.startswith(prefix)]
+        else:
+            matches = []
+        if matches:
+            lines = "\n".join(f"  [{COLOR_DIM}]{m}[/]" for m in matches[:12])
+            box.update(lines)
+            box.styles.display = "block"
+        else:
+            box.styles.display = "none"
+
     def on_input_submitted(self, event: Input.Submitted) -> None:
         text = event.value.strip()
         if not text: return
@@ -757,9 +917,11 @@ class ElengenixTextualApp(App):
         sid = self._save_session()
         logger.info(f"Session {sid} saved on exit")
         from rich.console import Console
-        Console().print(f"\n  [bold #ff4444]Thank you for using Elengenix![/bold #ff4444]")
-        Console().print(f"  [dim #737373]Session:[/dim] [bold #ffffff]{sid}[/bold #ffffff]")
-        Console().print(f"  [dim #737373]To resume:[/dim] [bold #ffffff]elenginx cli -s {sid}[/bold #ffffff]\n")
+        c = Console()
+        c.print(f"\n  Thank you for using Elengenix!", style="bold #ff4444")
+        c.print(f"  Session: {sid}", style="dim #737373")
+        c.print(f"  To resume: elengenix cli -s {sid}", style="dim #737373")
+        print()
         self.exit()
 
     def action_toggle_research(self) -> None:

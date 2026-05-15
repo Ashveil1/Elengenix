@@ -257,16 +257,16 @@ elengenix scan example.com --smart-scan       # Smart orchestrator
 
 | Command | Description |
 |---------|-------------|
-| `elenginx doctor` | System health check |
-| `elenginx configure` | Configuration wizard |
-| `elenginx arsenal` | Browse available tools |
-| `elenginx mission <target>` | Start a mission |
-| `elenginx sast <path>` | Static code analysis |
-| `elenginx research <cve>` | CVE/vulnerability research |
-| `elenginx bounty <program>` | HackerOne program intel |
-| `elenginx report` | View last scan report |
-| `elenginx cve-update` | Update CVE database |
-| `elenginx watchman` | Start 24/7 monitoring |
+| `elengenix doctor` | System health check |
+| `elengenix configure` | Configuration wizard |
+| `elengenix arsenal` | Browse available tools |
+| `elengenix mission <target>` | Start a mission |
+| `elengenix sast <path>` | Static code analysis |
+| `elengenix research <cve>` | CVE/vulnerability research |
+| `elengenix bounty <program>` | HackerOne program intel |
+| `elengenix report` | View last scan report |
+| `elengenix cve-update` | Update CVE database |
+| `elengenix watchman` | Start 24/7 monitoring |
 
 ### TUI Keyboard Shortcuts
 
@@ -468,43 +468,43 @@ python3 -m pytest tests/ --cov=. --cov-report=term
 
 ```bash
 elengenix doctor                # Full system health check
-elenginx configure              # Configuration wizard
-elenginx update                 # Update dependencies
-elenginx cve-update             # Update CVE database
+elengenix configure              # Configuration wizard
+elengenix update                 # Update dependencies
+elengenix cve-update             # Update CVE database
 ```
 
 ### Scanning
 
 ```bash
 elengenix scan <target>         # Full scan pipeline
-elenginx scan <target> --smart-scan  # With smart orchestrator
-elenginx autonomous <target>    # Full autonomous mode
-elenginx arsenal                # Browse/run tools
+elengenix scan <target> --smart-scan  # With smart orchestrator
+elengenix autonomous <target>    # Full autonomous mode
+elengenix arsenal                # Browse/run tools
 ```
 
 ### Analysis
 
 ```bash
-elenginx research <cve>         # CVE/vulnerability research
-elenginx sast <path>            # Static code analysis
-elenginx cloud <path>           # Cloud config scan
-elenginx mobile <target>        # Mobile API testing
-elenginx memory                 # View memory stats
+elengenix research <cve>         # CVE/vulnerability research
+elengenix sast <path>            # Static code analysis
+elengenix cloud <path>           # Cloud config scan
+elengenix mobile <target>        # Mobile API testing
+elengenix memory                 # View memory stats
 ```
 
 ### Reporting
 
 ```bash
-elenginx report                 # View last report
-elenginx pdf <target>           # Generate PDF report
-elenginx bounty <program>       # Bounty program intel
+elengenix report                 # View last report
+elengenix pdf <target>           # Generate PDF report
+elengenix bounty <program>       # Bounty program intel
 ```
 
 ### Monitoring
 
 ```bash
-elenginx watchman               # Start 24/7 monitoring daemon
-elenginx gateway                # Start Telegram gateway
+elengenix watchman               # Start 24/7 monitoring daemon
+elengenix gateway                # Start Telegram gateway
 ```
 
 ---

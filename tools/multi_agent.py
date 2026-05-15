@@ -420,10 +420,20 @@ class TeamAegis:
         findings_summary = self._format_findings()
         shared_intel = self._format_shared_intel()
         
-        # Get available tools from skill registry
+        # Get available tools from registries
         tools_context = ""
         if SKILL_REGISTRY_AVAILABLE and self.skill_registry:
             tools_context = self._format_available_tools_for_agent()
+        # Add ToolRegistry tools
+        try:
+            from tools.tool_registry import registry
+            avail = registry.list_available_tools()
+            tool_names = [name for name, info in avail.items() if info.get("available")]
+            if tool_names:
+                tools_context += "\n### SECURITY TOOLS AVAILABLE:\n"
+                tools_context += "\n".join(f"  - {name}" for name in sorted(tool_names))
+        except Exception:
+            pass
         
         prompt = f"""## TEAM AEGIS — Security Research Team Collaboration
 
@@ -471,7 +481,7 @@ Respond with JSON:
 {{
     "discussion": "Your natural team discussion message (what you say to teammates)",
     "action": {{
-        "type": "run_tool|shell|search_web|write_file|none|finish",
+        "type": "run_tool|shell|search_web|write_file|read_file|package|bounty_intel|github_search|cve_lookup|js_analyze|check_takeover|none|finish",
         "params": {{}},
         "tool_name": "specific tool name from available list",
         "description": "What this action does"

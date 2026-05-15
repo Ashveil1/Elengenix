@@ -21,23 +21,23 @@ from zoneinfo import ZoneInfo
 from pathlib import Path
 from collections import Counter
 from dataclasses import dataclass, field
-from typing import Optional, Callable, Dict, Any, List, Set
+from typing import Optional, Callable, Dict, Any, List
 from enum import Enum
 
 from tools.universal_ai_client import AIClientManager, AIMessage
-from tools.memory_manager import save_learning, get_summarized_learnings
+from tools.memory_manager import save_learning
 from tools.tool_registry import registry, ToolCategory, ToolResult
-from tools.cvss_calculator import CVSSCalculator, Severity
-from tools.vector_memory import remember, recall, get_context_for_ai, get_vector_memory
+from tools.cvss_calculator import CVSSCalculator
+from tools.vector_memory import remember, recall, get_context_for_ai
 from tools.memory_profile import read_memory
-from tools.memory_persistence import get_memory_persistence, save_message as _sqlite_save_message, load_conversation as _sqlite_load_conversation, clear_session as _sqlite_clear_session, get_context_status as _get_context_status
-from tools.universal_executor import UniversalExecutor, get_universal_executor
-from tools.cve_database import get_cve_database, format_cve_for_ai, CVEEntry
+from tools.memory_persistence import save_message as _sqlite_save_message, load_conversation as _sqlite_load_conversation, clear_session as _sqlite_clear_session, get_context_status as _get_context_status
+from tools.universal_executor import get_universal_executor
+from tools.cve_database import get_cve_database
 from tools.mission_state import MissionState, GraphNode, GraphEdge
 from tools.governance import Governance, GateDecision
 from tools.logic_analyzer import BusinessLogicAnalyzer
 from tools.payload_mutation import PayloadMutator
-from tools.agent_reflection import AgentReflection, get_reflection
+from tools.agent_reflection import get_reflection
 from live_display import get_activity_logger, display_in_chat_mode
 from bot_utils import send_telegram_notification
 from scan_engine_upgrade import SmartOrchestrator
@@ -2214,6 +2214,59 @@ Think step-by-step which tools fit each phase:
 - Manual testing support: Create custom scripts
 - Report generation: Combine findings with CVSS scoring
 
+### YOUR FULL CAPABILITIES:
+You have access to ALL of these. Choose what fits the task:
+
+**🔍 RECONNAISSANCE & SCANNING** (use `run_tool`):
+- `subfinder`: Discover subdomains for a target
+- `httpx`: Probe live web servers, detect technologies
+- `nuclei`: Vulnerability scan with 10,000+ templates
+- `naabu`: Fast port scanning
+- `katana`: Web crawling & spidering
+- `ffuf`: Directory & parameter fuzzing
+- `dalfox`: XSS vulnerability scanning
+- `arjun`: Hidden parameter discovery
+
+**🌐 WEB RESEARCH** (use `search_web`):
+- Search Google/DuckDuckGo/Tavily for live information
+- Get current news, CVE details, exploit PoCs
+- Research target technologies and vulnerabilities
+
+**🔑 THREAT INTELLIGENCE** (use `cve_lookup`):
+- `cve_lookup`: Search local CVE database by ID or keyword
+- Example: `{{"cve_id": "CVE-2024-21626"}}` or `{{"keyword": "rce"}}`
+- Returns description, CVSS score, exploit availability
+
+**💰 BOUNTY INTELLIGENCE** (use `bounty_intel`):
+- Search HackerOne programs by name
+- Get bounty range, scope, program details
+- Example: `{{"program": "facebook"}}`
+
+**🔬 GITHUB OSINT** (use `github_search`):
+- Search GitHub for leaked secrets, API keys, credentials
+- Find exposed configuration files
+- Example: `{{"query": "api_key 1win.com"}}`
+
+**💻 SHELL & SYSTEM** (use `shell` or `run_tool`):
+- `shell`: Execute any command with `{{"command": "..."}}`
+- `package`: Install tools via pip, npm, apt, go
+- `read_file` / `write_file`: Read and write files
+- **Custom scripts**: Write Python/bash scripts with `write_file` → run with `shell python3 script.py`
+  Example: write a custom exploit/PoC script and execute it immediately
+
+### 💡 YOU HAVE THESE CAPABILITIES — use them as you see fit:
+- `subfinder`, `httpx`, `nuclei`, `naabu`, `katana`, `ffuf`, `dalfox`, `arjun`: Security tools for recon, scanning, fuzzing (use `run_tool` — run multiple at once with `"tools": ["subfinder","naabu"]`)
+- `search_web`: Google/DuckDuckGo — research company, find CVEs, PoCs, tech details
+- `cve_lookup`: Search local CVE database by ID or keyword
+- `github_search`: Find leaked secrets, credentials, configs on GitHub
+- `bounty_intel`: Look up HackerOne programs
+- `js_analyze`: Analyze JavaScript files for secrets, API keys, hidden endpoints
+- `check_takeover`: Check if a subdomain is vulnerable to takeover
+- `shell`: Run any command
+- `package`: Install tools via pip, npm, apt, go
+- `read_file` / `write_file`: File operations
+- **Write custom scripts**: Use `write_file` to create Python/bash scripts for any testing scenario, then `shell` to run them with `python3 script.py` or `bash script.sh`
+
 ### DECISION PRINCIPLES:
 1. **You decide** which tool fits the current task - no fixed sequences
 2. Adapt based on results: if one tool fails, try another approach
@@ -2226,8 +2279,13 @@ Always respond with structured JSON showing your reasoning:
 {{
     "thought": "Based on current findings, I should use [tool] because...",
     "action": {{
-        "type": "run_tool|shell|search_web|package|read_file|finish",
-        "params": {{"tool": "tool_name", "target": "...", "args": "..."}}
+        "type": "run_tool|shell|search_web|package|read_file|bounty_intel|github_search|cve_lookup|js_analyze|check_takeover|finish",
+        "params": {{
+            // For shell: use "command" (not tool/target)
+            //   e.g. "command": "subfinder -d 1win.com"
+            // For run_tool: use "tool", "target", "args"
+            //   e.g. "tool": "subfinder", "target": "1win.com"
+        }}
     }},
     "next_step": "Based on results, I'll likely need to..."
 }}
@@ -2256,28 +2314,45 @@ You are a flexible AI agent with LIVE INTERNET ACCESS and system tool capabiliti
 ### AVAILABLE TOOLS (Use as needed):
 {tools_list_str}
 
-### YOUR LIVE DATA ACCESS:
-**YOU CAN SEARCH THE LIVE INTERNET** via `search_web` action (Google Search API):
-- Current news, sports scores, weather, stock prices
-- Real-time information has NO cutoff date - you can fetch today's data
-- For ANY "latest", "today", "now" queries: YOU MUST USE search_web
-- Never say "I don't know" for time-sensitive info - FETCH it
+### YOUR FULL CAPABILITIES:
+Choose what fits the task:
 
-### GENERAL CAPABILITIES:
-1. **Live Web Search**: Real-time internet access via search_web
-2. **File Operations**: Read, write, edit any project files
-3. **Package Management**: Install tools (pip, npm, apt, go)
-4. **Shell Commands**: Execute safe commands
-5. **Security Tools**: Available when needed for security tasks
+**🌐 WEB RESEARCH** (use `search_web`):
+- Search Google/DuckDuckGo/Tavily for live info
+- News, weather, stocks, CVE details, exploit PoCs
+
+**🔍 SECURITY SCANNING** (use `run_tool`):
+- `subfinder`: Subdomain discovery
+- `httpx`: Web server probing & tech detection
+- `nuclei`: Vulnerability scanning (10,000+ templates)
+- `naabu`: Port scanning
+- `katana`: Web crawling
+- `ffuf`: Directory/parameter fuzzing
+- `dalfox`: XSS scanning
+- `arjun`: Parameter discovery
+
+**🔑 THREAT INTEL** (use `cve_lookup`):
+- Search CVE by ID: `{{"cve_id": "CVE-2024-21626"}}`
+- Search by keyword: `{{"keyword": "rce"}}`
+- Returns description, CVSS score, exploits
+
+**💰 BOUNTY INTEL** (use `bounty_intel`):
+- Search HackerOne programs: `{{"program": "facebook"}}`
+
+**🔬 GITHUB OSINT** (use `github_search`):
+- Search GitHub for secrets/keys: `{{"query": "..."}}`
+
+**💻 SHELL & SYSTEM** (use `shell` or `run_tool`):
+- Execute commands, install packages, read/write files
 
 ### RESPONSE FORMAT:
 {{
-    "thought": "The user wants current info. I must use search_web to fetch live data...",
+    "thought": "Your reasoning about what to do and why...",
     "action": {{
-        "type": "search_web|read_file|write_file|edit_file|shell|package|run_tool|finish",
-        "params": {{"query": "search terms for live data"}}
+        "type": "search_web|run_tool|shell|package|read_file|write_file|bounty_intel|github_search|cve_lookup|js_analyze|check_takeover|finish",
+        "params": {{}}
     }},
-    "next_step": "Present the fetched information"
+    "next_step": "What you plan to do next"
 }}
 
 ### PRINCIPLES:
@@ -2386,26 +2461,93 @@ Respond ONLY with valid JSON."""
             if action_type == "finish":
                 summary = params.get("summary", "Task completed")
                 logger.info(f"Universal session finished: {summary}")
-                # Store this exchange in session history so future turns can reference it
+                # Score findings in history with CVSS
+                scored = []
+                for h in history:
+                    if h.get("success") and "findings" in h.get("result", "").lower():
+                        from tools.cvss_calculator import CVSSCalculator
+                        calc = CVSSCalculator(use_ai=False)
+                        score = calc.from_finding(h.get("action", "unknown"), target or "", h.get("result", "")[:200])
+                        scored.append(f"  [{score.severity.value:10s}] CVSS {score.base_score:.1f} — {h.get('action','')[:60]}")
+                if scored and callback:
+                    callback("### CVSS SCORES:\n" + "\n".join(scored))
+                # Auto-export report
+                if scored and target:
+                    report_path = Path(f"reports/scan_{target}_{int(time.time())}.md")
+                    report_path.parent.mkdir(parents=True, exist_ok=True)
+                    report_lines = [
+                        f"# Scan Report: {target}",
+                        f"**Date**: {datetime.now(timezone.utc).isoformat()}",
+                        f"**Summary**: {summary}",
+                        "",
+                        "## Findings",
+                    ]
+                    for s in scored:
+                        report_lines.append(s)
+                    report_lines.append(f"\n\n*Generated by Elengenix v99999*")
+                    report_path.write_text("\n".join(report_lines), encoding="utf-8")
+                    if callback:
+                        callback(f"Report saved: {report_path}")
+                # Store this exchange in session history
                 self._append_history("user", user_input)
                 self._append_history("assistant", summary)
+                if scored:
+                    summary += "\n\nCVSS Scores:\n" + "\n".join(scored)
                 return summary
 
             if action_type == "shell":
                 cmd = (params.get("command") or "").strip()
                 if not cmd:
-                    empty_shell_count += 1
+                    tool = (params.get("tool") or "").strip()
+                    target_val = (params.get("target") or target or "").strip()
+                    if tool:
+                        cmd = tool
+                        if target_val:
+                            cmd += f" -d {target_val}" if "subfinder" in tool else f" {target_val}"
+                    else:
+                        empty_shell_count += 1
+                        if callback:
+                            callback(" shell: Empty command blocked. Use shell with a command param.")
+                        history.append({
+                            "step": step,
+                            "action": "shell: <empty>",
+                            "result": "Blocked empty command. Use shell with: {\"command\": \"your command here\"}",
+                            "success": False,
+                        })
+                        if empty_shell_count >= 5:
+                            return "Too many empty shell commands. Try using 'run_tool' with tool name and target, or 'shell' with a real command like subfinder -d target.com"
+                        continue
+
+                # Governance gate for shell commands
+                gate = self.governance.classify_risk({"command": cmd})
+                if gate == "DESTRUCTIVE":
                     if callback:
-                        callback(" shell: Empty command blocked")
+                        callback(f"[BLOCKED] Destructive command: {cmd[:80]}")
                     history.append({
-                        "step": step,
-                        "action": "shell: <empty>",
-                        "result": "Blocked empty command. Choose a different action.",
-                        "success": False,
+                        "step": step, "action": f"shell: {cmd[:80]}",
+                        "result": "Blocked by governance: destructive command.", "success": False,
                     })
-                    if empty_shell_count >= 2:
-                        return "Blocked repeated empty shell commands. Please rephrase your request or provide a valid command/target."
                     continue
+                elif gate == "PRIVILEGED":
+                    if callback:
+                        callback(f"__PRIVILEGED__:{cmd[:200]}")
+                    # Ask user directly
+                    try:
+                        print(f"\n[PRIVILEGED] AI wants to run:")
+                        print(f"  {cmd[:200]}")
+                        ans = input("Allow? [y/N]: ").strip().lower()
+                        if ans not in ("y", "yes"):
+                            history.append({
+                                "step": step, "action": f"shell: {cmd[:80]}",
+                                "result": "Rejected by user.", "success": False,
+                            })
+                            continue
+                    except Exception:
+                        history.append({
+                            "step": step, "action": f"shell: {cmd[:80]}",
+                            "result": "Skipped (non-interactive).", "success": False,
+                        })
+                        continue
             
             # Execute via universal executor
             result = executor.execute_action({"type": action_type, "params": params})
@@ -2418,15 +2560,26 @@ Respond ONLY with valid JSON."""
                 "success": result.success
             })
             
-            # Callback
+            # Callback — show actual command executed
             if callback:
                 status = "[OK]" if result.success else "[FAIL]"
+                cmd_preview = ""
+                if action_type == "shell":
+                    cmd_preview = params.get("command", "")[:80]
+                elif action_type == "run_tool":
+                    t = params.get("tool", "")
+                    tg = params.get("target", "")
+                    cmd_preview = f"{t} {tg}"[:80] if t else params.get("tools", str(params))[:80]
+                elif action_type == "search_web":
+                    cmd_preview = params.get("query", "")[:80]
+                elif action_type == "cve_lookup":
+                    cmd_preview = params.get("cve_id", "") or params.get("keyword", "")
+                cmd_tag = f" [{cmd_preview}]" if cmd_preview else ""
                 if action_type == "search_web":
-                    # Show real content snippet so AI has context, not just "..."
                     preview = (result.output if result.success else result.error)[:300]
                 else:
                     preview = (result.output if result.success else result.error)[:150]
-                callback(f"{status} {action_type}: {preview}")
+                callback(f"{status} {action_type}{cmd_tag}: {preview}")
             
             #  Remember important results
             if result.success and action_type in ["shell", "run_tool", "search_web"]:

@@ -141,10 +141,18 @@ async def safe_reply(update: Update, text: str, parse_mode: str = "Markdown"):
 
 async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
+    chat_id = update.effective_chat.id
     pref = get_preferences(user_id)
+    
+    # Auto-detect and save chat_id on first interaction
+    if not os.environ.get("TELEGRAM_CHAT_ID") or os.environ["TELEGRAM_CHAT_ID"] == str(chat_id):
+        os.environ["TELEGRAM_CHAT_ID"] = str(chat_id)
+        # Also save to .env for persistence
+        logger.info(f"Chat ID auto-detected: {chat_id}")
     
     welcome = (
         "*Elengenix Bot v2.0.0*\n\n"
+        f"Your Chat ID: `{chat_id}`\n\n"
         "Professional Bug Bounty Automation Hub.\n\n"
         "*Commands:*\n"
         "`/scan <domain>` -- Recon and Scan\n"
@@ -640,6 +648,7 @@ def main():
     app.add_handler(CallbackQueryHandler(button_callback))
 
     logger.info("[START] Elengenix Bot is now operational (v99999 (god nine is the best))")
+    logger.info("Send /start to your bot to auto-detect your Chat ID")
     app.run_polling(drop_pending_updates=True)
 
 if __name__ == "__main__":

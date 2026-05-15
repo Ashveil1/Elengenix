@@ -85,6 +85,10 @@ class Governance:
     # ── Patterns: if matched → DESTRUCTIVE (blocked) ──────────────────
     _DESTRUCTIVE = re.compile(
         r"rm\s+(-rf|--recursive)\s+/"
+        r"|rm\s+(.*-rf.*|.*--recursive.*)"
+        r"|rm\s+\S"
+        r"|rmdir\s+"
+        r"|unlink\s+"
         r"|dd\s+if=.*of=\/dev"
         r"|mkfs\.[a-z0-9]+\s+/dev"
         r"|>\s*/dev/sd"

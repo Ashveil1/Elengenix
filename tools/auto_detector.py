@@ -289,7 +289,6 @@ class CommandSimplifier:
     SHORTCUTS = {
         # Single word shortcuts
         "bb": "bola",           # Bug bounty
-        "scan": "ai",           # Smart scan
         "check": "recon",       # Quick check
         "test": "waf",          # Test vulnerabilities
         "hack": "ai",           # AI mode

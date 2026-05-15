@@ -28,9 +28,7 @@ from rich.console import Console
 from rich.panel import Panel
 from tools.tool_registry import registry, ToolCategory, ToolResult
 from tools.cvss_calculator import CVSSCalculator
-from file_relationship_mapper import FileRelationshipGraph, get_scan_recommendations
-from scan_engine_bridge import smart_scan as smart_scan_bridge
-from scan_engine_upgrade import SmartOrchestrator, ScanState, FindingCorrelator
+from scan_engine_upgrade import SmartOrchestrator
 from bot_utils import send_telegram_notification
 
 # ── Setup ───────────────────────────────────────────────────

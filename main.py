@@ -33,9 +33,14 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 import questionary
 
 try:
-    from ui_components import console
+    from ui_components import console, show_section, print_error, print_success, print_info, show_progress_bar
 except ImportError:
     console = Console()
+    def show_section(*a, **kw): pass
+    def print_error(*a, **kw): pass
+    def print_success(*a, **kw): pass
+    def print_info(*a, **kw): pass
+    def show_progress_bar(*a, **kw): pass
 
 # ── Logging Setup ─────────────────────────────────────────────────────────────
 LOG_DIR = Path("data")
@@ -243,7 +248,9 @@ def main():
         args.command = _simplified
 
     # Auto-detect mode (default) - Smart routing based on target
-    if args.command == "auto" or (args.command and args.target):
+    # Auto-detect mode — skip for explicit commands
+    explicit_commands = {"scan", "ai", "cli", "recon", "sast", "cloud", "mobile", "soc", "bola", "waf"}
+    if args.command == "auto" or (args.command and args.target and args.command not in explicit_commands):
         # If we have both command and target, or just target without specific command
         effective_target = args.target or args.command
 
@@ -343,24 +350,163 @@ def main():
     # Command Router
     try:
         if args.command == "scan":
-            from ui_components import prompt_target, print_error, show_spinner
-            
-            target = args.target or prompt_target()
+            # Ensure Go + Python bin directories are in PATH
+            extra_paths = [
+                str(Path.home() / "go" / "bin"),
+                str(Path.home() / "Downloads" / "go-tools" / "bin"),
+                str(Path.home() / ".local" / "bin"),
+            ]
+            for p in extra_paths:
+                if os.path.isdir(p) and p not in os.environ.get("PATH", ""):
+                    os.environ["PATH"] = f"{p}:{os.environ.get('PATH', '')}"
+
+            from agent import get_agent
+            from bot_utils import send_telegram_notification
+            from shutil import which
+
+            target = args.target or console.input("Enter target: ").strip()
             if not target: return
             if not validate_target(target):
-                print_error("SECURITY ERROR: Invalid target format")
+                console.print("[bold red][FAIL] SECURITY ERROR: Invalid target format[/bold red]")
                 return
+
+            env_models = [m.strip() for m in os.environ.get("ACTIVE_MODELS", "").split(",") if m.strip()]
+            team_size = len(env_models)
+
+            print()
+            console.print(f"\n[bold #ff4444]  ELENGENIX AI SCAN v99999[/bold #ff4444]")
+            console.print(f"  Target: [red]{target}[/red]")
+            if team_size >= 2:
+                console.print(f"  Team: [red]{team_size} agents[/red]")
+            print()
+
+            # Phase 1: Multi-source automated recon
+            console.print("[bold #ffffff]Phase 1: Multi-Source Recon[/bold #ffffff]")
+            import subprocess, json, time
+            report_dir = Path("reports") / f"scan_{target}_{int(time.time())}"
+            report_dir.mkdir(parents=True, exist_ok=True)
+
+            all_subs = set()
+            all_live = []
+            all_vulns = []
             
-            from dependency_manager import check_and_install_dependencies
-            from tools.omni_scan import run_omni_scan
-            
-            check_and_install_dependencies()
-            
-            with show_spinner(f"Initiating scan on {target}..."):
-                pass  # Spinner shows while loading
-            
-            console.print(f"[red]Target:[/red] {target}  [dim]Rate: {args.rate_limit} req/s[/dim]")
-            run_omni_scan(target, rate_limit=args.rate_limit, use_smart_scan=args.smart_scan)
+            tools_map = {
+                "subfinder": ["subfinder", "-d", target, "-silent"],
+                "assetfinder": ["assetfinder", "--subs-only", target],
+            }
+
+            for tool_name, cmd in tools_map.items():
+                if which(tool_name):
+                    console.print(f"  [bold #ffffff]$ {' '.join(cmd)}[/bold #ffffff]")
+                    try:
+                        r = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+                        for line in r.stdout.strip().split('\n'):
+                            s = line.strip()
+                            if s and s.endswith(f".{target}") or s == target:
+                                all_subs.add(s.lower())
+                        count = len(all_subs)
+                        console.print(f"  [dim]→ {count} unique subdomains[/dim]")
+                    except subprocess.TimeoutExpired:
+                        console.print(f"  [dim]→ timeout[/dim]")
+
+            # If too few results, try alternative approaches
+            if len(all_subs) < 5:
+                console.print(f"  [yellow]→ Only {len(all_subs)} subdomains[/yellow]")
+                extra_tools = ["sublist3r", "findomain"]
+                for tool_name in extra_tools:
+                    if which(tool_name):
+                        console.print(f"  [bold #ffffff]$ {tool_name} -d {target}[/bold #ffffff]")
+                        try:
+                            r = subprocess.run([tool_name, "-d", target], capture_output=True, text=True, timeout=180)
+                            for line in r.stdout.strip().split('\n'):
+                                s = line.strip().lower()
+                                if s and target in s:
+                                    all_subs.add(s)
+                        except:
+                            pass
+                console.print(f"  [dim]→ {len(all_subs)} unique subdomains[/dim]")
+
+            console.print(f"\n  [bold white]Total: {len(all_subs)} unique subdomains[/bold white]")
+            if all_subs:
+                Path(report_dir / "subdomains.txt").write_text('\n'.join(sorted(all_subs)))
+
+            # httpx probe on all subs
+            sub_list = sorted(all_subs)
+            if sub_list and which("httpx"):
+                input_file = report_dir / "httpx_input.txt"
+                input_file.write_text('\n'.join(sub_list))
+                console.print(f"  [bold #ffffff]$ httpx -l httpx_input.txt -json -status-code -title -tech-detect[/bold #ffffff]")
+                r = subprocess.run(["httpx", "-l", str(input_file), "-json", "-silent", "-status-code", "-title", "-tech-detect"],
+                                 capture_output=True, text=True, timeout=120)
+                for line in r.stdout.strip().split('\n'):
+                    if line:
+                        try: all_live.append(json.loads(line))
+                        except: pass
+                console.print(f"  [dim]→ {len(all_live)} live hosts[/dim]")
+                if all_live:
+                    Path(report_dir / "live_hosts.json").write_text(r.stdout)
+
+            # nuclei scan
+            live_urls = [h.get("url", "") for h in all_live if h.get("url")]
+            if live_urls and which("nuclei"):
+                console.print(f"  [dim]nuclei scanning {len(live_urls)} hosts...[/dim]")
+                for url in live_urls[:5]:
+                    try:
+                        r = subprocess.run(["nuclei", "-u", url, "-json", "-silent", "-severity", "critical,high,medium"],
+                                         capture_output=True, text=True, timeout=300)
+                        for line in r.stdout.strip().split('\n'):
+                            if line:
+                                try: all_vulns.append(json.loads(line))
+                                except: pass
+                        console.print(f"  {'[OK]' if all_vulns else '[dim]'} {url}: {len(all_vulns)} findings")
+                    except subprocess.TimeoutExpired:
+                        console.print(f"  [dim]  {url}: timeout[/dim]")
+
+            console.print(f"\n[bold #ffffff]Phase 2: AI Analysis[/bold #ffffff]")
+            console.print("[INFO] AI is analyzing results...\n")
+
+            send_telegram_notification(f"Scan started: {target}")
+
+            agent = get_agent()
+
+            summary = f"Scan results for {target}:\n"
+            summary += f"- {len(all_subs)} subdomains found\n"
+            summary += f"- {len(all_live)} live hosts\n"
+            summary += f"- {len(all_vulns)} vulnerabilities found\n"
+            if all_live:
+                summary += "\nLive hosts:\n"
+                for h in all_live[:10]:
+                    url = h.get("url", "")
+                    status = h.get("status_code", "")
+                    tech = h.get("tech", [])
+                    title = h.get("title", "")
+                    summary += f"  {url} [{status}] {title} | tech: {','.join(tech[:3])}\n"
+            if all_vulns:
+                summary += "\nVulnerabilities:\n"
+                for v in all_vulns[:5]:
+                    info = v.get("info", {})
+                    summary += f"  [{info.get('severity','?')}] {info.get('name','?')} at {v.get('matched-at','?')}\n"
+            summary += "\nBased on this data, what should I do next? What tools should I use? What areas need deeper investigation?"
+
+            def analysis_cb(msg):
+                if msg.startswith("###"):
+                    console.print(f"\n[bold #ff4444]{msg}[/bold #ff4444]")
+                elif msg.startswith("CVSS"):
+                    console.print(f"[bold #ffffff]{msg}[/bold #ffffff]")
+                else:
+                    console.print(f"  [dim]{msg[:300]}[/dim]")
+
+            try:
+                response = agent.process_universal(
+                    f"Analyze these scan results and determine next actions:\n{summary}",
+                    target=target, callback=analysis_cb, mode="bug_bounty"
+                )
+                if response:
+                    console.print(f"\n[bold #ffffff]AI Analysis:[/bold #ffffff]")
+                    console.print(f"  {response[:1000]}")
+                    send_telegram_notification(f"Scan + AI analysis: {target}")
+            except Exception as e:
+                console.print(f"[bold red][FAIL] AI analysis: {e}[/bold red]")
 
         elif args.command == "universal":
             from cli_textual import main as cli_textual_main

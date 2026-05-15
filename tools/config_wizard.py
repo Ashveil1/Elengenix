@@ -303,8 +303,21 @@ class ConfigWizard:
                         team_members.append({"provider": prov, "model": m})
 
             # Build table
+            # ── Show current team roster ──
+            roles_display = ["Strategist", "Recon Lead", "Exploit Analyst"]
+            if team_members:
+                console.print("\n[bold #ff4444]  Current Team:[/bold #ff4444]")
+                for i, member in enumerate(team_members[:3]):
+                    role = roles_display[i] if i < len(roles_display) else f"Agent {i+1}"
+                    prov = member.get("provider", "?").upper()
+                    mod = member.get("model", "?")
+                    console.print(f"    [{i+1}] {role:<15} → [bold #ffffff]{prov}/{mod}[/bold #ffffff]")
+            else:
+                console.print("\n  [bold #ff4444]Current Team:[/bold #ff4444]  [dim](none configured)[/dim]")
+            console.print("  [bold #ff6b6b]Press [T] to build/change your 3-agent team[/bold #ff6b6b]\n")
+
             table = Table(
-                title="\n  AI Provider Manager",
+                title="  AI Provider Manager",
                 show_header=True,
                 header_style="bold red",
                 border_style="dim",
