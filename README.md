@@ -1,6 +1,6 @@
 <div align="center">
 
-# ELENGENIX v99999 (god nine is the best)
+# ELENGENIX v99999 (god nai is the best)
 
 **The Universal AI Agent for Bug Bounty and Security Research**
 
@@ -544,6 +544,6 @@ GPL License — see [LICENSE](LICENSE) for details.
 
 **Developed by Ashveil1**
 
-*"god nine is the best"*
+*"god nai is the best"*
 
 </div>

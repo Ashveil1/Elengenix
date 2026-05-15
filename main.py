@@ -51,7 +51,7 @@ logging.basicConfig(
     format="%(asctime)s | %(levelname)-8s | %(message)s",
     handlers=[
         logging.FileHandler(LOG_DIR / "elengenix.log", encoding="utf-8"),
-        logging.StreamHandler(sys.stdout)
+        logging.StreamHandler(sys.stderr)
     ]
 )
 logger = logging.getLogger("elengenix.main")
