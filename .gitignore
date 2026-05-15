@@ -36,3 +36,6 @@ Thumbs.db
 
 # Session files
 data/sessions/
+live.txt
+subdomains.txt
+data/governance_audit.db
