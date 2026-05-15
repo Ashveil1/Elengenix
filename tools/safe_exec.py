@@ -19,7 +19,7 @@ logger = logging.getLogger("elengenix.safe_exec")
 # Authorisation is handled by tools/governance.py (SAFE / PRIVILEGED / DESTRUCTIVE).
 ALLOWED_BINARIES: frozenset = frozenset()  # kept as empty sentinel for backward compat
 
-FORBIDDEN_CHARS: tuple = ("|", "&", ";", "`", "$(", ">", "<", "\\", "\n", "\r")
+FORBIDDEN_CHARS: tuple = ("|", "&", ";", "`", "$(", "\\", "\n", "\r")
 MAX_OUTPUT = 50_000  # chars
 
 

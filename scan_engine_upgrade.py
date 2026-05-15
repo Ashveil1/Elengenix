@@ -153,7 +153,7 @@ class ScanState:
             completed_tools=set(data.get("completed_tools", [])),
             pending_tools=set(data.get("pending_tools", [])),
             failed_tools=set(data.get("failed_tools", [])),
-            find雅典s=data.get("find雅典s", []),
+            findings=data.get("findings", []),
             metadata=data.get("metadata", {}),
         )
 

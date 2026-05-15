@@ -87,6 +87,7 @@ def send_telegram_notification(
     }
 
     for attempt in range(max_retries):
+        response = None
         try:
             response = requests.post(url, json=payload, timeout=10)
             response.raise_for_status()
@@ -94,7 +95,7 @@ def send_telegram_notification(
         except Timeout:
             logger.warning(f"Telegram timeout (Attempt {attempt+1}/{max_retries})")
         except RequestException as e:
-            if response.status_code == 429: # Rate Limited
+            if response and response.status_code == 429: # Rate Limited
                 retry_after = int(response.headers.get("Retry-After", 5))
                 logger.warning(f"Telegram Rate Limited. Waiting {retry_after}s")
                 time.sleep(retry_after)

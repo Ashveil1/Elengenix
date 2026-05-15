@@ -122,6 +122,11 @@ class UniversalAIClient:
             "env_key": "PERPLEXITY_API_KEY",
             "default_model": "llama-3.1-sonar-large-128k-online",
         },
+        "custom": {
+            "base_url": "",
+            "env_key": None,
+            "default_model": "custom-model",
+        },
     }
 
     def __init__(
@@ -153,13 +158,17 @@ class UniversalAIClient:
         
         self.provider = provider
         config = self.PROVIDER_CONFIGS.get(provider, {})
-        
+
         # Set base URL
         self.base_url = base_url or config.get("base_url", "")
-        
+        if provider == "custom" and not self.base_url:
+            self.base_url = os.getenv("CUSTOM_API_BASE", "")
+
         # Set API key (priority: param > env > None)
         if api_key:
             self.api_key = api_key
+        elif provider == "custom":
+            self.api_key = os.getenv("CUSTOM_API_KEY", "")
         elif "env_key" in config:
             self.api_key = os.getenv(config["env_key"], "")
         else:

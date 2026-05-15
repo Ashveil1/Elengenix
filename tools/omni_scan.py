@@ -23,7 +23,6 @@ try:
 except ImportError:
     pass  # nest_asyncio not available, but not critical for omni_scan
 
-from rich.console import Console
 from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn
 from rich.table import Table
@@ -33,6 +32,7 @@ project_root = Path(__file__).parent.parent
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
+from ui_components import console
 from bot_utils import send_telegram_notification
 from orchestrator import run_standard_scan, is_in_scope, normalize_target
 from tools.tool_registry import registry, ToolResult
@@ -41,7 +41,6 @@ from tools.reporter import generate_bug_report
 from tools.html_reporter import generate_html_report
 
 logger  = logging.getLogger("elengenix.omni_scan")
-console = Console()
 
 _DOMAIN_RE = re.compile(r"^[a-zA-Z0-9.\-]+$")
 

@@ -8,8 +8,8 @@
 [![License](https://img.shields.io/badge/License-GPL-ff4444?style=flat-square)](LICENSE)
 [![Version](https://img.shields.io/badge/version-99999-ff4444?style=flat-square)]()
 
-> AI ที่คิดเอง วางแผนเอง เลือก tools เอง — ไม่มีแผนตายตัว ไม่มี whitelist
-> แค่ 3 กฎ: SAFE→รัน PRIVILEGED→ถาม DESTRUCTIVE→บล็อก
+> AI that thinks, plans, and chooses tools by itself. No fixed methodology, no whitelists.
+> Just 3 rules: SAFE runs immediately, PRIVILEGED asks the user, DESTRUCTIVE is blocked.
 
 ---
 
@@ -515,9 +515,9 @@ elengenix gateway                # Start Telegram gateway
 |---------|------|---------|
 | v99999 | 2026 | God Nine Edition. Governance security model, multi-agent, FTS5 memory, Textual TUI v6. |
 | v5.0 | 2026 | Universal agent mode, analysis pipeline, Team Aegis. |
-| v3.0 | 2025 | Tool registry, CVSS scoring, vector memory. |
-| v2.0 | 2025 | CLI rewrite, agent bridge, Telegram gateway. |
-| v1.0 | 2024 | Initial release. |
+| v3.0 | 2026 | Tool registry, CVSS scoring, vector memory. |
+| v2.0 | 2026 | CLI rewrite, agent bridge, Telegram gateway. |
+| v1.0 | 2026 | Initial release. |
 
 ---
 

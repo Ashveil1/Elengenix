@@ -254,9 +254,11 @@ class SkillRegistry:
         
         # Try to install
         try:
+            import shlex
+            cmd_list = shlex.split(skill.install_command)
             subprocess.run(
-                skill.install_command,
-                shell=True,
+                cmd_list,
+                shell=False,
                 check=True,
                 capture_output=True,
                 timeout=60

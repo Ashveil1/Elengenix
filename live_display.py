@@ -15,13 +15,15 @@ from typing import List, Dict, Optional
 from dataclasses import dataclass, asdict
 from collections import deque
 
-from rich.console import Console, Group
 from rich.live import Live
 from rich.panel import Panel
 from rich.text import Text
 from rich.table import Table
 from rich.layout import Layout
 from rich.progress import Progress, SpinnerColumn, TextColumn
+from rich.console import Group
+
+from ui_components import console as _ui_console
 
 # Setup logging to capture agent activity
 LOG_DIR = Path("data")
@@ -296,12 +298,12 @@ def display_in_chat_mode(message: str, msg_type: str = "info"):
     Display message in chat mode (simple console output).
     This is used when not in tmux or live display mode.
     """
-    console = Console()
+    console = _ui_console
     
     if msg_type == "thought":
-        console.print(f"[dim blue]• {message}[/dim blue]")
+        console.print(f"[dim red]* {message}[/dim red]")
     elif msg_type == "action":
-        console.print(f"[red]→ {message}[/red]")
+        console.print(f"[red]-> {message}[/red]")
     elif msg_type == "result":
         console.print(f"[bold white] {message}[/bold white]")
     elif msg_type == "error":
@@ -327,7 +329,7 @@ def main():
     
     if args.mode == "logs":
         # Simple log tail mode
-        console = Console()
+        console = _ui_console
         
         if in_tmux:
             console.print("[bold red]Agent Activity Monitor[/bold red] [dim](tmux mode)[/dim]\n")
@@ -355,7 +357,7 @@ def main():
     
     elif args.mode == "status":
         # Quick status display
-        console = Console()
+        console = _ui_console
         stats = {
             "mode": "Universal Agent",
             "step": 5,

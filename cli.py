@@ -973,7 +973,6 @@ def main(mode: str = "auto", target: str = None):
         if not cmd:
             return
 
-        print(f"DEBUG process_cmd: {repr(cmd[:30])}", file=sys.stderr)
         chat.add(cmd, role="user")
 
         if cmd.lower() in ("/exit", "/quit", "exit", "quit"):
@@ -1439,7 +1438,6 @@ def main(mode: str = "auto", target: str = None):
 
     def handle_key(ch, buf, cur_pos, history, hidx):
         """Returns (new_buf, new_cur_pos, new_hidx, consumed). consumed=True means exit."""
-        print(f"HANDLE_KEY: ch={repr(ch)} buf={repr(buf[:20])}", file=sys.stderr)
         if ch is None:
             return buf, cur_pos, hidx, False
         # Escape seq
@@ -1654,12 +1652,8 @@ def main(mode: str = "auto", target: str = None):
         overlay_obj = [None]
 
         with Live(layout, screen=True, refresh_per_second=10) as live:
-            debug_iter = [0]
             try:
                 while True:
-                    debug_iter[0] += 1
-                    if debug_iter[0] % 20 == 0:
-                        print(f"DEBUG loop: {debug_iter[0]}", file=sys.stderr)
                     try:
                         chat.tick_spinner()
                     except Exception as e:
@@ -1716,8 +1710,7 @@ def main(mode: str = "auto", target: str = None):
                         elif show_overlay[0]:
                             try:
                                 result = overlay_obj[0].handle_char(ch)
-                            except Exception as e:
-                                print(f"[DEBUG] handle_char EXCEPTION: {e}", file=sys.stderr)
+                            except Exception:
                                 result = None
                             if result == "exit":
                                 show_overlay[0] = False

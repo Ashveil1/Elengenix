@@ -350,15 +350,14 @@ def main():
     # Command Router
     try:
         if args.command == "scan":
-            # Ensure Go + Python bin directories are in PATH
-            extra_paths = [
-                str(Path.home() / "go" / "bin"),
-                str(Path.home() / "Downloads" / "go-tools" / "bin"),
-                str(Path.home() / ".local" / "bin"),
-            ]
-            for p in extra_paths:
-                if os.path.isdir(p) and p not in os.environ.get("PATH", ""):
-                    os.environ["PATH"] = f"{p}:{os.environ.get('PATH', '')}"
+            # Ensure Go tools take priority over Python scripts
+            go_first = str(Path.home() / "Downloads" / "go-tools" / "bin")
+            go_second = str(Path.home() / "go" / "bin")
+            local_bin = str(Path.home() / ".local" / "bin")
+            current = os.environ.get("PATH", "")
+            new_parts = [p for p in [go_first, go_second, local_bin] if Path(p).is_dir() and p not in current]
+            if new_parts:
+                os.environ["PATH"] = ":".join(new_parts + [current])
 
             from agent import get_agent
             from bot_utils import send_telegram_notification
@@ -380,133 +379,67 @@ def main():
                 console.print(f"  Team: [red]{team_size} agents[/red]")
             print()
 
-            # Phase 1: Multi-source automated recon
-            console.print("[bold #ffffff]Phase 1: Multi-Source Recon[/bold #ffffff]")
-            import subprocess, json, time
-            report_dir = Path("reports") / f"scan_{target}_{int(time.time())}"
-            report_dir.mkdir(parents=True, exist_ok=True)
-
-            all_subs = set()
-            all_live = []
-            all_vulns = []
-            
-            tools_map = {
-                "subfinder": ["subfinder", "-d", target, "-silent"],
-                "assetfinder": ["assetfinder", "--subs-only", target],
-            }
-
-            for tool_name, cmd in tools_map.items():
-                if which(tool_name):
-                    console.print(f"  [bold #ffffff]$ {' '.join(cmd)}[/bold #ffffff]")
-                    try:
-                        r = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
-                        for line in r.stdout.strip().split('\n'):
-                            s = line.strip()
-                            if s and s.endswith(f".{target}") or s == target:
-                                all_subs.add(s.lower())
-                        count = len(all_subs)
-                        console.print(f"  [dim]→ {count} unique subdomains[/dim]")
-                    except subprocess.TimeoutExpired:
-                        console.print(f"  [dim]→ timeout[/dim]")
-
-            # If too few results, try alternative approaches
-            if len(all_subs) < 5:
-                console.print(f"  [yellow]→ Only {len(all_subs)} subdomains[/yellow]")
-                extra_tools = ["sublist3r", "findomain"]
-                for tool_name in extra_tools:
-                    if which(tool_name):
-                        console.print(f"  [bold #ffffff]$ {tool_name} -d {target}[/bold #ffffff]")
-                        try:
-                            r = subprocess.run([tool_name, "-d", target], capture_output=True, text=True, timeout=180)
-                            for line in r.stdout.strip().split('\n'):
-                                s = line.strip().lower()
-                                if s and target in s:
-                                    all_subs.add(s)
-                        except:
-                            pass
-                console.print(f"  [dim]→ {len(all_subs)} unique subdomains[/dim]")
-
-            console.print(f"\n  [bold white]Total: {len(all_subs)} unique subdomains[/bold white]")
-            if all_subs:
-                Path(report_dir / "subdomains.txt").write_text('\n'.join(sorted(all_subs)))
-
-            # httpx probe on all subs
-            sub_list = sorted(all_subs)
-            if sub_list and which("httpx"):
-                input_file = report_dir / "httpx_input.txt"
-                input_file.write_text('\n'.join(sub_list))
-                console.print(f"  [bold #ffffff]$ httpx -l httpx_input.txt -json -status-code -title -tech-detect[/bold #ffffff]")
-                r = subprocess.run(["httpx", "-l", str(input_file), "-json", "-silent", "-status-code", "-title", "-tech-detect"],
-                                 capture_output=True, text=True, timeout=120)
-                for line in r.stdout.strip().split('\n'):
-                    if line:
-                        try: all_live.append(json.loads(line))
-                        except: pass
-                console.print(f"  [dim]→ {len(all_live)} live hosts[/dim]")
-                if all_live:
-                    Path(report_dir / "live_hosts.json").write_text(r.stdout)
-
-            # nuclei scan
-            live_urls = [h.get("url", "") for h in all_live if h.get("url")]
-            if live_urls and which("nuclei"):
-                console.print(f"  [dim]nuclei scanning {len(live_urls)} hosts...[/dim]")
-                for url in live_urls[:5]:
-                    try:
-                        r = subprocess.run(["nuclei", "-u", url, "-json", "-silent", "-severity", "critical,high,medium"],
-                                         capture_output=True, text=True, timeout=300)
-                        for line in r.stdout.strip().split('\n'):
-                            if line:
-                                try: all_vulns.append(json.loads(line))
-                                except: pass
-                        console.print(f"  {'[OK]' if all_vulns else '[dim]'} {url}: {len(all_vulns)} findings")
-                    except subprocess.TimeoutExpired:
-                        console.print(f"  [dim]  {url}: timeout[/dim]")
-
-            console.print(f"\n[bold #ffffff]Phase 2: AI Analysis[/bold #ffffff]")
-            console.print("[INFO] AI is analyzing results...\n")
-
-            send_telegram_notification(f"Scan started: {target}")
-
+            # Phase 1: AI-driven reconnaissance
+            console.print("[bold #ffffff]Phase 1: AI-Driven Reconnaissance[/bold #ffffff]")
+            from agent import get_agent
+            from bot_utils import send_telegram_notification
             agent = get_agent()
 
-            summary = f"Scan results for {target}:\n"
-            summary += f"- {len(all_subs)} subdomains found\n"
-            summary += f"- {len(all_live)} live hosts\n"
-            summary += f"- {len(all_vulns)} vulnerabilities found\n"
-            if all_live:
-                summary += "\nLive hosts:\n"
-                for h in all_live[:10]:
-                    url = h.get("url", "")
-                    status = h.get("status_code", "")
-                    tech = h.get("tech", [])
-                    title = h.get("title", "")
-                    summary += f"  {url} [{status}] {title} | tech: {','.join(tech[:3])}\n"
-            if all_vulns:
-                summary += "\nVulnerabilities:\n"
-                for v in all_vulns[:5]:
-                    info = v.get("info", {})
-                    summary += f"  [{info.get('severity','?')}] {info.get('name','?')} at {v.get('matched-at','?')}\n"
-            summary += "\nBased on this data, what should I do next? What tools should I use? What areas need deeper investigation?"
-
-            def analysis_cb(msg):
-                if msg.startswith("###"):
+            def scan_callback(msg):
+                if msg.startswith("[OK]") or msg.startswith("[FAIL]"):
+                    parts = msg.split(" ", 2)
+                    rest = parts[2] if len(parts) > 2 else ""
+                    action_part = parts[1] if len(parts) > 1 else ""
+                    if "shell" in action_part or "run_tool" in action_part:
+                        cmd_str = rest.split(":", 1)[0].strip() if ":" in rest else rest[:80]
+                        if cmd_str and cmd_str != "]":
+                            console.print(f"  [bold #ffffff]$ {cmd_str}[/bold #ffffff]")
+                        res = rest.split(":", 1)[1].strip()[:200] if ":" in rest else ""
+                        if res:
+                            console.print(f"  [dim]  -> {res[:200]}[/dim]")
+                    elif "search_web" in action_part:
+                        query = rest.split(":", 1)[0].strip() if ":" in rest else rest[:80]
+                        console.print(f"  [dim][WEB] {query}[/dim]")
+                elif msg.startswith(" Step"):
+                    step_text = msg.strip()
+                    console.print(f"  [dim]{step_text[:200]}[/dim]")
+                elif msg.startswith("AI classified"):
+                    pass
+                elif msg.startswith("###"):
                     console.print(f"\n[bold #ff4444]{msg}[/bold #ff4444]")
                 elif msg.startswith("CVSS"):
                     console.print(f"[bold #ffffff]{msg}[/bold #ffffff]")
-                else:
-                    console.print(f"  [dim]{msg[:300]}[/dim]")
 
             try:
                 response = agent.process_universal(
-                    f"Analyze these scan results and determine next actions:\n{summary}",
-                    target=target, callback=analysis_cb, mode="bug_bounty"
+                    f"Perform a full security reconnaissance and vulnerability assessment on {target}. "
+                    f"Your mission:\n"
+                    f"1. Discover subdomains using subfinder and other tools\n"
+                    f"2. Probe live hosts with httpx to detect technologies\n"
+                    f"3. Scan for vulnerabilities with nuclei\n"
+                    f"4. Run additional recon as you see fit (waybackurls, naabu ports, etc.)\n"
+                    f"5. Analyze all findings and prioritize them\n\n"
+                    f"Run actual tools via shell commands. Report everything you find. "
+                    f"Do not hallucinate — if a tool fails, debug and retry.",
+                    target=target, callback=scan_callback, mode="bug_bounty"
                 )
                 if response:
                     console.print(f"\n[bold #ffffff]AI Analysis:[/bold #ffffff]")
-                    console.print(f"  {response[:1000]}")
+                    console.print(f"  {response[:2000]}")
+                    report_file = Path(f"reports/scan_{target}_{int(time.time())}.md")
+                    report_file.parent.mkdir(parents=True, exist_ok=True)
+                    report_file.write_text(
+                        f"# Scan Report: {target}\n"
+                        f"**Date**: {datetime.now(timezone.utc).isoformat()}\n"
+                        f"**Tool**: Elengenix v99999\n\n"
+                        f"## AI Analysis\n\n{response}\n"
+                    )
+                    console.print(f"\n[dim]Report saved: {report_file}[/dim]")
                     send_telegram_notification(f"Scan + AI analysis: {target}")
             except Exception as e:
-                console.print(f"[bold red][FAIL] AI analysis: {e}[/bold red]")
+                import traceback
+                console.print(f"[bold red][FAIL] AI scan: {e}[/bold red]")
+                console.print(f"[dim]{traceback.format_exc()[:500]}[/dim]")
 
         elif args.command == "universal":
             from cli_textual import main as cli_textual_main

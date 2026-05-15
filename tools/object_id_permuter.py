@@ -82,12 +82,14 @@ class ObjectIDPermuter:
         self._last_ts = time.time()
 
     def discover_identities(
-        self, headers: Dict[str, str], seed_endpoints: Optional[List[str]] = None
+        self, headers_a: Dict[str, str], headers_b: Optional[Dict[str, str]] = None, seed_endpoints: Optional[List[str]] = None
     ) -> Dict[str, str]:
         """
         Light identity discovery via common endpoints.
         Returns best-effort mapping of id/user_id/account_id.
         """
+        if headers_b is None:
+            headers_b = headers_a
         # Lazy import to avoid circular deps
         try:
             from tools.bola_harness import BOLAHarness
@@ -97,7 +99,7 @@ class ObjectIDPermuter:
                 rate_limit_rps=self.rate_limit_rps,
                 timeout=self.timeout,
             )
-            ids, _, _ = harness.discover_identities(headers, headers)
+            ids, _, _ = harness.discover_identities(headers_a, headers_b)
             return ids
         except Exception as e:
             logger.debug(f"Identity discovery failed: {e}")

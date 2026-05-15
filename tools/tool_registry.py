@@ -17,11 +17,11 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Set, Type, Union
 from enum import Enum
 
-from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
+from ui_components import console
+
 logger = logging.getLogger("elengenix.tools")
-console = Console()
 
 
 class ToolCategory(Enum):

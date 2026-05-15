@@ -2227,36 +2227,37 @@ You have access to ALL of these. Choose what fits the task:
 - `dalfox`: XSS vulnerability scanning
 - `arjun`: Hidden parameter discovery
 
-**🌐 WEB RESEARCH** (use `search_web`):
+**WEB RESEARCH** (use `search_web`):
 - Search Google/DuckDuckGo/Tavily for live information
 - Get current news, CVE details, exploit PoCs
 - Research target technologies and vulnerabilities
 
-**🔑 THREAT INTELLIGENCE** (use `cve_lookup`):
+**THREAT INTELLIGENCE** (use `cve_lookup`):
 - `cve_lookup`: Search local CVE database by ID or keyword
 - Example: `{{"cve_id": "CVE-2024-21626"}}` or `{{"keyword": "rce"}}`
 - Returns description, CVSS score, exploit availability
 
-**💰 BOUNTY INTELLIGENCE** (use `bounty_intel`):
+**BOUNTY INTELLIGENCE** (use `bounty_intel`):
 - Search HackerOne programs by name
 - Get bounty range, scope, program details
 - Example: `{{"program": "facebook"}}`
 
-**🔬 GITHUB OSINT** (use `github_search`):
+**GITHUB OSINT** (use `github_search`):
 - Search GitHub for leaked secrets, API keys, credentials
 - Find exposed configuration files
 - Example: `{{"query": "api_key 1win.com"}}`
 
-**💻 SHELL & SYSTEM** (use `shell` or `run_tool`):
+**SHELL & SYSTEM** (use `shell` or `run_tool`):
 - `shell`: Execute any command with `{{"command": "..."}}`
 - `package`: Install tools via pip, npm, apt, go
 - `read_file` / `write_file`: Read and write files
-- **Custom scripts**: Write Python/bash scripts with `write_file` → run with `shell python3 script.py`
+- **Custom scripts**: Write Python/bash scripts with `write_file` -> run with `shell python3 script.py`
   Example: write a custom exploit/PoC script and execute it immediately
 
-### 💡 YOU HAVE THESE CAPABILITIES — use them as you see fit:
-- `subfinder`, `httpx`, `nuclei`, `naabu`, `katana`, `ffuf`, `dalfox`, `arjun`: Security tools for recon, scanning, fuzzing (use `run_tool` — run multiple at once with `"tools": ["subfinder","naabu"]`)
-- `search_web`: Google/DuckDuckGo — research company, find CVEs, PoCs, tech details
+### YOU HAVE THESE CAPABILITIES -- use them as you see fit:
+- `subfinder`, `httpx`, `nuclei`, `naabu`, `katana`, `ffuf`, `dalfox`, `arjun`: Security tools (use `run_tool` -- NOT `shell` -- for these. `run_tool` handles paths and flags automatically.)
+- `search_web`: Google/DuckDuckGo -- research company, find CVEs, PoCs, tech details
+- `search_web`: Google/DuckDuckGo -- research company, find CVEs, PoCs, tech details
 - `cve_lookup`: Search local CVE database by ID or keyword
 - `github_search`: Find leaked secrets, credentials, configs on GitHub
 - `bounty_intel`: Look up HackerOne programs
@@ -2267,28 +2268,28 @@ You have access to ALL of these. Choose what fits the task:
 - `read_file` / `write_file`: File operations
 - **Write custom scripts**: Use `write_file` to create Python/bash scripts for any testing scenario, then `shell` to run them with `python3 script.py` or `bash script.sh`
 
-### DECISION PRINCIPLES:
-1. **You decide** which tool fits the current task - no fixed sequences
-2. Adapt based on results: if one tool fails, try another approach
-3. Consider stealth vs speed tradeoffs
-4. Chain findings: one discovery leads to focused testing with specific tools
-5. Install missing tools via 'package' action
-
 ### RESPONSE FORMAT:
-Always respond with structured JSON showing your reasoning:
-{{
-    "thought": "Based on current findings, I should use [tool] because...",
-    "action": {{
-        "type": "run_tool|shell|search_web|package|read_file|bounty_intel|github_search|cve_lookup|js_analyze|check_takeover|finish",
-        "params": {{
-            // For shell: use "command" (not tool/target)
-            //   e.g. "command": "subfinder -d 1win.com"
-            // For run_tool: use "tool", "target", "args"
-            //   e.g. "tool": "subfinder", "target": "1win.com"
-        }}
-    }},
-    "next_step": "Based on results, I'll likely need to..."
-}}
+You must respond with a single valid JSON object containing "thought", "action", and "next_step".
+The "action" must have "type" (one of the valid action types) and "params" (a dict with the required fields for that action type).
+
+IMPORTANT: Different action types require different params:
+
+- shell -> Requires: "params" with "command" key
+  Example: {{"action": {{"type": "shell", "params": {{"command": "subfinder -d 1win.com -silent"}}}}}}
+
+- run_tool -> Requires: "params" with "tool" and optionally "target"
+  Example: {{"action": {{"type": "run_tool", "params": {{"tool": "subfinder", "target": "1win.com"}}}}}}
+
+- search_web -> Requires: "params" with "query" key
+  Example: {{"action": {{"type": "search_web", "params": {{"query": "1win.com recent CVEs"}}}}}}
+
+- read_file -> Requires: "params" with "path" key
+- write_file -> Requires: "params" with "path" and "content" keys
+- cve_lookup -> Requires: "params" with "cve_id" or "keyword"
+- package -> Requires: "params" with "manager" and "packages"
+- finish -> Requires: "params" with "summary"
+
+CRITICAL: Never output an action with empty params. Every action type needs specific params as shown above.
 
 ### CURRENT CONTEXT:
 Target: {target}
@@ -2317,11 +2318,11 @@ You are a flexible AI agent with LIVE INTERNET ACCESS and system tool capabiliti
 ### YOUR FULL CAPABILITIES:
 Choose what fits the task:
 
-**🌐 WEB RESEARCH** (use `search_web`):
+**WEB RESEARCH** (use `search_web`):
 - Search Google/DuckDuckGo/Tavily for live info
 - News, weather, stocks, CVE details, exploit PoCs
 
-**🔍 SECURITY SCANNING** (use `run_tool`):
+**SECURITY SCANNING** (use `run_tool`):
 - `subfinder`: Subdomain discovery
 - `httpx`: Web server probing & tech detection
 - `nuclei`: Vulnerability scanning (10,000+ templates)
@@ -2331,35 +2332,47 @@ Choose what fits the task:
 - `dalfox`: XSS scanning
 - `arjun`: Parameter discovery
 
-**🔑 THREAT INTEL** (use `cve_lookup`):
+**THREAT INTEL** (use `cve_lookup`):
 - Search CVE by ID: `{{"cve_id": "CVE-2024-21626"}}`
 - Search by keyword: `{{"keyword": "rce"}}`
 - Returns description, CVSS score, exploits
 
-**💰 BOUNTY INTEL** (use `bounty_intel`):
+**BOUNTY INTEL** (use `bounty_intel`):
 - Search HackerOne programs: `{{"program": "facebook"}}`
 
-**🔬 GITHUB OSINT** (use `github_search`):
+**GITHUB OSINT** (use `github_search`):
 - Search GitHub for secrets/keys: `{{"query": "..."}}`
 
-**💻 SHELL & SYSTEM** (use `shell` or `run_tool`):
+**SHELL & SYSTEM** (use `shell` or `run_tool`):
 - Execute commands, install packages, read/write files
 
 ### RESPONSE FORMAT:
-{{
-    "thought": "Your reasoning about what to do and why...",
-    "action": {{
-        "type": "search_web|run_tool|shell|package|read_file|write_file|bounty_intel|github_search|cve_lookup|js_analyze|check_takeover|finish",
-        "params": {{}}
-    }},
-    "next_step": "What you plan to do next"
-}}
+You must respond with a single valid JSON object containing "thought", "action", and "next_step".
+The "action" must have "type" (one of the valid action types) and "params" (a dict with the required fields for that action type).
+
+IMPORTANT: Different action types require different params:
+
+- shell -> Requires: "params" with "command" key
+  Example: {{"action": {{"type": "shell", "params": {{"command": "subfinder -d example.com -silent"}}}}}}
+
+- run_tool -> Requires: "params" with "tool" and optionally "target"
+  Example: {{"action": {{"type": "run_tool", "params": {{"tool": "subfinder", "target": "example.com"}}}}}}
+
+- search_web -> Requires: "params" with "query" key
+  Example: {{"action": {{"type": "search_web", "params": {{"query": "recent CVE vulnerabilities"}}}}}}
+
+- read_file -> Requires: "params" with "path" key
+- write_file -> Requires: "params" with "path" and "content" keys
+- cve_lookup -> Requires: "params" with "cve_id" or "keyword"
+- finish -> Requires: "params" with "summary"
+
+CRITICAL: Never output an action with empty params. Every action type needs specific params as shown above.
 
 ### PRINCIPLES:
-- **TIME-SENSITIVE QUERIES**: Always use search_web (news, sports, weather, "today")
-- **GENERAL KNOWLEDGE**: Can answer directly or search if uncertain
-- **SECURITY**: Suggest or run appropriate security tools when asked
-- **EXPLAIN**: Always explain your tool/action choices in reasoning
+- TIME-SENSITIVE QUERIES: Always use search_web (news, sports, weather, "today")
+- GENERAL KNOWLEDGE: Can answer directly or search if uncertain
+- SECURITY: Suggest or run appropriate security tools when asked
+- EXPLAIN: Always explain your tool/action choices in reasoning
 """
         
         # Get semantic context from memory
@@ -2531,7 +2544,6 @@ Respond ONLY with valid JSON."""
                 elif gate == "PRIVILEGED":
                     if callback:
                         callback(f"__PRIVILEGED__:{cmd[:200]}")
-                    # Ask user directly
                     try:
                         print(f"\n[PRIVILEGED] AI wants to run:")
                         print(f"  {cmd[:200]}")
@@ -2592,15 +2604,17 @@ Respond ONLY with valid JSON."""
                 )
             
             # Check for findings in security mode
-            if is_security_task and result.metadata.get("findings"):
-                for finding in result.metadata.get("findings", []):
-                    remember(
-                        f"Finding: {finding.get('type', 'unknown')} at {finding.get('url', target)}",
-                        target,
-                        "finding",
-                        severity=finding.get("severity", "unknown"),
-                        step=step
-                    )
+            if is_security_task:
+                findings_list = result.metadata.get("findings", [])
+                if isinstance(findings_list, list):
+                    for finding in findings_list:
+                        remember(
+                            f"Finding: {finding.get('type', 'unknown')} at {finding.get('url', target)}",
+                            target,
+                            "finding",
+                            severity=finding.get("severity", "unknown"),
+                            step=step
+                        )
         
         # Max steps reached
         return f"Universal session reached {max_universal_steps} steps. History: {len(history)} actions."

@@ -144,8 +144,8 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     pref = get_preferences(user_id)
     
-    # Auto-detect and save chat_id on first interaction
-    if not os.environ.get("TELEGRAM_CHAT_ID") or os.environ["TELEGRAM_CHAT_ID"] == str(chat_id):
+    # Auto-detect and save chat_id on first interaction only
+    if not os.environ.get("TELEGRAM_CHAT_ID"):
         os.environ["TELEGRAM_CHAT_ID"] = str(chat_id)
         # Also save to .env for persistence
         logger.info(f"Chat ID auto-detected: {chat_id}")

@@ -7,23 +7,24 @@ Version: 2.0.0
 import logging
 from typing import Optional, Dict, Any
 
-# Initialize logger
 logger = logging.getLogger("elengenix.agent")
+
+_agent_instance = None
 
 def get_agent(config: Optional[Dict[str, Any]] = None) -> Any:
     """
-    Returns an initialized ElengenixAgent instance.
+    Returns an initialized ElengenixAgent instance (cached).
 
     Args:
         config: Optional dict for dynamic configuration (model, api_key, etc.)
 
     Returns:
         ElengenixAgent instance
-
-    Raises:
-        ImportError: If agent_brain module is missing
-        RuntimeError: If agent initialization fails
     """
+    global _agent_instance
+    if _agent_instance is not None and config is None:
+        return _agent_instance
+
     try:
         from agent_brain import ElengenixAgent
     except ImportError as e:
@@ -33,11 +34,11 @@ def get_agent(config: Optional[Dict[str, Any]] = None) -> Any:
     try:
         if config:
             logger.info("Initializing ElengenixAgent with dynamic configuration...")
-            return ElengenixAgent(**config)
-
-        logger.info("Initializing ElengenixAgent with system default config...")
-        return ElengenixAgent()
-
+            _agent_instance = ElengenixAgent(**config)
+        else:
+            logger.info("Initializing ElengenixAgent with system default config...")
+            _agent_instance = ElengenixAgent()
+        return _agent_instance
     except Exception as e:
         logger.error("Agent initialization failed: %s", e)
         raise RuntimeError(f"Failed to start Elengenix Agent: {str(e)}") from e

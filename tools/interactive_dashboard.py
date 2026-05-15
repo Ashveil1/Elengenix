@@ -639,10 +639,7 @@ class InteractiveDashboard:
         from tools.dashboard_server import DashboardServer, DashboardHandler
         from ui_components import print_info, print_success, print_error
         
-        try:
-            mission_state = None  # Dashboard starts without a specific mission
-        except ImportError:
-            mission_state = None
+        mission_state = None  # Dashboard starts without a specific mission
 
         try:
             print_info(f"Initializing Interactive Dashboard on {self.host}:{self.port}")

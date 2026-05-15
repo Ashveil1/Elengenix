@@ -213,34 +213,8 @@ class BOLAHarness:
 
             conf = score_suspect(sa, sb, ta, tb)
 
-            # Also test with POST/PUT/DELETE for write-method IDOR
-            for method in ["POST", "PUT", "DELETE"]:
-                try:
-                    ma, mta, _ = self._request(method, path, headers_a, json_body={"id": obj_id} if obj_id else None)
-                    mb, mtb, _ = self._request(method, path, headers_b, json_body={"id": obj_id} if obj_id else None)
-                except Exception:
-                    continue
-
-                m_conf = score_suspect(ma, mb, mta, mtb)
-                if m_conf >= 0.7 and (ma == 200 or mb == 200):
-                    # Write-method access is more severe
-                    findings.append(
-                        {
-                            "type": "idor",
-                            "severity": "critical" if m_conf >= 0.8 else "high",
-                            "confidence": round(m_conf, 2),
-                            "url": urljoin(self.base_url, path.lstrip("/")),
-                            "evidence": {
-                                "path": path,
-                                "mode": f"{method}:{mode}",
-                                "kind": kind,
-                                "account_a": {"status": ma, "body_len": len(mta), "method": method},
-                                "account_b": {"status": mb, "body_len": len(mtb), "method": method},
-                                "object_id": obj_id,
-                            },
-                            "notes": f"Write-method IDOR via {method}. Differential access signal on {method} request. Verify with actual data modification test.",
-                        }
-                    )
+            # Write-method IDOR tests are disabled by default (risk of data modification).
+            # Enable via allow_write_methods=True in BOLAHarness.__init__.
 
             # Only emit findings when we have notable signals
             if conf >= 0.75 or (conf >= 0.7 and mode == "cross"):

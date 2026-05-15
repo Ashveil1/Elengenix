@@ -95,4 +95,4 @@ class PayloadMutator:
         if len(s) < 6:
             return s
         mid = len(s) // 2
-        return s[:mid] + "" + s[mid:]
+        return s[:mid] + "+" + s[mid:]

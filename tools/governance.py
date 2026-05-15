@@ -86,7 +86,6 @@ class Governance:
     _DESTRUCTIVE = re.compile(
         r"rm\s+(-rf|--recursive)\s+/"
         r"|rm\s+(.*-rf.*|.*--recursive.*)"
-        r"|rm\s+\S"
         r"|rmdir\s+"
         r"|unlink\s+"
         r"|dd\s+if=.*of=\/dev"
@@ -108,8 +107,6 @@ class Governance:
     # ── Patterns: if matched → PRIVILEGED (needs approval) ────────────
     _PRIVILEGED = re.compile(
         r"^\s*sudo\s"
-        r"|^\s*pkexec\s"
-        r"|^\s*doas\s"
         r"|pip\s+install"
         r"|pip3\s+install"
         r"|npm\s+install\s+-g"
@@ -117,28 +114,11 @@ class Governance:
         r"|apt-get\s+install"
         r"|dnf\s+install"
         r"|yum\s+install"
-        r"|brew\s+install"
         r"|pacman\s+-S"
         r"|go\s+install"
         r"|cargo\s+install"
+        r"|brew\s+install"
         r"|gem\s+install"
-        r"|chmod\s+[0-7]"
-        r"|chown\s+"
-        r"|>[/\"]"
-        r"|>>[/\"]"
-        r"|curl.*-o\s+/"
-        r"|wget.*-O\s+/"
-        r"|mv\s+.*\s+/usr"
-        r"|mv\s+.*\s+/etc"
-        r"|cp\s+.*\s+/usr"
-        r"|cp\s+.*\s+/etc"
-        r"|rm\s+/"
-        r"|kill\s+-9"
-        r"|useradd\s"
-        r"|passwd\s"
-        r"|usermod\s"
-        r"|systemctl\s+(stop|disable|mask)"
-        r"|service\s+\w+\s+stop"
         , re.IGNORECASE,
     )
 

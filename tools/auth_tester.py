@@ -85,16 +85,16 @@ def analyze_jwt(token: str) -> List[AuthFinding]:
             remediation="Never accept 'none' algorithm. Whitelist allowed algorithms server-side.",
         ))
 
-    # Check 2: Algorithm confusion (RS256 → HS256)
-    if alg == "hs256" and header.get("typ", "").lower() in ("jwt", ""):
-        # Could be legitimate HS256, but if server also has RSA public key, this is confusion
+    # Check 2: Algorithm confusion (RS256 -> HS256)
+    if alg in ("hs256", "hs384", "hs512") and header.get("typ", "").lower() in ("jwt", ""):
+        # Could be legitimate, but flag for review if RSA public key is known
         findings.append(AuthFinding(
-            title="JWT uses HS256 — potential algorithm confusion attack",
-            severity="medium",
+            title="JWT uses HMAC algorithm — verify key confusion not possible",
+            severity="info",
             description=(
-                "Token uses HS256 (HMAC). If the server also has an RSA public key, "
-                "an attacker can sign tokens with the public key as HMAC secret (key confusion). "
-                "Test by forging a token signed with the known public key."
+                "Token uses symmetric HMAC (HS256/HS384/HS512). If the server also exposes "
+                "an RSA public key, test for algorithm confusion: sign a forged token using "
+                "the public key as the HMAC secret."
             ),
             evidence={"header": header, "attack": "key_confusion"},
             remediation="Use RS256 or ES256. Never mix symmetric and asymmetric algorithms.",

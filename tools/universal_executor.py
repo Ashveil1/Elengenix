@@ -433,6 +433,13 @@ class UniversalExecutor:
         if not safe:
             return ExecutionResult(False, "", reason, "shell", {"command": command})
         
+        # Handle pipes: split on | and chain subprocesses
+        if "|" in command:
+            stages = [s.strip() for s in command.split("|") if s.strip()]
+            if not stages:
+                return ExecutionResult(False, "", "Empty pipeline", "shell", {"command": command})
+            return self._execute_pipeline(stages, timeout, cwd)
+        
         try:
             result = subprocess.run(
                 shlex.split(command),
@@ -470,7 +477,55 @@ class UniversalExecutor:
             return ExecutionResult(False, "", f"Timeout after {timeout}s", "shell", {"command": command})
         except Exception as e:
             return ExecutionResult(False, "", str(e), "shell", {"command": command})
-    
+
+    def _execute_pipeline(self, stages: list, timeout: int, cwd: str = None) -> ExecutionResult:
+        """Execute a pipeline of commands connected by pipes."""
+        if not stages:
+            return ExecutionResult(False, "", "Empty pipeline", "shell", {"pipeline": stages})
+        try:
+            processes = []
+            prev_stdout = None
+            for i, stage in enumerate(stages):
+                proc = subprocess.Popen(
+                    shlex.split(stage),
+                    stdin=prev_stdout,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                    cwd=cwd,
+                    shell=False,
+                )
+                processes.append(proc)
+                prev_stdout = proc.stdout
+
+            last_proc = processes[-1]
+            stdout, stderr = last_proc.communicate(timeout=timeout)
+
+            success = True
+            stderr_output = stderr or ""
+            for proc in processes:
+                try:
+                    proc.wait(timeout=5)
+                    if proc.returncode != 0:
+                        success = False
+                except subprocess.TimeoutExpired:
+                    proc.kill()
+                    success = False
+
+            output = stdout or ""
+            if stderr_output and not success:
+                output += f"\n[STDERR]: {stderr_output}"
+
+            return ExecutionResult(
+                success, output[:10000],
+                "" if success else f"Pipeline stage failed",
+                "shell", {"pipeline": stages}
+            )
+        except subprocess.TimeoutExpired:
+            return ExecutionResult(False, "", f"Pipeline timeout after {timeout}s", "shell", {"pipeline": stages})
+        except Exception as e:
+            return ExecutionResult(False, "", f"Pipeline error: {e}", "shell", {"pipeline": stages})
+
     def execute_action(self, action: Dict[str, Any]) -> ExecutionResult:
         """
         Execute a structured action from AI.
