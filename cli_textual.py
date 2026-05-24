@@ -31,7 +31,7 @@ from agent import get_agent
 
 LOG_FILE = Path("data/elengenix_cli.log")
 LOG_FILE.parent.mkdir(exist_ok=True)
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s", handlers=[logging.StreamHandler()])
+logging.basicConfig(level=logging.WARNING, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger("elengenix.cli_textual")
 
 # ── MONOCHROME THEME: Black & White ────────────────────────────────────
