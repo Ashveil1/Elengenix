@@ -185,19 +185,16 @@ class Sidebar(Container):
 
 # ── Thinking Animation ─────────────────────────────────────────────────
 class ThinkingWidget(Static):
+    """Animated thinking indicator — driven by 30fps master tick (no own timer)."""
     DEFAULT_CSS = f"""ThinkingWidget {{ height: 1; padding: 0 1; color: {WHITE}; display: none; }}"""
 
     def on_mount(self) -> None:
         self.frames = ["◐", "◓", "◑", "◒"]
         self.idx = 0
-        self.anim_timer = self.set_interval(0.3, self.tick, pause=True)
-
-    def tick(self) -> None:
-        self.idx = (self.idx + 1) % len(self.frames)
-        self.update(f"[white]{self.frames[self.idx]} thinking[/]")
+        # No timer — animated by app._animate_frame at 30fps
 
     def show(self) -> None:
-        self.add_class("visible"); self.anim_timer.resume()
+        self.add_class("visible")
 
     def hide(self) -> None:
         self.remove_class("visible"); self.anim_timer.pause()
@@ -623,8 +620,7 @@ class ElengenixTextualApp(App):
         self._chat().write(Text.from_markup(f"[dim]{markup}[/]"))
 
     def _chat_write_governance(self, cmd: str, risk: str) -> None:
-        tag = {"SAFE": "", "PRIVILEGED": "[dim]▶ PRIV[/]", "DESTRUCTIVE": "[white]▶ BLOCKED[/]"}.get(risk, "[dim]▶ ?[/]")
-        self._chat().write(Text.from_markup(f"  {tag} [dim]{cmd[:100]}[/]"))
+        """Show governance action in status bar only (not in chat log)."""
         self.query_one("#status_bar", StatusBar).show_action(cmd, risk)
 
     def _chat_write_error(self, markup: str) -> None:
