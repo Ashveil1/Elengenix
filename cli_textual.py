@@ -356,7 +356,7 @@ class ElengenixTextualApp(App):
     # ── Golden ratio layout: φ ≈ 1.618 ───────────────────────────────────
     # chat : sidebar = 1.618 : 1  →  side = 100/2.618 ≈ 38
     CSS = f"""
-    Screen {{ background: {BASE}; layers: base overlay; }}
+    Screen {{ background: {BASE}; layers: base overlay; scrollbar-color: {DIM}; scrollbar-color-hover: {GRAY}; scrollbar-color-active: {WHITE}; }}
     #header {{
         height: 1; background: {BASE}; color: {TEXT};
         content-align: center middle;
