@@ -214,9 +214,8 @@ class ProgressBar(Static):
     DEFAULT_CSS = f"""ProgressBar {{ height: 1; padding: 0 1; background: {MANTLE}; display: none; }}"""
 
     def show_scan(self, tool: str, cur: int, total: int, findings: int) -> None:
-        w = 30; pct = int((cur / max(total, 1)) * w)
-        bar = f"[white]{'█' * pct}[/][dim]{'█' * (w - pct)}[/]"
-        self.update(f"  {bar}  {tool}  [dim]({cur}/{total})[/]  {findings} findings")
+        self.update("")  # animated by smooth progress in _animate_frame
+        self.show()
 
     def show(self) -> None: self.add_class("visible")
     def hide(self) -> None: self.remove_class("visible")
@@ -425,6 +424,19 @@ class ElengenixTextualApp(App):
         self._cached_sidebar: Sidebar | None = None
         self._last_sidebar_update: float = 0.0
 
+        # ── Animation (30fps) ─────────────────────────────────────────
+        self._anim_frame = 0
+        self._header_pulse = 0
+        self._scanline_y = 0
+        self._smooth_progress = 0.0
+        self._displayed_tools = 0
+        self._displayed_findings = 0
+        self._displayed_tokens = 0
+        self._target_tools = 0
+        self._target_findings = 0
+        self._target_tokens = 0
+        self._thinking_dots = 0
+
     def compose(self) -> ComposeResult:
         yield Static(f"  ELENGENIX  [dim]{self.target or '(no target)'}[/]  |  /help", id="header")
         with Horizontal(id="main_row"):
@@ -459,6 +471,12 @@ class ElengenixTextualApp(App):
         self.set_focus(self.query_one("#user_input", Input))
         self._load_agent()
 
+        # ── 30fps animation timers ──────────────────────────────────────
+        self.set_interval(1 / 30, self._animate_frame)
+
+        # Counter animations (update every 60ms = ~16fps, smoother than jump)
+        self.set_interval(1 / 16, self._animate_counters)
+
     @work(thread=True)
     def _load_agent(self) -> None:
         try:
@@ -488,6 +506,72 @@ class ElengenixTextualApp(App):
         except: pass
         self._update_sidebar()
         return self.session_name
+
+    # ── Animations (30fps) ────────────────────────────────────────────────
+
+    def _animate_frame(self) -> None:
+        """30fps master tick — pulsing header, scanline bg."""
+        self._anim_frame += 1
+
+        # Header pulse — subtle brightness shift every 2s
+        if self._anim_frame % 60 == 0:
+            self._header_pulse = (self._header_pulse + 1) % 4
+            shades = ["#ffffff", "#cccccc", "#999999", "#cccccc"]
+            shade = shades[self._header_pulse]
+            try:
+                self.query_one("#header", Static).styles.color = shade
+            except Exception:
+                pass
+
+        # ThinkingWidget tick — override default for 30fps smoothness
+        if self._processing:
+            tw = self.query_one("#thinking_bar", ThinkingWidget)
+            try:
+                frames = ["◐", "◓", "◑", "◒"]
+                tw.idx = (self._anim_frame // 8) % 4
+                tw.update(f"[white]{frames[tw.idx]} thinking[/]")
+            except Exception:
+                pass
+
+        # Smooth progress bar tick
+        if hasattr(self, "_progress_total") and self._progress_total > 0:
+            self._smooth_progress += (self._progress_cur / max(self._progress_total, 1) - self._smooth_progress) * 0.3
+            try:
+                pb = self.query_one("#progress_bar", ProgressBar)
+                w = 30
+                filled = int(self._smooth_progress * w)
+                bar = f"[white]{'█' * filled}[/][dim]{'█' * (w - filled)}[/]"
+                pb.update(f"  {bar}  {self._progress_tool}  [dim]({self._progress_cur}/{self._progress_total})[/]  {self._progress_findings} findings")
+            except Exception:
+                pass
+
+    def _animate_counters(self) -> None:
+        """Smooth counter transitions (~16fps) for sidebar numbers."""
+        changed = False
+
+        # Tools run counter
+        if self._displayed_tools < self._target_tools:
+            self._displayed_tools = min(self._displayed_tools + 1, self._target_tools)
+            changed = True
+        elif self._displayed_tools > self._target_tools:
+            self._displayed_tools = self._target_tools
+            changed = True
+
+        # Findings counter
+        if self._displayed_findings < self._target_findings:
+            self._displayed_findings = min(self._displayed_findings + 1, self._target_findings)
+            changed = True
+        elif self._displayed_findings > self._target_findings:
+            self._displayed_findings = self._target_findings
+            changed = True
+
+        # Token counter (bigger jumps)
+        if self._displayed_tokens < self._target_tokens:
+            self._displayed_tokens = min(self._displayed_tokens + int((self._target_tokens - self._displayed_tokens) * 0.2) + 1, self._target_tokens)
+            changed = True
+
+        if changed:
+            self._update_sidebar()
 
     # ── UI Helpers ───────────────────────────────────────────────────────
     def _chat(self) -> RichLog:
@@ -554,14 +638,21 @@ class ElengenixTextualApp(App):
         except: pass
         em = [m.strip() for m in os.environ.get("ACTIVE_MODELS", "").split(",") if m.strip()]
         if em: models = em[:3]; team = len(models)
+
+        # Update target values for smooth counter animation
+        self._target_tools = self.tools_run
+        self._target_findings = self.findings
+        self._target_tokens = tokens
+
         try:
             self._sidebar().refresh_data(
                 status="thinking" if self._processing else "ready",
                 mode=self.mode, model=model, models=models,
                 session=self.session_name, turns=self.turn_count,
-                tokens=tokens, limit=128000,
+                tokens=self._displayed_tokens, limit=128000,
                 target=self.target, thinking=self.thinking,
-                team=team, tools_run=self.tools_run, findings=self.findings,
+                team=team, tools_run=self._displayed_tools,
+                findings=self._displayed_findings,
                 talk_to=self._talk_to,
             )
         except: pass
@@ -585,6 +676,7 @@ class ElengenixTextualApp(App):
                     if self.mode == "scan" and risk == "SAFE":
                         self.tools_run += 1
                         self.call_from_thread(self._update_sidebar)
+                        # Progress bar is animated smoothly by _animate_frame
                     return orig(ad, cb)
                 self._agent._execute_tool = wrap
             if hasattr(self._agent, "process_universal"):
