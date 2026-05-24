@@ -357,8 +357,8 @@ class ElengenixTextualApp(App):
     # chat : sidebar = 1.618 : 1  →  side = 100/2.618 ≈ 38
     CSS = f"""
     Screen {{ background: {BASE}; layers: base overlay; }}
-    RichLog {{ scrollbar_color: {DIM}; scrollbar_color_hover: {GRAY}; }}
-    Sidebar {{ scrollbar_color: {DIM}; scrollbar_color_hover: {GRAY}; }}
+    RichLog {{ scrollbar_color: {DIM}; scrollbar_color_hover: {GRAY}; scrollbar_color_active: {WHITE}; }}
+    Sidebar {{ scrollbar_color: {DIM}; scrollbar_color_hover: {GRAY}; scrollbar_color_active: {WHITE}; }}
     #header {{
         height: 1; background: {BASE}; color: {TEXT};
         content-align: center middle;
