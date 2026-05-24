@@ -41,3 +41,7 @@ data/governance_audit.db
 # Scan artifacts (output files at repo root only)
 /*.txt
 /*.json
+
+# Generated runtime data
+logs/
+response.html
