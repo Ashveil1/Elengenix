@@ -459,6 +459,7 @@ class ElengenixTextualApp(App):
 
         # ── Theme transition ──────────────────────────────────────────
         self._theme_transition = 0.0  # 0.0 = CHILL, 1.0 = HUNT
+        self._theme_target = "CHILL"
         self._transitioning = False
 
     def compose(self) -> ComposeResult:
@@ -496,6 +497,9 @@ class ElengenixTextualApp(App):
         self._load_agent()
 
         # ── 30fps animation timers ──────────────────────────────────────
+        # Apply initial CHILL theme immediately
+        self._apply_theme(0.0)
+
         self.set_interval(1 / 30, self._animate_frame)
 
         # Counter animations (update every 60ms = ~16fps, smoother than jump)
