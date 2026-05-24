@@ -383,10 +383,11 @@ class ElengenixTextualApp(App):
     }}
     #user_input:focus {{ border-left: thick {WHITE}; }}
     #suggest_box {{
-        height: auto; max-height: 8;
+        height: auto; max-height: 6;
         background: {MANTLE}; color: {TEXT};
-        border: solid {DIM};
-        margin: 1 3 0 3; padding: 1 3 2 3;
+        min-height: 3; border: none;
+        border-left: thick {WHITE};
+        margin: 0 3 0 3; padding: 0 3;
         overflow-y: auto; display: none;
     }}
     """
@@ -731,7 +732,7 @@ class ElengenixTextualApp(App):
         else:
             matches = []
         if matches:
-            box.update("\n".join(f"  [dim]{m}[/]" for m in matches[:12]))
+            box.update("\n".join(f"[dim]{m}[/]" for m in matches[:12]))
             box.styles.display = "block"
         else:
             box.styles.display = "none"
