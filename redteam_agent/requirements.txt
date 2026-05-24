@@ -1,0 +1,8 @@
+# Red Team Agent — Minimal Dependencies
+# Only what is truly needed. No framework bloat.
+
+requests>=2.31.0        # HTTP calls to LLM APIs
+python-dotenv>=1.0.0    # Load .env file
+
+# Optional: faster async HTTP (falls back to requests if not present)
+# httpx
