@@ -71,7 +71,8 @@ HELP_TEXT = """\
   [dim]/clear[/]       Clear chat
   [dim]/reset[/]       Reset session
   [dim]/quit[/]        Exit
-  [dim]/mode <x>[/]    Mode: auto research scan casual
+  [dim]/mode chill[/]  CHILL — chat only (no scan)
+  [dim]/mode hunt[/]   HUNT — chat + full scan
   [dim]/target <x>[/]  Set target domain
   [dim]/talk <n>[/]    Talk to agent 1,2,3 or all
   [dim]/session[/]     Session info
@@ -82,7 +83,7 @@ HELP_TEXT = """\
   [dim]/team[/]        Show team
 
 [white]━━━ SHORTCUTS ━━━[/]
-  [dim]Ctrl+R[/] Research  [dim]Ctrl+B[/] Scan
+  [dim]Ctrl+R[/] Research  [dim]Ctrl+M[/] CHILL/HUNT
   [dim]Ctrl+T[/] Thinking  [dim]Ctrl+P[/] Model
   [dim]Ctrl+G[/] Help      [dim]Ctrl+S[/] Settings
   [dim]↑↓[/] History       [dim]/[/] Slash commands"""
@@ -128,6 +129,7 @@ class Sidebar(Container):
 
         dot = f"[white]●[/]" if status == "ready" else f"[dim]●[/]"
         slabel = "[white]READY[/]" if status == "ready" else "[dim]WORKING[/]"
+        mode_icon = "[white]❄ CHILL[/]" if mode == "CHILL" else "[white]⚔ HUNT[/]"
         think_tag = f"  [dim]THINK[/]" if thinking else ""
         team_tag = f"  [dim]TEAM {team}[/]" if team > 1 else ""
         talk_tag = ""
@@ -154,13 +156,13 @@ class Sidebar(Container):
 
         sidebar_text = (
             f"[white]┌ ELENGENIX[/]\n"
-            f"  {dot} {slabel}{think_tag}{team_tag}{talk_tag}\n"
+            f"  {dot} {mode_icon}  {slabel}{think_tag}{team_tag}{talk_tag}\n"
             f"[dim]─" + "─" * 28 + "[/]\n"
             f"[white]TARGET[/]{target_line}\n"
             f"[dim]─" + "─" * 28 + "[/]\n"
             f"[white]SESSION[/]\n"
             f"  [dim]{session[:20]}[/]\n"
-            f"  Mode: [white]{mode.upper()}[/] [dim]Turns: {turns}[/]\n"
+            f"  Mode: [white]{mode}[/] [dim]Turns: {turns}[/]\n"
             f"[dim]─" + "─" * 28 + "[/]\n"
             f"[white]SCAN[/]\n"
             f"  [dim]Tools:[/] {tools_run}  [dim]Findings:[/] {findings}\n"
@@ -173,7 +175,7 @@ class Sidebar(Container):
             f"  [dim]{tokens}[/dim]/[dim]{limit}[/]  {pct}%\n"
             f"[dim]─" + "─" * 28 + "[/]\n"
             f"[white]SHORTCUTS[/]\n"
-            f"  [dim]Ctrl+R[/] Research [dim]Ctrl+B[/] Scan\n"
+            f"  [dim]Ctrl+R[/] Research [dim]Ctrl+M[/] CHILL/HUNT\n"
             f"  [dim]Ctrl+T[/] Think   [dim]Ctrl+P[/] Model\n"
             f"  [dim]Ctrl+G[/] Help    [dim]Ctrl+S[/] Settings\n"
         )
@@ -395,7 +397,7 @@ class ElengenixTextualApp(App):
 
     BINDINGS = [
         Binding("ctrl+r", "toggle_research", "Research", priority=True),
-        Binding("ctrl+b", "toggle_scan", "Scan", priority=True),
+        Binding("ctrl+m", "toggle_mode", "CHILL/HUNT", priority=True),
         Binding("ctrl+t", "toggle_think", "Think", priority=True),
         Binding("ctrl+p", "show_model", "Model", priority=True),
         Binding("ctrl+g", "show_help", "Help", priority=True),
@@ -407,7 +409,7 @@ class ElengenixTextualApp(App):
         Binding("down", "history_down", "", show=False),
     ]
 
-    def __init__(self, target: str = "", mode: str = "auto", session_id: str = "", **kwargs):
+    def __init__(self, target: str = "", mode: str = "CHILL", session_id: str = "", **kwargs):
         super().__init__(**kwargs)
         self.target        = target
         self.mode          = mode
@@ -443,7 +445,7 @@ class ElengenixTextualApp(App):
         self._thinking_dots = 0
 
     def compose(self) -> ComposeResult:
-        yield Static(f"  ELENGENIX  [dim]{self.target or '(no target)'}[/]  |  /help", id="header")
+        yield Static(f"  ELENGENIX  ❄[dim]CHILL[/]  ⚔[dim]HUNT[/]  {self.target or '(no target)'}[/]  |  /help", id="header")
         with Horizontal(id="main_row"):
             with Vertical(id="chat_col"):
                 yield RichLog(id="chat_area", highlight=True, markup=True, wrap=True, auto_scroll=True, max_lines=2000)
@@ -672,19 +674,23 @@ class ElengenixTextualApp(App):
             if hasattr(self._agent, "_execute_tool"):
                 orig = self._agent._execute_tool
                 def wrap(ad, cb=None):
+                    # CHILL mode blocks all tool/shell execution
+                    if self.mode == "CHILL" and ad.get("action") in ("run_shell", "run_tool", "shell"):
+                        self.call_from_thread(self._chat_write_system, "[dim]tool execution blocked in CHILL mode — Ctrl+M to switch to HUNT[/dim]")
+                        return "__FINISH__"
                     cmd = ad.get("command", "")[:120]
                     risk = "SAFE"
                     try: risk = self._agent.governance.classify_risk(ad)
                     except: pass
                     self.call_from_thread(self._chat_write_governance, cmd, risk)
-                    if self.mode == "scan" and risk == "SAFE":
+                    if self.mode == "HUNT" and risk == "SAFE":
                         self.tools_run += 1
                         self.call_from_thread(self._update_sidebar)
-                        # Progress bar is animated smoothly by _animate_frame
                     return orig(ad, cb)
                 self._agent._execute_tool = wrap
             if hasattr(self._agent, "process_universal"):
-                resp = self._agent.process_universal(text, target=self.target or "", mode=self.mode)
+                agent_mode = "auto" if self.mode == "CHILL" else "bug_bounty"
+                resp = self._agent.process_universal(text, target=self.target or "", mode=agent_mode)
             else:
                 resp = self._agent.process_query(user_input=text, target=self.target or "")
             if resp: self.call_from_thread(self._chat_write_agent, str(resp))
@@ -706,7 +712,7 @@ class ElengenixTextualApp(App):
         if key == "ctrl+s": event.stop(); self.action_show_settings(); return
         if key == "ctrl+t": event.stop(); self.action_toggle_think(); return
         if key == "ctrl+r": event.stop(); self.action_toggle_research(); return
-        if key == "ctrl+b": event.stop(); self.action_toggle_scan(); return
+        if key == "ctrl+m": event.stop(); self.action_toggle_mode(); return
         if key == "ctrl+p": event.stop(); self.action_show_model(); return
         if key == "ctrl+g": event.stop(); self.action_show_help(); return
         if key == "ctrl+c": event.stop(); self.action_app_exit(); return
@@ -714,7 +720,7 @@ class ElengenixTextualApp(App):
     # ── Input ────────────────────────────────────────────────────────────
     SLASH_COMMANDS = [
         "/clear", "/reset", "/quit", "/exit",
-        "/mode auto", "/mode research", "/mode scan", "/mode casual",
+        "/mode chill", "/mode hunt",
         "/target <domain>", "/talk 1", "/talk 2", "/talk 3", "/talk all",
         "/session", "/session new", "/session list", "/session load <id>",
         "/stats", "/team", "/help",
@@ -764,10 +770,10 @@ class ElengenixTextualApp(App):
             self._update_sidebar(); return True
         if low in ("/help", "?"): self.action_show_help(); return True
         if low == "/mode":
-            self._chat_write_system("Modes: auto  research  security_chat  scan  casual"); return True
+            self._chat_write_system("Modes: chill (chat only)  hunt (chat + scan)"); return True
         if low.startswith("/mode "):
-            v = text.split(" ", 1)[1].strip()
-            if v in ("auto","research","security_chat","scan","casual"):
+            v = text.split(" ", 1)[1].strip().upper()
+            if v in ("CHILL", "HUNT"):
                 self.mode = v; self._update_sidebar(); self._chat_write_system(f"Mode: {v}")
             return True
         if low.startswith("/target"):
@@ -878,10 +884,10 @@ class ElengenixTextualApp(App):
         self._update_sidebar()
         self._chat_write_system(f"[dim]Research: {'ON' if self.mode == 'research' else 'OFF'}[/]")
 
-    def action_toggle_scan(self) -> None:
-        self.mode = "scan" if self.mode != "scan" else "auto"
+    def action_toggle_mode(self) -> None:
+        self.mode = "HUNT" if self.mode != "HUNT" else "CHILL"
         self._update_sidebar()
-        self._chat_write_system(f"[dim]Scan: {'ON' if self.mode == 'scan' else 'OFF'}[/]")
+        self._chat_write_system(f"[white]{'HUNT' if self.mode == 'HUNT' else 'CHILL'}[/] mode")
 
     def action_toggle_think(self) -> None:
         self.thinking = not self.thinking
