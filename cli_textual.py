@@ -171,6 +171,11 @@ class Sidebar(Container):
             f"[white]CONTEXT[/]\n"
             f"  {bar}\n"
             f"  [dim]{tokens}[/dim]/[dim]{limit}[/]  {pct}%\n"
+            f"[dim]─" + "─" * 28 + "[/]\n"
+            f"[white]SHORTCUTS[/]\n"
+            f"  [dim]Ctrl+R[/] Research [dim]Ctrl+B[/] Scan\n"
+            f"  [dim]Ctrl+T[/] Think   [dim]Ctrl+P[/] Model\n"
+            f"  [dim]Ctrl+G[/] Help    [dim]Ctrl+S[/] Settings\n"
         )
         try:
             self.query_one("#sidebar_content", Static).update(sidebar_text)
