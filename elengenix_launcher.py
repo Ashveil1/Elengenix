@@ -194,7 +194,7 @@ class ElengenixApp:
 
     # Commands that delegate to main.py (full Rich/heavy-import pipeline)
     DELEGATE_TO_MAIN = {
-        "ai", "cli", "universal", "autonomous",
+        "ai", "cli", "tui", "cli-textual", "clitest", "cli-legacy", "universal", "autonomous",
         "recon", "scan", "bola", "waf", "evasion",
         "research", "poc", "sast", "cloud", "mobile", "soc",
         "report", "memory", "history", "dashboard", "cve-update",
