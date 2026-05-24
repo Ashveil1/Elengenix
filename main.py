@@ -141,7 +141,7 @@ def main():
         "report", "menu", "auto", "help", "bb", "check", "test", "red", "pdf",
         "hack", "hunt", "research", "poc", "autonomous", "welcome", "quick", "deep",
         "bounty", "stealth", "api", "web", "profile", "history", "programs",
-        "intel", "mission", "pause", "resume", "cli", "cli-textual", "cli-legacy", "clitest",
+        "intel", "mission", "pause", "resume", "cli", "tui", "cli-textual", "cli-legacy", "clitest",
         # New unified commands
         "sast", "cloud", "mobile", "soc", "dashboard",
     ]
@@ -247,7 +247,7 @@ def main():
 
     # Auto-detect mode (default) - Smart routing based on target
     # Auto-detect mode — skip for explicit commands
-    explicit_commands = {"scan", "ai", "cli", "hunt", "recon", "sast", "cloud", "mobile", "soc", "bola", "waf"}
+    explicit_commands = {"scan", "ai", "cli", "tui", "hunt", "recon", "sast", "cloud", "mobile", "soc", "bola", "waf"}
     if args.command == "auto" or (args.command and args.target and args.command not in explicit_commands):
         # If we have both command and target, or just target without specific command
         effective_target = args.target or args.command
@@ -549,7 +549,7 @@ def main():
             from cli_textual import main as cli_textual_main
             cli_textual_main()
 
-        elif args.command in ("cli-textual", "clitest"):
+        elif args.command in ("tui", "cli-textual", "clitest"):
             from cli_textual import main as cli_textual_main
             cli_textual_main()
 
