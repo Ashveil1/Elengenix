@@ -34,29 +34,41 @@ LOG_FILE.parent.mkdir(exist_ok=True)
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger("elengenix.cli_textual")
 
-# ── MONOCHROME THEME: Black & White ────────────────────────────────────
+# ── DUAL THEME: CHILL (white) ──────────────────────────────────────────
 BASE    = "#000000"
 MANTLE  = "#111111"
 CRUST   = "#0d0d0d"
 SURFACE = "#1a1a1a"
 TEXT    = "#ffffff"
-SUBTEXT = "#cccccc"
 MUTED   = "#555555"
 DIM     = "#444444"
-WHITE   = "#ffffff"
 GRAY    = "#888888"
 
-COLOR_OK    = WHITE
-COLOR_WARN  = WHITE
-COLOR_ERR   = WHITE
-COLOR_INFO  = WHITE
-COLOR_ACCENT= WHITE
-COLOR_DIM   = GRAY
-COLOR_MUTED = MUTED
-COLOR_BORDER = "#333333"
+# ── DUAL THEME: HUNT (red) ────────────────────────────────────────────
+H_BASE    = "#0a0000"
+H_MANTLE  = "#150505"
+H_CRUST   = "#0d0202"
+H_SURFACE = "#1a0808"
+H_TEXT    = "#ffcccc"
+H_MUTED   = "#553333"
+H_DIM     = "#662222"
+H_GRAY    = "#995555"
+H_RED     = "#ff2222"
+H_BRIGHT  = "#ff6666"
 
 AGENT_NAMES  = {1: "Elengix 1", 2: "Elengix 2", 3: "Elengix 3"}
-AGENT_COLORS = {1: WHITE, 2: GRAY, 3: MUTED}
+AGENT_COLORS = {1: TEXT, 2: GRAY, 3: MUTED}
+
+CHILL_COLORS = {
+    "BASE": BASE, "MANTLE": MANTLE, "CRUST": CRUST, "SURFACE": SURFACE,
+    "TEXT": TEXT, "MUTED": MUTED, "DIM": DIM, "GRAY": GRAY,
+    "WHITE": TEXT, "BORDER": DIM, "ACCENT": TEXT,
+}
+HUNT_COLORS = {
+    "BASE": H_BASE, "MANTLE": H_MANTLE, "CRUST": H_CRUST, "SURFACE": H_SURFACE,
+    "TEXT": H_TEXT, "MUTED": H_MUTED, "DIM": H_DIM, "GRAY": H_GRAY,
+    "WHITE": H_RED, "BORDER": H_DIM, "ACCENT": H_BRIGHT,
+}
 
 ASCII_BANNER = """
     [white]███████╗██╗     ███████╗███╗   ██╗ ██████╗ ███████╗███╗   ██╗██╗██╗  ██╗
@@ -444,6 +456,10 @@ class ElengenixTextualApp(App):
         self._target_tokens = 0
         self._thinking_dots = 0
 
+        # ── Theme transition ──────────────────────────────────────────
+        self._theme_transition = 0.0  # 0.0 = CHILL, 1.0 = HUNT
+        self._transitioning = False
+
     def compose(self) -> ComposeResult:
         yield Static(f"  ELENGENIX  ❄[dim]CHILL[/]  ⚔[dim]HUNT[/]  {self.target or '(no target)'}[/]  |  /help", id="header")
         with Horizontal(id="main_row"):
@@ -516,21 +532,89 @@ class ElengenixTextualApp(App):
 
     # ── Animations (30fps) ────────────────────────────────────────────────
 
+    @staticmethod
+    def _lerp_color(a: str, b: str, t: float) -> str:
+        """Linear interpolate between two hex colors."""
+        if t <= 0: return a
+        if t >= 1: return b
+        ah = tuple(int(a[i:i+2], 16) for i in (1, 3, 5))
+        bh = tuple(int(b[i:i+2], 16) for i in (1, 3, 5))
+        return f"#{int(ah[0]+(bh[0]-ah[0])*t):02x}{int(ah[1]+(bh[1]-ah[1])*t):02x}{int(ah[2]+(bh[2]-ah[2])*t):02x}"
+
+    def _theme_at(self, t: float, key: str) -> str:
+        """Get interpolated color value for a theme key at transition point t."""
+        return self._lerp_color(CHILL_COLORS[key], HUNT_COLORS[key], t)
+
+    def _apply_theme(self, t: float) -> None:
+        """Apply theme transition to all visible widgets."""
+        try:
+            h = self.query_one("#header", Static)
+            h.styles.color = self._theme_at(t, "TEXT")
+            h.styles.background = self._theme_at(t, "BASE")
+            h.styles.border_bottom = f"solid {self._theme_at(t, 'DIM')}"
+
+            ca = self.query_one("#chat_area", RichLog)
+            ca.styles.background = self._theme_at(t, "BASE")
+
+            sb = self.query_one("#status_bar", StatusBar)
+            sb.styles.background = self._theme_at(t, "CRUST")
+            sb.styles.color = self._theme_at(t, "MUTED")
+
+            inp = self.query_one("#user_input", Input)
+            inp.styles.background = self._theme_at(t, "MANTLE")
+            inp.styles.color = self._theme_at(t, "TEXT")
+            inp.styles.border_left = f"thick {self._theme_at(t, 'WHITE')}"
+
+            ir = self.query_one("#input_row")
+            ir.styles.background = self._theme_at(t, "BASE")
+            ir.styles.border_left = f"thick {self._theme_at(t, 'WHITE')}"
+            ir.styles.border_top = f"solid {self._theme_at(t, 'DIM')}"
+            ir.styles.border_bottom = f"solid {self._theme_at(t, 'DIM')}"
+
+            sd = self.query_one("#sidebar", Sidebar)
+            sd.styles.background = self._theme_at(t, "MANTLE")
+            sd.styles.border_left = f"solid {self._theme_at(t, 'DIM')}"
+
+            tw = self.query_one("#thinking_bar", ThinkingWidget)
+            tw.styles.color = self._theme_at(t, "ACCENT")
+
+            pb = self.query_one("#progress_bar", ProgressBar)
+            pb.styles.background = self._theme_at(t, "MANTLE")
+        except Exception:
+            pass
+
     def _animate_frame(self) -> None:
-        """30fps master tick — pulsing header, scanline bg."""
+        """30fps master tick — theme transition, pulsing header, spinner."""
         self._anim_frame += 1
 
-        # Header pulse — subtle brightness shift every 2s
+        # ── Theme transition (smooth lerp over ~30 frames / 1s) ──────
+        if self._transitioning:
+            if self._theme_target == "HUNT":
+                self._theme_transition = min(1.0, self._theme_transition + 0.033)
+                if self._theme_transition >= 1.0:
+                    self._theme_transition = 1.0
+                    self._transitioning = False
+            else:
+                self._theme_transition = max(0.0, self._theme_transition - 0.033)
+                if self._theme_transition <= 0.0:
+                    self._theme_transition = 0.0
+                    self._transitioning = False
+            self._apply_theme(self._theme_transition)
+
+        # Header pulse — subtle brightness/red shift every 2s
         if self._anim_frame % 60 == 0:
             self._header_pulse = (self._header_pulse + 1) % 4
-            shades = ["#ffffff", "#cccccc", "#999999", "#cccccc"]
+            if self._theme_transition > 0.5:
+                shades = ["#ff6666", "#ff4444", "#ff2222", "#ff4444"]
+            else:
+                shades = ["#ffffff", "#cccccc", "#999999", "#cccccc"]
             shade = shades[self._header_pulse]
             try:
                 self.query_one("#header", Static).styles.color = shade
             except Exception:
                 pass
 
-        # ThinkingWidget tick — override default for 30fps smoothness
+        # ThinkingWidget tick — 30fps smoothness
         if self._processing:
             tw = self.query_one("#thinking_bar", ThinkingWidget)
             try:
@@ -885,9 +969,13 @@ class ElengenixTextualApp(App):
         self._chat_write_system(f"[dim]Research: {'ON' if self.mode == 'research' else 'OFF'}[/]")
 
     def action_toggle_mode(self) -> None:
-        self.mode = "HUNT" if self.mode != "HUNT" else "CHILL"
+        new_mode = "HUNT" if self.mode != "HUNT" else "CHILL"
+        self.mode = new_mode
+        self._theme_target = new_mode
+        self._transitioning = True
         self._update_sidebar()
-        self._chat_write_system(f"[white]{'HUNT' if self.mode == 'HUNT' else 'CHILL'}[/] mode")
+        icon = "⚔ HUNT" if new_mode == "HUNT" else "❄ CHILL"
+        self._chat_write_system(f"[white]{icon}[/] mode")
 
     def action_toggle_think(self) -> None:
         self.thinking = not self.thinking
