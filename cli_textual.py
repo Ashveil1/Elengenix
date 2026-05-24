@@ -376,19 +376,18 @@ class ElengenixTextualApp(App):
         background: {BASE};
         border-top: solid {DIM};
         border-bottom: solid {DIM};
+        border-left: thick {WHITE};
     }}
     #user_input {{
         height: 3; border: none;
-        border-left: thick {WHITE};
         background: {MANTLE}; color: {TEXT};
         padding: 0 3 0 3;
     }}
-    #user_input:focus {{ border-left: thick {WHITE}; }}
+    #user_input:focus {{ border: none; }}
     #suggest_box {{
         height: auto; max-height: 6;
         background: {MANTLE}; color: {TEXT};
-        min-height: 3; border: none;
-        border-left: thick {WHITE};
+        min-height: 0; border: none;
         margin: 0 3 0 3; padding: 0 3;
         overflow-y: auto; display: none;
     }}
