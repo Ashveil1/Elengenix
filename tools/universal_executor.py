@@ -386,27 +386,18 @@ class UniversalExecutor:
     Universal AI Agent Executor.
     Combines file editing, package management, and flexible shell execution.
     """
-    
-    # Flexible allowlist - allows more than just security tools
-    DANGEROUS_PATTERNS = [
-        r"rm\s+-rf\s+/",
-        r"dd\s+if=.*of=/dev/[sh]d",
-        r"mkfs\.\w+\s+/dev",
-        r">\s*/dev/[sh]d",
-        r":\(\)\{\s*:\|:&\};:",  # Fork bomb
-        r"curl.*\|.*sh",  # Pipe to shell
-        r"wget.*\|.*sh",
-    ]
-    
+
     def __init__(self, base_dir: str = None):
         self.file_editor = FileEditor(base_dir)
         self.package_manager = PackageManager()
         self.execution_history: List[Dict] = []
-    
+        from tools.governance import Governance
+        self._governance = Governance(require_approval_high_risk=True)
+
     def is_safe_command(self, command: str) -> tuple[bool, str]:
         """Check if command is safe to execute.
 
-        Uses Governance classification:
+        Uses canonical Governance classification:
           DESTRUCTIVE → blocked
           PRIVILEGED  → needs interactive approval (handled by caller)
           SAFE        → allowed
@@ -414,40 +405,58 @@ class UniversalExecutor:
         if not command or not command.strip():
             return False, "Empty command"
 
-        # Block dangerous patterns unconditionally
-        for pattern in self.DANGEROUS_PATTERNS:
-            if re.search(pattern, command, re.IGNORECASE):
-                return False, f"Blocked dangerous pattern: {pattern}"
+        # Delegate to canonical Governance (single source of truth)
+        action = {"type": "run_shell", "command": command}
+        result = self._governance.gate(
+            mission_id="universal_executor",
+            target="unknown",
+            action=action,
+        )
+
+        if result.decision == "deny":
+            return False, result.rationale
 
         try:
             shlex.split(command.strip())
         except ValueError as e:
             return False, f"Parse error: {e}"
 
-        # Everything else is allowed (privileged actions gated by the caller)
+        # SAFE or needs_approval — caller gates privileged
         return True, ""
     
-    def execute_shell(self, command: str, timeout: int = 300, cwd: str = None) -> ExecutionResult:
-        """Execute shell command with safety checks."""
+    def execute_shell(self, command: str, timeout: int = 300, cwd: str = None, agent_id: int = -1) -> ExecutionResult:
+        """Execute shell command with native shell support (shell=True).
+        
+        Uses shell=True for full pipeline and scripting flexibility.
+        When agent_id is provided, creates an isolated working directory
+        to prevent multi-agent file conflicts.
+        
+        Args:
+            command: Shell command string (supports pipes, redirects, etc.)
+            timeout: Maximum execution time in seconds
+            cwd: Working directory override
+            agent_id: Agent identifier for workspace isolation (-1 = no isolation)
+        """
         safe, reason = self.is_safe_command(command)
         if not safe:
             return ExecutionResult(False, "", reason, "shell", {"command": command})
         
-        # Handle pipes: split on | and chain subprocesses
-        if "|" in command:
-            stages = [s.strip() for s in command.split("|") if s.strip()]
-            if not stages:
-                return ExecutionResult(False, "", "Empty pipeline", "shell", {"command": command})
-            return self._execute_pipeline(stages, timeout, cwd)
+        # Agent workspace isolation: each agent gets its own temp dir
+        work_dir = cwd
+        if agent_id >= 0 and not cwd:
+            from pathlib import Path
+            agent_dir = Path("data") / "team_workspaces" / f"agent_{agent_id}"
+            agent_dir.mkdir(parents=True, exist_ok=True)
+            work_dir = str(agent_dir)
         
         try:
             result = subprocess.run(
-                shlex.split(command),
+                command,
                 capture_output=True,
                 text=True,
                 timeout=timeout,
-                shell=False,
-                cwd=cwd
+                shell=True,
+                cwd=work_dir
             )
             
             output = result.stdout
@@ -459,7 +468,8 @@ class UniversalExecutor:
                 "command": command,
                 "timestamp": datetime.now(timezone.utc).isoformat(),
                 "success": result.returncode == 0,
-                "exit_code": result.returncode
+                "exit_code": result.returncode,
+                "agent_id": agent_id,
             })
             
             return ExecutionResult(
@@ -470,7 +480,8 @@ class UniversalExecutor:
                 {
                     "command": command,
                     "exit_code": result.returncode,
-                    "duration": timeout
+                    "duration": timeout,
+                    "agent_id": agent_id,
                 }
             )
         except subprocess.TimeoutExpired:
@@ -478,53 +489,8 @@ class UniversalExecutor:
         except Exception as e:
             return ExecutionResult(False, "", str(e), "shell", {"command": command})
 
-    def _execute_pipeline(self, stages: list, timeout: int, cwd: str = None) -> ExecutionResult:
-        """Execute a pipeline of commands connected by pipes."""
-        if not stages:
-            return ExecutionResult(False, "", "Empty pipeline", "shell", {"pipeline": stages})
-        try:
-            processes = []
-            prev_stdout = None
-            for i, stage in enumerate(stages):
-                proc = subprocess.Popen(
-                    shlex.split(stage),
-                    stdin=prev_stdout,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    text=True,
-                    cwd=cwd,
-                    shell=False,
-                )
-                processes.append(proc)
-                prev_stdout = proc.stdout
-
-            last_proc = processes[-1]
-            stdout, stderr = last_proc.communicate(timeout=timeout)
-
-            success = True
-            stderr_output = stderr or ""
-            for proc in processes:
-                try:
-                    proc.wait(timeout=5)
-                    if proc.returncode != 0:
-                        success = False
-                except subprocess.TimeoutExpired:
-                    proc.kill()
-                    success = False
-
-            output = stdout or ""
-            if stderr_output and not success:
-                output += f"\n[STDERR]: {stderr_output}"
-
-            return ExecutionResult(
-                success, output[:10000],
-                "" if success else f"Pipeline stage failed",
-                "shell", {"pipeline": stages}
-            )
-        except subprocess.TimeoutExpired:
-            return ExecutionResult(False, "", f"Pipeline timeout after {timeout}s", "shell", {"pipeline": stages})
-        except Exception as e:
-            return ExecutionResult(False, "", f"Pipeline error: {e}", "shell", {"pipeline": stages})
+    # NOTE: _execute_pipeline is no longer needed — shell=True handles
+    # pipes, redirects, and command chaining natively.
 
     def execute_action(self, action: Dict[str, Any]) -> ExecutionResult:
         """
@@ -576,7 +542,8 @@ class UniversalExecutor:
             return self.execute_shell(
                 params.get("command"),
                 params.get("timeout", 300),
-                params.get("cwd")
+                params.get("cwd"),
+                agent_id=params.get("agent_id", -1)
             )
 
         elif action_type == "run_tool":
@@ -761,6 +728,105 @@ class UniversalExecutor:
                 return ExecutionResult(True, output, "", "check_takeover", {"vulnerable": bool(result)})
             except Exception as e:
                 return ExecutionResult(False, "", str(e), "check_takeover", params)
+
+        elif action_type == "ask_user":
+            question = params.get("question", "")
+            input_type = params.get("input_type", "confirm")
+            
+            if not question:
+                return ExecutionResult(False, "", "No question provided", "ask_user", params)
+            
+            # Send Telegram notification first
+            try:
+                from bot_utils import send_telegram_notification
+                send_telegram_notification(f"[ASK_USER] {question}")
+            except Exception:
+                pass  # Telegram optional
+            
+            # Check if running in non-interactive mode
+            import sys
+            if not sys.stdin.isatty():
+                return ExecutionResult(False, "", "Non-interactive mode - cannot ask user", "ask_user", params)
+            
+            # Format the question for user
+            if input_type == "confirm":
+                prompt = f"\n[?] {question} [y/N]: "
+            elif input_type == "password":
+                import getpass
+                prompt = f"\n[?] {question}: "
+                answer = getpass.getpass(prompt)
+                # Save to memory
+                from tools.vector_memory import remember
+                remember(f"User provided password for: {question}", "system", "user_input")
+                # Notify via Telegram
+                try:
+                    from bot_utils import send_telegram_notification
+                    send_telegram_notification("[ASK_USER] Password received (hidden)")
+                except Exception:
+                    pass
+                return ExecutionResult(True, "Password received (hidden)", "", "ask_user", {"question": question})
+            else:
+                prompt = f"\n[?] {question}: "
+            
+            # Get user input
+            try:
+                answer = input(prompt).strip()
+            except EOFError:
+                return ExecutionResult(False, "", "EOF reading input", "ask_user", params)
+            except Exception as e:
+                return ExecutionResult(False, "", f"Input error: {e}", "ask_user", params)
+            
+            # Save to memory
+            from tools.vector_memory import remember
+            remember(f"User answered: {answer} to question: {question}", "system", "user_input")
+            
+            # Notify Telegram of answer
+            try:
+                from bot_utils import send_telegram_notification
+                send_telegram_notification(f"[USER_REPLY] {answer}")
+            except Exception:
+                pass
+            
+            return ExecutionResult(True, answer, "", "ask_user", {"question": question, "answer": answer})
+
+        elif action_type == "submit_findings":
+            findings = params.get("findings", [])
+            target = params.get("target", "")
+            
+            if not findings:
+                return ExecutionResult(False, "", "No findings provided", "submit_findings", params)
+            
+            # Save each finding to memory
+            from tools.vector_memory import remember
+            saved_count = 0
+            for finding in findings:
+                finding_type = finding.get("type", "unknown")
+                endpoint = finding.get("endpoint", "")
+                severity = finding.get("severity", "unknown")
+                description = finding.get("description", "")
+                
+                remember(
+                    f"Finding: {finding_type} at {endpoint} - {description}",
+                    target,
+                    "finding",
+                    severity=severity
+                )
+                saved_count += 1
+            
+            return ExecutionResult(
+                True,
+                f"Saved {saved_count} findings to memory",
+                "",
+                "submit_findings",
+                {"count": saved_count, "target": target}
+            )
+
+        elif action_type == "web_search":
+            query = params.get("query", "")
+            if not query:
+                return ExecutionResult(False, "", "No query specified", "web_search", params)
+            # Map web_search to search_web
+            return self.execute_action({"type": "search_web", "params": params})
 
         else:
             return ExecutionResult(

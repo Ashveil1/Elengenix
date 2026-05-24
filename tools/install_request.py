@@ -1,8 +1,8 @@
 """
 tools/install_request.py — AI Tool Installation Request System (v99999 (god nine is the best))
 
-เมื่อ AI คิดว่าควรใช้ tool ไหน แต่ยังไม่ติดตั้ง → ขอให้ผู้ใช้ยืนยัน
-แล้ว auto-install ให้
+When AI determines a tool is needed but not installed, ask the user to confirm,
+then auto-install it.
 
 Author: Elengenix Project
 """
@@ -38,13 +38,13 @@ class InstallRequest:
 
 class InstallManager:
     """
-    จัดการคำขอติดตั้ง tools จาก AI
+    Manages tool installation requests from AI.
     
     Flow:
-    1. AI ขอติดตั้ง tool
-    2. ผู้ใช้ยืนยัน (yes/no)
-    3. ติดตั้งอัตโนมัติ
-    4. รายงานผล
+    1. AI requests tool installation
+    2. User confirms (yes/no)
+    3. Auto-install
+    4. Report results
     """
     
     def __init__(self):
@@ -54,13 +54,13 @@ class InstallManager:
     def request(self, tool_name: str, description: str, 
                 install_command: str, reason: str = "") -> InstallRequest:
         """
-        สร้างคำขอติดตั้ง
+        Create an install request.
         
         Args:
-            tool_name: ชื่อ tool
-            description: คำอธิบาย
-            install_command: คำสั่งติดตั้ง
-            reason: เหตุผลที่ต้องติดตั้ง
+            tool_name: Tool name
+            description: Tool description
+            install_command: Install command
+            reason: Reason for installation
             
         Returns:
             InstallRequest object
@@ -76,7 +76,7 @@ class InstallManager:
         return req
     
     def confirm_install(self, req: InstallRequest) -> bool:
-        """ยืนยันและติดตั้ง tool (ลบออกจาก pending หลังยืนยัน)"""
+        """Confirm and install tool (remove from pending after confirmation)."""
         from tools.skill_registry import get_skill_registry
         
         req.confirmed = True
@@ -98,15 +98,15 @@ class InstallManager:
         return success
     
     def get_pending_requests(self) -> List[InstallRequest]:
-        """คืนค่า requests ที่ยังไม่ confirm"""
+        """Return requests that have not been confirmed."""
         return [r for r in self.requests if not r.confirmed]
     
     def get_installed(self) -> List[str]:
-        """คืนค่า tools ที่ติดตั้งแล้ว"""
+        """Return installed tools."""
         return self.installed
     
     def format_pending_for_display(self) -> str:
-        """จัดรูปแบบ pending requests สำหรับแสดงใน UI"""
+        """Format pending requests for UI display."""
         pending = self.get_pending_requests()
         if not pending:
             return ""

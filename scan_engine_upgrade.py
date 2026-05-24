@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-import threading
 import time as time_module
 from pathlib import Path
 from dataclasses import dataclass, field, asdict
@@ -30,31 +29,7 @@ from tools.tool_registry import registry, ToolResult
 console = Console()
 logger = logging.getLogger("scan_engine_upgrade")
 
-# ── Shared Persistent Event Loop ──────────────────────────
-_SHARED_LOOP: Optional[asyncio.AbstractEventLoop] = None
-_SHARED_LOOP_LOCK: threading.Lock = threading.Lock()
-_SHARED_LOOP_THREAD: Optional[threading.Thread] = None
-
-
-def _get_shared_loop() -> asyncio.AbstractEventLoop:
-    """Get or create the module-level persistent event loop."""
-    global _SHARED_LOOP, _SHARED_LOOP_THREAD
-    with _SHARED_LOOP_LOCK:
-        if _SHARED_LOOP is None:
-            _SHARED_LOOP = asyncio.new_event_loop()
-
-            def _run_forever(loop: asyncio.AbstractEventLoop) -> None:
-                asyncio.set_event_loop(loop)
-                loop.run_forever()
-
-            _SHARED_LOOP_THREAD = threading.Thread(
-                target=_run_forever,
-                args=(_SHARED_LOOP,),
-                daemon=True,
-                name="scan-engine-event-loop",
-            )
-            _SHARED_LOOP_THREAD.start()
-        return _SHARED_LOOP
+from tools.event_loop import get_shared_loop
 
 # ── Constants ────────────────────────────────────────────────
 STATE_DIR = Path("data/scan_state")
@@ -572,7 +547,7 @@ def run_smart_scan_sync(
             target, report_dir, tools, rate_limit, correlate,
         )
 
-    loop = _get_shared_loop()
+    loop = get_shared_loop()
     future = asyncio.run_coroutine_threadsafe(_run(), loop)
     return future.result(timeout=600)
 

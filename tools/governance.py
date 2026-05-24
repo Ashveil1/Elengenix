@@ -83,24 +83,32 @@ class Governance:
     """
 
     # ── Patterns: if matched → DESTRUCTIVE (blocked) ──────────────────
+    # Covers: all rm variants, shred, wipe, srm, disk operations, fork bombs
     _DESTRUCTIVE = re.compile(
-        r"rm\s+(-rf|--recursive)\s+/"
-        r"|rm\s+(.*-rf.*|.*--recursive.*)"
-        r"|rmdir\s+"
-        r"|unlink\s+"
+        # --- File deletion (all forms) ---
+        r"\brm\s+"                          # any rm command at all
+        r"|\bshred\s+"                      # secure file shredding
+        r"|\bwipe\s+"                       # disk/file wipe utility
+        r"|\bsrm\s+"                        # secure rm
+        # --- Disk / partition destruction ---
         r"|dd\s+if=.*of=\/dev"
+        r"|dd\s+if=/dev/urandom"
+        r"|dd\s+if=/dev/zero"
         r"|mkfs\.[a-z0-9]+\s+/dev"
-        r"|>\s*/dev/sd"
+        r"|>\s*/dev/[sh]d"
+        r"|fdisk\s+/dev"
+        r"|parted\s+/dev"
+        r"|mkswap\s+/dev"
+        # --- Fork bomb / system halt ---
         r"|:\s*\(\s*\)\s*\{\s*:\|:\&\s*\};"
         r"|chmod\s+777\s+/\s*$"
         r"|chown\s+.*\s+/\s*$"
         r"|shutdown\s+-[rh]\s+now"
-        r"|reboot\s*$"
-        r"|halt\s*$"
-        r"|dd\s+if=/dev/urandom"
-        r"|fdisk\s+/dev"
-        r"|parted\s+/dev"
-        r"|mkswap\s+/dev"
+        r"|\breboot\s*$"
+        r"|\bhalt\s*$"
+        # --- Pipe to shell (supply chain risk) ---
+        r"|curl\s+.*\|\s*(ba?sh|sh|zsh)"
+        r"|wget\s+.*\|\s*(ba?sh|sh|zsh)"
         , re.IGNORECASE,
     )
 

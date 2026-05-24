@@ -3,7 +3,7 @@
 # ============================================================
 #   Elengenix - Professional Termux Mobile Installer
 #   Optimized for Android / Mobile Security Research
-#   Version: 2.0.0 (Universal Agent Edition)
+#   Version: 99999 (Universal God Nine Edition)
 # ============================================================
 
 set -e

@@ -201,13 +201,13 @@ def get_target_summary(target: str, max_chars: int = 2000) -> str:
 
 # Patterns to auto-detect preference setting
 _PREF_PATTERNS = [
-    # "เรียกฉันว่า ash" / "call me ash" / "my name is ash"
+    # "call me ash" / "my name is ash"
     (r"(?:เรียก(?:ผม|ฉัน|หนู|ข้าพเจ้า)?(?:ว่า)?|call me|my name is)\s+(\w+)", "user_name"),
-    # "ตอบภาษาไทย" / "reply in thai" / "respond in english"
+    # "reply in thai" / "respond in english"
     (r"(?:ตอบ|พูด|respond|reply|answer|speak)\s+(?:เป็น|in|ใน)?\s*(ไทย|thai|english|อังกฤษ)", "language"),
-    # "ให้กระชับ" / "be concise" / "give short answers"
+    # "be concise" / "give short answers"
     (r"(?:ให้|be|give)\s*(?:กระชับ|concise|brief|short)", "response_style", "concise"),
-    # "ตอบละเอียด" / "be detailed"
+    # "be detailed"
     (r"(?:ตอบ|be)\s*(?:ละเอียด|detailed|comprehensive)", "response_style", "detailed"),
 ]
 
@@ -255,7 +255,7 @@ def build_user_context_block(target: str = "") -> str:
     if prefs.get("language"):
         lang = prefs["language"]
         if lang == "thai":
-            lines.append("Always respond in Thai (ภาษาไทย).")
+            lines.append("Always respond in Thai.")
         else:
             lines.append(f"Respond in {lang}.")
     if prefs.get("response_style"):

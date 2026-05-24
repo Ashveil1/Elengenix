@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import json
 import logging
+logger = logging.getLogger("elengenix.protocol")
 import re
 import struct
 from dataclasses import dataclass, field
@@ -192,8 +193,8 @@ class MQTTAnalyzer:
                     idx += 2
                     result["username"] = data[idx:idx+user_len].decode('utf-8', errors='ignore')
                     idx += user_len
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug(f"protocol_analyzer error: {e}")
             
             # Password
             if result["password_flag"] and len(data) > idx:
@@ -201,8 +202,8 @@ class MQTTAnalyzer:
                     pass_len = struct.unpack("!H", data[idx:idx+2])[0]
                     idx += 2
                     result["password"] = data[idx:idx+pass_len].decode('utf-8', errors='ignore')
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug(f"protocol_analyzer error: {e}")
             
             return result
             
@@ -235,8 +236,8 @@ class MQTTAnalyzer:
                     msg_id = struct.unpack("!H", data[idx:idx+2])[0]
                     idx += 2
                     result["message_id"] = msg_id
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug(f"protocol_analyzer error: {e}")
             
             # Payload
             if len(data) > idx:
@@ -245,7 +246,7 @@ class MQTTAnalyzer:
                 # Try to decode as text
                 try:
                     result["payload_text"] = payload.decode('utf-8', errors='ignore')[:200]
-                except Exception:
+                except Exception as e:
                     result["payload_hex"] = payload[:50].hex()
             
             return result
@@ -583,7 +584,7 @@ class ProtobufAnalyzer:
             
             return field_count > 0 and field_count < 100
             
-        except Exception:
+        except Exception as e:
             return False
     
     def parse_protobuf(self, data: bytes, max_depth: int = 3) -> List[Dict[str, Any]]:
@@ -657,8 +658,8 @@ class ProtobufAnalyzer:
                             text = payload.decode('utf-8')
                             if all(c.isprintable() or c.isspace() for c in text):
                                 field_info["as_string"] = text[:100]
-                        except Exception:
-                            pass
+                        except Exception as e:
+                            logger.debug(f"protocol_analyzer error: {e}")
                         
                         # Check for nested protobuf
                         if length > 2 and self.is_protobuf(payload):
@@ -827,7 +828,7 @@ class ProtocolAnalyzer:
         """Analyze hex dump string."""
         try:
             data = bytes.fromhex(hex_data.replace(' ', '').replace('\n', ''))
-        except Exception:
+        except Exception as e:
             return {"error": "Invalid hex data"}
         
         protocol = self.detect_protocol(data)

@@ -82,8 +82,8 @@ def _discover_endpoint(base_url: str, timeout: int = 8) -> Optional[str]:
                 ct = r.headers.get("Content-Type", "")
                 if "json" in ct and ("graphql" in r.text.lower() or "query" in r.text.lower()):
                     return url
-        except Exception:
-            continue
+        except Exception as e:
+            logger.debug(f"graphql_scanner error: {e}")
     return None
 
 
@@ -235,8 +235,8 @@ def scan_graphql(target: str, headers: Dict = None) -> List[Dict[str, Any]]:
                 "source": "graphql_scanner",
                 "url": endpoint,
             })
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug(f"graphql_scanner error: {e}")
 
     # Test 4: Depth limit (circular query)
     try:
@@ -257,8 +257,8 @@ def scan_graphql(target: str, headers: Dict = None) -> List[Dict[str, Any]]:
                 "source": "graphql_scanner",
                 "url": endpoint,
             })
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug(f"graphql_scanner error: {e}")
 
     # Test 5: Deprecated fields count
     deprecated_count = 0

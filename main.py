@@ -29,8 +29,6 @@ except ImportError:
 # --- Rich & Interactive UI ---
 from rich.console import Console
 from rich.panel import Panel
-from rich.progress import Progress, SpinnerColumn, TextColumn
-import questionary
 
 try:
     from ui_components import console, show_section, print_error, print_success, print_info, show_progress_bar
@@ -141,7 +139,7 @@ def main():
         "universal", "scan", "gateway", "configure", "update", "doctor",
         "arsenal", "memory", "cve-update", "bola", "waf", "recon", "evasion",
         "report", "menu", "auto", "help", "bb", "check", "test", "red", "pdf",
-        "hack", "research", "poc", "autonomous", "welcome", "quick", "deep",
+        "hack", "hunt", "research", "poc", "autonomous", "welcome", "quick", "deep",
         "bounty", "stealth", "api", "web", "profile", "history", "programs",
         "intel", "mission", "pause", "resume", "cli", "cli-textual", "cli-legacy", "clitest",
         # New unified commands
@@ -201,7 +199,7 @@ def main():
     valid_commands = set(command_choices)
     
     if args.command and args.command not in valid_commands and args.command != "auto":
-        from tools.command_suggest import handle_command_error, CommandSuggester
+        from tools.command_suggest import CommandSuggester
         from ui_components import confirm
         
         suggester = CommandSuggester()
@@ -249,7 +247,7 @@ def main():
 
     # Auto-detect mode (default) - Smart routing based on target
     # Auto-detect mode — skip for explicit commands
-    explicit_commands = {"scan", "ai", "cli", "recon", "sast", "cloud", "mobile", "soc", "bola", "waf"}
+    explicit_commands = {"scan", "ai", "cli", "hunt", "recon", "sast", "cloud", "mobile", "soc", "bola", "waf"}
     if args.command == "auto" or (args.command and args.target and args.command not in explicit_commands):
         # If we have both command and target, or just target without specific command
         effective_target = args.target or args.command
@@ -363,6 +361,9 @@ def main():
             from bot_utils import send_telegram_notification
             from shutil import which
 
+            # Silence INFO logs during scan
+            logging.getLogger().setLevel(logging.WARNING)
+
             target = args.target or console.input("Enter target: ").strip()
             if not target: return
             if not validate_target(target):
@@ -381,51 +382,127 @@ def main():
 
             # Phase 1: AI-driven reconnaissance
             console.print("[bold #ffffff]Phase 1: AI-Driven Reconnaissance[/bold #ffffff]")
+
+            # Pre-seed subdomains via OTX (free, no API key needed)
+            initial_subs = set()
+            try:
+                from tools.wayback_tool import fetch_otx_urls
+                from urllib.parse import urlparse
+                urls = fetch_otx_urls(target)
+                for u in urls:
+                    host = urlparse(u).hostname
+                    if host and host.endswith(f".{target.lstrip('www.')}"):
+                        initial_subs.add(host.lower())
+                if initial_subs:
+                    console.print(f"  [dim][OTX] {len(initial_subs)} subdomains pre-seeded[/dim]")
+                    for s in sorted(initial_subs)[:5]:
+                        console.print(f"    {s}")
+                    if len(initial_subs) > 5:
+                        console.print(f"    ... +{len(initial_subs) - 5} more")
+            except Exception:
+                pass
+
+            # Ensure Go tools are in PATH
+            go_bin = os.path.expanduser("~/Downloads/go-tools/bin")
+            if os.path.isdir(go_bin):
+                os.environ["PATH"] = f"{go_bin}:{os.environ.get('PATH', '')}"
+
             from agent import get_agent
             from bot_utils import send_telegram_notification
+            from shutil import which
             agent = get_agent()
 
+            # Check available tools for AI context
+            tool_map = {
+                "subfinder": which("subfinder"),
+                "httpx": which("httpx"),
+                "nuclei": which("nuclei"),
+                "naabu": which("naabu"),
+                "ffuf": which("ffuf"),
+                "dalfox": which("dalfox"),
+                "gau": which("gau"),
+                "katana": which("katana"),
+                "curl": which("curl"),
+                "dig": which("dig"),
+                "nmap": which("nmap"),
+                "jq": which("jq"),
+            }
+            avail_tools = [name for name, path in tool_map.items() if path]
+            tools_context = f"\nAvailable tools on system: {', '.join(sorted(avail_tools))}\n"
+
             def scan_callback(msg):
-                if msg.startswith("[OK]") or msg.startswith("[FAIL]"):
-                    parts = msg.split(" ", 2)
-                    rest = parts[2] if len(parts) > 2 else ""
-                    action_part = parts[1] if len(parts) > 1 else ""
-                    if "shell" in action_part or "run_tool" in action_part:
-                        cmd_str = rest.split(":", 1)[0].strip() if ":" in rest else rest[:80]
-                        if cmd_str and cmd_str != "]":
-                            console.print(f"  [bold #ffffff]$ {cmd_str}[/bold #ffffff]")
-                        res = rest.split(":", 1)[1].strip()[:200] if ":" in rest else ""
-                        if res:
-                            console.print(f"  [dim]  -> {res[:200]}[/dim]")
-                    elif "search_web" in action_part:
-                        query = rest.split(":", 1)[0].strip() if ":" in rest else rest[:80]
-                        console.print(f"  [dim][WEB] {query}[/dim]")
-                elif msg.startswith(" Step"):
-                    step_text = msg.strip()
-                    console.print(f"  [dim]{step_text[:200]}[/dim]")
-                elif msg.startswith("AI classified"):
-                    pass
-                elif msg.startswith("###"):
-                    console.print(f"\n[bold #ff4444]{msg}[/bold #ff4444]")
-                elif msg.startswith("CVSS"):
-                    console.print(f"[bold #ffffff]{msg}[/bold #ffffff]")
+                import re
+                try:
+                    safe_msg = re.sub(r'\[/?[^\]]+\]', '', msg)
+                    
+                    if msg.startswith("### AI THINKING:"):
+                        thought = msg.replace("### AI THINKING:", "").strip()
+                        console.print(f"\n[THINKING] {thought[:150]}")
+                    elif msg.startswith("[THINKING]"):
+                        thought = msg.replace("[THINKING]", "").strip()
+                        console.print(f"  >> {thought[:120]}...")
+                    elif msg.startswith("[OK]") or msg.startswith("[FAIL]"):
+                        parts = msg.split(" ", 2)
+                        rest = parts[2] if len(parts) > 2 else ""
+                        action_part = parts[1] if len(parts) > 1 else ""
+                        if "shell" in action_part or "run_tool" in action_part:
+                            cmd_str = rest.split(":", 1)[0].strip() if ":" in rest else rest[:80]
+                            if cmd_str and cmd_str != "]":
+                                console.print(f"  $ {cmd_str}")
+                            res = rest.split(":", 1)[1].strip()[:200] if ":" in rest else ""
+                            if res:
+                                console.print(f"  -> {res[:150]}")
+                        elif "search_web" in action_part:
+                            query = rest.split(":", 1)[0].strip() if ":" in rest else rest[:80]
+                            console.print(f"  [WEB] {query}")
+                        elif "ask_user" in action_part:
+                            console.print(f"  [ASK] {rest[:150]}")
+                    elif msg.startswith(" Step"):
+                        step_text = msg.strip()
+                        console.print(f"  >> Step {step_text[:100]}")
+                    elif msg.startswith("AI classified"):
+                        pass
+                    elif msg.startswith("###"):
+                        console.print(f"\n{msg[:200]}")
+                    elif msg.startswith("CVSS"):
+                        console.print(f"{msg}")
+                    elif msg.startswith("__PRIVILEGED__:"):
+                        console.print(f"\n[PRIVILEGED] {msg.replace('__PRIVILEGED__:', '').strip()[:150]}")
+                except Exception as cb_err:
+                    # Fallback - just print the raw safe message
+                    try:
+                        safe_msg = re.sub(r'\[/?[^\]]+\]', '', msg)
+                        console.print(f"  {safe_msg[:200]}")
+                    except:
+                        console.print(f"  {msg[:200]}")
+
+            subdomain_hint = ""
+            if initial_subs:
+                subdomain_hint = f"\nPre-discovered subdomains (via OTX):\n" + "\n".join(f"  {s}" for s in sorted(initial_subs)[:30]) + "\n"
 
             try:
                 response = agent.process_universal(
                     f"Perform a full security reconnaissance and vulnerability assessment on {target}. "
                     f"Your mission:\n"
-                    f"1. Discover subdomains using subfinder and other tools\n"
-                    f"2. Probe live hosts with httpx to detect technologies\n"
-                    f"3. Scan for vulnerabilities with nuclei\n"
-                    f"4. Run additional recon as you see fit (waybackurls, naabu ports, etc.)\n"
-                    f"5. Analyze all findings and prioritize them\n\n"
-                    f"Run actual tools via shell commands. Report everything you find. "
-                    f"Do not hallucinate — if a tool fails, debug and retry.",
+                    f"- Use shell commands directly to run any tools you need\n"
+                    f"- You decide what tools to use and in what order (no fixed methodology)\n"
+                    f"{subdomain_hint}"
+                    f"{tools_context}"
+                    f"TIPS:\n"
+                    f"- For httpx, use: httpx -list subdomains.txt -silent -json (NOT -l)\n"
+                    f"- For nuclei, use: nuclei -list live_hosts.txt -severity critical,high,medium\n"
+                    f"- You can use pipes (|) and redirects (>) in your shell commands\n"
+                    f"- If a tool is missing, ask the user with ask_user action\n"
+                    f"- Run actual tools, report results honestly. If something fails, try another approach.\n"
+                    f"- IMPORTANT: Write temp files to current directory (./subdomains.txt) NOT /tmp\n",
                     target=target, callback=scan_callback, mode="bug_bounty"
                 )
                 if response:
-                    console.print(f"\n[bold #ffffff]AI Analysis:[/bold #ffffff]")
-                    console.print(f"  {response[:2000]}")
+                    # Strip any Rich tags from AI response before printing
+                    import re
+                    safe_response = re.sub(r'\[/?[^\]]+\]', '', response[:2000])
+                    console.print(f"\nAI Analysis:")
+                    console.print(f"  {safe_response[:2000]}")
                     report_file = Path(f"reports/scan_{target}_{int(time.time())}.md")
                     report_file.parent.mkdir(parents=True, exist_ok=True)
                     report_file.write_text(
@@ -434,12 +511,18 @@ def main():
                         f"**Tool**: Elengenix v99999\n\n"
                         f"## AI Analysis\n\n{response}\n"
                     )
-                    console.print(f"\n[dim]Report saved: {report_file}[/dim]")
+                    console.print(f"\nReport saved: {report_file}")
                     send_telegram_notification(f"Scan + AI analysis: {target}")
             except Exception as e:
-                import traceback
-                console.print(f"[bold red][FAIL] AI scan: {e}[/bold red]")
-                console.print(f"[dim]{traceback.format_exc()[:500]}[/dim]")
+                import traceback, re
+                tb = traceback.format_exc()
+                # Strip ALL Rich tags from error and traceback
+                safe_err = re.sub(r'\[/?[^\]]+\]', '', str(e))
+                safe_tb = re.sub(r'\[/?[^\]]+\]', '', tb)
+                console.print(f"[bold red][FAIL] AI scan: {safe_err}[/bold red]")
+                # Print first line of traceback only
+                lines = safe_tb.split('\n')
+                console.print(f"[dim]{lines[0][:200]}[/dim]")
 
         elif args.command == "universal":
             from cli_textual import main as cli_textual_main
@@ -629,6 +712,59 @@ def main():
                 print_success("Autonomous scan complete!")
             else:
                 print_error(f"Scan failed: {result.summary}")
+
+        elif args.command == "hunt":
+            """Hybrid mode: AI Strategist + Specialist with full analysis pipeline."""
+            from ui_components import show_section, print_info, print_success, print_error
+            show_section("ELENGENIX HYBRID HUNT MODE")
+
+            target = args.target or console.input("[red]Enter target[/red]: ").strip()
+            if not target:
+                return
+
+            console.print(Panel.fit(
+                "[bold red]HYBRID MODE[/bold red]\n"
+                "[white]Strategist plans / Specialist executes / Full analysis pipeline[/white]\n"
+                "[dim]Combines flexible shell execution with structured analysis[/dim]",
+                border_style="red",
+            ))
+
+            # Validate target
+            if not validate_target(target):
+                print_error("Invalid target format")
+                return
+
+            from agent import get_agent
+
+            agent = get_agent()
+
+            def _hunt_callback(msg: str):
+                safe = re.sub(r"\[/?[^\]]+\]", "", str(msg))
+                console.print(f"  [dim]{safe[:250]}[/dim]")
+
+            try:
+                response = agent.process_hybrid(
+                    f"Perform comprehensive security assessment on {target}. "
+                    f"Use all available tools and techniques to find vulnerabilities.",
+                    target=target,
+                    callback=_hunt_callback,
+                    mode="bug_bounty",
+                )
+                if response:
+                    safe_resp = re.sub(r"\[/?[^\]]+\]", "", response[:3000])
+                    print_success("Hybrid Mission Complete")
+                    console.print(f"\n{safe_resp}\n")
+
+                    # Save final report
+                    safe_name = re.sub(r"[^a-zA-Z0-9.-]", "_", target)[:40]
+                    report_path = Path("reports") / f"hunt_{safe_name}.md"
+                    report_path.parent.mkdir(parents=True, exist_ok=True)
+                    report_path.write_text(response)
+                    print_info(f"Full report: {report_path}")
+            except KeyboardInterrupt:
+                print_info("Hybrid hunt interrupted by user")
+            except Exception as e:
+                print_error(f"Hybrid hunt error: {e}")
 
         elif args.command == "arsenal":
             from tools_menu import show_tools_menu

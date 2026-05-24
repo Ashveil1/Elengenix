@@ -21,6 +21,7 @@ import base64
 import hashlib
 import json
 import logging
+logger = logging.getLogger("elengenix.auth")
 import re
 import time
 from dataclasses import dataclass
@@ -46,7 +47,7 @@ def _decode_jwt_part(part: str) -> Optional[Dict]:
         padded = part + "=" * (4 - len(part) % 4)
         decoded = base64.urlsafe_b64decode(padded)
         return json.loads(decoded)
-    except Exception:
+    except Exception as e:
         return None
 
 

@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import concurrent.futures
 import logging
+logger = logging.getLogger("elengenix.race")
 import time
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
@@ -67,7 +68,7 @@ def _send_request(method: str, url: str, headers: Dict = None,
         r = fn(url, headers=headers, json=json_data, timeout=timeout, verify=False)
         elapsed_ms = (time.time() - start) * 1000
         return r.status_code, len(r.text), elapsed_ms
-    except Exception:
+    except Exception as e:
         elapsed_ms = (time.time() - start) * 1000
         return 0, 0, elapsed_ms
 
@@ -95,8 +96,8 @@ def test_race_condition(
         for future in concurrent.futures.as_completed(futures):
             try:
                 responses.append(future.result(timeout=15))
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"race_condition_tester error: {e}")
 
     if len(responses) < 2:
         return RaceConditionResult(

@@ -96,7 +96,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
         findings = self.server.dashboard.get_all_findings()
         export_data = {
             "export_time": datetime.now(timezone.utc).isoformat(),
-            "tool": "Elengenix v2.0.0",
+            "tool": "Elengenix v99999",
             "total_findings": len(findings),
             "findings": findings,
         }

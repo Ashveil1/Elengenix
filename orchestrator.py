@@ -215,7 +215,7 @@ def _suggest_missing_tools(
     tools: List[Any],
     target: str = "",
 ) -> None:
-    """ตรวจสอบ tools ที่จำเป็นแต่ยังไม่มี และเสนอให้ผู้ใช้ติดตั้งแบบอัตโนมัติ"""
+    """Check required tools and offer auto-installation."""
     missing = [t for t in tools if t and not t.is_available]
     if not missing:
         return
@@ -296,7 +296,7 @@ def _suggest_missing_tools(
 
 
 def _manual_cmd(tool_name: str) -> str:
-    """คืนค่า command สำหรับติดตั้ง tool ที่ต้องทำ manual."""
+    """Return install command for manual tools."""
     cmds = {
         "dalfox": "go install github.com/hahwul/dalfox/v2@latest",
         "arjun": "pip install arjun",

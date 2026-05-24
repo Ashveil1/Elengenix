@@ -246,7 +246,7 @@ def build_memory_prompt_block() -> str:
     lang = profile.get("preferred_language")
     if lang:
         if "thai" in lang.lower():
-            lines.append("Always respond in Thai (ภาษาไทย).")
+            lines.append("Always respond in Thai.")
         else:
             lines.append(f"Respond in {lang}.")
 

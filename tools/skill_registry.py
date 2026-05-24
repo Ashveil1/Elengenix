@@ -1,8 +1,7 @@
 """
 tools/skill_registry.py — Skill & Tool Awareness System (v99999 (god nine is the best))
 
-ให้ AI รู้ว่ามี tools/skills อะไรบ้างที่พร้อมใช้
-และสามารถขอติดตั้งเพิ่มได้เมื่อจำเป็น
+Informs AI about available tools/skills and can request additional installations when needed.
 
 Author: Elengenix Project
 """
@@ -20,16 +19,16 @@ logger = logging.getLogger("elengenix.skills")
 
 
 class SkillStatus(Enum):
-    """สถานะของแต่ละ skill/tool"""
-    AVAILABLE = "available"      # ติดตั้งแล้ว พร้อมใช้
-    MISSING = "missing"          # ยังไม่ติดตั้ง
-    OPTIONAL = "optional"        # ไม่จำเป็น แต่มีประโยชน์
-    RECOMMENDED = "recommended"  # ควรมีตามสถานการณ์
+    """Status of each skill/tool"""
+    AVAILABLE = "available"      # Installed and ready
+    MISSING = "missing"          # Not yet installed
+    OPTIONAL = "optional"        # Not required but useful
+    RECOMMENDED = "recommended"  # Recommended based on context
 
 
 @dataclass
 class Skill:
-    """ข้อมูลของแต่ละ skill/tool"""
+    """Information about each skill/tool"""
     name: str
     description: str
     category: str
@@ -71,13 +70,13 @@ class Skill:
 
 class SkillRegistry:
     """
-    Registry ของ skills/tools ที่ AI รู้จัก
+    Registry of skills/tools known to AI.
     
-    หน้าที่:
-    1. เก็บรายการ tools ที่มี
-    2. Check availability ของแต่ละ tool
-    3. แนะนำ tools ตามสถานการณ์
-    4. ขอติดตั้งเพิ่มเมื่อจำเป็น
+    Responsibilities:
+    1. Store list of available tools
+    2. Check availability of each tool
+    3. Recommend tools based on context
+    4. Request additional installations when needed
     """
     
     def __init__(self):
@@ -96,7 +95,7 @@ class SkillRegistry:
         return flat
 
     def _init_default_skills(self):
-        """สร้างรายการ skills เริ่มต้น"""
+        """Initialize default skills list."""
         default_skills = [
             # Reconnaissance
             Skill("subfinder", "Subdomain enumeration", "recon", 
@@ -162,7 +161,7 @@ class SkillRegistry:
             self.skills[skill.name] = skill
     
     def _check_availability(self):
-        """Check ว่าแต่ละ tool ติดตั้งแล้วหรือยัง"""
+        """Check whether each tool is installed."""
         for name, skill in self.skills.items():
             if shutil.which(skill.binary_name):
                 skill.status = SkillStatus.AVAILABLE
@@ -170,21 +169,21 @@ class SkillRegistry:
                 skill.status = SkillStatus.MISSING
     
     def get_available_skills(self) -> List[Skill]:
-        """คืนค่า list ของ skills ที่พร้อมใช้"""
+        """Return list of available skills."""
         return [s for s in self.skills.values() if s.status == SkillStatus.AVAILABLE]
     
     def get_missing_skills(self) -> List[Skill]:
-        """คืนค่า list ของ skills ที่ยังไม่ติดตั้ง"""
+        """Return list of missing skills."""
         return [s for s in self.skills.values() if s.status == SkillStatus.MISSING]
     
     def recommend_for(self, scenario: str) -> List[Skill]:
-        """แนะนำ skills ตามสถานการณ์ — keyword matching ที่ยืดหยุ่นกว่า"""
+        """Recommend skills based on context — flexible keyword matching."""
         scenario_lower = scenario.lower()
         scenario_words = set(scenario_lower.split())
         recommended = []
         seen = set()
         
-        # Keyword จับคู่สำคัญ
+        # Keyword matching map
         keyword_map = {
             "xss": ["dalfox", "nuclei"],
             "subdomain": ["subfinder", "httpx"],
@@ -225,7 +224,7 @@ class SkillRegistry:
         return recommended
     
     def get_skill_context(self) -> str:
-        """สร้าง context ให้ AI รู้ว่ามี skills อะไรบ้าง"""
+        """Build context for AI about available skills."""
         lines = ["=== AVAILABLE TOOLS/SKILLS ==="]
         
         available = self.get_available_skills()
@@ -244,7 +243,7 @@ class SkillRegistry:
         return "\n".join(lines)
     
     def request_install(self, skill_name: str) -> bool:
-        """ขอติดตั้ง skill เพิ่ม"""
+        """Request installation of a skill."""
         if skill_name not in self.skills:
             return False
         
@@ -270,7 +269,7 @@ class SkillRegistry:
             return False
     
     def to_dict(self) -> Dict:
-        """คืนค่า full registry เป็น dict"""
+        """Return full registry as dict."""
         return {
             "available": [s.to_dict() for s in self.get_available_skills()],
             "missing": [s.to_dict() for s in self.get_missing_skills()],
@@ -290,7 +289,7 @@ def get_skill_registry() -> SkillRegistry:
 
 
 def recommend_tools_for_scenario(scenario: str) -> List[Skill]:
-    """แนะนำ tools ตามสถานการณ์"""
+    """Recommend tools based on context."""
     registry = get_skill_registry()
     return registry.recommend_for(scenario)
 

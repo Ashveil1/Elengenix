@@ -88,7 +88,7 @@ def check_health(interactive: bool = True) -> bool:
     from ui_components import console, print_error, print_success, print_warning, confirm
     import questionary
     
-    console.print("\n[bold red]System Health Check[/bold red] [dim]v2.0.0[/dim]\n")
+    console.print("\n[bold red]System Health Check[/bold red] [dim]v99999[/dim]\n")
     all_ok = True
 
     # ── Python Version ─────────────────────────────────────────────────────────

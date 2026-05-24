@@ -14,22 +14,16 @@ import shlex
 import time
 import asyncio
 import threading
-import atexit
 import logging
 from datetime import datetime
-from zoneinfo import ZoneInfo
 from pathlib import Path
 from collections import Counter
-from dataclasses import dataclass, field
 from typing import Optional, Callable, Dict, Any, List
-from enum import Enum
 
 from tools.universal_ai_client import AIClientManager, AIMessage
-from tools.memory_manager import save_learning
 from tools.tool_registry import registry, ToolCategory, ToolResult
 from tools.cvss_calculator import CVSSCalculator
 from tools.vector_memory import remember, recall, get_context_for_ai
-from tools.memory_profile import read_memory
 from tools.memory_persistence import save_message as _sqlite_save_message, load_conversation as _sqlite_load_conversation, clear_session as _sqlite_clear_session, get_context_status as _get_context_status
 from tools.universal_executor import get_universal_executor
 from tools.cve_database import get_cve_database
@@ -41,411 +35,27 @@ from tools.agent_reflection import get_reflection
 from live_display import get_activity_logger, display_in_chat_mode
 from bot_utils import send_telegram_notification
 from scan_engine_upgrade import SmartOrchestrator
+from agents.hybrid_agent import HybridAgent
 
 logger = logging.getLogger("elengenix.agent")
 
-
-def _get_now_context() -> str:
-    tz_name = os.environ.get("ELENGENIX_TZ")
-    tz = None
-    if tz_name:
-        try:
-            tz = ZoneInfo(tz_name)
-        except Exception:
-            tz = None
-    now = datetime.now(tz=tz)
-
-    thai_weekdays = {
-        0: "วันจันทร์",
-        1: "วันอังคาร",
-        2: "วันพุธ",
-        3: "วันพฤหัสบดี",
-        4: "วันศุกร์",
-        5: "วันเสาร์",
-        6: "วันอาทิตย์",
-    }
-    wd_th = thai_weekdays.get(now.weekday(), "")
-    tz_display = now.tzname() or tz_name or "local"
-
-    # Thai Buddhist Era year = CE year + 543
-    be_year = now.year + 543
-    thai_date_str = f"{now.day} {_thai_month_name(now.month)} {be_year}"
-
-    return (
-        "### CURRENT TIME CONTEXT (AUTHORITATIVE)\n"
-        f"System time (CE): {now.isoformat()}\n"
-        f"CE year: {now.year}  |  Thai Buddhist Era (BE) year: {be_year}\n"
-        f"Thai date: {thai_date_str}\n"
-        f"Timezone: {tz_display}\n"
-        f"Thai weekday: {wd_th}\n"
-        "RULE: When searching or answering in Thai, ALWAYS use the Buddhist Era year "
-        f"({be_year}) not the CE year ({now.year}). "
-        "If the user asks about the current date/day/time, use ONLY this context.\n"
-    )
-
-
-def _thai_month_name(month: int) -> str:
-    """Return Thai month name for a given month number (1-12)."""
-    names = [
-        "มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน",
-        "พฤษภาคม", "มิถุนายน", "กรกฎาคม", "สิงหาคม",
-        "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม",
-    ]
-    return names[month - 1] if 1 <= month <= 12 else str(month)
-
-
-def _get_memory_profile_context() -> str:
-    """Read and format the MEMORY.md profile for the AI."""
-    profile = read_memory()
-    if not profile:
-        return ""
-    
-    lines = ["### USER PROFILE & LONG-TERM KNOWLEDGE (from MEMORY.md):"]
-    for key, value in profile.items():
-        formatted_key = key.replace("_", " ").title()
-        lines.append(f"- {formatted_key}: {value}")
-    
-    return "\n".join(lines)
-
-
-def _extract_json_object(text: str) -> Optional[Dict[str, Any]]:
-    if text is None:
-        return None
-    if not isinstance(text, str):
-        text = str(text)
-    cleaned = text.strip()
-    if not cleaned:
-        return None
-
-    if "```" in cleaned:
-        if "```json" in cleaned:
-            cleaned = cleaned.split("```json", 1)[1]
-        else:
-            cleaned = cleaned.split("```", 1)[1]
-        cleaned = cleaned.split("```", 1)[0].strip()
-
-    try:
-        return json.loads(cleaned)
-    except Exception:
-        pass
-
-    m = re.search(r"\{.*\}", cleaned, re.DOTALL)
-    if not m:
-        return None
-    try:
-        return json.loads(m.group())
-    except Exception:
-        return None
-
-
-def _extract_target_from_text(text: str) -> str:
-    if not text:
-        return ""
-    tokens = re.findall(r"[a-zA-Z0-9._-]+", text.lower())
-    stop = {"scan", "recon", "pentest", "test", "bug", "bounty", "hunt", "please", "for"}
-    candidates = [t for t in tokens if t not in stop and len(t) > 1]
-    if not candidates:
-        return ""
-    t = candidates[-1]
-    if "." not in t and t.isalnum() and len(t) >= 3:
-        t = f"{t}.com"
-    return t
-
-
-class AttackPhase(Enum):
-    """Standard penetration testing phases."""
-    RECONNAISSANCE = "recon"
-    SCANNING = "scanning"
-    ENUMERATION = "enumeration"
-    EXPLOITATION = "exploitation"
-    POST_EXPLOITATION = "post_exploitation"
-    REPORTING = "reporting"
-
-
-@dataclass
-class AttackStep:
-    """Single step in an attack tree."""
-    phase: AttackPhase
-    tool_name: str
-    target: str
-    purpose: str
-    depends_on: List[str] = field(default_factory=list)
-    completed: bool = False
-    result: Optional[ToolResult] = None
-    findings: List[Dict] = field(default_factory=list)
-
-
-@dataclass
-class AttackTree:
-    """Strategic plan for penetration testing."""
-    target: str
-    objective: str
-    steps: List[AttackStep] = field(default_factory=list)
-    current_phase: AttackPhase = AttackPhase.RECONNAISSANCE
-    reasoning: str = ""
-    created_at: float = field(default_factory=time.time)
-
-
-@dataclass
-class AgentThought:
-    """Chain of Thought logging entry."""
-    step: int
-    timestamp: float
-    context: str
-    reasoning: str
-    action_taken: str
-    result: str
-    confidence: float = 0.0
-
-
-class StrategicPlanner:
-    """Generates and manages attack strategies."""
-    
-    def __init__(self, client: AIClientManager):
-        self.client = client
-        self.cvss_calc = CVSSCalculator(use_ai=True)
-    
-    def generate_attack_tree(
-        self, 
-        target: str, 
-        objective: str = "discover vulnerabilities"
-    ) -> AttackTree:
-        """
-        Generate strategic attack plan using AI.
-        
-        Creates a structured approach based on target type and objectives.
-        """
-        tree = AttackTree(target=target, objective=objective)
-        
-        # Use AI to generate initial strategy
-        planning_prompt = f"""You are a penetration testing strategist.
-
-TARGET: {target}
-OBJECTIVE: {objective}
-
-Generate an attack tree as JSON with this structure:
-{{
-    "reasoning": "strategic analysis of the target",
-    "phases": [
-        {{
-            "phase": "recon|scanning|enumeration|exploitation",
-            "tools": ["tool_name"],
-            "purpose": "what we want to achieve",
-            "priority": 1
-        }}
-    ]
-}}
-
-Available tools: subfinder, httpx, naabu, nuclei, dalfox, arjun, ffuf, trufflehog, katana
-
-Respond with valid JSON only."""
-
-        try:
-            response = self.client.chat([
-                AIMessage(role="system", content="Generate penetration testing strategy"),
-                AIMessage(role="user", content=planning_prompt)
-            ]).content
-            
-            # Extract JSON plan using shared helper (non-greedy, handles markdown fences)
-            plan_data = _extract_json_object(response)
-            if plan_data:
-                tree.reasoning = plan_data.get("reasoning", "")
-                
-                # Convert plan to attack steps
-                for phase_data in plan_data.get("phases", []):
-                    phase = AttackPhase(phase_data.get("phase", "recon"))
-                    
-                    for tool_name in phase_data.get("tools", []):
-                        step = AttackStep(
-                            phase=phase,
-                            tool_name=tool_name,
-                            target=target,
-                            purpose=phase_data.get("purpose", ""),
-                        )
-                        tree.steps.append(step)
-                
-        except Exception as e:
-            logger.warning(f"AI planning failed: {e}, using default strategy")
-            tree = self._default_attack_tree(target, objective)
-        
-        return tree
-    
-    def _default_attack_tree(self, target: str, objective: str) -> AttackTree:
-        """Fallback default strategy when AI fails."""
-        tree = AttackTree(
-            target=target,
-            objective=objective,
-            reasoning="Default reconnaissance-to-exploitation pipeline"
-        )
-        
-        # Standard web pentest flow
-        default_steps = [
-            AttackStep(AttackPhase.RECONNAISSANCE, "subfinder", target, "Discover subdomains"),
-            AttackStep(AttackPhase.RECONNAISSANCE, "naabu", target, "Port scan discovered hosts"),
-            AttackStep(AttackPhase.SCANNING, "httpx", target, "Probe live web services"),
-            AttackStep(AttackPhase.ENUMERATION, "trufflehog", target, "Find secrets in code"),
-            AttackStep(AttackPhase.ENUMERATION, "ffuf", target, "Discover hidden directories"),
-            AttackStep(AttackPhase.EXPLOITATION, "nuclei", target, "Scan for CVEs and misconfigurations"),
-            AttackStep(AttackPhase.EXPLOITATION, "dalfox", target, "Test for XSS vulnerabilities"),
-            AttackStep(AttackPhase.ENUMERATION, "arjun", target, "Discover hidden parameters"),
-        ]
-        
-        tree.steps = default_steps
-        return tree
-    
-    def select_next_tool(
-        self, 
-        tree: AttackTree, 
-        previous_results: List[ToolResult]
-    ) -> Optional[str]:
-        """
-        Intelligent tool selection based on current state and findings.
-        """
-        # Check for high-impact findings that warrant immediate action
-        for result in previous_results:
-            if not result.success:
-                continue
-            
-            for finding in result.findings:
-                severity = finding.get("severity", "info")
-                finding_type = finding.get("type", "")
-                
-                # Critical secrets found - prioritize exploitation
-                if finding_type == "secret" and severity in ["critical", "high"]:
-                    return "trufflehog"  # Deep scan for more secrets
-                
-                # Open database ports - test for misconfigurations
-                if finding_type == "open_port" and finding.get("port") in [3306, 5432, 6379, 27017]:
-                    return "nuclei"  # Scan for exposed databases
-                
-                # Live web services - fuzz for endpoints
-                if finding_type == "open_port" and finding.get("port") in [80, 443, 8080, 3000]:
-                    return "ffuf"
-                
-                # XSS found - verify and expand testing
-                if finding_type == "xss":
-                    return "dalfox"
-        
-        # Continue with planned sequence
-        for step in tree.steps:
-            if not step.completed:
-                return step.tool_name
-        
-        return None
-    
-    def adapt_strategy(
-        self, 
-        tree: AttackTree, 
-        new_finding: Dict[str, Any]
-    ) -> List[AttackStep]:
-        """
-        Dynamically add steps based on new findings.
-        """
-        additional_steps = []
-        finding_type = new_finding.get("type", "")
-        
-        if finding_type == "api_endpoint":
-            # Add API-specific testing
-            additional_steps.append(AttackStep(
-                phase=AttackPhase.ENUMERATION,
-                tool_name="arjun",
-                target=new_finding.get("url", tree.target),
-                purpose="Discover API parameters",
-                depends_on=[]
-            ))
-        
-        elif finding_type == "subdomain":
-            subdomain = new_finding.get("subdomain", "")
-            if subdomain:
-                additional_steps.append(AttackStep(
-                    phase=AttackPhase.SCANNING,
-                    tool_name="httpx",
-                    target=subdomain,
-                    purpose=f"Probe new subdomain: {subdomain}",
-                    depends_on=["subfinder"]
-                ))
-        
-        elif finding_type == "hidden_parameter":
-            additional_steps.append(AttackStep(
-                phase=AttackPhase.EXPLOITATION,
-                tool_name="dalfox",
-                target=new_finding.get("url", tree.target),
-                purpose="Test discovered parameters for XSS",
-                depends_on=["arjun"]
-            ))
-        
-        # Add new steps to tree
-        tree.steps.extend(additional_steps)
-        return additional_steps
-
-
-class ChainOfThoughtLogger:
-    """Logs agent reasoning for audit and debugging."""
-    
-    def __init__(self, log_dir: Path = None):
-        self.log_dir = log_dir or Path("data/cot_logs")
-        self.log_dir.mkdir(parents=True, exist_ok=True)
-        self.current_session: List[AgentThought] = []
-    
-    def log(
-        self,
-        step: int,
-        context: str,
-        reasoning: str,
-        action: str,
-        result: str,
-        confidence: float = 0.0
-    ) -> None:
-        """Log a single thought step."""
-        thought = AgentThought(
-            step=step,
-            timestamp=time.time(),
-            context=context,
-            reasoning=reasoning,
-            action_taken=action,
-            result=result,
-            confidence=confidence
-        )
-        self.current_session.append(thought)
-    
-    def save_session(self, target: str) -> Path:
-        """Save session to file."""
-        filename = f"cot_{target.replace('/', '_').replace('.', '_')}_{int(time.time())}.json"
-        filepath = self.log_dir / filename
-        
-        session_data = {
-            "target": target,
-            "timestamp": time.time(),
-            "thoughts": [
-                {
-                    "step": t.step,
-                    "timestamp": t.timestamp,
-                    "context": t.context,
-                    "reasoning": t.reasoning,
-                    "action": t.action_taken,
-                    "result": t.result,
-                    "confidence": t.confidence
-                }
-                for t in self.current_session
-            ]
-        }
-        
-        filepath.write_text(json.dumps(session_data, indent=2))
-        logger.info(f"CoT session saved: {filepath}")
-        return filepath
-    
-    def get_summary(self) -> str:
-        """Get human-readable summary of reasoning."""
-        lines = ["## Chain of Thought Summary\n"]
-        
-        for thought in self.current_session:
-            lines.append(f"**Step {thought.step}** ({thought.confidence:.0%} confidence)")
-            lines.append(f"- Context: {thought.context[:100]}...")
-            lines.append(f"- Reasoning: {thought.reasoning[:150]}...")
-            lines.append(f"- Action: {thought.action_taken}")
-            lines.append(f"- Result: {thought.result[:100]}...\n")
-        
-        return "\n".join(lines)
+# ── Re-export shared helpers from agents/ modules ──────────────────────
+from agents.agent_helpers import (
+    _get_now_context,
+    _extract_json_object,
+    _extract_target_from_text,
+    _get_memory_profile_context,
+)
+from agents.agent_dataclasses import AttackPhase, AttackStep, AttackTree, AgentThought
+from agents.agent_planner import StrategicPlanner
+from agents.agent_logger import ChainOfThoughtLogger
+from agents.agent_executor import (
+    execute_tool,
+    execute_tool_registry,
+    execute_tool_subprocess,
+    handle_ask_user,
+)
+from agents.agent_intent import analyze_intent as _analyze_intent
 
 
 class ElengenixAgent:
@@ -463,44 +73,10 @@ class ElengenixAgent:
     ALLOWED_TOOLS = set()  # kept as empty sentinel for backward compat
 
     #  SHARED PERSISTENT EVENT LOOP (prevents "coroutine never awaited" / loop leaks)
-    _shared_loop: Optional[asyncio.AbstractEventLoop] = None
-    _loop_thread: Optional[threading.Thread] = None
-    _loop_lock: threading.Lock = threading.Lock()
-
-    @classmethod
-    def _get_shared_loop(cls) -> asyncio.AbstractEventLoop:
-        """Get or create the singleton persistent event loop.
-
-        Runs a daemon thread with `loop.run_forever()` so coroutines can be
-        submitted via `asyncio.run_coroutine_threadsafe()` without creating
-        and destroying loops on every tool execution.
-        """
-        with cls._loop_lock:
-            if cls._shared_loop is None:
-                cls._shared_loop = asyncio.new_event_loop()
-
-                def _run_forever(loop: asyncio.AbstractEventLoop) -> None:
-                    asyncio.set_event_loop(loop)
-                    loop.run_forever()
-
-                cls._loop_thread = threading.Thread(
-                    target=_run_forever,
-                    args=(cls._shared_loop,),
-                    daemon=True,
-                    name="elengenix-event-loop",
-                )
-                cls._loop_thread.start()
-
-                # Register cleanup on interpreter exit
-                atexit.register(cls._cleanup_shared_loop)
-            return cls._shared_loop
-
-    @classmethod
-    def _cleanup_shared_loop(cls) -> None:
-        """Shut down the shared event loop on process exit."""
-        with cls._loop_lock:
-            if cls._shared_loop is not None and cls._shared_loop.is_running():
-                cls._shared_loop.call_soon_threadsafe(cls._shared_loop.stop)
+    @staticmethod
+    def _get_shared_loop():
+        from tools.event_loop import get_shared_loop
+        return get_shared_loop()
 
     def __init__(
         self,
@@ -510,7 +86,8 @@ class ElengenixAgent:
         max_output_len: int = 2000,
         enable_planning: bool = True,
         enable_cot_logging: bool = True,
-        max_history_turns: int = 20
+        max_history_turns: int = 20,
+        verbose_thoughts: bool = True
     ):
         self.client = AIClientManager()
         self.max_steps = max_steps
@@ -520,6 +97,7 @@ class ElengenixAgent:
         self.enable_planning = enable_planning
         self.enable_cot_logging = enable_cot_logging
         self.max_history_turns = max_history_turns
+        self.verbose_thoughts = verbose_thoughts
         
         #  In-session conversation history (ordered user/assistant pairs)
         #  Each entry is a dict: {"role": "user"|"assistant", "content": str}
@@ -861,235 +439,29 @@ To use the CVE database, reference vulnerability types and ask for similar CVEs.
             return None
 
     def _execute_tool(self, action_data: Dict[str, Any], callback: Optional[Callable] = None) -> str:
-        """
-        Execute a command with Governance-based security.
-
-        The agent may run *any* command.  Governance (tools/governance.py)
-        classifies each action as:
-          DESTRUCTIVE → unconditionally denied
-          PRIVILEGED  → shown to user for interactive approval
-          SAFE        → executed immediately
-        """
-        action_val = action_data.get("action", "")
-        if isinstance(action_val, dict):
-            action_val = action_val.get("type", "")
-        action = str(action_val).lower()
-        cmd_raw = action_data.get("command", "")
-
-        if action == "finish":
-            return "__FINISH__"
-        if action == "save_memory":
-            save_learning(action_data.get("target", "global"), action_data.get("learning", ""), action_data.get("category", "general"))
-            return "Finding recorded in SQLite memory."
-
-        if action != "run_shell":
-            return f"Error: Unknown action '{action}'."
-        if not cmd_raw or not isinstance(cmd_raw, str):
-            return "Error: Invalid or empty command."
-
-        # ── Governance gate ──────────────────────────────────────────
-        gate = self.governance.gate(
-            mission_id="cli_tool_exec",
-            target="local",
-            action={"action": "run_shell", "command": cmd_raw},
-            callback=callback,
+        return execute_tool(
+            action_data, self.governance, self.max_output_len, callback,
         )
 
-        if gate.decision == "deny":
-            display_in_chat_mode(
-                f"[red]BLOCKED: {gate.rationale}[/red]\n"
-                f"  Command: [dim]{cmd_raw[:200]}[/dim]",
-                "error",
-            )
-            return f"Command blocked by governance: {gate.rationale}"
-
-        if gate.decision == "needs_approval":
-            from ui_components import confirm
-            display_in_chat_mode(
-                f"[yellow]AI wants to run:[/yellow]\n"
-                f"  [dim]{cmd_raw[:500]}[/dim]\n"
-                f"[yellow]Allow this command?[/yellow]",
-                "warning",
-            )
-            try:
-                approved = confirm("Run this command?", default=False)
-            except Exception:
-                approved = False
-            if not approved:
-                return "Command rejected by user."
-
-        # ── Execute ──────────────────────────────────────────────────
-        try:
-            import shutil
-            from tools.safe_exec import execute_safely
-
-            # Resolve binary (if first token has a name) for display
-            try:
-                parts = shlex.split(cmd_raw)
-                if parts:
-                    binary = os.path.basename(parts[0])
-                    resolved = shutil.which(binary)
-                    if resolved:
-                        display_in_chat_mode(f"Running: [dim]{resolved}[/dim]", "info")
-            except Exception:
-                pass
-
-            safe_result = execute_safely(cmd_raw, timeout=180)
-            if not safe_result["success"]:
-                err = safe_result["error"] or safe_result["stderr"][:500]
-                return f"Command failed: {err}"
-            return safe_result["stdout"][:self.max_output_len]
-
-        except subprocess.TimeoutExpired:
-            return "Error: Command timed out after 180 seconds."
-        except ValueError as e:
-            return f"Error: Invalid command syntax: {e}"
-        except Exception as e:
-            return f"Error executing tool: {str(e)}"
+    def _handle_ask_user(self, action_data: Dict[str, Any], callback: Optional[Callable] = None) -> str:
+        return handle_ask_user(action_data, callback)
 
     def _execute_tool_registry(
-        self, 
-        tool_name: str, 
+        self,
+        tool_name: str,
         target: str,
         report_dir: Path,
-        semaphore: Optional[asyncio.Semaphore] = None
+        semaphore: Optional[asyncio.Semaphore] = None,
     ) -> ToolResult:
-        """
-        Execute tool via Tool Registry on the shared persistent event loop.
-        Fallback to subprocess if registry fails.
-        """
-        tool = registry.get_tool(tool_name)
-        if tool and tool.is_available:
-            try:
-                async def _run() -> ToolResult:
-                    s = semaphore or asyncio.Semaphore(5)
-                    return await tool.execute(target, report_dir, s)
+        return execute_tool_registry(
+            tool_name, target, report_dir, self._get_shared_loop, semaphore,
+        )
 
-                loop = self._get_shared_loop()
-                future = asyncio.run_coroutine_threadsafe(_run(), loop)
-                timeout = getattr(getattr(tool, "metadata", None), "timeout_seconds", 180)
-                return future.result(timeout=timeout)
-            except Exception as e:
-                logger.warning(f"Tool registry execution failed: {e}")
-
-        return self._execute_tool_subprocess(tool_name, target)
-    
     def _execute_tool_subprocess(self, tool_name: str, target: str) -> ToolResult:
-        """Fallback subprocess execution with PATH verification.
-
-        Security is handled upstream by Governance (tools/governance.py).
-        This method validates the binary exists and uses known command templates.
-        """
-        from tools.tool_registry import ToolResult, ToolCategory
-
-        # Resolve via PATH (prevents PATH-hijack)
-        import shutil
-        resolved = shutil.which(tool_name)
-        if resolved is None:
-            return ToolResult(
-                success=False,
-                tool_name=tool_name,
-                category=ToolCategory.UTILITY,
-                error_message=f"Tool '{tool_name}' not found in PATH",
-            )
-
-        # Build command from known templates (safe list, not concatenation)
-        commands = {
-            "subfinder": ["subfinder", "-d", target, "-silent"],
-            "httpx": ["httpx", "-u", target, "-silent"],
-            "nuclei": ["nuclei", "-u", target, "-silent", "-severity", "critical,high,medium"],
-        }
-
-        cmd = commands.get(tool_name)
-
-        # Only allow known templates — never fall back to [tool_name, target]
-        if cmd is None:
-            return ToolResult(
-                success=False,
-                tool_name=tool_name,
-                category=ToolCategory.UTILITY,
-                error_message=f"Tool '{tool_name}' has no known command template",
-            )
-
-        try:
-            result = subprocess.run(
-                cmd,
-                shell=False,
-                capture_output=True,
-                text=True,
-                timeout=180,
-            )
-
-            return ToolResult(
-                success=result.returncode == 0,
-                tool_name=tool_name,
-                category=ToolCategory.RECON,
-                output=result.stdout + result.stderr,
-            )
-        except Exception as e:
-            return ToolResult(
-                success=False,
-                tool_name=tool_name,
-                category=ToolCategory.RECON,
-                error_message=str(e),
-            )
+        return execute_tool_subprocess(tool_name, target)
 
     def _analyze_intent(self, query: str) -> str:
-        """Use AI to intelligently classify user intent - AI-driven, not keyword-driven."""
-        
-        sys_prompt = """You are an intelligent intent classifier. Analyze the user's message and determine their TRUE intent.
-
-### INTENT CATEGORIES:
-1. **casual** - Social chat, greetings, asking who you are, what you can do
-   - Examples: "hi", "สวัสดี", "คุณคือใคร", "what can you do", "help"
-   - The user wants conversation, not information retrieval
-
-2. **research** - Time-sensitive info that REQUIRES live web search
-   - Examples: "ผลบอลวันนี้", "ข่าวล่าสุด", "ราคาหุ้นตอนนี้", "อากาศพรุ่งนี้"
-   - MUST be: current events, sports scores, weather forecasts, stock prices, breaking news
-   - Information that CHANGES constantly and needs fresh data
-   - NOT for: definitions, explanations, how things work (those are security_chat)
-
-3. **scan** - Requesting active security testing on a SPECIFIC target
-   - Examples: "scan example.com", "attack 192.168.1.1", "pentest google.com"
-   - MUST have a target domain/IP - not just talking about scanning in general
-   - The user wants you to run security tools against a target
-
-4. **security_chat** - Security questions, advice, code review without active scanning
-   - Examples: "how does SQL injection work", "review this code", "explain XSS"
-   - Security discussion without asking to attack a target
-   - The user wants knowledge, not tool execution
-
-### CLASSIFICATION RULES:
-- **Ask yourself**: "Does this need TODAY's data from the internet?"
-- **research** = Live sports scores, current news, weather now, stock prices TODAY (time-sensitive)
-- **security_chat** = "CVE คืออะไร", "อธิบาย SQL injection", "how does XSS work" (knowledge questions)
-- **casual** = "สวัสดี", "คุณเป็นใคร", "ช่วยอะไรได้" (social chat)
-- **scan** = "scan example.com", "pentest 192.168.1.1" (has specific target)
-- "วันนี้" + กีฬา/ข่าว/อากาศ = research (needs live data)
-- "อธิบาย/what is/how does" = security_chat (knowledge, not live data)
-
-### OUTPUT:
-Reply with ONLY ONE word: casual, research, scan, or security_chat"""
-
-        
-        try:
-            res = self.client.chat([
-                AIMessage(role="system", content=sys_prompt),
-                AIMessage(role="user", content=query)
-            ]).content
-            if res is None:
-                return "security_chat"
-            intent = str(res).strip().lower()
-            
-            for valid in ["casual", "research", "scan", "security_chat"]:
-                if valid in intent:
-                    return valid
-                    
-            return "security_chat"  # Default fallback to chat instead of scan
-        except Exception as e:
-            logger.warning(f"Intent classification failed: {e}")
-            return "security_chat" # Fallback to chat for safety
+        return _analyze_intent(self.client, query)
 
     def run_smart_scan(self, target: str, report_dir: Path) -> str:
         """Run an intelligent smart scan using the upgraded scan engine.
@@ -1270,11 +642,11 @@ Do NOT attempt to run a scan. Respond naturally in the user's language (English 
                     "tool": tool_name,
                     "purpose": current_step.purpose,
                 }
-                reasoning = f"Strategic plan: {current_step.purpose}"
+                reasoning = f"{current_step.purpose}"
             else:
                 #  AI-driven dynamic planning with SEMANTIC MEMORY
                 
-                # ดึง context จาก Vector Memory (จำได้ทุก session)
+                # Retrieve context from Vector Memory (remembers across sessions)
                 semantic_context = get_context_for_ai(
                     current_query=user_input,
                     target=target or "global",
@@ -1292,7 +664,7 @@ Do NOT attempt to run a scan. Respond naturally in the user's language (English 
                     if info["available"]
                 ])
                 
-                #  SEMANTIC SEARCH: หา memories ที่คล้ายกับปัญหาปัจจุบัน
+                #  SEMANTIC SEARCH: find memories similar to current problem
                 related_memories = recall(
                     query=user_input,
                     target=target,
@@ -1326,18 +698,21 @@ Do NOT attempt to run a scan. Respond naturally in the user's language (English 
 
 Plan your next move. Consider:
 1. What do we know from previous sessions about this target?
-2. Which tool from the registry would be most effective now?
-3. Are there high-impact findings that need immediate follow-up?
-4. Have we covered reconnaissance, scanning, and exploitation?
+2. What shell command would be most effective now? (Think freely — use pipes, redirects, scripting)
+3. Do you need to research a vulnerability or tech stack? Use web_search.
+4. Have you found any vulnerabilities? Use submit_findings to report them IMMEDIATELY!
+5. Is a tool missing? Use ask_user to request installation.
 
-Use JSON format: {{"action": "run_shell|save_memory|finish", "command": "...", "tool": "...", "purpose": "..."}}"""
+Use JSON format: {{"action": "run_shell|ask_user|web_search|submit_findings|save_memory|finish", "command": "...", "query": "...", "findings": [...], "purpose": "...", "question": "..."}}"""
 
-                response_text = self.client.chat([
-                    AIMessage(role="system", content=full_prompt),
-                    AIMessage(role="user", content="Plan next action")
-                ]).content
+                from ui_components import show_spinner
+                with show_spinner("AI Agent is planning its next move...", spinner_style="#ff4444"):
+                    response_text = self.client.chat([
+                        AIMessage(role="system", content=full_prompt),
+                        AIMessage(role="user", content="Plan next action")
+                    ]).content
                 action_data = self._extract_json(response_text) or {}
-                reasoning = f"AI decision: {action_data.get('purpose', 'continue investigation')}"
+                reasoning = action_data.get('purpose', 'continue investigation')
             
             #  Chain of Thought Logging
             if self.cot_logger:
@@ -1349,6 +724,9 @@ Use JSON format: {{"action": "run_shell|save_memory|finish", "command": "...", "
                     result="",
                     confidence=0.8 if self.current_tree else 0.6
                 )
+                
+            if self.verbose_thoughts and reasoning:
+                display_in_chat_mode(f"[Thought] {reasoning}", "thought")
             
             # Action Validation
             action_val = action_data.get("action", "")
@@ -1468,10 +846,10 @@ Use JSON format: {{"action": "run_shell|save_memory|finish", "command": "...", "
                 return summary
             
             if action == "save_memory":
-                save_learning(
-                    action_data.get("target", "global"),
+                remember(
                     action_data.get("learning", ""),
-                    action_data.get("category", "general")
+                    action_data.get("target", "global"),
+                    action_data.get("category", "general"),
                 )
                 history.append({"role": "assistant", "content": str(action_data)})
                 history.append({"role": "user", "content": "Learning saved."})
@@ -1487,70 +865,117 @@ Use JSON format: {{"action": "run_shell|save_memory|finish", "command": "...", "
                 logger.warning(msg)
                 return msg
             
-            #  EXECUTION via Tool Registry
+            #  EXECUTION via Tool Registry or Submit Findings
             tool_name = action_data.get("tool", "")
-            if tool_name:
-                purpose = action_data.get('purpose', '')
+            skip_execution = False
+            result = None
 
-                # Governance gate before executing tool
-                gate_decision = self.governance.gate(
-                    mission_id=mission_key,
-                    target=target or "global",
-                    action={
-                        "action": action,
-                        "tool": tool_name,
-                        "command": action_data.get("command", ""),
-                        "purpose": purpose,
-                    },
-                    callback=callback,
+            if action == "submit_findings":
+                tool_name = "ai_manual_analysis"
+                skip_execution = True
+                
+                findings_data = action_data.get("findings", [])
+                if not isinstance(findings_data, list):
+                    findings_data = [findings_data]
+                
+                from tools.tool_registry import ToolResult, ToolCategory
+                result = ToolResult(
+                    success=True,
+                    tool_name=tool_name,
+                    category=ToolCategory.VULNERABILITY,
+                    findings=findings_data,
+                    error_message=""
                 )
-                if not gate_decision.allowed:
-                    # Interactive approval for high-risk steps
-                    if gate_decision.decision == "needs_approval":
-                        try:
-                            from ui_components import confirm
-                            approved = confirm(
-                                f"Approve high-risk action?\n\nTool: {tool_name}\nPurpose: {purpose}",
-                                default=False,
-                            )
-                        except Exception:
-                            approved = False
+                purpose = action_data.get("purpose", "Reporting manually discovered findings")
+                
+                if callback:
+                    callback(f" Reporting {len(findings_data)} findings to system...")
+                display_in_chat_mode(f"AI reported {len(findings_data)} findings.", "success")
+                
+                # Note: We still want to run the analysis pipeline and update mission graph!
 
-                        if approved:
-                            gate_decision = GateDecision(
-                                allowed=True,
-                                risk_level=gate_decision.risk_level,
-                                decision="allow",
-                                rationale="Approved by user",
-                            )
-                            self.governance.audit(
-                                mission_id=mission_key,
-                                target=target or "global",
-                                action={
-                                    "action": action,
-                                    "tool": tool_name,
-                                    "command": action_data.get("command", ""),
-                                    "purpose": purpose,
-                                },
-                                decision=gate_decision,
-                            )
+            if tool_name:
+                if not skip_execution:
+                    purpose = action_data.get('purpose', '')
+    
+                    # Governance gate before executing tool
+                    gate_decision = self.governance.gate(
+                        mission_id=mission_key,
+                        target=target or "global",
+                        action={
+                            "action": action,
+                            "tool": tool_name,
+                            "command": action_data.get("command", ""),
+                            "purpose": purpose,
+                        },
+                        callback=callback,
+                    )
+                    if not gate_decision.allowed:
+                        # Interactive approval for high-risk steps
+                        if gate_decision.decision == "needs_approval":
                             try:
-                                mission_state.add_ledger_entry(
-                                    entry_id=f"gate:{step}:{tool_name}",
-                                    kind="governance_gate",
-                                    tool=tool_name,
-                                    action={"tool": tool_name, "purpose": purpose},
-                                    result={
-                                        "allowed": True,
-                                        "risk": gate_decision.risk_level,
-                                        "decision": gate_decision.decision,
-                                        "rationale": gate_decision.rationale,
-                                    },
+                                from ui_components import confirm
+                                approved = confirm(
+                                    f"Approve high-risk action?\n\nTool: {tool_name}\nPurpose: {purpose}",
+                                    default=False,
                                 )
-                            except Exception as e:
-                                logger.warning(f"MissionState gate ledger write failed: {e}")
+                            except Exception:
+                                approved = False
+    
+                            if approved:
+                                gate_decision = GateDecision(
+                                    allowed=True,
+                                    risk_level=gate_decision.risk_level,
+                                    decision="allow",
+                                    rationale="Approved by user",
+                                )
+                                self.governance.audit(
+                                    mission_id=mission_key,
+                                    target=target or "global",
+                                    action={
+                                        "action": action,
+                                        "tool": tool_name,
+                                        "command": action_data.get("command", ""),
+                                        "purpose": purpose,
+                                    },
+                                    decision=gate_decision,
+                                )
+                                try:
+                                    mission_state.add_ledger_entry(
+                                        entry_id=f"gate:{step}:{tool_name}",
+                                        kind="governance_gate",
+                                        tool=tool_name,
+                                        action={"tool": tool_name, "purpose": purpose},
+                                        result={
+                                            "allowed": True,
+                                            "risk": gate_decision.risk_level,
+                                            "decision": gate_decision.decision,
+                                            "rationale": gate_decision.rationale,
+                                        },
+                                    )
+                                except Exception as e:
+                                    logger.warning(f"MissionState gate ledger write failed: {e}")
+                            else:
+                                msg = f" Governance gate: rejected (risk={gate_decision.risk_level})."
+                                display_in_chat_mode(msg, "warning")
+                                try:
+                                    mission_state.add_ledger_entry(
+                                        entry_id=f"gate:{step}:{tool_name}",
+                                        kind="governance_gate",
+                                        tool=tool_name,
+                                        action={"tool": tool_name, "purpose": purpose},
+                                        result={
+                                            "allowed": False,
+                                            "risk": gate_decision.risk_level,
+                                            "decision": "rejected",
+                                            "rationale": "User rejected approval prompt",
+                                        },
+                                    )
+                                except Exception as e:
+                                    logger.warning(f"MissionState gate ledger write failed: {e}")
+                                return msg
                         else:
-                            msg = f" Governance gate: rejected (risk={gate_decision.risk_level})."
+                            msg = f" Governance gate: {gate_decision.decision} (risk={gate_decision.risk_level}). {gate_decision.rationale}"
                             display_in_chat_mode(msg, "warning")
                             try:
                                 mission_state.add_ledger_entry(
@@ -1561,44 +986,25 @@ Use JSON format: {{"action": "run_shell|save_memory|finish", "command": "...", "
                                     result={
                                         "allowed": False,
                                         "risk": gate_decision.risk_level,
-                                        "decision": "rejected",
-                                        "rationale": "User rejected approval prompt",
+                                        "decision": gate_decision.decision,
+                                        "rationale": gate_decision.rationale,
                                     },
                                 )
                             except Exception as e:
                                 logger.warning(f"MissionState gate ledger write failed: {e}")
                             return msg
-                    else:
-                        msg = f" Governance gate: {gate_decision.decision} (risk={gate_decision.risk_level}). {gate_decision.rationale}"
-                        display_in_chat_mode(msg, "warning")
-                        try:
-                            mission_state.add_ledger_entry(
-                                entry_id=f"gate:{step}:{tool_name}",
-                                kind="governance_gate",
-                                tool=tool_name,
-                                action={"tool": tool_name, "purpose": purpose},
-                                result={
-                                    "allowed": False,
-                                    "risk": gate_decision.risk_level,
-                                    "decision": gate_decision.decision,
-                                    "rationale": gate_decision.rationale,
-                                },
-                            )
-                        except Exception as e:
-                            logger.warning(f"MissionState gate ledger write failed: {e}")
-                        return msg
-                if callback:
-                    callback(f"Running: {tool_name} - {purpose}")
-                
-                #  Log activity
-                self.activity_logger.log_action(f"Running {tool_name}", tool=tool_name, target=target, step=step)
-                display_in_chat_mode(f"[{tool_name}] {purpose}", "action")
-                
-                result = self._execute_tool_registry(
-                    tool_name, 
-                    target or user_input,
-                    report_dir
-                )
+                    if callback:
+                        callback(f"Running: {tool_name} - {purpose}")
+                    
+                    #  Log activity
+                    self.activity_logger.log_action(f"Running {tool_name}", tool=tool_name, target=target, step=step)
+                    display_in_chat_mode(f"[{tool_name}] {purpose}", "action")
+                    
+                    result = self._execute_tool_registry(
+                        tool_name, 
+                        target or user_input,
+                        report_dir
+                    )
 
                 try:
                     mission_state.add_ledger_entry(
@@ -1869,752 +1275,146 @@ Use JSON format: {{"action": "run_shell|save_memory|finish", "command": "...", "
         user_input: str,
         callback: Optional[Callable] = None,
         target: str = "",
-        mode: str = "auto"  # "auto", "bug_bounty", "general"
+        mode: str = "auto"
+    ) -> str:
+        """Universal mode — delegates to agents/agent_universal.py."""
+        from agents.agent_universal import process_universal as _run_universal
+
+        if check_context := getattr(self, "_check_context_overflow", None):
+            check_context()
+
+        return _run_universal(
+            user_input=user_input,
+            client=self.client,
+            conversation_history=self.conversation_history,
+            base_prompt=self.base_prompt,
+            governance=self.governance,
+            reflection_tracker=self.reflection_tracker,
+            skill_registry=self.skill_registry,
+            target=target,
+            mode=mode,
+            callback=callback,
+            check_context_overflow=check_context,
+        )
+
+    def process_hybrid(
+        self,
+        user_input: str,
+        callback: Optional[Callable] = None,
+        target: str = "",
+        mode: str = "auto",
     ) -> str:
         """
-        UNIVERSAL AGENT MODE — Flexible like Claude Code / Gemini CLI / OpenClaw
-        but specialized for Bug Bounty when needed.
-        
-        Features:
-        - File editing (read, write, edit, search)
-        - Package installation (pip, npm, apt, go, gem)
-        - Shell execution with safety
-        - Web research
-        - Multi-turn conversation with persistent context
-        - Bug bounty specialization when target provided
+        HYBRID MODE — Combines redteam_agent's flexible AI-driven shell execution
+        with Elengixen's structured AnalysisPipeline and ToolRegistry.
+
+        Strategist (AI 1) plans at a high level.
+        Specialist (AI 2) executes actions in a loop with full shell freedom.
+        Results feed into 13 analyzers, CVSS, MissionState, and VectorMemory.
         """
-        import json
+        import traceback
 
-        # Phase 2: Check context overflow before processing (auto-compress at 80%)
-        self._check_context_overflow()
+        logger.info(f"Hybrid mode started: target={target}, intent={user_input[:100]}")
 
-        # send_telegram_notification(f" Universal Agent: \"{user_input}\"")
-        logger.info(f"Universal mode started: {user_input}")
-
-        # AI intent classification (single source of truth)
-        intent = "security_chat"
+        # 1. Classify intent (reuse existing AI classifier)
         try:
             intent = self._analyze_intent(user_input)
         except Exception as e:
-            logger.debug(f"Universal intent classification failed: {e}")
+            logger.debug(f"Intent classification failed: {e}")
             intent = "security_chat"
+
         if callback:
             callback(f"AI classified intent as: {intent.upper()}")
-        
-        # 🧠 SELF-REFLECTION: Check if current input is negative feedback about previous response
-        self._check_for_negative_feedback(user_input)
-        
-        # Initialize universal executor
-        executor = get_universal_executor()
-        
-        # Redundant session remember removed to prevent clogging memory history
 
-        
-        # Determine if this is a bug bounty task
-        # Use intent first; fall back to explicit mode/target.
-        is_security_task = (
-            mode == "bug_bounty"
-            or intent == "scan"
-            or (bool(target) and intent in ("scan", "security_chat"))
-        )
-
-        # For casual/security_chat (no target), respond without tool loop.
-        # RESEARCH intent enters tool loop to use web search.
-        if intent in ["casual", "security_chat"] and not target:
-            # 🧠 MEMORY RETRIEVAL (Hybrid Approach - Increased context)
-            past_memories = get_context_for_ai(
-                user_input, 
-                target=target or "universal", 
-                max_memories=12,
-                conversation_history=self.conversation_history
+        # 2. Non-mission queries go to universal handler
+        if intent in ("casual", "research", "security_chat") and not target:
+            return self.process_universal(
+                user_input, callback=callback, target=target, mode=mode
             )
-            logger.info(f"Retrieved {len(past_memories.splitlines())} memories from the cloud.")
-            
-            # 🧠 SELF-REFLECTION CHECK: Look for past mistakes
-            reflection_caution = self.reflection_tracker.retrieve_caution(user_input)
-            if reflection_caution:
-                logger.info(f"AgentReflection warning retrieved for query")
-            
-            now_context = _get_now_context()
-            profile_context = _get_memory_profile_context()
-            
-            # Get available tools for capability questions
-            available_tools = registry.list_available_tools()
-            tool_names = [name for name, info in available_tools.items() if info.get('available')]
-            tool_list = ", ".join(tool_names[:10]) + ("..." if len(tool_names) > 10 else "")
-            
-            # Detect language from input
-            has_thai = bool(re.search(r"[\u0E00-\u0E7F]", user_input))
-            detected_lang = "Thai" if has_thai else "English"
-            lang_instruction = "Respond in Thai language." if has_thai else "Respond in English language."
-            
-            chat_prompt = f"""You are Elengenix AI v99999 (god nine is the best) — A Universal AI Agent specialized for Bug Bounty and Security Research.
-Intent category: {intent}
-Detected user language: {detected_lang}
 
-{now_context}
+        # 3. Extract target if needed
+        if not target and intent == "scan":
+            inferred = _extract_target_from_text(user_input)
+            if inferred:
+                target = inferred
 
-### 🧠 LONG-TERM PROFILE:
-{profile_context}
+        if not target:
+            return "No target specified. Use 'hunt <target>' or provide a domain/IP."
 
-### 🧠 PAST CONVERSATIONS (RELEVANT CONTEXT):
-{past_memories}
+        # Normalize
+        target = re.sub(r"^https?://", "", target.rstrip("/"))
 
-{reflection_caution}
-
-### YOUR IDENTITY & CAPABILITIES:
-- Name: Elengenix AI (อีเลนเจนิกซ์ เอไอ)
-- Version: v99999 (god nine is the best)
-- Primary role: Security researcher and penetration testing assistant
-
-### WHAT YOU CAN DO:
-
-[LIVE INTERNET ACCESS - Real-time data:]
-- Search Google for current news, sports scores, weather, stock prices
-- Get TODAY's information - no knowledge cutoff!
-- Research CVEs, exploits, and security advisories
-
-[SECURITY TOOLS:]
-{tool_list}
-Plus: nmap, nuclei, ffuf, dalfox, sqlmap, and 40+ security tools
-
-[GENERAL CAPABILITIES:]
-- File editing, shell commands, package installation
-- Code review and script generation
-- Web research and OSINT
-
-### LANGUAGE RULE:
-- Detect the language of the user's input
-- If user wrote Thai → respond in Thai
-- If user wrote English → respond in English
-- Respond naturally in the detected language
-
-### OTHER RULES:
-1. Do not use emojis.
-2. Do not attempt to run scans or use tools for this casual query.
-3. Answer directly based on your knowledge above.
-4. If asked what you can do, explain your capabilities including LIVE WEB SEARCH."""
-
-            messages = self._build_chat_messages(chat_prompt, user_input)
-            direct = (self.client.chat(messages).content or "").strip()
-
-            if direct:
-                # Store this turn in conversation history for context
-                self._append_history("user", user_input)
-                self._append_history("assistant", direct)
-                # MEMORY STORAGE: Remember this interaction in vector store
-                remember(
-                    content=f"User interaction: {user_input} | AI Response: {direct[:150]}...",
-                    target=target or "universal",
-                    category="conversation"
-                )
-                return direct
-            # Hard fallback - deterministic based on Thai detection
-            if has_thai:
-                return "สวัสดีครับ! ผมเป็น Elengenix AI ผู้ช่วยด้านความปลอดภัย มีอะไรให้ช่วยเหลือไหมครับ?"
-            return "Hello! I'm Elengenix AI, your security research assistant. How can I help you today?"
-
-        # RESEARCH intent with no target: quick web search mode
-        if intent == "research" and not target:
-            # Allow AI to use tools for research, but stay focused on the query
-            pass
-        
-        # Check if this is a simple conversational query (no loop needed)
-        simple_greetings = [
-            "hi", "hello", "hey", "hiya", "yo",
-            "สวัสดี", "สวัสดีครับ", "สวัสดีค่ะ",
-            "หวัดดี", "หวัดดีครับ", "หวัดดีค่ะ",
-            "สัวสดี", "สวัส", "สวัดดี", "สวัสดีจ้า",
-            "ไง", "ไงครับ", "ไงค่ะ", "ไงจ้า", "ว่าไง",
-            "sawasdee", "sawasdee krub", "sawasdee krap",
-        ]
-        simple_questions = ["how are you", "what can you do", "help", "?", "who are you"]
-        normalized = user_input.lower().strip()
-        normalized_no_spaces = normalized.replace(" ", "")
-        
-        # Check if starts with Thai greeting (handle mixed Thai-English like "สวัสดี Elengenix")
-        starts_with_thai_greeting = any(
-            normalized.replace(" ", "").startswith(g.replace(" ", "")) 
-            for g in simple_greetings if re.search(r"[\u0E00-\u0E7F]", g)
+        # 4. Initialize HybridAgent with Elengenix infrastructure
+        hybrid = HybridAgent(
+            client=self.client,
+            governance=self.governance,
+            target=target,
+            max_steps=50,
+            strategist_interval=5,
+            enable_analysis=True,
+            enable_memory=True,
+            callback=callback,
         )
-        
-        thai_only = bool(re.fullmatch(r"[\s\u0E00-\u0E7F\.!?]+", user_input.strip()))
-        is_thai_greeting = starts_with_thai_greeting or (
-            bool(re.fullmatch(r"[\s\u0E00-\u0E7F\.!?]+", user_input.strip())) and any(
-                g in user_input.strip() for g in ["สวั", "หวัด", "ดี"]
+
+        # Wire up shared infrastructure
+        hybrid.mission_state = MissionState(
+            mission_id=f"hybrid:{target}:{int(time.time())}",
+            target=target,
+            objective=user_input,
+        )
+        hybrid.mission_key = hybrid.mission_state.mission_id
+        hybrid.cvss_calc = self.cvss_calc
+        hybrid.cve_db = self.cve_db
+
+        # Remember mission start
+        if target and self.enable_memory:
+            remember(
+                f"Hybrid mission: {user_input[:120]}",
+                target,
+                "mission_start",
+                session_type="hybrid",
             )
-        )
-        is_short_thai_chat = thai_only and 0 < len(user_input.strip()) <= 8
-        is_simple_query = (
-            any(normalized.startswith(g) for g in simple_greetings) or
-            any(q in normalized for q in simple_questions) or
-            is_thai_greeting or
-            is_short_thai_chat
-        ) and not is_security_task and not target and intent not in ("research", "scan")
-        
-        # For simple queries, respond directly without loop
-        if is_simple_query:
-            wants_thai = bool(re.search(r"[\u0E00-\u0E7F]", user_input))
-            if wants_thai:
-                # Deterministic Thai response to avoid provider-dependent language drift.
-                return "สวัสดีครับ! มีอะไรให้ช่วยเหลือไหม?"
-            lang_rule = "Respond in Thai ONLY." if wants_thai else "Respond in English ONLY."
-            simple_prompt = f"""You are Elengenix AI v5.0.
-User input: "{user_input}"
-Contains Thai characters: {wants_thai}
 
-### LANGUAGE RULE (STRICT):
-{lang_rule}
-- If Thai detected in input → respond in Thai language
-- If English detected → respond in English language  
-- ABSOLUTELY NO other languages (no Turkish, Spanish, French, etc.)
-- This is a HARD requirement
+        # 5. Run the hybrid loop
+        self._activity_log("Hybrid hunt starting", callback)
+        try:
+            result = hybrid.run(user_input)
+        except KeyboardInterrupt:
+            logger.info("Hybrid mission interrupted by user")
+            result = hybrid._finalize_mission() + "\n\n*Mission interrupted by user.*"
+        except Exception as e:
+            logger.error(f"Hybrid mode failed: {e}\n{traceback.format_exc()}")
+            return f"Hybrid mode error: {e}"
+
+        # 6. Save report
+        if result and target:
+            safe_name = re.sub(r"[^a-zA-Z0-9.-]", "_", target)[:40]
+            report_path = (
+                Path("reports") / f"hybrid_{safe_name}_{int(time.time())}.md"
+            )
+            report_path.parent.mkdir(parents=True, exist_ok=True)
+            report_path.write_text(result, encoding="utf-8")
+
+            remember(
+                f"Hybrid completed for {target}. Findings: {len(hybrid.all_findings)}",
+                target,
+                "mission_complete",
+                session_type="hybrid",
+            )
 
-### RESPONSE:
-Keep it short and conversational. No tools. No emojis."""
-            
-            response = (self.client.chat([
-                AIMessage(role="system", content=simple_prompt),
-                AIMessage(role="user", content="Greeting")
-            ]).content or "")
-            if not response.strip():
-                return "สวัสดีครับ! มีอะไรให้ช่วยเหลือไหม?" if wants_thai else "Hello! How can I help you today?"
-            return response.strip()
-        
-        # Build system prompt based on mode
-        now_context = _get_now_context()
-        if intent == "research" and not target:
-            # RESEARCH mode: simple information retrieval - NOT a security task
-            base_prompt = f"""You are Elengenix AI in RESEARCH MODE.
-
-### USER QUERY:
-"{user_input}"
-
-{now_context}
-
-### YOUR ROLE:
-Research Assistant with LIVE INTERNET ACCESS via DuckDuckGo / Tavily search.
-
-### ANTI-HALLUCINATION RULES (CRITICAL):
-- You MUST call search_web before answering any live/current question.
-- ONLY report facts that appear in the actual search results returned to you.
-- Do NOT invent scores, results, prices, or any data.
-- If search results are incomplete or unclear, say so honestly.
-- Always include the source URL when citing a result.
-
-### IMPORTANT - THIS IS NOT A SECURITY TASK:
-- NO target domain/IP to scan
-- NO penetration testing required
-- NO 5-phase methodology
-- This is simple INFORMATION RETRIEVAL for the user's question
-
-### YOUR CAPABILITIES:
-- `search_web`: Search live internet (DuckDuckGo/Tavily) for current information
-- `finish`: Complete the task and provide the answer
-
-### WHEN TO USE search_web:
-- Current events, news, sports scores, weather, stock prices
-- Any query with "today", "now", "latest", "วันนี้", "ล่าสุด"
-- Time-sensitive information that changes constantly
-- When the user asks about something happening RIGHT NOW
-- Follow-up questions referencing the previous search topic (e.g. "แล้วยูฟ่าล่ะ")
-
-### WORKFLOW (Simple):
-1. Analyze what the user wants (including follow-up context from conversation history)
-2. Use search_web with the most specific query including the Thai BE year if relevant
-3. Summarize ONLY what the search results actually say — cite sources
-4. Use finish action with the real answer
-
-### RESPONSE FORMAT:
-{{
-    "thought": "User wants [topic]. This requires live data, so I'll search Google for current information...",
-    "action": {{
-        "type": "search_web",
-        "params": {{"query": "specific search terms", "num_results": 5}}
-    }},
-    "next_step": "After getting search results, I will summarize them in the user's language"
-}}
-
-Or when done:
-{{
-    "thought": "I have the information from search results. Now I'll provide the answer.",
-    "action": {{
-        "type": "finish",
-        "params": {{"summary": "Your answer here in the user's language"}}
-    }},
-    "next_step": "Task complete"
-}}"""
-
-        elif is_security_task and target:
-            # Get available tools from skill registry
-            available_skills = self.skill_registry.get_available_skills() if self.skill_registry else []
-            missing_skills = self.skill_registry.get_missing_skills() if self.skill_registry else []
-            
-            available_tools = registry.list_available_tools()
-            tool_descriptions = []
-            for name, info in available_tools.items():
-                if info.get('available'):
-                    desc = info.get('description', name)
-                    tool_descriptions.append(f"  - {name}: {desc}")
-            
-            # Add skill registry info
-            available_list = "\n".join([f"  - {s.name}: {s.description}" for s in available_skills]) if available_skills else "  (No additional tools registered)"
-            missing_list = "\n".join([f"  - {s.name}: {s.description} [MISSING - install: {s.install_command}]" for s in missing_skills[:5]]) if missing_skills else ""
-            
-            tools_list_str = "\n".join(tool_descriptions)
-            
-            base_prompt = f"""{self.base_prompt}
-
-### UNIVERSAL AGENT MODE — BUG BOUNTY SPECIALIST
-You are an autonomous AI security researcher. Your mission: Find vulnerabilities on {target}
-
-{now_context}
-
-### AVAILABLE TOOLS & CAPABILITIES:
-You have access to these security tools. CHOOSE which to use based on the situation:
-{tools_list_str}
-
-### SKILL REGISTRY:
-Additional tools available:
-{available_list}
-
-{"MISSING TOOLS (can request install):" + "\n" + missing_list if missing_list else ""}
-
-### TOOL RECOMMENDATION:
-If a tool is missing and would be useful, ask the user with a format like:
-"Tool [name] is useful for [purpose] but not installed. Shall I install it? (Command: [install_command])"
-
-### VULNERABILITY DISCOVERY METHODOLOGY (Apply as needed):
-Think step-by-step which tools fit each phase:
-
-**PHASE 1: RECONNAISSANCE**
-- Subdomain enumeration: Use tools like subfinder, assetfinder, amass, or findomain
-- DNS analysis: dnsx, dnsrecon, or dig
-- Technology fingerprinting: httpx, whatweb, or webanalyze
-- Choose based on: target size, rate limits, accuracy needs
-
-**PHASE 2: PORT & SERVICE SCANNING**
-- Port scanning: nmap (comprehensive), masscan (fast wide scans), or rustscan (modern fast)
-- Service detection: nmap -sV or httpx for web services
-- Choose based on: target scope, speed requirements, stealth needs
-
-**PHASE 3: CONTENT DISCOVERY**
-- Directory brute force: ffuf, dirsearch, gobuster, or feroxbuster
-- API endpoint discovery: ffuf with wordlists or kiterunner
-- Parameter discovery: arjun or x8
-- Choose based on: target technology, rate limiting, wordlist size
-
-**PHASE 4: VULNERABILITY SCANNING**
-- General vuln scan: nuclei (templates), nuclei_scripts (custom)
-- Specific tests: dalfox (XSS), sqlmap (SQLi), crlfuzz (CRLF)
-- SSL/TLS: testssl, sslscan
-- Choose based on: initial findings, vulnerability class priorities
-
-**PHASE 5: EXPLOITATION & CHAINING**
-- Manual testing support: Create custom scripts
-- Report generation: Combine findings with CVSS scoring
-
-### YOUR FULL CAPABILITIES:
-You have access to ALL of these. Choose what fits the task:
-
-**🔍 RECONNAISSANCE & SCANNING** (use `run_tool`):
-- `subfinder`: Discover subdomains for a target
-- `httpx`: Probe live web servers, detect technologies
-- `nuclei`: Vulnerability scan with 10,000+ templates
-- `naabu`: Fast port scanning
-- `katana`: Web crawling & spidering
-- `ffuf`: Directory & parameter fuzzing
-- `dalfox`: XSS vulnerability scanning
-- `arjun`: Hidden parameter discovery
-
-**WEB RESEARCH** (use `search_web`):
-- Search Google/DuckDuckGo/Tavily for live information
-- Get current news, CVE details, exploit PoCs
-- Research target technologies and vulnerabilities
-
-**THREAT INTELLIGENCE** (use `cve_lookup`):
-- `cve_lookup`: Search local CVE database by ID or keyword
-- Example: `{{"cve_id": "CVE-2024-21626"}}` or `{{"keyword": "rce"}}`
-- Returns description, CVSS score, exploit availability
-
-**BOUNTY INTELLIGENCE** (use `bounty_intel`):
-- Search HackerOne programs by name
-- Get bounty range, scope, program details
-- Example: `{{"program": "facebook"}}`
-
-**GITHUB OSINT** (use `github_search`):
-- Search GitHub for leaked secrets, API keys, credentials
-- Find exposed configuration files
-- Example: `{{"query": "api_key 1win.com"}}`
-
-**SHELL & SYSTEM** (use `shell` or `run_tool`):
-- `shell`: Execute any command with `{{"command": "..."}}`
-- `package`: Install tools via pip, npm, apt, go
-- `read_file` / `write_file`: Read and write files
-- **Custom scripts**: Write Python/bash scripts with `write_file` -> run with `shell python3 script.py`
-  Example: write a custom exploit/PoC script and execute it immediately
-
-### YOU HAVE THESE CAPABILITIES -- use them as you see fit:
-- `subfinder`, `httpx`, `nuclei`, `naabu`, `katana`, `ffuf`, `dalfox`, `arjun`: Security tools (use `run_tool` -- NOT `shell` -- for these. `run_tool` handles paths and flags automatically.)
-- `search_web`: Google/DuckDuckGo -- research company, find CVEs, PoCs, tech details
-- `search_web`: Google/DuckDuckGo -- research company, find CVEs, PoCs, tech details
-- `cve_lookup`: Search local CVE database by ID or keyword
-- `github_search`: Find leaked secrets, credentials, configs on GitHub
-- `bounty_intel`: Look up HackerOne programs
-- `js_analyze`: Analyze JavaScript files for secrets, API keys, hidden endpoints
-- `check_takeover`: Check if a subdomain is vulnerable to takeover
-- `shell`: Run any command
-- `package`: Install tools via pip, npm, apt, go
-- `read_file` / `write_file`: File operations
-- **Write custom scripts**: Use `write_file` to create Python/bash scripts for any testing scenario, then `shell` to run them with `python3 script.py` or `bash script.sh`
-
-### RESPONSE FORMAT:
-You must respond with a single valid JSON object containing "thought", "action", and "next_step".
-The "action" must have "type" (one of the valid action types) and "params" (a dict with the required fields for that action type).
-
-IMPORTANT: Different action types require different params:
-
-- shell -> Requires: "params" with "command" key
-  Example: {{"action": {{"type": "shell", "params": {{"command": "subfinder -d 1win.com -silent"}}}}}}
-
-- run_tool -> Requires: "params" with "tool" and optionally "target"
-  Example: {{"action": {{"type": "run_tool", "params": {{"tool": "subfinder", "target": "1win.com"}}}}}}
-
-- search_web -> Requires: "params" with "query" key
-  Example: {{"action": {{"type": "search_web", "params": {{"query": "1win.com recent CVEs"}}}}}}
-
-- read_file -> Requires: "params" with "path" key
-- write_file -> Requires: "params" with "path" and "content" keys
-- cve_lookup -> Requires: "params" with "cve_id" or "keyword"
-- package -> Requires: "params" with "manager" and "packages"
-- finish -> Requires: "params" with "summary"
-
-CRITICAL: Never output an action with empty params. Every action type needs specific params as shown above.
-
-### CURRENT CONTEXT:
-Target: {target}
-Intent: {intent}
-"""
-        else:
-            # General mode with security tool knowledge
-            available_tools = registry.list_available_tools()
-            tool_descriptions = []
-            for name, info in available_tools.items():
-                if info.get('available'):
-                    desc = info.get('description', name)
-                    tool_descriptions.append(f"  - {name}: {desc}")
-            tools_list_str = "\n".join(tool_descriptions) if tool_descriptions else "  (No specialized tools loaded)"
-            
-            base_prompt = f"""{self.base_prompt}
-
-### UNIVERSAL AGENT MODE — GENERAL PURPOSE
-You are a flexible AI agent with LIVE INTERNET ACCESS and system tool capabilities.
-
-{now_context}
-
-### AVAILABLE TOOLS (Use as needed):
-{tools_list_str}
-
-### YOUR FULL CAPABILITIES:
-Choose what fits the task:
-
-**WEB RESEARCH** (use `search_web`):
-- Search Google/DuckDuckGo/Tavily for live info
-- News, weather, stocks, CVE details, exploit PoCs
-
-**SECURITY SCANNING** (use `run_tool`):
-- `subfinder`: Subdomain discovery
-- `httpx`: Web server probing & tech detection
-- `nuclei`: Vulnerability scanning (10,000+ templates)
-- `naabu`: Port scanning
-- `katana`: Web crawling
-- `ffuf`: Directory/parameter fuzzing
-- `dalfox`: XSS scanning
-- `arjun`: Parameter discovery
-
-**THREAT INTEL** (use `cve_lookup`):
-- Search CVE by ID: `{{"cve_id": "CVE-2024-21626"}}`
-- Search by keyword: `{{"keyword": "rce"}}`
-- Returns description, CVSS score, exploits
-
-**BOUNTY INTEL** (use `bounty_intel`):
-- Search HackerOne programs: `{{"program": "facebook"}}`
-
-**GITHUB OSINT** (use `github_search`):
-- Search GitHub for secrets/keys: `{{"query": "..."}}`
-
-**SHELL & SYSTEM** (use `shell` or `run_tool`):
-- Execute commands, install packages, read/write files
-
-### RESPONSE FORMAT:
-You must respond with a single valid JSON object containing "thought", "action", and "next_step".
-The "action" must have "type" (one of the valid action types) and "params" (a dict with the required fields for that action type).
-
-IMPORTANT: Different action types require different params:
-
-- shell -> Requires: "params" with "command" key
-  Example: {{"action": {{"type": "shell", "params": {{"command": "subfinder -d example.com -silent"}}}}}}
-
-- run_tool -> Requires: "params" with "tool" and optionally "target"
-  Example: {{"action": {{"type": "run_tool", "params": {{"tool": "subfinder", "target": "example.com"}}}}}}
-
-- search_web -> Requires: "params" with "query" key
-  Example: {{"action": {{"type": "search_web", "params": {{"query": "recent CVE vulnerabilities"}}}}}}
-
-- read_file -> Requires: "params" with "path" key
-- write_file -> Requires: "params" with "path" and "content" keys
-- cve_lookup -> Requires: "params" with "cve_id" or "keyword"
-- finish -> Requires: "params" with "summary"
-
-CRITICAL: Never output an action with empty params. Every action type needs specific params as shown above.
-
-### PRINCIPLES:
-- TIME-SENSITIVE QUERIES: Always use search_web (news, sports, weather, "today")
-- GENERAL KNOWLEDGE: Can answer directly or search if uncertain
-- SECURITY: Suggest or run appropriate security tools when asked
-- EXPLAIN: Always explain your tool/action choices in reasoning
-"""
-        
-        # Get semantic context from memory
-        semantic_context = ""
-        if target:
-            semantic_context = get_context_for_ai(user_input, target, max_memories=10)
-        
-        # Execution loop - adjust max steps based on intent
-        history = []
-        step = 0
-        # Research queries need fewer steps (search → summarize)
-        # Security tasks need more steps (recon → scan → exploit)
-        max_universal_steps = 5 if (intent == "research" and not target) else 50
-        empty_shell_count = 0
-        
-        while step < max_universal_steps:
-            step += 1
-            
-            # Build conversation context
-            recent_history = "\n".join([
-                f"Step {i+1}: {h['action']}\nResult: {h['result'][:200]}..."
-                for i, h in enumerate(history[-5:])
-            ])
-            
-            full_prompt = f"""{base_prompt}
-
-{semantic_context}
-
-### CONVERSATION HISTORY:
-{recent_history}
-
-### USER REQUEST:
-{user_input}
-
-### CURRENT STEP: {step}
-
-Rules:
-1. Do not use emojis.
-2. Never output an action of type 'shell' with an empty command.
-
-Analyze the request and determine the next action.
-If this is a complex multi-step task, break it down.
-If you need to install tools, use package action.
-If you need to create scripts, use write_file.
-If the task is complete, use finish action.
-
-Respond ONLY with valid JSON."""
-            
-            # Get AI decision
-            response = (self.client.chat([
-                AIMessage(role="system", content=full_prompt),
-                AIMessage(role="user", content=f"Universal step {step}")
-            ]).content or "")
-            
-            try:
-                action_data = _extract_json_object(response)
-                if action_data is None:
-                    action_data = {"action": {"type": "finish", "params": {}}, "thought": response}
-
-                if isinstance(action_data, str):
-                    try:
-                        action_data = json.loads(action_data)
-                    except Exception:
-                        action_data = {"action": {"type": "finish", "params": {}}, "thought": response}
-
-                if not isinstance(action_data, dict):
-                    action_data = {"action": {"type": "finish", "params": {}}, "thought": str(action_data)}
-                
-                action = action_data.get("action", {})
-                if not isinstance(action, dict):
-                    action = {"type": "finish", "params": {"summary": str(action)}}
-                action_type = action.get("type", "finish")
-                params = action.get("params", {})
-                if not isinstance(params, dict):
-                    params = {"summary": str(params)}
-                thought = action_data.get("thought", "No reasoning provided")
-                
-                # Log thought
-                logger.info(f"Step {step}: {thought[:100]}...")
-                if callback:
-                    callback(f" Step {step}: {thought[:80]}...")
-                
-                #  Remember the thought
-                remember(
-                    f"Step {step}: {thought}",
-                    target or "universal",
-                    "reasoning",
-                    step=step,
-                    action_type=action_type
-                )
-                
-            except json.JSONDecodeError:
-                # If not valid JSON, treat as direct response
-                if callback:
-                    callback(f" {response[:200]}")
-                return response
-            
-            # Execute action
-            if action_type == "finish":
-                summary = params.get("summary", "Task completed")
-                logger.info(f"Universal session finished: {summary}")
-                # Score findings in history with CVSS
-                scored = []
-                for h in history:
-                    if h.get("success") and "findings" in h.get("result", "").lower():
-                        from tools.cvss_calculator import CVSSCalculator
-                        calc = CVSSCalculator(use_ai=False)
-                        score = calc.from_finding(h.get("action", "unknown"), target or "", h.get("result", "")[:200])
-                        scored.append(f"  [{score.severity.value:10s}] CVSS {score.base_score:.1f} — {h.get('action','')[:60]}")
-                if scored and callback:
-                    callback("### CVSS SCORES:\n" + "\n".join(scored))
-                # Auto-export report
-                if scored and target:
-                    report_path = Path(f"reports/scan_{target}_{int(time.time())}.md")
-                    report_path.parent.mkdir(parents=True, exist_ok=True)
-                    report_lines = [
-                        f"# Scan Report: {target}",
-                        f"**Date**: {datetime.now(timezone.utc).isoformat()}",
-                        f"**Summary**: {summary}",
-                        "",
-                        "## Findings",
-                    ]
-                    for s in scored:
-                        report_lines.append(s)
-                    report_lines.append(f"\n\n*Generated by Elengenix v99999*")
-                    report_path.write_text("\n".join(report_lines), encoding="utf-8")
-                    if callback:
-                        callback(f"Report saved: {report_path}")
-                # Store this exchange in session history
-                self._append_history("user", user_input)
-                self._append_history("assistant", summary)
-                if scored:
-                    summary += "\n\nCVSS Scores:\n" + "\n".join(scored)
-                return summary
-
-            if action_type == "shell":
-                cmd = (params.get("command") or "").strip()
-                if not cmd:
-                    tool = (params.get("tool") or "").strip()
-                    target_val = (params.get("target") or target or "").strip()
-                    if tool:
-                        cmd = tool
-                        if target_val:
-                            cmd += f" -d {target_val}" if "subfinder" in tool else f" {target_val}"
-                    else:
-                        empty_shell_count += 1
-                        if callback:
-                            callback(" shell: Empty command blocked. Use shell with a command param.")
-                        history.append({
-                            "step": step,
-                            "action": "shell: <empty>",
-                            "result": "Blocked empty command. Use shell with: {\"command\": \"your command here\"}",
-                            "success": False,
-                        })
-                        if empty_shell_count >= 5:
-                            return "Too many empty shell commands. Try using 'run_tool' with tool name and target, or 'shell' with a real command like subfinder -d target.com"
-                        continue
-
-                # Governance gate for shell commands
-                gate = self.governance.classify_risk({"command": cmd})
-                if gate == "DESTRUCTIVE":
-                    if callback:
-                        callback(f"[BLOCKED] Destructive command: {cmd[:80]}")
-                    history.append({
-                        "step": step, "action": f"shell: {cmd[:80]}",
-                        "result": "Blocked by governance: destructive command.", "success": False,
-                    })
-                    continue
-                elif gate == "PRIVILEGED":
-                    if callback:
-                        callback(f"__PRIVILEGED__:{cmd[:200]}")
-                    try:
-                        print(f"\n[PRIVILEGED] AI wants to run:")
-                        print(f"  {cmd[:200]}")
-                        ans = input("Allow? [y/N]: ").strip().lower()
-                        if ans not in ("y", "yes"):
-                            history.append({
-                                "step": step, "action": f"shell: {cmd[:80]}",
-                                "result": "Rejected by user.", "success": False,
-                            })
-                            continue
-                    except Exception:
-                        history.append({
-                            "step": step, "action": f"shell: {cmd[:80]}",
-                            "result": "Skipped (non-interactive).", "success": False,
-                        })
-                        continue
-            
-            # Execute via universal executor
-            result = executor.execute_action({"type": action_type, "params": params})
-            
-            # Store in history
-            history.append({
-                "step": step,
-                "action": f"{action_type}: {json.dumps(params)[:100]}",
-                "result": result.output if result.success else result.error,
-                "success": result.success
-            })
-            
-            # Callback — show actual command executed
             if callback:
-                status = "[OK]" if result.success else "[FAIL]"
-                cmd_preview = ""
-                if action_type == "shell":
-                    cmd_preview = params.get("command", "")[:80]
-                elif action_type == "run_tool":
-                    t = params.get("tool", "")
-                    tg = params.get("target", "")
-                    cmd_preview = f"{t} {tg}"[:80] if t else params.get("tools", str(params))[:80]
-                elif action_type == "search_web":
-                    cmd_preview = params.get("query", "")[:80]
-                elif action_type == "cve_lookup":
-                    cmd_preview = params.get("cve_id", "") or params.get("keyword", "")
-                cmd_tag = f" [{cmd_preview}]" if cmd_preview else ""
-                if action_type == "search_web":
-                    preview = (result.output if result.success else result.error)[:300]
-                else:
-                    preview = (result.output if result.success else result.error)[:150]
-                callback(f"{status} {action_type}{cmd_tag}: {preview}")
-            
-            #  Remember important results
-            if result.success and action_type in ["shell", "run_tool", "search_web"]:
-                remember(
-                    f"Action {action_type} result: {result.output[:200]}",
-                    target or "universal",
-                    "action_result",
-                    action=action_type,
-                    step=step
-                )
-            
-            # Check for findings in security mode
-            if is_security_task:
-                findings_list = result.metadata.get("findings", [])
-                if isinstance(findings_list, list):
-                    for finding in findings_list:
-                        remember(
-                            f"Finding: {finding.get('type', 'unknown')} at {finding.get('url', target)}",
-                            target,
-                            "finding",
-                            severity=finding.get("severity", "unknown"),
-                            step=step
-                        )
-        
-        # Max steps reached
-        return f"Universal session reached {max_universal_steps} steps. History: {len(history)} actions."
+                callback(f"Report saved: {report_path}")
+
+        if callback:
+            callback("Hybrid hunt complete")
+        return result or "Hybrid mission completed."
+
+    def _activity_log(self, msg: str, callback: Optional[Callable] = None):
+        """Log activity and optionally notify callback."""
+        logger.info(msg)
+        if callback:
+            try:
+                safe = re.sub(r"\[/?[^\]]+\]", "", str(msg))
+                callback(safe[:200])
+            except Exception:
+                pass

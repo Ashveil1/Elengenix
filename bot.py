@@ -151,7 +151,7 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.info(f"Chat ID auto-detected: {chat_id}")
     
     welcome = (
-        "*Elengenix Bot v2.0.0*\n\n"
+        "*Elengenix Bot v99999*\n\n"
         f"Your Chat ID: `{chat_id}`\n\n"
         "Professional Bug Bounty Automation Hub.\n\n"
         "*Commands:*\n"

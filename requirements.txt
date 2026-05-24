@@ -6,9 +6,9 @@
 # ═══════════════════════════════════════════════════════
 
 # ── Core Framework & Security ───────────────────────────
-pyyaml                  # SECURITY: CVE-2020-14343 fix
-requests                # SECURITY: CVE-2023-32681 & CVE-2024-35195 fixes
-python-dotenv           # Secure environment variable management
+pyyaml>=6.0             # SECURITY: CVE-2020-14343 fix
+requests>=2.31.0        # SECURITY: CVE-2023-32681 & CVE-2024-35195 fixes
+python-dotenv>=1.0.0    # Secure environment variable management
 
 # ── AI / LLM SDKs (High Performance) ───────────────────
 openai                  # Native Async support & latest features
@@ -22,14 +22,14 @@ replicate               # Replicate AI models
 python-telegram-bot     # Modern async handler for bot control
 
 # ── CLI UI & UX ─────────────────────────────────────────
-rich                    # Technical UI rendering
-questionary             # Interactive CLI menus
-prompt_toolkit          # Modern Gemini-style CLI sessions
-textual                 # TUI framework with native mouse/scroll support
+rich>=13.0.0            # Technical UI rendering
+questionary>=2.0.0      # Interactive CLI menus
+prompt_toolkit>=3.0.0   # Modern Gemini-style CLI sessions
+textual>=0.41.0         # TUI framework with native mouse/scroll support
 
 # ── Resilience & Async Bridge ──────────────────────────
-nest-asyncio            # Critical for nested event loops (Bot support)
-tenacity                # Advanced retry & backoff strategies
+nest-asyncio>=1.6.0     # Critical for nested event loops (Bot support)
+tenacity>=8.0.0         # Advanced retry & backoff strategies
 
 # ── Token Counting ─────────────────────────────────────
 tiktoken                # Accurate token counting (auto-detected, lightweight)
@@ -58,6 +58,6 @@ ddgs                    # DuckDuckGo search for real-time web results
 # pip-audit               # For advanced vulnerability scanning
 
 # -- Testing and Development --
-pytest                    # Unit and integration testing
+pytest>=7.0.0             # Unit and integration testing
 pytest-asyncio            # Async test support
 zaproxy

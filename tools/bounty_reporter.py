@@ -161,7 +161,7 @@ class BountyReporter:
         data = {
             "target": self.target,
             "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
-            "tool": "Elengenix v2.0.0",
+            "tool": "Elengenix v99999",
             "findings": [
                 {
                     "id": f.finding_id,

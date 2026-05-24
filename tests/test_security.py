@@ -24,11 +24,11 @@ def test_execute_tool_blocks_destructive_dd():
     assert "blocked" in result.lower() or "denied" in result.lower()
 
 
-def test_execute_tool_blocks_metacharacters():
-    """safe_exec FORBIDDEN_CHARS (| & ; ` > < etc.) still blocked."""
+def test_execute_tool_allows_metacharacters():
+    """Pipes, redirects, and chaining are now ALLOWED."""
     agent = _lightweight_agent()
-    result = agent._execute_tool({"action": "run_shell", "command": "echo hello; whoami"})
-    assert "prohibited" in result.lower() or "blocked" in result.lower()
+    result = agent._execute_tool({"action": "run_shell", "command": "echo hello; echo world"})
+    assert "hello\nworld" in result or "hello" in result
 
 
 def test_execute_tool_allows_safe_command():
@@ -39,10 +39,9 @@ def test_execute_tool_allows_safe_command():
 
 
 def test_execute_tool_allows_variable_expansion():
-    """${} is now ALLOWED — shell=False prevents expansion."""
+    """${} is now ALLOWED — shell=True expands variables natively."""
     agent = _lightweight_agent()
-    result = agent._execute_tool({"action": "run_shell", "command": "echo ${HOME}"})
-    # Should run the command (echo ${HOME} literally, no shell expansion)
+    result = agent._execute_tool({"action": "run_shell", "command": "echo ${USER}"})
     assert "command failed" not in result.lower()
 
 

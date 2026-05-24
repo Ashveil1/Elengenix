@@ -2,9 +2,9 @@
 tools/vector_memory.py — Semantic Vector Memory System (v99999 (god nine is the best))
 - ChromaDB-based vector storage for persistent AI memory
 - SQLite FTS5 fallback (built-in, zero deps) when ChromaDB unavailable
-- Semantic search: ค้นหาคล้ายกัน ไม่ใช่ตรงตัว
-- จำทุก conversation, finding, decision ตลอดกาล
-- Cross-session memory: เริ่มใหม่ก็ยังจำได้
+- Semantic search: finds similar, not exact matches
+- Remembers every conversation, finding, decision permanently
+- Cross-session memory: remembers even after restart
 """
 
 import logging
@@ -32,11 +32,11 @@ except ImportError:
 class MemoryEntry:
     """Single memory entry with metadata."""
     id: str
-    content: str  # ข้อความที่จะ embed ( searchable )
+    content: str  # Text to embed (searchable)
     target: str   # target domain/IP
     category: str # finding, conversation, decision, tool_result
     timestamp: str
-    metadata: Dict[str, Any]  # ข้อมูลเพิ่มเติม
+    metadata: Dict[str, Any]  # Additional metadata
     
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
@@ -45,7 +45,7 @@ class MemoryEntry:
 class VectorMemory:
     """
     Semantic vector memory using ChromaDB.
-    จำทุกอย่างได้ตลอด ค้นหาแบบใกล้เคียง (semantic similarity)
+    Remembers everything, searches by semantic similarity.
     """
     
     def __init__(self, persist_directory: str = None):
@@ -96,16 +96,16 @@ class VectorMemory:
         metadata: Dict[str, Any] = None
     ) -> str:
         """
-        เพิ่ม memory ใหม่เข้า vector database
+        Add a new memory to the vector database.
         
         Args:
-            content: ข้อความที่ต้องการจำ (จะถูก embed)
-            target: target domain/IP ที่เกี่ยวข้อง
-            category: ประเภท (finding, conversation, decision, tool_result)
-            metadata: ข้อมูลเพิ่มเติม
+            content: Text content to remember (will be embedded)
+            target: Associated target domain/IP
+            category: Type (finding, conversation, decision, tool_result)
+            metadata: Additional metadata
             
         Returns:
-            memory_id: ID ของ memory ที่บันทึก
+            memory_id: ID of the saved memory
         """
         if not self._initialized:
             logger.warning("VectorMemory not initialized, storing in SQLite fallback")
@@ -146,14 +146,14 @@ class VectorMemory:
         min_similarity: float = 0.4
     ) -> List[Dict[str, Any]]:
         """
-        ค้นหา memory ที่ใกล้เคียงกับ query (semantic search)
+        Search for memories similar to the query (semantic search).
         
         Args:
-            query: ข้อความที่ต้องการค้นหา
-            target: filter เฉพาะ target นี้ (optional)
-            category: filter เฉพาะ category นี้ (optional)
-            n_results: จำนวนผลลัพธ์ที่ต้องการ
-            min_similarity: ความคล้ายขั้นต่ำ (0-1)
+            query: Search query text
+            target: Filter for specific target (optional)
+            category: Filter for specific category (optional)
+            n_results: Number of results desired
+            min_similarity: Minimum similarity threshold (0-1)
             
         Returns:
             List of matching memories with similarity scores
@@ -204,12 +204,12 @@ class VectorMemory:
         limit: int = 100
     ) -> List[Dict[str, Any]]:
         """
-        ดึงทุก memory ของ target นั้น
+        Get all memories for a specific target.
         
         Args:
-            target: domain/IP ที่ต้องการ
-            category: filter เฉพาะ category (optional)
-            limit: จำนวนสูงสุด
+            target: Target domain/IP
+            category: Filter for specific category (optional)
+            limit: Maximum number of results
         """
         if not self._initialized:
             return self._fallback_get_target(target, category, limit)
@@ -246,7 +246,7 @@ class VectorMemory:
             return self._fallback_get_target(target, category, limit)
     
     def get_all_targets(self) -> List[str]:
-        """ดึงรายการทุก target ที่มีใน memory"""
+        """Get list of all targets stored in memory."""
         if not self._initialized:
             return []
         
@@ -265,7 +265,7 @@ class VectorMemory:
             return []
     
     def delete_target_memories(self, target: str) -> int:
-        """ลบทุก memory ของ target นั้น"""
+        """Delete all memories for a specific target."""
         if not self._initialized:
             return self._fallback_delete_target(target)
 
@@ -280,7 +280,7 @@ class VectorMemory:
             return 0
     
     def get_memory_stats(self) -> Dict[str, Any]:
-        """สถิติของ memory database"""
+        """Get memory database statistics."""
         if not self._initialized:
             return self._fallback_stats()
         
@@ -292,7 +292,7 @@ class VectorMemory:
                 "status": "active",
                 "total_memories": count,
                 "unique_targets": len(targets),
-                "targets": targets[:20],  # แสดงแค่ 20 ตัวแรก
+                "targets": targets[:20],  # Show only first 20
                 "persist_directory": str(self.persist_dir),
             }
         except Exception as e:
@@ -300,7 +300,7 @@ class VectorMemory:
             return {"status": "error", "error": str(e)}
     
     # ═════════════════════════════════════════════════════════════════
-    # FALLBACK: SQLite FTS5 mode (เมื่อ ChromaDB ไม่พร้อมใช้งาน)
+    # FALLBACK: SQLite FTS5 mode (when ChromaDB is unavailable)
     # ═════════════════════════════════════════════════════════════════
     #
     # SQLite FTS5 (Full-Text Search v5) is built into Python's sqlite3
@@ -513,7 +513,7 @@ def get_vector_memory() -> VectorMemory:
 
 
 # ═════════════════════════════════════════════════════════════════
-# CONVENIENCE FUNCTIONS (ใช้งานง่าย)
+# CONVENIENCE FUNCTIONS (easy to use)
 # ═════════════════════════════════════════════════════════════════
 
 def remember(
@@ -523,7 +523,7 @@ def remember(
     **metadata
 ) -> str:
     """
-    บันทึกความจำใหม่
+    Save new memory.
     
     Example:
         remember(
@@ -545,11 +545,11 @@ def recall(
     n_results: int = 5
 ) -> List[Dict[str, Any]]:
     """
-    ค้นหาความจำที่คล้ายกับ query
+    Find memories similar to query.
     
     Example:
         recall("admin panel vulnerabilities", "example.com")
-        → หา memories ที่เกี่ยวกับ admin panel
+        -> finds memories related to admin panel
     """
     vm = get_vector_memory()
     return vm.search(query, target, category, n_results)
@@ -562,16 +562,16 @@ def get_context_for_ai(
     conversation_history: Optional[List[Dict]] = None
 ) -> str:
     """
-    สร้าง context สำหรับ AI จาก memories ที่เกี่ยวข้อง
+    Build context for AI from relevant memories.
     
     Args:
-        current_query: คำถาม/คำสั่งปัจจุบัน
-        target: target ที่กำลังทำงาน
-        max_memories: จำนวน memory สูงสุด
-        conversation_history: รายการ conversation turns ล่าสุด (optional)
+        current_query: Current question/command
+        target: Current target being worked on
+        max_memories: Maximum number of memories
+        conversation_history: Recent conversation turns (optional)
         
     Returns:
-        Formatted context string สำหรับใส่ใน prompt
+        Formatted context string for prompt injection
     """
     vm = get_vector_memory()
     
@@ -603,7 +603,7 @@ def get_context_for_ai(
         lines.append("No prior knowledge about this target.")
     else:
         for i, mem in enumerate(all_memories[:max_memories], 1):
-            content = mem["content"][:200]  # จำกัดความยาว
+            content = mem["content"][:200]  # Limit content length
             category = mem["metadata"].get("category", "general")
             timestamp = mem["metadata"].get("timestamp", "unknown")
             
@@ -643,13 +643,13 @@ def contextual_memory_search(
     max_memories: int = 12
 ) -> List[Dict[str, Any]]:
     """
-    ค้นหา memory โดยใช้ทั้ง query ปัจจุบันและบริบท conversation ก่อนหน้า
+    Search memories using both current query and conversation context.
     
     Args:
-        current_query: คำถามปัจจุบัน
-        target: target domain/IP
-        conversation_history: รายการ conversation turns ล่าสุด
-        max_memories: จำนวนผลลัพธ์สูงสุด
+        current_query: Current question
+        target: Target domain/IP
+        conversation_history: Recent conversation turns
+        max_memories: Maximum number of results
         
     Returns:
         List of memories deduplicated and sorted by relevance
@@ -706,15 +706,15 @@ def persist_conversation_turns(
     batch_size: int = 4
 ) -> int:
     """
-    บันทึก conversation turns ล่าสุดลง vector memory
+    Persist recent conversation turns to vector memory.
     
     Args:
-        conversation_history: รายการ conversation turns
-        target: target domain/IP
-        batch_size: บันทึกทุก N turns
+        conversation_history: List of conversation turns
+        target: Target domain/IP
+        batch_size: Save every N turns
         
     Returns:
-        จำนวน turns ที่บันทึก
+        Number of turns saved
     """
     if len(conversation_history) < 2:
         return 0
@@ -748,7 +748,7 @@ def persist_conversation_turns(
 
 
 def show_memory_stats():
-    """แสดงสถิติ memory (ใช้ใน CLI)"""
+    """Display memory statistics (for CLI)."""
     vm = get_vector_memory()
     stats = vm.get_memory_stats()
     

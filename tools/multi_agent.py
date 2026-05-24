@@ -511,11 +511,14 @@ Respond with JSON:
 ### RULES
 1. Be concise and actionable — no fluff
 2. Always reference specific data from teammates' findings
-3. Do not repeat work a teammate already did
+3. **DO NOT repeat work a teammate already did** — check the discussion history and shared intelligence first
 4. If proposing a tool, specify exact command parameters from the available tools list
 5. Do not use emojis
 6. Respond ONLY with valid JSON
-7. If a tool you need is marked [MISSING], suggest it with install command"""
+7. If a tool you need is marked [MISSING], suggest it with install command
+8. **COORDINATION**: If a teammate already ran a specific tool on a target, do NOT run it again. Instead, build upon their results.
+9. **UNIQUE OUTPUT FILES**: When saving output to files, include your role name to avoid conflicts (e.g., `subfinder_recon_lead.txt` not `subfinder.txt`).
+10. You have full native shell access — you can use pipes (|), redirects (>), command chaining (&&), subshells ($()) freely."""
 
         return prompt
 
@@ -784,7 +787,11 @@ Respond with JSON:
         return True
 
     def _execute_agent_action(self, agent_id: int, action: Dict, executor) -> str:
-        """Execute a tool action requested by an agent."""
+        """Execute a tool action requested by an agent.
+        
+        Passes agent_id to the executor for workspace isolation,
+        preventing file conflicts between parallel agents.
+        """
         action_type = action.get("type", "none")
         params = action.get("params", {})
         
@@ -792,6 +799,10 @@ Respond with JSON:
             return ""
         
         try:
+            # Inject agent_id for shell workspace isolation
+            if action_type == "shell":
+                params["agent_id"] = agent_id
+            
             result = executor.execute_action({"type": action_type, "params": params})
             output = result.output if result.success else f"Error: {result.error}"
             

@@ -4,7 +4,7 @@ Agent Self-Reflection System (Tier 2 Upgrade)
 
 Purpose:
 - AI tracks its own mistakes and learns from negative feedback
-- When user says "ผิด", "ไม่ใช่", "ไม่เกี่ยว" → log as negative feedback
+- When user gives negative feedback or correction → log as negative feedback
 - Before answering, check if similar query got negative feedback before
 - Prevents repeating the same mistakes
 
@@ -168,7 +168,7 @@ class AgentReflection:
         Args:
             original_query: What user originally asked.
             ai_response: What AI answered.
-            user_feedback: User's reaction (e.g., "ผิดนะ").
+            user_feedback: User's reaction (e.g., "that's wrong").
 
         Returns:
             True if recorded successfully.

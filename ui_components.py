@@ -353,7 +353,9 @@ def print_success(message: str):
 
 def print_error(message: str):
     """Print an error message with [FAIL] marker in red."""
-    console.print(f"[bold #ff4444]{MARKERS['fail']} {message}[/bold #ff4444]")
+    import re
+    safe_msg = re.sub(r'\[/?[^\]]+\]', '', str(message))  # Strip Rich tags
+    console.print(f"[bold #ff4444]{MARKERS['fail']} {safe_msg}[/bold #ff4444]")
 
 
 def print_warning(message: str):
