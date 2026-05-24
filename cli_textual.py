@@ -186,7 +186,7 @@ class Sidebar(Container):
 # ── Thinking Animation ─────────────────────────────────────────────────
 class ThinkingWidget(Static):
     """Animated thinking indicator — driven by 30fps master tick (no own timer)."""
-    DEFAULT_CSS = f"""ThinkingWidget {{ height: 1; padding: 0 1; color: {WHITE}; display: none; }}
+    DEFAULT_CSS = f"""ThinkingWidget {{ height: 1; padding: 0 1 0 5; color: {WHITE}; display: none; }}
     ThinkingWidget.visible {{ display: block; }}"""
 
     def on_mount(self) -> None:
