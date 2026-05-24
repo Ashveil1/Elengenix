@@ -19,8 +19,8 @@ from tools.vector_memory import remember, get_context_for_ai
 from tools.governance import Governance
 from tools.universal_executor import get_universal_executor
 from tools.cvss_calculator import CVSSCalculator
-from tools.agent_reflection import ReflectionTracker
-from agents.agent_helpers import _get_now_context, _get_memory_profile_context, _get_now_context
+from tools.agent_reflection import AgentReflection
+from agents.agent_helpers import _get_now_context, _get_memory_profile_context
 from agents.agent_intent import analyze_intent
 
 logger = logging.getLogger("elengenix.agent")
@@ -32,7 +32,7 @@ def process_universal(
     conversation_history: List[Dict[str, str]],
     base_prompt: str,
     governance: Governance,
-    reflection_tracker: Optional[ReflectionTracker] = None,
+    reflection_tracker: Optional[AgentReflection] = None,
     skill_registry: Any = None,
     target: str = "",
     mode: str = "auto",
