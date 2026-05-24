@@ -174,12 +174,12 @@ class SettingsOverlay:
 
         title = self._get_title()
         lines = Text()
-        lines.append(f"\n{title}\n", style="bold #ff4444")
-        lines.append("=" * 40 + "\n\n", style="#ff4444")
+        lines.append(f"\n{title}\n", style="bold #ffffff")
+        lines.append("=" * 40 + "\n\n", style="#ffffff")
 
         # Show search text in model_select
         if self._current_layer == "model_select" and self._search:
-            lines.append(f"  Search: {self._search}\n\n", style="dim #ff6b6b")
+            lines.append(f"  Search: {self._search}\n\n", style="dim #555555")
 
         # Show a scrollable window of items
         total = len(self._items)
@@ -195,7 +195,7 @@ class SettingsOverlay:
             is_selected = (i == self._selected_idx)
             if is_selected:
                 prefix = "\u25b6 "
-                style = "bold #ffffff on #ff4444"
+                style = "bold #ffffff on #333333"
             else:
                 prefix = "  "
                 style = "white on #0a0a0a"
@@ -219,7 +219,7 @@ class SettingsOverlay:
             box=ROUNDED,
             width=width,
             style="on #0a0a0a",
-            border_style="#ff4444",
+            border_style="#ffffff",
             padding=(1, 2),
         )
         return panel

@@ -331,7 +331,7 @@ class FindingCorrelator:
         for cluster in clusters[:10]:  # Show top 10
             color_map = {
                 "Critical": "#cc4444",
-                "High": "#ff6b6b",
+                "High": "#888888",
                 "Medium": "#888888",
                 "Low": "#666666",
                 "Informational": "#444444",

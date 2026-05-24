@@ -1,11 +1,5 @@
-"""
-cli_textual.py — Elengenix AI Partner Mode (Textual TUI v99999 (god nine is the best))
-Catppuccin Mocha-inspired theme with proper layout management.
-- Header bar with session info + keybinding hints
-- Main chat area with RichLog (scrollable)
-- Right sidebar: target, models, context, scan stats
-- Footer: status line + governance bar
-- Slash commands + settings overlay
+"""cli_textual.py — Elengenix AI Partner Mode (Textual TUI v99999)
+Monochrome theme — Black & White minimalist hacker aesthetic.
 """
 
 from __future__ import annotations
@@ -37,86 +31,72 @@ from agent import get_agent
 
 LOG_FILE = Path("data/elengenix_cli.log")
 LOG_FILE.parent.mkdir(exist_ok=True)
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s",
-    handlers=[logging.StreamHandler()],
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s", handlers=[logging.StreamHandler()])
 logger = logging.getLogger("elengenix.cli_textual")
 
-# ── Theme: Black, Red, White, Gray, Orange ──────────────────────────────
+# ── MONOCHROME THEME: Black & White ────────────────────────────────────
 BASE    = "#000000"
 MANTLE  = "#111111"
 CRUST   = "#0d0d0d"
-SURFACE = "#444444"
+SURFACE = "#1a1a1a"
 TEXT    = "#ffffff"
 SUBTEXT = "#cccccc"
-MUTED   = "#777777"
-RED     = "#ff4444"
-ORANGE  = "#ff6b6b"
+MUTED   = "#555555"
+DIM     = "#444444"
 WHITE   = "#ffffff"
 GRAY    = "#888888"
 
-# ── Aliases ─────────────────────────────────────────────────────────────
-COLOR_OK       = WHITE
-COLOR_WARN     = ORANGE
-COLOR_ERR      = RED
-COLOR_INFO     = WHITE
-COLOR_ACCENT   = RED
-COLOR_DIM      = GRAY
-COLOR_BG       = BASE
-COLOR_SURFACE  = SURFACE
-COLOR_TEXT     = TEXT
-COLOR_MUTED    = MUTED
-COLOR_BORDER   = SURFACE
-COLOR_HIGHLIGHT= ORANGE
+COLOR_OK    = WHITE
+COLOR_WARN  = WHITE
+COLOR_ERR   = WHITE
+COLOR_INFO  = WHITE
+COLOR_ACCENT= WHITE
+COLOR_DIM   = GRAY
+COLOR_MUTED = MUTED
+COLOR_BORDER = "#333333"
 
 AGENT_NAMES  = {1: "Elengix 1", 2: "Elengix 2", 3: "Elengix 3"}
 AGENT_COLORS = {1: WHITE, 2: GRAY, 3: MUTED}
 
-ASCII_BANNER = f"""\
-    [{RED}] ███████╗██╗     ███████╗███╗   ██╗ ██████╗ ███████╗███╗   ██╗
-    ██╔════╝██║     ██╔════╝████╗  ██║██╔════╝ ██╔════╝████╗  ██║
-    █████╗  ██║     █████╗  ██╔██╗ ██║██║  ███╗█████╗  ██╔██╗ ██║
-    ██╔══╝  ██║     ██╔══╝  ██║╚██╗██║██║   ██║██╔══╝  ██║╚██╗██║
-    ███████╗███████╗███████╗██║ ╚████║╚██████╔╝███████╗██║ ╚████║
-    ╚══════╝╚══════╝╚══════╝╚═╝  ╚═══╝ ╚═════╝ ╚══════╝╚═╝  ╚═══╝[/]"""
+ASCII_BANNER = """
+    [white]▗▄▄▄▖▗▄▄▖ ▗▄▄▄▖▗▄▄▄▖▗▖ ▗▖▗▄▄▄▖▗▄▄▄▖▗▄▄▄▖▗▖ ▗▖
+      █  ▐▌ ▐▌▐▌   ▐▌   ▐▌ ▐▌▐▌   ▐▌   ▐▌   ▐▌ ▐▌
+      █  ▐▛▀▜▌▐▛▀▀▘▐▛▀▀▘▐▌ ▐▌▐▌   ▐▛▀▀▘▐▛▀▀▘▐▛▀▜▌
+      █  ▐▌ ▐▌▐▙▄▄▖▐▙▄▄▖▐▙▄▜▌▐▙▄▄▖▐▙▄▄▖▐▙▄▄▖▐▌ ▐▌
+                              [dim]v99999[/]"""
 
-HELP_TEXT = f"""\
-[{COLOR_ACCENT}]━━━ COMMANDS ━━━[/{COLOR_ACCENT}]
-  /clear       Clear chat
-  /reset       Reset session
-  /quit        Exit
-  /mode <x>    Mode: auto research scan casual
-  /target <x>  Set target domain
-  /talk <n>    Talk to agent 1,2,3 or all
-  /session     Session info
-  /session new New session (auto-save current)
-  /session list List saved sessions
-  /session load <id> Load a saved session
-  /stats       Memory stats
-  /team        Show team
+HELP_TEXT = """\
+[white]━━━ COMMANDS ━━━[/]
+  [dim]/clear[/]       Clear chat
+  [dim]/reset[/]       Reset session
+  [dim]/quit[/]        Exit
+  [dim]/mode <x>[/]    Mode: auto research scan casual
+  [dim]/target <x>[/]  Set target domain
+  [dim]/talk <n>[/]    Talk to agent 1,2,3 or all
+  [dim]/session[/]     Session info
+  [dim]/session new[/] New session
+  [dim]/session list[/] List saved sessions
+  [dim]/session load <id>[/] Load session
+  [dim]/stats[/]       Memory stats
+  [dim]/team[/]        Show team
 
-[{COLOR_ACCENT}]━━━ SHORTCUTS ━━━[/{COLOR_ACCENT}]
-  Ctrl+R Research  Ctrl+B Scan
-  Ctrl+T Thinking  Ctrl+P Model
-  Ctrl+G Help      Ctrl+S Settings
-  Ctrl+U ↑10  Ctrl+D ↓10
-  ↑↓ History       / Slash commands"""
+[white]━━━ SHORTCUTS ━━━[/]
+  [dim]Ctrl+R[/] Research  [dim]Ctrl+B[/] Scan
+  [dim]Ctrl+T[/] Thinking  [dim]Ctrl+P[/] Model
+  [dim]Ctrl+G[/] Help      [dim]Ctrl+S[/] Settings
+  [dim]↑↓[/] History       [dim]/[/] Slash commands"""
 
 
 # ── Sidebar ──────────────────────────────────────────────────────────────
 class Sidebar(Container):
-    """Right-hand panel — target, models, context, scan stats."""
+    """Right-hand panel — monochrome minimal."""
 
     DEFAULT_CSS = f"""
     Sidebar {{
-        width: 38;
-        height: 1fr;
+        width: 34; height: 1fr;
         background: {MANTLE};
-        border: solid {RED};
-        margin: 0 0 0 1;
-        padding: 0 1;
+        border-left: solid {DIM};
+        margin: 0; padding: 0 1;
         overflow-y: auto;
     }}
     """
@@ -133,7 +113,6 @@ class Sidebar(Container):
         d = self._data
         status   = d.get("status", "ready")
         mode     = d.get("mode", "auto")
-        model    = d.get("model", "default")
         models   = d.get("models", [])
         session  = d.get("session", "new")
         turns    = d.get("turns", 0)
@@ -146,91 +125,70 @@ class Sidebar(Container):
         tools_run = d.get("tools_run", 0)
         talk_to  = d.get("talk_to", "all")
 
-        is_ready = (status == "ready")
-        dot  = f"[{COLOR_OK}]\u25cf[/{COLOR_OK}]" if is_ready else f"[{COLOR_WARN}]\u25cf[/{COLOR_WARN}]"
-        slabel = f"[bold {COLOR_OK}]READY[/]" if is_ready else f"[bold {COLOR_WARN}]WORKING[/]"
-        think_tag = f"  [{COLOR_ACCENT}]THINK[/]" if thinking else ""
-        team_tag = f"  [{COLOR_INFO}]TEAM {team}[/]" if team > 1 else ""
+        dot = f"[white]●[/]" if status == "ready" else f"[dim]●[/]"
+        slabel = "[white]READY[/]" if status == "ready" else "[dim]WORKING[/]"
+        think_tag = f"  [dim]THINK[/]" if thinking else ""
+        team_tag = f"  [dim]TEAM {team}[/]" if team > 1 else ""
         talk_tag = ""
         if talk_to != "all" and team > 0:
             name = AGENT_NAMES.get(talk_to, f"#{talk_to}")
-            talk_tag = f"\n  [{COLOR_ACCENT}]\u25b6 {name}[/]"
+            talk_tag = f"\n  [dim]▶ {name}[/]"
 
         pct   = min(100, int((tokens / limit) * 100)) if limit > 0 else 0
-        bar_w = 28
+        bar_w = 24
         filled = int((pct / 100) * bar_w)
-        bar  = f"[{COLOR_ACCENT}]{'.' * filled}[/][{COLOR_DIM}]{'.' * (bar_w - filled)}[/]"
-        mode_color = COLOR_ACCENT if mode in ("research", "scan") else COLOR_TEXT
-        div = f"[{COLOR_DIM}]\u2500" + "\u2500" * 28 + "[/]"
+        bar  = f"[white]{'█' * filled}[/][dim]{'█' * (bar_w - filled)}[/]"
 
-        target_line = ""
-        if target:
-            target_line = f"\n  [{COLOR_ACCENT}]{target[:32]}[/]"
+        target_line = f"\n  [white]{target[:28]}[/]" if target else f"\n  [dim]none[/]"
 
         model_lines = []
         if models:
             for i, m in enumerate(models):
-                idx = i + 1
-                name = AGENT_NAMES.get(idx, f"#{idx}")
-                marker = f"[bold {COLOR_ACCENT}]\u25b6[/]" if talk_to == idx else " "
+                name = AGENT_NAMES.get(i + 1, f"#{i + 1}")
                 short = m.split("/")[-1] if "/" in m else m
-                tag_color = AGENT_COLORS.get(idx, COLOR_TEXT)
-                model_lines.append(f"  {marker} [{tag_color}]{name}[/] [{COLOR_DIM}]{short[:22]}[/]")
+                color = AGENT_COLORS.get(i + 1, TEXT)
+                model_lines.append(f"  [{color}]{name}[/] [dim]{short[:20]}[/]")
         else:
-            model_lines.append(f"  [{COLOR_MUTED}]default[/]")
+            model_lines.append(f"  [dim]default[/]")
 
-        lines = "\n".join([
-            f"[bold {COLOR_ACCENT}]\u250c\u2500 ELENGENIX[/]",
-            f"  {dot} {slabel}{think_tag}{team_tag}{talk_tag}",
-            div,
-            f"[bold {COLOR_TEXT}]TARGET[/]{target_line}",
-            div,
-            f"[bold {COLOR_TEXT}]SESSION[/]",
-            f"  {session[:22]}",
-            f"  Mode: [bold {mode_color}]{mode.upper()}[/] [{COLOR_DIM}]Turns: {turns}[/]",
-            div,
-            f"[bold {COLOR_TEXT}]SCAN[/]" if target else f"[{COLOR_DIM}]SCAN[/]",
-            f"  [{COLOR_DIM}]Tools:[/] {tools_run}  [{COLOR_DIM}]Findings:[/] {findings}",
-            div,
-            f"[bold {COLOR_TEXT}]MODELS[/]",
-            "\n".join(model_lines),
-            div,
-            f"[bold {COLOR_TEXT}]CONTEXT[/]",
-            f"  {bar}",
-            f"  {tokens}/{limit}  [{COLOR_DIM}]{pct}%[/]",
-            div,
-            f"[bold {COLOR_TEXT}]SHORTCUTS[/]",
-        f"  [{COLOR_DIM}]Ctrl+R[/] Research  [{COLOR_DIM}]Ctrl+B[/] Scan",
-        f"  [{COLOR_DIM}]Ctrl+T[/] Thinking  [{COLOR_DIM}]Ctrl+P[/] Model",
-        f"  [{COLOR_DIM}]Ctrl+G[/] Help      [{COLOR_DIM}]Ctrl+S[/] Settings",
-            div,
-            f"[{COLOR_DIM}]\u2514\u2500 v99999 Elengix[/]",
-        ])
+        sidebar_text = (
+            f"[white]┌ ELENGENIX[/]\n"
+            f"  {dot} {slabel}{think_tag}{team_tag}{talk_tag}\n"
+            f"[dim]─" + "─" * 28 + "[/]\n"
+            f"[white]TARGET[/]{target_line}\n"
+            f"[dim]─" + "─" * 28 + "[/]\n"
+            f"[white]SESSION[/]\n"
+            f"  [dim]{session[:20]}[/]\n"
+            f"  Mode: [white]{mode.upper()}[/] [dim]Turns: {turns}[/]\n"
+            f"[dim]─" + "─" * 28 + "[/]\n"
+            f"[white]SCAN[/]\n"
+            f"  [dim]Tools:[/] {tools_run}  [dim]Findings:[/] {findings}\n"
+            f"[dim]─" + "─" * 28 + "[/]\n"
+            f"[white]MODELS[/]\n"
+            + "\n".join(model_lines) + "\n"
+            f"[dim]─" + "─" * 28 + "[/]\n"
+            f"[white]CONTEXT[/]\n"
+            f"  {bar}\n"
+            f"  [dim]{tokens}[/dim]/[dim]{limit}[/]  {pct}%\n"
+        )
         try:
-            self.query_one("#sidebar_content", Static).update(lines)
+            self.query_one("#sidebar_content", Static).update(sidebar_text)
         except Exception:
             pass
 
 
-# ── Animated Thinking ────────────────────────────────────────────────────
+# ── Thinking Animation ─────────────────────────────────────────────────
 class ThinkingWidget(Static):
-    DEFAULT_CSS = f"""
-    ThinkingWidget {{
-        height: 1; padding: 0 1;
-        color: {COLOR_ACCENT};
-        display: none;
-    }}
-    ThinkingWidget.visible {{ display: block; }}
-    """
+    DEFAULT_CSS = f"""ThinkingWidget {{ height: 1; padding: 0 1; color: {WHITE}; display: none; }}"""
 
     def on_mount(self) -> None:
-        self.frames = ["\u25d0", "\u25d3", "\u25d1", "\u25d2"]
+        self.frames = ["◐", "◓", "◑", "◒"]
         self.idx = 0
-        self.anim_timer = self.set_interval(0.2, self.tick, pause=True)
+        self.anim_timer = self.set_interval(0.3, self.tick, pause=True)
 
     def tick(self) -> None:
         self.idx = (self.idx + 1) % len(self.frames)
-        self.update(f"[{COLOR_ACCENT}]{self.frames[self.idx]} Thinking...[/]")
+        self.update(f"[white]{self.frames[self.idx]} thinking[/]")
 
     def show(self) -> None:
         self.add_class("visible"); self.anim_timer.resume()
@@ -239,78 +197,45 @@ class ThinkingWidget(Static):
         self.remove_class("visible"); self.anim_timer.pause()
 
 
-# ── Governance / Status Bar ──────────────────────────────────────────────
+# ── Status & Progress Bars ─────────────────────────────────────────────
 class StatusBar(Static):
-    DEFAULT_CSS = f"""
-    StatusBar {{
-        height: 1; padding: 0 1;
-        background: {CRUST};
-        color: {COLOR_MUTED};
-    }}
-    """
+    DEFAULT_CSS = f"""StatusBar {{ height: 1; padding: 0 1; background: {CRUST}; color: {MUTED}; }}"""
 
     def show_action(self, cmd: str, risk: str = "SAFE") -> None:
-        c = {"SAFE": COLOR_OK, "PRIVILEGED": COLOR_WARN, "DESTRUCTIVE": COLOR_ERR}.get(risk, COLOR_MUTED)
-        self.update(f"[{c}]\u25b6 {risk}[/]  [{COLOR_DIM}]{cmd[:80]}[/]")
+        tag = {"SAFE": "", "PRIVILEGED": "[dim]▶ PRIV[/]", "DESTRUCTIVE": "[white]▶ BLOCKED[/]"}.get(risk, "")
+        self.update(f"{tag}  [dim]{cmd[:75]}[/]" if tag else f"[dim]{cmd[:80]}[/]")
+
+    def show_message(self, msg: str) -> None:
+        self.update(f"[dim]{msg[:80]}[/]")
 
 
 class ProgressBar(Static):
-    DEFAULT_CSS = f"""
-    ProgressBar {{
-        height: 1; padding: 0 1;
-        background: {MANTLE};
-        display: none;
-    }}
-    ProgressBar.visible {{ display: block; }}
-    """
+    DEFAULT_CSS = f"""ProgressBar {{ height: 1; padding: 0 1; background: {MANTLE}; display: none; }}"""
 
     def show_scan(self, tool: str, cur: int, total: int, findings: int) -> None:
         w = 30; pct = int((cur / max(total, 1)) * w)
-        bar = f"[{COLOR_ACCENT}]{'#' * pct}[/][{COLOR_DIM}]{'-' * (w - pct)}[/]"
-        self.update(f"  {bar}  [{COLOR_ACCENT}]{tool}[/]  ({cur}/{total})  [{COLOR_OK}]{findings} findings[/]")
+        bar = f"[white]{'█' * pct}[/][dim]{'█' * (w - pct)}[/]"
+        self.update(f"  {bar}  {tool}  [dim]({cur}/{total})[/]  {findings} findings")
 
     def show(self) -> None: self.add_class("visible")
     def hide(self) -> None: self.remove_class("visible")
 
 
-# ── Custom URL Input ──────────────────────────────────────────────────
+# ── Settings Overlay ────────────────────────────────────────────────────
 CUSTOM_URL_INPUT_CSS = """
-#custom_url_row {
-    height: 3; display: none; margin: 0 1;
-    background: #0d0d0d; border: solid #ff4444;
-}
+#custom_url_row { height: 3; display: none; margin: 0 1; background: #111111; border: solid #444444; }
 #custom_url_row.visible { display: block; }
-#custom_url_input {
-    height: 3; border: none; background: #0d0d0d;
-    color: #ffffff; padding: 0 1;
-}
+#custom_url_input { height: 3; border: none; background: #111111; color: #ffffff; padding: 0 1; }
 """
 
-
-# ── Settings Overlay ─────────────────────────────────────────────────────
 class SettingsOverlayWidget(Widget, can_focus=True):
-    """Floating settings modal — dims the background, centres a panel."""
-
     DEFAULT_CSS = f"""
-    SettingsOverlayWidget {{
-        layer: overlay; align: center middle;
-        width: 100%; height: 100%; display: none;
-    }}
+    SettingsOverlayWidget {{ layer: overlay; align: center middle; width: 100%; height: 100%; display: none; }}
     SettingsOverlayWidget.visible {{ display: block; }}
-    #settings_panel {{
-        width: 76; height: auto; max-height: 80%; min-height: 22;
-        background: {MANTLE}; border: wide {RED}; padding: 0;
-    }}
-    #settings_header {{
-        width: 1fr; height: 1; content-align: center middle;
-        background: {RED}; color: {WHITE};
-        text-style: bold;
-    }}
+    #settings_panel {{ width: 72; height: auto; max-height: 80%; min-height: 20; background: {BASE}; border: solid {DIM}; padding: 0; }}
+    #settings_header {{ width: 1fr; height: 1; content-align: center middle; background: {BASE}; color: {WHITE}; text-style: bold; border-bottom: solid {DIM}; }}
     #settings_content {{ width: 1fr; height: auto; background: transparent; padding: 1 2; }}
-    #settings_footer {{
-        width: 1fr; height: 1; content-align: center middle;
-        color: {MUTED}; background: {CRUST};
-    }}
+    #settings_footer {{ width: 1fr; height: 1; content-align: center middle; color: {MUTED}; background: {CRUST}; }}
     {CUSTOM_URL_INPUT_CSS}
     """
 
@@ -319,8 +244,8 @@ class SettingsOverlayWidget(Widget, can_focus=True):
             yield Static("  SETTINGS  ", id="settings_header")
             yield Static("", id="settings_content", markup=True)
             with Horizontal(id="custom_url_row"):
-                yield Input(placeholder="Enter API base URL (e.g. http://localhost:11434/v1)...", id="custom_url_input")
-            yield Static("  \u2191\u2193 Navigate  \u23ce Select  Esc Close  S Save", id="settings_footer")
+                yield Input(placeholder="Enter API base URL...", id="custom_url_input")
+            yield Static("  ↑↓ Navigate  ⏎ Select  Esc Close  S Save", id="settings_footer")
 
     def on_mount(self) -> None:
         self._overlay = None
@@ -330,19 +255,18 @@ class SettingsOverlayWidget(Widget, can_focus=True):
         try:
             from tools.overlay_menu import SettingsOverlay
             self._overlay = SettingsOverlay(getattr(self.app, "_agent", None), None, target=getattr(self.app, "target", ""))
-        except Exception as exc:
-            self._overlay = None; logger.error(f"Settings: {exc}")
+        except Exception:
+            self._overlay = None
 
     def _redraw(self) -> None:
         w = self.query_one("#settings_content", Static)
         if self._overlay:
             w.update(self._overlay.render())
         else:
-            w.update(Panel(f"[{COLOR_ERR}]Unavailable. Esc to close.[/]", border_style=COLOR_DIM))
+            w.update(Panel("[dim]Unavailable. Esc to close.[/]", border_style=DIM))
 
     def show(self) -> None:
         self._reload(); self._redraw(); self.add_class("visible")
-        # Disable chat input so it doesn't steal keystrokes
         try:
             self.app.query_one("#user_input", Input).disabled = True
         except: pass
@@ -351,73 +275,16 @@ class SettingsOverlayWidget(Widget, can_focus=True):
     def hide(self) -> None:
         self.remove_class("visible")
         self.query_one("#custom_url_row").remove_class("visible")
-        # Re-enable chat input
         try:
             inp = self.app.query_one("#user_input", Input)
-            inp.disabled = False
-            inp.focus()
+            inp.disabled = False; inp.focus()
         except: pass
-
-    def _show_custom_url(self) -> None:
-        """Show the custom URL input field."""
-        self.query_one("#settings_content", Static).update("")
-        row = self.query_one("#custom_url_row")
-        row.add_class("visible")
-        inp = self.query_one("#custom_url_input", Input)
-        inp.value = ""
-        inp.focus()
-
-    def on_input_submitted(self, event: Input.Submitted) -> None:
-        """Handle Enter on custom URL / API key / model name input."""
-        if event.input.id != "custom_url_input":
-            return
-        val = event.value.strip()
-        if not val or not self._overlay:
-            self.query_one("#custom_url_row").remove_class("visible")
-            self._redraw()
-            self.app.set_timer(0.0, lambda: self.focus())
-            return
-
-        step = getattr(self._overlay, "_custom_step", "")
-        inp = self.query_one("#custom_url_input", Input)
-
-        if step == "apikey":
-            # Entered URL, now entering API key → fetch models
-            self._overlay.handle_custom_apikey(val)
-            self.query_one("#custom_url_row").remove_class("visible")
-            self._redraw()
-            self.app.set_timer(0.0, lambda: self.focus())
-        elif step == "model":
-            # Entered model name for custom
-            url = getattr(self._overlay, "_custom_url", "")
-            if url:
-                os.environ["CUSTOM_API_BASE"] = url
-            self._overlay._agent_config[self._overlay._agent_idx] = {
-                "provider": "custom",
-                "model": val,
-            }
-            self._overlay._save_and_apply()
-            self._overlay._custom_step = ""
-            self.query_one("#custom_url_row").remove_class("visible")
-            self._redraw()
-            self.app.set_timer(0.0, lambda: self.focus())
-        else:
-            # First: entering the URL
-            self._overlay.handle_custom_url(val)
-            inp.value = ""
-            inp.placeholder = "Enter API key (or leave empty and press Enter)..."
-            inp.focus()
 
     def on_key(self, event) -> None:
         if not self.has_class("visible"): return
-
-        # If custom URL input is visible, let the Input widget handle keys.
-        # on_input_submitted will handle Enter.
         if self.query_one("#custom_url_row").has_class("visible"):
-            if event.key == "escape":
-                self.hide()
+            if event.key == "escape": self.hide()
             return
-
         key = event.key
         cmap = {"escape": "\x1b", "enter": "\r", "up": "\x1b[A", "down": "\x1b[B", "left": "\x1b[D", "right": "\x1b[C"}
         char = cmap.get(key, event.character or "")
@@ -425,15 +292,13 @@ class SettingsOverlayWidget(Widget, can_focus=True):
         event.stop()
         r = self._overlay.handle_char(char) if self._overlay else "exit"
         if r == "exit": self.hide()
-        elif r == "show_custom_url":
-            self._show_custom_url()
+        elif r == "show_custom_url": self._show_custom_url()
         elif r and r.startswith("load_session:"):
             sid = r.split(":", 1)[1]
             self.hide()
-            if hasattr(self.app, "_load_session_by_id"):
-                self.app._load_session_by_id(sid)
+            if hasattr(self.app, "_load_session_by_id"): self.app._load_session_by_id(sid)
         elif r == "saved":
-            self.app._chat_write_system(f"[{COLOR_OK}]Settings saved.[/]")
+            self.app._chat_write_system("[dim]Settings saved.[/]")
             if hasattr(self.app, "_agent") and self.app._agent:
                 try:
                     from tools.governance import Governance
@@ -441,48 +306,60 @@ class SettingsOverlayWidget(Widget, can_focus=True):
                 except: pass
             self.hide()
         elif r == "error":
-            self.app._chat_write_system(f"[{COLOR_ERR}]Settings failed.[/]"); self.hide()
+            self.app._chat_write_system("[dim]Settings failed.[/]"); self.hide()
         else:
-            # Hide custom URL input when leaving custom mode
             self.query_one("#custom_url_row").remove_class("visible")
             self._redraw()
 
+    def _show_custom_url(self) -> None:
+        self.query_one("#settings_content", Static).update("")
+        row = self.query_one("#custom_url_row")
+        row.add_class("visible")
+        inp = self.query_one("#custom_url_input", Input)
+        inp.value = ""; inp.focus()
 
-# ── Main App ─────────────────────────────────────────────────────────────
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        if event.input.id != "custom_url_input": return
+        val = event.value.strip()
+        if not val or not self._overlay:
+            self.query_one("#custom_url_row").remove_class("visible")
+            self._redraw()
+            self.app.set_timer(0.0, lambda: self.focus()); return
+        step = getattr(self._overlay, "_custom_step", "")
+        inp = self.query_one("#custom_url_input", Input)
+        if step == "apikey":
+            self._overlay.handle_custom_apikey(val)
+            self.query_one("#custom_url_row").remove_class("visible")
+            self._redraw()
+            self.app.set_timer(0.0, lambda: self.focus())
+        elif step == "model":
+            url = getattr(self._overlay, "_custom_url", "")
+            if url: os.environ["CUSTOM_API_BASE"] = url
+            self._overlay._agent_config[self._overlay._agent_idx] = {"provider": "custom", "model": val}
+            self._overlay._save_and_apply()
+            self._overlay._custom_step = ""
+            self.query_one("#custom_url_row").remove_class("visible")
+            self._redraw()
+            self.app.set_timer(0.0, lambda: self.focus())
+        else:
+            self._overlay.handle_custom_url(val)
+            inp.value = ""
+            inp.placeholder = "Enter API key (or Enter to skip)..."
+            inp.focus()
+
+
+# ── Main App ───────────────────────────────────────────────────────────
 class ElengenixTextualApp(App):
     CSS = f"""
-    Screen {{
-        background: {BASE};
-        layers: base overlay;
-    }}
-    #header {{
-        height: 1; background: {MANTLE};
-        color: {TEXT}; content-align: center middle;
-        border-bottom: solid {RED};
-    }}
+    Screen {{ background: {BASE}; layers: base overlay; }}
+    #header {{ height: 1; background: {BASE}; color: {TEXT}; content-align: center middle; border-bottom: solid {DIM}; }}
     #main_row {{ height: 1fr; layer: base; }}
     #chat_col {{ width: 1fr; height: 1fr; background: {BASE}; }}
-    #chat_area {{
-        height: 1fr; background: {BASE};
-        padding: 0 1;
-    }}
-    #input_row {{
-        height: auto; margin: 0 1;
-        background: {MANTLE}; border: none; padding: 0;
-    }}
-    #user_input {{
-        height: 3; border: none;
-        border-left: thick {RED};
-        background: {MANTLE}; color: {TEXT};
-        padding: 0 1;
-    }}
-    #user_input:focus {{ border-left: thick {ORANGE}; }}
-    #suggest_box {{
-        height: auto; max-height: 8;
-        background: {MANTLE}; color: {TEXT};
-        border: solid {RED}; margin: 0 1; padding: 0 1;
-        overflow-y: auto; display: none;
-    }}
+    #chat_area {{ height: 1fr; background: {BASE}; padding: 0 1; }}
+    #input_row {{ height: auto; margin: 0; background: {BASE}; border-top: solid {DIM}; border-bottom: solid {DIM}; }}
+    #user_input {{ height: 3; border: none; border-left: thick {WHITE}; background: {MANTLE}; color: {TEXT}; padding: 0 1; }}
+    #user_input:focus {{ border-left: thick {WHITE}; }}
+    #suggest_box {{ height: auto; max-height: 8; background: {MANTLE}; color: {TEXT}; border: solid {DIM}; margin: 0 1; padding: 0 1; overflow-y: auto; display: none; }}
     """
 
     BINDINGS = [
@@ -504,7 +381,7 @@ class ElengenixTextualApp(App):
         self.target        = target
         self.mode          = mode
         self.thinking      = False
-        self._load_sid     = session_id  # session to load at start
+        self._load_sid     = session_id
         self.session_name  = session_id or ""
         self.turn_count    = 0
         self.tools_run     = 0
@@ -522,27 +399,25 @@ class ElengenixTextualApp(App):
         self._last_sidebar_update: float = 0.0
 
     def compose(self) -> ComposeResult:
-        yield Static(f" Elengenix AI  |  [{COLOR_DIM}]{self.target or '(no target)'}[/]  |  /help", id="header")
+        yield Static(f"  ELENGENIX  [dim]{self.target or '(no target)'}[/]  |  /help", id="header")
         with Horizontal(id="main_row"):
             with Vertical(id="chat_col"):
-                yield RichLog(id="chat_area", highlight=False, markup=True, wrap=True, auto_scroll=True, max_lines=2000)
+                yield RichLog(id="chat_area", highlight=True, markup=True, wrap=True, auto_scroll=True, max_lines=2000)
                 yield ThinkingWidget(id="thinking_bar")
                 yield ProgressBar(id="progress_bar")
                 yield StatusBar(id="status_bar")
                 with Vertical(id="input_row"):
                     yield Static("", id="suggest_box", markup=True)
-                    yield Input(placeholder="try it!", id="user_input")
+                    yield Input(placeholder="  try it!", id="user_input")
             yield Sidebar(id="sidebar")
         yield SettingsOverlayWidget(id="settings_overlay")
 
     def on_mount(self) -> None:
-        self._chat().write(Text("\n"))
-        self._chat().write(Text.from_markup(ASCII_BANNER))
+        self._chat_write_banner()
         try:
             from tools.session_manager import SessionManager
             self._session_mgr = SessionManager()
             if self._load_sid:
-                # Load session data (applied to agent after agent loads)
                 self._pending_session = self._session_mgr.resume_session(self._load_sid)
                 if self._pending_session:
                     self.session_name = self._load_sid
@@ -564,16 +439,12 @@ class ElengenixTextualApp(App):
             self._agent = get_agent()
             if self._agent:
                 _ = self._agent.governance
-                # Apply pending session data to agent
                 if hasattr(self, "_pending_session") and self._pending_session:
                     from tools.session_manager import SessionManager
-                    mgr = SessionManager()
-                    mgr.resume_session(self._load_sid, agent=self._agent)
+                    SessionManager().resume_session(self._load_sid, agent=self._agent)
                     self._pending_session = None
-                    # Replay saved conversation into the chat display
                     self.call_from_thread(self._replay_history)
                 else:
-                    # Fresh session — clear whatever SQLite loaded
                     self._agent.conversation_history = []
         except Exception as e:
             self.call_from_thread(self._chat_write_error, f"Agent load: {e}")
@@ -581,9 +452,7 @@ class ElengenixTextualApp(App):
             logging.getLogger().setLevel(logging.INFO)
 
     def _ensure_session(self) -> str:
-        """Auto-create session if none active, return session name."""
-        if self.session_name:
-            return self.session_name
+        if self.session_name: return self.session_name
         from tools.session_manager import generate_session_id
         self.session_name = generate_session_id()
         try:
@@ -604,39 +473,46 @@ class ElengenixTextualApp(App):
             self._cached_sidebar = self.query_one("#sidebar", Sidebar)
         return self._cached_sidebar
 
+    def _chat_write_banner(self) -> None:
+        self._chat().write(Text("\n"))
+        for line in ASCII_BANNER.splitlines():
+            self._chat().write(Text.from_markup(f"  {line}"))
+        self._chat().write(Text("\n"))
+
     def _chat_write_user(self, text: str) -> None:
         ts = time.strftime("%H:%M")
         self._chat().write(Text.from_markup(
-            f"\n[{COLOR_ACCENT}]\u2570[/] [{COLOR_ACCENT}]USER[/] [{COLOR_DIM}]{ts}[/]"
-            f"\n  [{COLOR_TEXT}]{text}[/]"
+            f"\n[white]│[/] [dim]{ts}[/] [white]you[/]\n"
+            f"  {text}"
         ))
 
     def _chat_write_agent(self, text: str) -> None:
         ts = time.strftime("%H:%M")
-        self._chat().write(Text.from_markup(f"\n[{COLOR_ACCENT}]\u2570[/] [{COLOR_ACCENT}]ELENGIX[/] [{COLOR_DIM}]{ts}[/]"))
-        try: self._chat().write(Markdown(text))
-        except: self._chat().write(Text(text, style=COLOR_TEXT))
+        self._chat().write(Text.from_markup(f"\n[white]│[/] [dim]{ts}[/] [white]elengix[/]"))
+        try:
+            self._chat().write(Markdown(text))
+        except Exception:
+            self._chat().write(Text(f"  {text}", style=TEXT))
 
     def _chat_write_elengix(self, aid: int, text: str, t: str = "") -> None:
         name = AGENT_NAMES.get(aid, f"#{aid}")
-        color = AGENT_COLORS.get(aid, COLOR_TEXT)
-        tag = f" [{COLOR_WARN}]{t}[/]" if t else ""
+        tag = f" [dim]{t}[/]" if t else ""
         ts = time.strftime("%H:%M")
         self._chat().write(Text.from_markup(
-            f"\n[{color}]\u2570[/] [{color}]{name}[/]{tag} [{COLOR_DIM}]{ts}[/]"
-            f"\n  [{color}]{text[:500]}[/]"
+            f"\n[white]│[/] [dim]{ts}[/] [white]{name}[/]{tag}\n"
+            f"  [white]{text[:500]}[/]"
         ))
 
     def _chat_write_system(self, markup: str) -> None:
-        self._chat().write(Text.from_markup(f"[{COLOR_DIM}]{markup}[/]"))
+        self._chat().write(Text.from_markup(f"[dim]{markup}[/]"))
 
     def _chat_write_governance(self, cmd: str, risk: str) -> None:
-        c = {"SAFE": COLOR_OK, "PRIVILEGED": COLOR_WARN, "DESTRUCTIVE": COLOR_ERR}.get(risk, COLOR_MUTED)
-        self._chat().write(Text.from_markup(f"  [{c}]\u25b6 {risk}[/] [{COLOR_DIM}]{cmd[:120]}[/]"))
+        tag = {"SAFE": "", "PRIVILEGED": "[dim]▶ PRIV[/]", "DESTRUCTIVE": "[white]▶ BLOCKED[/]"}.get(risk, "[dim]▶ ?[/]")
+        self._chat().write(Text.from_markup(f"  {tag} [dim]{cmd[:100]}[/]"))
         self.query_one("#status_bar", StatusBar).show_action(cmd, risk)
 
     def _chat_write_error(self, markup: str) -> None:
-        self._chat().write(Text.from_markup(f"[bold {COLOR_ERR}][FAIL] {markup}[/]"))
+        self._chat().write(Text.from_markup(f"[white]error:[/] {markup}"))
 
     def _update_sidebar(self) -> None:
         now = time.monotonic()
@@ -665,15 +541,12 @@ class ElengenixTextualApp(App):
 
     @work(thread=True)
     def _send_to_agent(self, text: str, callback=None) -> None:
-        """Call agent in background thread."""
         if self._processing: return
         self._processing = True
         self.call_from_thread(self._update_sidebar)
         self.call_from_thread(lambda: self.query_one("#thinking_bar", ThinkingWidget).show())
         try:
             if self._agent is None: raise RuntimeError("Agent not ready.")
-
-            # Hook governance into _execute_tool for live display
             if hasattr(self._agent, "_execute_tool"):
                 orig = self._agent._execute_tool
                 def wrap(ad, cb=None):
@@ -687,12 +560,10 @@ class ElengenixTextualApp(App):
                         self.call_from_thread(self._update_sidebar)
                     return orig(ad, cb)
                 self._agent._execute_tool = wrap
-
             if hasattr(self._agent, "process_universal"):
                 resp = self._agent.process_universal(text, target=self.target or "", mode=self.mode)
             else:
                 resp = self._agent.process_query(user_input=text, target=self.target or "")
-
             if resp: self.call_from_thread(self._chat_write_agent, str(resp))
             else: self.call_from_thread(self._chat_write_error, "No response.")
         except Exception as exc:
@@ -704,45 +575,29 @@ class ElengenixTextualApp(App):
             self.call_from_thread(self._update_sidebar)
 
     def on_key(self, event) -> None:
-        """Ensure shortcuts work even when Input has focus."""
         ov = self.query_one("#settings_overlay", SettingsOverlayWidget)
         if ov.has_class("visible"):
-            # When URL input is active, let it handle keys directly.
-            # Chat input is disabled so it can't steal keystrokes.
-            if ov.query_one("#custom_url_row").has_class("visible"):
-                return  # Don't stop event — custom_url_input handles it
-            event.stop()
-            ov.on_key(event)
-            return
-
+            if ov.query_one("#custom_url_row").has_class("visible"): return
+            event.stop(); ov.on_key(event); return
         key = event.key
-        if key == "ctrl+s":
-            event.stop(); self.action_show_settings(); return
-        if key == "ctrl+t":
-            event.stop(); self.action_toggle_think(); return
-        if key == "ctrl+r":
-            event.stop(); self.action_toggle_research(); return
-        if key == "ctrl+b":
-            event.stop(); self.action_toggle_scan(); return
-        if key == "ctrl+p":
-            event.stop(); self.action_show_model(); return
-        if key == "ctrl+g":
-            event.stop(); self.action_show_help(); return
-        if key == "ctrl+c":
-            event.stop(); self.action_app_exit(); return
+        if key == "ctrl+s": event.stop(); self.action_show_settings(); return
+        if key == "ctrl+t": event.stop(); self.action_toggle_think(); return
+        if key == "ctrl+r": event.stop(); self.action_toggle_research(); return
+        if key == "ctrl+b": event.stop(); self.action_toggle_scan(); return
+        if key == "ctrl+p": event.stop(); self.action_show_model(); return
+        if key == "ctrl+g": event.stop(); self.action_show_help(); return
+        if key == "ctrl+c": event.stop(); self.action_app_exit(); return
 
     # ── Input ────────────────────────────────────────────────────────────
     SLASH_COMMANDS = [
         "/clear", "/reset", "/quit", "/exit",
         "/mode auto", "/mode research", "/mode scan", "/mode casual",
-        "/target <domain>",
-        "/talk 1", "/talk 2", "/talk 3", "/talk all",
+        "/target <domain>", "/talk 1", "/talk 2", "/talk 3", "/talk all",
         "/session", "/session new", "/session list", "/session load <id>",
         "/stats", "/team", "/help",
     ]
 
     def on_input_changed(self, event: Input.Changed) -> None:
-        """Show slash command suggestions when typing /."""
         text = event.value
         box = self.query_one("#suggest_box", Static)
         if not text or not text.startswith("/"):
@@ -755,8 +610,7 @@ class ElengenixTextualApp(App):
         else:
             matches = []
         if matches:
-            lines = "\n".join(f"  [{COLOR_DIM}]{m}[/]" for m in matches[:12])
-            box.update(lines)
+            box.update("\n".join(f"  [dim]{m}[/]" for m in matches[:12]))
             box.styles.display = "block"
         else:
             box.styles.display = "none"
@@ -768,14 +622,11 @@ class ElengenixTextualApp(App):
         if not self.history or self.history[-1] != text: self.history.append(text)
         self.history_idx = -1
         if self._handle_slash(text): return
-        # Auto-create session on first message
         self._ensure_session()
         self._chat_write_user(text)
         self.turn_count += 1
         self._update_sidebar()
-
-        def cb(msg: str):
-            self.call_from_thread(self._chat_write_system, msg)
+        def cb(msg: str): self.call_from_thread(self._chat_write_system, msg)
         self._send_to_agent(text, cb)
 
     def _handle_slash(self, text: str) -> bool:
@@ -814,7 +665,7 @@ class ElengenixTextualApp(App):
             if not active: self._chat_write_system("No team configured.")
             else:
                 rs = ["Strategist","Recon Lead","Exploit Analyst"]
-                lines = [f"[bold]Team Aegis:[/bold]"]
+                lines = ["[bold]Team Aegis:[/bold]"]
                 for i, m in enumerate(active[:3]): lines.append(f"  [{rs[i]} {m}]")
                 self._chat().write(Text.from_markup("\n".join(lines)))
             return True
@@ -833,45 +684,38 @@ class ElengenixTextualApp(App):
                 self._save_session()
                 from tools.session_manager import generate_session_id
                 self.session_name = generate_session_id()
-                if self._session_mgr:
-                    self._session_mgr.start_session(name=self.session_name, target=self.target, mode=self.mode)
+                if self._session_mgr: self._session_mgr.start_session(name=self.session_name, target=self.target, mode=self.mode)
                 if self._agent and hasattr(self._agent,"clear_conversation_history"): self._agent.clear_conversation_history()
-                self.turn_count = 0; self.tools_run = 0; self.findings = 0
-                self._chat().clear()
+                self.turn_count = 0; self.tools_run = 0; self.findings = 0; self._chat().clear()
                 self._chat_write_system(f"New session: {self.session_name}")
                 self._update_sidebar(); return True
             if sub == "list" and self._session_mgr:
                 ss = self._session_mgr.list_sessions()
                 if not ss: self._chat_write_system("No saved sessions.")
                 else:
-                    lines = ["[bold]Sessions:[/bold]", f"  [{COLOR_DIM}]Use /session load <name> to resume[/]"]
+                    lines = ["[bold]Sessions:[/bold]"]
                     for s in ss[-10:]:
                         sid = s.name
-                        marker = "  >" if sid == self.session_name else "   "
-                        lines.append(f"  {marker} [{COLOR_DIM}]{sid}[/]  turns={s.turn_count}  [{COLOR_DIM}]{s.target or '-'}[/]")
+                        marker = " >" if sid == self.session_name else "  "
+                        lines.append(f"  {marker} [dim]{sid}[/]  turns={s.turn_count}  [dim]{s.target or '-'}[/]")
                     self._chat().write(Text.from_markup("\n".join(lines)))
                 return True
             if sub == "load" and len(parts) > 2 and self._session_mgr:
                 sid = parts[2].strip()
                 info = self._session_mgr.resume_session(sid, agent=self._agent)
                 if info:
-                    self.session_name = sid
-                    self.target = info.get("target", self.target)
-                    self.mode = info.get("mode", self.mode)
-                    self.turn_count = info.get("turns", 0)
+                    self.session_name = sid; self.target = info.get("target", self.target)
+                    self.mode = info.get("mode", self.mode); self.turn_count = info.get("turns", 0)
                     self._chat().clear()
                     self._chat_write_system(f"Loaded session: {sid}")
-                    self._replay_history()
-                    self._update_sidebar()
-                else:
-                    self._chat_write_system(f"Session not found: {sid}")
+                    self._replay_history(); self._update_sidebar()
+                else: self._chat_write_system(f"Session not found: {sid}")
                 return True
             self._chat_write_system(f"Session: {self.session_name}  Turns: {self.turn_count}"); return True
         if low.startswith("/"): self._chat_write_system(f"Unknown: {low}  (/help)"); return True
         return False
 
     def _save_session(self) -> str:
-        """Save current session and return session name/ID."""
         sid = self.session_name
         try:
             if self._session_mgr and sid:
@@ -880,69 +724,52 @@ class ElengenixTextualApp(App):
         return sid
 
     def _replay_history(self) -> None:
-        """Replay agent conversation_history into the RichLog display."""
-        if not self._agent or not hasattr(self._agent, "conversation_history"):
-            return
+        if not self._agent or not hasattr(self._agent, "conversation_history"): return
         for msg in self._agent.conversation_history:
-            role = msg.get("role", "")
-            content = msg.get("content", "")
-            if not content:
-                continue
-            if role == "user":
-                self._chat_write_user(content[:500])
-            elif role == "assistant":
-                self._chat_write_agent(content[:500])
+            role = msg.get("role", ""); content = msg.get("content", "")
+            if not content: continue
+            if role == "user": self._chat_write_user(content[:500])
+            elif role == "assistant": self._chat_write_agent(content[:500])
 
     def _load_session_by_id(self, sid: str) -> None:
-        """Load a saved session by ID."""
-        if not sid or not self._session_mgr:
-            return
+        if not sid or not self._session_mgr: return
         self._save_session()
         from tools.session_manager import SessionManager
-        mgr = SessionManager()
-        info = mgr.resume_session(sid, agent=self._agent)
+        info = SessionManager().resume_session(sid, agent=self._agent)
         if info:
-            self.session_name = sid
-            self.target = info.get("target", self.target)
-            self.mode = info.get("mode", self.mode)
-            self.turn_count = info.get("turns", 0)
+            self.session_name = sid; self.target = info.get("target", self.target)
+            self.mode = info.get("mode", self.mode); self.turn_count = info.get("turns", 0)
             self._chat().clear()
             self._chat_write_system(f"Session loaded: {sid}  ({self.turn_count} turns)")
-            self._replay_history()
-            self._update_sidebar()
-        else:
-            self._chat_write_system(f"Session not found: {sid}")
+            self._replay_history(); self._update_sidebar()
+        else: self._chat_write_system(f"Session not found: {sid}")
 
     def action_app_exit(self) -> None:
         sid = self._save_session()
         logger.info(f"Session {sid} saved on exit")
         from rich.console import Console
-        c = Console()
-        c.print(f"\n  Thank you for using Elengenix!", style="bold #ff4444")
-        c.print(f"  Session: {sid}", style="dim #737373")
-        c.print(f"  To resume: elengenix cli -s {sid}", style="dim #737373")
-        print()
+        Console().print(f"\n  thank you for using elengenix\n  session: {sid}\n", style="dim")
         self.exit()
 
     def action_toggle_research(self) -> None:
         self.mode = "research" if self.mode != "research" else "auto"
         self._update_sidebar()
-        self._chat_write_system(f"[{COLOR_WARN}]Research: {'ON' if self.mode == 'research' else 'OFF'}[/]")
+        self._chat_write_system(f"[dim]Research: {'ON' if self.mode == 'research' else 'OFF'}[/]")
 
     def action_toggle_scan(self) -> None:
         self.mode = "scan" if self.mode != "scan" else "auto"
         self._update_sidebar()
-        self._chat_write_system(f"[{COLOR_WARN}]Scan: {'ON' if self.mode == 'scan' else 'OFF'}[/]")
+        self._chat_write_system(f"[dim]Scan: {'ON' if self.mode == 'scan' else 'OFF'}[/]")
 
     def action_toggle_think(self) -> None:
         self.thinking = not self.thinking
         os.environ["NVIDIA_PARAM_MODE"] = "enable" if self.thinking else "disable"
         self._update_sidebar()
-        self._chat_write_system(f"[{COLOR_WARN}]Thinking: {'ON' if self.thinking else 'OFF'}[/]")
+        self._chat_write_system(f"[dim]Thinking: {'ON' if self.thinking else 'OFF'}[/]")
 
     def action_show_model(self) -> None:
         models = os.environ.get("ACTIVE_MODELS", "default")
-        self._chat_write_system(f"[{COLOR_INFO}]Active model(s): {models}[/]")
+        self._chat_write_system(f"[dim]Active model(s): {models}[/]")
 
     def action_show_help(self) -> None:
         self._chat().write(Text.from_markup(HELP_TEXT))
@@ -983,10 +810,8 @@ def main(target: str = "", mode: str = "auto", session_id: str = "") -> None:
     app.run()
 
 if __name__ == "__main__":
-    import sys
     sid = ""
     if "-s" in sys.argv:
         idx = sys.argv.index("-s")
-        if idx + 1 < len(sys.argv):
-            sid = sys.argv[idx + 1]
+        if idx + 1 < len(sys.argv): sid = sys.argv[idx + 1]
     main(session_id=sid)

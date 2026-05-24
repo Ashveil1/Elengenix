@@ -274,7 +274,7 @@ class FileRelationshipGraph:
             centrality = scores.get(node.name, 0)
             color = "#cc4444" if node.category == "core" else "#888888"
             if node.category in ("entrypoint",):
-                color = "#ff6b6b"
+                color = "#888888"
             
             table.add_row(
                 f"[{color}]{node.name}[/]",

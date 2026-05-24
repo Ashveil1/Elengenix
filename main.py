@@ -374,7 +374,7 @@ def main():
             team_size = len(env_models)
 
             print()
-            console.print(f"\n[bold #ff4444]  ELENGENIX AI SCAN v99999[/bold #ff4444]")
+            console.print(f"\n[bold #ffffff]  ELENGENIX AI SCAN v99999[/bold #ffffff]")
             console.print(f"  Target: [red]{target}[/red]")
             if team_size >= 2:
                 console.print(f"  Team: [red]{team_size} agents[/red]")

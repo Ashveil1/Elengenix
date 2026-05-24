@@ -779,13 +779,13 @@ def main(mode: str = "auto", target: str = None):
                     text = msg["text"]
                     if role == "user":
                         t = Text.from_markup(text) if text.startswith("[") else Text(text, style="white")
-                        panels.append(Panel(t, box=ROUNDED, border_style="#ff4444", title="You", title_align="left", padding=(0, 1), style="on #0a0a0a"))
+                        panels.append(Panel(t, box=ROUNDED, border_style="#ffffff", title="You", title_align="left", padding=(0, 1), style="on #0a0a0a"))
                     elif role == "agent":
                         panels.append(Panel(Markdown(text), box=ROUNDED, border_style="#555555", title="Agent", title_align="left", padding=(0, 1), style="on #0a0a0a"))
                     elif role == "system":
                         panels.append(Text.from_markup(text))
                     elif role == "error":
-                        panels.append(Panel(Text.from_markup(text), box=ROUNDED, border_style="#FF4444", padding=(0, 1), style="on #0a0a0a"))
+                        panels.append(Panel(Text.from_markup(text), box=ROUNDED, border_style="#ffffff", padding=(0, 1), style="on #0a0a0a"))
 
                 # Streaming response with spinner animation
                 if self._streaming_active:
@@ -803,9 +803,9 @@ def main(mode: str = "auto", target: str = None):
                     dots = "." * ((self._spinner_idx // 2) % 4)
                     thinking_text = Text()
                     thinking_text.append(" AGENT ", style="bold white on #0a0a0a")
-                    thinking_text.append(spin, style="bold #ff4444 on #0a0a0a")
-                    thinking_text.append(f"  THINKING{dots}", style="bold #ff4444 on #0a0a0a")
-                    panels.append(Panel(thinking_text, box=ROUNDED, border_style="#ff4444", padding=(0, 1), style="on #0a0a0a"))
+                    thinking_text.append(spin, style="bold #ffffff on #0a0a0a")
+                    thinking_text.append(f"  THINKING{dots}", style="bold #ffffff on #0a0a0a")
+                    panels.append(Panel(thinking_text, box=ROUNDED, border_style="#ffffff", padding=(0, 1), style="on #0a0a0a"))
 
                 # Add scroll indicator if scrolled
                 if self._scroll_offset > 0 or total_msgs > self._viewport_lines:
@@ -817,7 +817,7 @@ def main(mode: str = "auto", target: str = None):
                         scrollbar = "█" * scroll_pos + "░" * (10 - scroll_pos)
                     else:
                         scrollbar = "██████████"
-                    indicator = f"[#ff4444]|{scrollbar}|[/] [dim]j/k scroll[/dim]"
+                    indicator = f"[#ffffff]|{scrollbar}|[/] [dim]j/k scroll[/dim]"
                     panels.append(Panel(Text(indicator, style="white"), box=MINIMAL, padding=(0, 1), style="on #111111"))
 
                 return Group(*panels)
@@ -865,7 +865,7 @@ def main(mode: str = "auto", target: str = None):
 
     def _header() -> Panel:
         return Panel(
-            "[bold #ff4444] Elengenix AI Agent Framework v99999 (god nine is the best) [/bold #ff4444]"
+            "[bold #ffffff] Elengenix AI Agent Framework v99999 (god nine is the best) [/bold #ffffff]"
             "  [dim #757575]| Ctrl+R: Research  Ctrl+B: Scan  Ctrl+T: Think  Ctrl+P: Models  Ctrl+E: Settings  Ctrl+G: Help  /quit: Exit[/dim #757575]",
             box=MINIMAL, padding=(0, 1),
         )
@@ -878,7 +878,7 @@ def main(mode: str = "auto", target: str = None):
         }.get(mode_state[0], mode_state[0].upper())
 
         is_active = mode_state[0] in ("scan", "research")
-        mode_color = "#ff4444" if is_active else "#666666"
+        mode_color = "#ffffff" if is_active else "#666666"
 
         # Top section with prompt + cursor blink
         top = Text()
@@ -899,9 +899,9 @@ def main(mode: str = "auto", target: str = None):
                 # Show cursor at end
                 top.append("▌", style="bold blink #44FF44 on #0a0a0a")
             else:
-                top.append(" Σlengenix ❭ ", style="bold #ff4444 on #0a0a0a")
+                top.append(" Σlengenix ❭ ", style="bold #ffffff on #0a0a0a")
                 if not buf:
-                    top.append("▌", style="bold blink #ff4444 on #0a0a0a")
+                    top.append("▌", style="bold blink #ffffff on #0a0a0a")
                 else:
                     cur = min(cursor, len(buf))
                     before = buf[:cur]
@@ -909,7 +909,7 @@ def main(mode: str = "auto", target: str = None):
                     cursor_char = after[0] if after else "▌"
                     remaining = after[1:] if after else ""
                     top.append(before, style="white on #0a0a0a")
-                    top.append(cursor_char, style="bold blink white on #ff4444")
+                    top.append(cursor_char, style="bold blink white on #ffffff")
                     if remaining:
                         top.append(remaining, style="white on #0a0a0a")
 
@@ -924,7 +924,7 @@ def main(mode: str = "auto", target: str = None):
         bottom.append(" MODE ", style="bold #cccccc on #111111")
         bottom.append(f" {mode_label} ", style=f"bold {mode_color} on #111111")
         if thinking_state[0]:
-            bottom.append(" THINK ", style="bold #ff4444 on #111111")
+            bottom.append(" THINK ", style="bold #ffffff on #111111")
         # Normal input (paste shows full text in input area now)
         else:
             bottom.append("      ", style="dim #777777 on #111111")
@@ -1001,7 +1001,7 @@ def main(mode: str = "auto", target: str = None):
 
         if cmd.lower() == "/help":
             chat.add("")
-            chat.add("[bold #ff4444]Commands:[/bold #ff4444]")
+            chat.add("[bold #ffffff]Commands:[/bold #ffffff]")
             chat.add("  /clear       Clear screen (keep history)")
             chat.add("  /reset       Clear screen + reset history")
             chat.add("  /quit        Exit")
@@ -1016,7 +1016,7 @@ def main(mode: str = "auto", target: str = None):
             chat.add("  /install [X] Install a missing tool")
             chat.add("  /team [X,X]  View or configure multi-agent team")
             chat.add("")
-            chat.add("[bold #ff4444]Shortcuts:[/bold #ff4444]")
+            chat.add("[bold #ffffff]Shortcuts:[/bold #ffffff]")
             chat.add("  Ctrl+R  Research  |  Ctrl+B  Scan  |  Ctrl+T  Think")
             chat.add("  Ctrl+P  Models    |  Ctrl+E  Settings  |  Ctrl+G  Help  |  Ctrl+C  Exit")
             chat.add("  ↑/↓     History   |  Tab     Slash-complete")
@@ -1048,7 +1048,7 @@ def main(mode: str = "auto", target: str = None):
 
         if cmd.lower() == "/mode":
             modes = [("auto","Auto-detect"),("research","Research"),("security_chat","Security Chat"),("scan","Scan"),("casual","Casual")]
-            chat.add("[bold #ff4444]Modes (type /mode <name>):[/bold #ff4444]")
+            chat.add("[bold #ffffff]Modes (type /mode <name>):[/bold #ffffff]")
             for k, v in modes:
                 chat.add(f"  {v} {'← current' if k == mode_state[0] else ''}")
             return
@@ -1094,11 +1094,11 @@ def main(mode: str = "auto", target: str = None):
             from tools.vector_memory import get_vector_memory
             refl = get_reflection()
             st = refl.get_reflection_stats()
-            chat.add(f"[bold #ff4444]Reflection:[/bold #ff4444] Total={st.get('total',0)} Neg={st.get('negative',0)} Pos={st.get('positive',0)}")
+            chat.add(f"[bold #ffffff]Reflection:[/bold #ffffff] Total={st.get('total',0)} Neg={st.get('negative',0)} Pos={st.get('positive',0)}")
             try:
                 vm = get_vector_memory()
                 vs = vm.get_memory_stats()
-                chat.add(f"[bold #ff4444]Memory:[/bold #ff4444] Entries={vs.get('total_memories',0)} Targets={vs.get('unique_targets',0)}")
+                chat.add(f"[bold #ffffff]Memory:[/bold #ffffff] Entries={vs.get('total_memories',0)} Targets={vs.get('unique_targets',0)}")
             except Exception as e:
                 chat.add(f"[dim]Vector memory unavailable: {e}[/dim]")
             return
@@ -1140,7 +1140,7 @@ def main(mode: str = "auto", target: str = None):
                 registry = get_skill_registry()
                 available = registry.get_available_skills()
                 missing = registry.get_missing_skills()
-                chat.add("[bold #ff4444]Skills:[/bold #ff4444]")
+                chat.add("[bold #ffffff]Skills:[/bold #ffffff]")
                 if available:
                     chat.add(f"[dim]READY ({len(available)}):[/dim]")
                     for s in available:
@@ -1165,7 +1165,7 @@ def main(mode: str = "auto", target: str = None):
                     registry = get_skill_registry()
                     missing = registry.get_missing_skills()
                     if missing:
-                        chat.add("[bold #ff4444]Installable tools:[/bold #ff4444]")
+                        chat.add("[bold #ffffff]Installable tools:[/bold #ffffff]")
                         for s in missing:
                             chat.add(f"  /install {s.name}: {s.description}")
                     else:
@@ -1260,7 +1260,7 @@ def main(mode: str = "auto", target: str = None):
                 chat.add(f"[dim]Team needs 2-3 models. Currently using: {active}. Use /team model1,model2,model3[/dim]")
                 return
 
-            chat.add("[bold #ff4444]TEAM AEGIS DASHBOARD:[/bold #ff4444]")
+            chat.add("[bold #ffffff]TEAM AEGIS DASHBOARD:[/bold #ffffff]")
             roles = ["Strategist", "Recon Lead", "Exploit Analyst"]
             for i, m in enumerate(active):
                 role = roles[i] if i < len(roles) else f"Agent {i+1}"
@@ -1468,7 +1468,7 @@ def main(mode: str = "auto", target: str = None):
             return buf, cur_pos, hidx, True  # exit
 
         if ch == '\x07':  # Ctrl+G help
-            chat.add(""); chat.add("[bold #ff4444]Shortcuts:[/bold #ff4444]")
+            chat.add(""); chat.add("[bold #ffffff]Shortcuts:[/bold #ffffff]")
             chat.add("  Ctrl+R  Research  |  Ctrl+B  Scan  |  Ctrl+T  Think")
             chat.add("  Ctrl+P  Models    |  Ctrl+E  Settings  |  Ctrl+G  Help  |  Ctrl+C  Exit")
             chat.add("  ↑/↓     History   |  Tab     Complete")
@@ -1607,7 +1607,7 @@ def main(mode: str = "auto", target: str = None):
                 elif len(matches) > 1:
                     chat.add("")
                     for m in matches:
-                        chat.add(f"[bold #ff4444]{m}[/bold #ff4444]")
+                        chat.add(f"[bold #ffffff]{m}[/bold #ffffff]")
                     chat.add("[dim]Press Tab to select[/dim]")
             return buf, cur_pos, hidx, False
 
@@ -1626,12 +1626,12 @@ def main(mode: str = "auto", target: str = None):
     # ── Run Live loop ───────────────────────────────────────────────────────
     raw = RawTerm()
     # Welcome banner with ASCII logo
-    chat.add("    [bold #ff4444] ███████╗██╗     ███████╗███╗   ██╗ ██████╗ ███████╗███╗   ██╗[/bold #ff4444]", role="system")
+    chat.add("    [bold #ffffff] ███████╗██╗     ███████╗███╗   ██╗ ██████╗ ███████╗███╗   ██╗[/bold #ffffff]", role="system")
     chat.add("    [bold #FF4757] ██╔════╝██║     ██╔════╝████╗  ██║██╔════╝ ██╔════╝████╗  ██║[/bold #FF4757]", role="system")
     chat.add("    [bold #DC143C] █████╗  ██║     █████╗  ██╔██╗ ██║██║  ███╗█████╗  ██╔██╗ ██║[/bold #DC143C]", role="system")
     chat.add("    [bold #B22222] ██╔══╝  ██║     ██╔══╝  ██║╚██╗██║██║   ██║██╔══╝  ██║╚██╗██║[/bold #B22222]", role="system")
     chat.add("    [bold #8B0000] ███████╗███████╗███████╗██║ ╚████║╚██████╔╝███████╗██║ ╚████║[/bold #8B0000]", role="system")
-    chat.add("    [dim #ff4444] ╚══════╝╚══════╝╚══════╝╚═╝  ╚═══╝ ╚═════╝ ╚══════╝╚═╝  ╚═══╝[/dim #ff4444]", role="system")
+    chat.add("    [dim #ffffff] ╚══════╝╚══════╝╚══════╝╚═╝  ╚═══╝ ╚═════╝ ╚══════╝╚═╝  ╚═══╝[/dim #ffffff]", role="system")
     chat.add("           [dim #ffffff]Universal AI & Bug Bounty Agent[/dim #ffffff]", role="system")
     chat.add("           [dim]Type /help for commands[/dim]", role="system")
 

@@ -706,7 +706,7 @@ Plan your next move. Consider:
 Use JSON format: {{"action": "run_shell|ask_user|web_search|submit_findings|save_memory|finish", "command": "...", "query": "...", "findings": [...], "purpose": "...", "question": "..."}}"""
 
                 from ui_components import show_spinner
-                with show_spinner("AI Agent is planning its next move...", spinner_style="#ff4444"):
+                with show_spinner("AI Agent is planning its next move...", spinner_style="#ffffff"):
                     response_text = self.client.chat([
                         AIMessage(role="system", content=full_prompt),
                         AIMessage(role="user", content="Plan next action")

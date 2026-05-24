@@ -2,13 +2,13 @@
 ui_components.py — Elengenix Professional UI Component Library (v99999 (god nine is the best))
 
 Centralized UI components for the entire Elengenix framework.
-Provides consistent styling, Catppuccin Mocha color scheme, and reusable
+Provides consistent styling, Monochrome Black & White color scheme, and reusable
 display elements across all modules.
 
 Design Principles:
     - No emoji characters in any output
     - Professional text-only markers: [OK], [FAIL], [WARN], [INFO]
-    - Catppuccin Mocha-inspired color palette
+    - Monochrome Black & White color palette
     - Card-style panels, progress bars, and metric displays
     - All components use Rich library for terminal rendering
 
@@ -42,28 +42,27 @@ console.width = max(100, console.width or 120)
 
 
 # ---------------------------------------------------------------------------
-# MINIMAL COLOR SCHEME — Black, Red, White, Gray, Orange
+# MONOCHROME COLOR SCHEME — Black & White Minimalist
 # ---------------------------------------------------------------------------
 
 COLORS = {
-    "primary":    "#ff4444",   # Red (Main brand)
-    "secondary":  "#ff6b6b",   # Orange (Secondary)
-    "accent":     "#ff4444",   # Red (Highlights)
+    "primary":    "#ffffff",   # White
+    "secondary":  "#888888",   # Gray
+    "accent":     "#ffffff",   # White
     "success":    "#ffffff",   # White
-    "warning":    "#ff6b6b",   # Orange
-    "error":      "#ff4444",   # Red
+    "warning":    "#ffffff",   # White
+    "error":      "#ffffff",   # White
     "info":       "#ffffff",   # White
     "text":       "#ffffff",   # White
-    "muted":      "#737373",   # Gray
-    "critical":   "#ff4444",   # Red
-    "high":       "#ff6b6b",   # Orange
-    "medium":     "#ffffff",   # White
+    "muted":      "#555555",   # Dim gray
+    "high":       "#ffffff",   # White
+    "medium":     "#cccccc",   # Light gray
     "low":        "#81C784",   # Green (Low severity)
-    "border":     "#ff4444",   # Crimson (Panel borders)
+    "border":     "#ffffff",   # Crimson (Panel borders)
     "bg_dark":    "#1A1A1A",   # Dark background
     "bg_card":    "#242424",   # Card background
-    "gradient_1": "#ff4444",   # Gradient start
-    "gradient_2": "#ff4444",   # Gradient end
+    "gradient_1": "#ffffff",   # Gradient start
+    "gradient_2": "#ffffff",   # Gradient end
 }
 
 
@@ -72,19 +71,19 @@ COLORS = {
 # ---------------------------------------------------------------------------
 
 STYLES = {
-    "title":      Style(color="#ff4444", bold=True),
+    "title":      Style(color="#ffffff", bold=True),
     "subtitle":   Style(color="#737373", dim=True),
     "success":    Style(color="#ffffff", bold=True),
-    "error":      Style(color="#ff4444", bold=True),
-    "warning":    Style(color="#ff6b6b", bold=True),
+    "error":      Style(color="#ffffff", bold=True),
+    "warning":    Style(color="#888888", bold=True),
     "info":       Style(color="#ffffff", dim=True),
-    "command":    Style(color="#ffffff", bgcolor="#ff4444"),
-    "critical":   Style(color="#ff4444", bold=True),
-    "high":       Style(color="#ff4444", bold=True),
-    "medium":     Style(color="#ff6b6b", bold=True),
+    "command":    Style(color="#ffffff", bgcolor="#ffffff"),
+    "info":   Style(color="#ffffff", bold=True),
+    "high":       Style(color="#ffffff", bold=True),
+    "medium":     Style(color="#888888", bold=True),
     "low":        Style(color="#81C784", bold=True),
-    "accent":     Style(color="#ff4444", bold=True),
-    "heading":    Style(color="#ff4444", bold=True, underline=False),
+    "accent":     Style(color="#ffffff", bold=True),
+    "heading":    Style(color="#ffffff", bold=True, underline=False),
 }
 
 
@@ -121,8 +120,8 @@ def show_main_banner():
     ]
 
     for line in ascii_art:
-        console.print(f"  [bold #ff4444]{line}[/bold #ff4444]")
-    console.print(f"  [dim #ff4444]{'═' * 72}[/dim #ff4444]")
+        console.print(f"  [bold #ffffff]{line}[/bold #ffffff]")
+    console.print(f"  [dim #ffffff]{'═' * 72}[/dim #ffffff]")
     console.print(f"  [bold #ffffff]              Universal AI & Bug Bounty Agent               [/bold #ffffff]")
     console.print(f"  [dim #ffffff]                   Aegis Protocol Active                    [/dim #ffffff]")
     console.print()
@@ -139,7 +138,7 @@ def show_main_banner():
     )
     console.print(Panel(
         info_table,
-        border_style="#ff4444",
+        border_style="#ffffff",
         box=ROUNDED,
         padding=(0, 0),
     ))
@@ -154,11 +153,11 @@ def show_cli_banner(mode: str = "agent"):
     """
     mode_info = {
         "universal":  ("Universal Agent", "[bold #ffffff]READY[/bold #ffffff]", "#ffffff"),
-        "bug_bounty": ("Bug Bounty Specialist", "[bold #ff6b6b]STANDBY[/bold #ff6b6b]", "#ff6b6b"),
+        "bug_bounty": ("Bug Bounty Specialist", "[bold #888888]STANDBY[/bold #888888]", "#888888"),
         "auto":       ("Adaptive Agent", "[bold #ffffff]AUTO-DETECT[/bold #ffffff]", "#ffffff"),
-        "agent":      ("AI Partner", "[bold #ff4444]ONLINE[/bold #ff4444]", "#ff4444"),
+        "agent":      ("AI Partner", "[bold #ffffff]ONLINE[/bold #ffffff]", "#ffffff"),
     }
-    mode_name, status, color = mode_info.get(mode, ("AI Partner", "[bold #ff4444]ONLINE[/bold #ff4444]", "#ff4444"))
+    mode_name, status, color = mode_info.get(mode, ("AI Partner", "[bold #ffffff]ONLINE[/bold #ffffff]", "#ffffff"))
 
     console.print()
     console.print(f"  [bold {color}]❖ {mode_name} ❖[/bold {color}]")
@@ -170,7 +169,7 @@ def show_cli_banner(mode: str = "agent"):
 def show_arsenal_banner():
     """Display the Security Arsenal banner with vibrant styling."""
     console.print()
-    console.print(f"  [bold #ff4444]❖ Security Arsenal ❖[/bold #ff4444]")
+    console.print(f"  [bold #ffffff]❖ Security Arsenal ❖[/bold #ffffff]")
     console.print(f"  [dim]Select a tool to begin  |  Press ESC to cancel  |  v99999[/dim]")
     console.print(f"  [dim #737373]{'─' * 70}[/dim #737373]")
     console.print()
@@ -184,7 +183,7 @@ def show_section(title: str, subtitle: str = ""):
         subtitle: Optional subtitle text.
     """
     console.print()
-    console.print(f"  [bold #ff4444]{'═' * 3} {title.upper()} {'═' * 3}[/bold #ff4444]")
+    console.print(f"  [bold #ffffff]{'═' * 3} {title.upper()} {'═' * 3}[/bold #ffffff]")
     if subtitle:
         console.print(f"  [dim #ffffff]{subtitle}[/dim #ffffff]")
     console.print()
@@ -193,7 +192,7 @@ def show_section(title: str, subtitle: str = ""):
 def show_subsection(title: str):
     """Print a subsection divider with accent color."""
     console.print()
-    console.print(f"  [bold #ff4444]▸ {title}[/bold #ff4444]")
+    console.print(f"  [bold #ffffff]▸ {title}[/bold #ffffff]")
     console.print(f"  [dim #737373]{'─' * 50}[/dim #737373]")
 
 
@@ -201,7 +200,7 @@ def show_subsection(title: str):
 # CARD COMPONENTS
 # ---------------------------------------------------------------------------
 
-def show_card(title: str, content: str, border_style: str = "#ff4444"):
+def show_card(title: str, content: str, border_style: str = "#ffffff"):
     """Display a card-style panel with title and content.
 
     Args:
@@ -219,7 +218,7 @@ def show_card(title: str, content: str, border_style: str = "#ff4444"):
     console.print()
 
 
-def show_metric_card(label: str, value: str, unit: str = "", icon: str = "", color: str = "#ff4444"):
+def show_metric_card(label: str, value: str, unit: str = "", icon: str = "", color: str = "#ffffff"):
     """Display a single metric card (like a dashboard widget).
 
     Args:
@@ -258,12 +257,12 @@ def show_metric_row(metrics: List[Dict[str, str]]):
         display = f"[bold #ffffff]{m['value']}[/bold #ffffff]"
         if m.get("unit"):
             display += f" [dim]{m['unit']}[/dim]"
-        row.append(f"{m.get('icon', '')}\n[bold #ff4444]{m['label']}[/bold #ff4444]\n{display}")
+        row.append(f"{m.get('icon', '')}\n[bold #ffffff]{m['label']}[/bold #ffffff]\n{display}")
 
     table.add_row(*row)
     console.print(Panel(
         table,
-        border_style="#ff4444",
+        border_style="#ffffff",
         box=ROUNDED,
         padding=(1, 0),
     ))
@@ -278,13 +277,13 @@ def severity_badge(severity: str) -> str:
     """Return a styled severity badge.
 
     Args:
-        severity: One of 'critical', 'high', 'medium', 'low', 'info'.
+        severity: One of 'info', 'high', 'medium', 'low', 'info'.
     """
     sev = severity.lower()
     badge_map = {
-        "critical": ("[black on #ff4444] CRITICAL [/black on #ff4444]", "#ff4444"),
-        "high":     ("[black on #ff4444] HIGH     [/black on #ff4444]", "#ff4444"),
-        "medium":   ("[black on #ff6b6b] MEDIUM   [/black on #ff6b6b]", "#ff6b6b"),
+        "info": ("[black on #ffffff] INFO [/black on #ffffff]", "#ffffff"),
+        "high":     ("[black on #ffffff] HIGH     [/black on #ffffff]", "#ffffff"),
+        "medium":   ("[black on #888888] MEDIUM   [/black on #888888]", "#888888"),
         "low":      ("[black on #81C784] LOW      [/black on #81C784]", "#81C784"),
         "info":     ("[black on #ffffff] INFO     [/black on #ffffff]", "#ffffff"),
     }
@@ -296,12 +295,12 @@ def severity_color(severity: str) -> str:
     """Return the color code for a severity level.
 
     Args:
-        severity: One of 'critical', 'high', 'medium', 'low', 'info'.
+        severity: One of 'info', 'high', 'medium', 'low', 'info'.
     """
     color_map = {
-        "critical": "#ff4444",
-        "high":     "#ff4444",
-        "medium":   "#ff6b6b",
+        "info": "#ffffff",
+        "high":     "#ffffff",
+        "medium":   "#888888",
         "low":      "#81C784",
         "info":     "#ffffff",
     }
@@ -312,7 +311,7 @@ def severity_color(severity: str) -> str:
 # PROGRESS AND SPINNERS
 # ---------------------------------------------------------------------------
 
-def show_spinner(message: str, spinner_style: str = "#ff4444"):
+def show_spinner(message: str, spinner_style: str = "#ffffff"):
     """Return a Rich status context manager with a vibrant spinner.
 
     Usage:
@@ -322,7 +321,7 @@ def show_spinner(message: str, spinner_style: str = "#ff4444"):
     return console.status(f"[bold {spinner_style}]{message}[/bold {spinner_style}]", spinner="dots")
 
 
-def show_progress_bar(total: int, description: str = "Processing", color: str = "#ff4444"):
+def show_progress_bar(total: int, description: str = "Processing", color: str = "#ffffff"):
     """Return a Rich Progress context manager with custom vibrant styling.
 
     Usage:
@@ -355,12 +354,12 @@ def print_error(message: str):
     """Print an error message with [FAIL] marker in red."""
     import re
     safe_msg = re.sub(r'\[/?[^\]]+\]', '', str(message))  # Strip Rich tags
-    console.print(f"[bold #ff4444]{MARKERS['fail']} {safe_msg}[/bold #ff4444]")
+    console.print(f"[bold #ffffff]{MARKERS['fail']} {safe_msg}[/bold #ffffff]")
 
 
 def print_warning(message: str):
     """Print a warning message with [WARN] marker in orange."""
-    console.print(f"[bold #ff6b6b]{MARKERS['warn']} {message}[/bold #ff6b6b]")
+    console.print(f"[bold #888888]{MARKERS['warn']} {message}[/bold #888888]")
 
 
 def print_info(message: str):
@@ -370,7 +369,7 @@ def print_info(message: str):
 
 def print_command(command: str):
     """Print a command in highlighted style (for copy-paste guidance)."""
-    console.print(f"[black on #ff4444] {command} [/black on #ff4444]")
+    console.print(f"[black on #ffffff] {command} [/black on #ffffff]")
 
 
 def print_step(step_num: int, message: str, status: str = "running"):
@@ -382,9 +381,9 @@ def print_step(step_num: int, message: str, status: str = "running"):
         status: One of 'running', 'done', 'failed', 'skipped'.
     """
     status_map = {
-        "running": f"[bold #ff4444]{MARKERS['run']}[/bold #ff4444]",
+        "running": f"[bold #ffffff]{MARKERS['run']}[/bold #ffffff]",
         "done":    f"[bold #ffffff]{MARKERS['ok']}[/bold #ffffff]",
-        "failed":  f"[bold #ff4444]{MARKERS['fail']}[/bold #ff4444]",
+        "failed":  f"[bold #ffffff]{MARKERS['fail']}[/bold #ffffff]",
         "skipped": f"[bold #737373]{MARKERS['skip']}[/bold #737373]",
     }
     marker = status_map.get(status, status_map["running"])
@@ -402,10 +401,10 @@ def create_status_table(title: str) -> Table:
         title: Table title displayed above the header row.
     """
     return Table(
-        title=f"[bold #ff4444]{title}[/bold #ff4444]",
+        title=f"[bold #ffffff]{title}[/bold #ffffff]",
         box=ROUNDED,
-        border_style="#ff4444",
-        header_style="bold #ff4444",
+        border_style="#ffffff",
+        header_style="bold #ffffff",
         show_lines=True,
     )
 
@@ -418,13 +417,13 @@ def create_tools_table(tools: List[Dict[str, str]]) -> Table:
     """
     table = Table(
         show_header=True,
-        header_style="bold #ff4444",
+        header_style="bold #ffffff",
         box=ROUNDED,
-        border_style="#ff4444",
+        border_style="#ffffff",
         show_lines=True,
     )
     table.add_column("#", style="dim #737373", width=3, justify="right")
-    table.add_column("Tool", style="bold #ff4444", width=20)
+    table.add_column("Tool", style="bold #ffffff", width=20)
     table.add_column("Description", style="#ffffff")
 
     for idx, tool in enumerate(tools, 1):
@@ -441,18 +440,18 @@ def create_doctor_table(checks: List[Dict[str, Any]]) -> Table:
     """
     table = Table(
         box=ROUNDED,
-        border_style="#ff4444",
+        border_style="#ffffff",
         show_lines=False,
         padding=(0, 1),
     )
-    table.add_column("Check", style="bold #ff4444")
+    table.add_column("Check", style="bold #ffffff")
     table.add_column("Status", width=10)
     table.add_column("Details", style="#ffffff")
 
     status_display = {
         "ok":   "[bold #ffffff]OK[/bold #ffffff]",
-        "fail": "[bold #ff4444]FAIL[/bold #ff4444]",
-        "warn": "[bold #ff6b6b]WARN[/bold #ff6b6b]",
+        "fail": "[bold #ffffff]FAIL[/bold #ffffff]",
+        "warn": "[bold #888888]WARN[/bold #888888]",
         "info": "[dim #ffffff]INFO[/dim #ffffff]",
     }
 
@@ -476,9 +475,9 @@ def create_finding_table(findings: List[Dict[str, Any]]) -> Table:
     """
     table = Table(
         show_header=True,
-        header_style="bold #ff4444",
+        header_style="bold #ffffff",
         box=ROUNDED,
-        border_style="#ff4444",
+        border_style="#ffffff",
         show_lines=True,
     )
     table.add_column("Severity", width=10, justify="center")
@@ -505,7 +504,7 @@ def create_finding_table(findings: List[Dict[str, Any]]) -> Table:
 MENU_CATEGORIES = [
     {
         "title": "AI & Agent",
-        "icon": "[#ff4444]◆[/#ff4444]",
+        "icon": "[#ffffff]◆[/#ffffff]",
         "items": [
             ("AI Partner",      "Interactive AI assistant (chat mode)",             "ai"),
             ("Universal Agent", "Autonomous agent — executes tasks end-to-end",    "universal"),
@@ -523,7 +522,7 @@ MENU_CATEGORIES = [
     },
     {
         "title": "Exploitation & Testing",
-        "icon": "[#ff6b6b]◆[/#ff6b6b]",
+        "icon": "[#888888]◆[/#888888]",
         "items": [
             ("BOLA / IDOR",     "Broken access control & IDOR differential tests", "bola"),
             ("WAF / XSS",       "WAF detection, bypass & XSS mutation engine",     "waf"),
@@ -579,12 +578,12 @@ def show_categorized_menu():
     table = Table(
         show_header=False,
         box=ROUNDED,
-        border_style="#ff4444",
+        border_style="#ffffff",
         padding=(0, 2),
         show_lines=True,
         expand=True,
     )
-    table.add_column("Num",  style="bold #ff4444", width=4, justify="right")
+    table.add_column("Num",  style="bold #ffffff", width=4, justify="right")
     table.add_column("Name", style="bold #ffffff", width=20)
     table.add_column("Desc", style="dim #ffffff", min_width=35)
 
@@ -592,7 +591,7 @@ def show_categorized_menu():
     for cat in MENU_CATEGORIES:
         table.add_row(
             "",
-            f"[bold #ff4444]{cat['icon']} {cat['title'].upper()}[/bold #ff4444]",
+            f"[bold #ffffff]{cat['icon']} {cat['title'].upper()}[/bold #ffffff]",
             "",
             style="",
         )
@@ -607,8 +606,8 @@ def show_categorized_menu():
     console.print()
     console.print(Panel(
         table,
-        title="[bold #ff4444] ELENGENIX v99999 (god nine is the best) — MAIN MENU [/bold #ff4444]",
-        border_style="#ff4444",
+        title="[bold #ffffff] ELENGENIX v99999 (god nine is the best) — MAIN MENU [/bold #ffffff]",
+        border_style="#ffffff",
         box=ROUNDED,
         padding=(0, 0),
     ))
@@ -636,7 +635,7 @@ def create_arsenal_menu() -> List[Dict[str, str]]:
 
 def format_menu_item(number: int, title: str, description: str) -> str:
     """Format a single menu item with vibrant modern styling."""
-    return f"[bold #ff4444]{number:2}.[/bold #ff4444] [bold #ffffff]{title}[/bold #ffffff]  [dim #ffffff]{description}[/dim #ffffff]"
+    return f"[bold #ffffff]{number:2}.[/bold #ffffff] [bold #ffffff]{title}[/bold #ffffff]  [dim #ffffff]{description}[/dim #ffffff]"
 
 
 # ---------------------------------------------------------------------------
@@ -645,29 +644,29 @@ def format_menu_item(number: int, title: str, description: str) -> str:
 
 def prompt_target() -> str:
     """Prompt the user to enter a target domain or IP address."""
-    return console.input("[bold #ff4444]Target[/bold #ff4444] [dim #ffffff](domain/IP)[/dim #ffffff]: ")
+    return console.input("[bold #ffffff]Target[/bold #ffffff] [dim #ffffff](domain/IP)[/dim #ffffff]: ")
 
 
 def prompt_choice(options: List[str]) -> int:
     """Display numbered options and return the selected index (0-based)."""
     for i, opt in enumerate(options, 1):
-        console.print(f"  [bold #ff4444]{i:2}.[/bold #ff4444] [bold #ffffff]{opt}[/bold #ffffff]")
+        console.print(f"  [bold #ffffff]{i:2}.[/bold #ffffff] [bold #ffffff]{opt}[/bold #ffffff]")
 
     while True:
-        choice = console.input("\n[bold #ff4444]Select[/bold #ff4444] [dim #ffffff](number)[/dim #ffffff]: ")
+        choice = console.input("\n[bold #ffffff]Select[/bold #ffffff] [dim #ffffff](number)[/dim #ffffff]: ")
         try:
             idx = int(choice) - 1
             if 0 <= idx < len(options):
                 return idx
         except ValueError:
-            console.print("[bold #ff4444]Invalid selection[/bold #ff4444]")
+            console.print("[bold #ffffff]Invalid selection[/bold #ffffff]")
 
 
 def confirm(message: str, default: bool = False) -> bool:
     """Display a yes/no confirmation prompt."""
     default_text = "Y/n" if default else "y/N"
     response = console.input(
-        f"[bold #ff4444]{message}[/bold #ff4444] [dim #ffffff]({default_text})[/dim #ffffff]: "
+        f"[bold #ffffff]{message}[/bold #ffffff] [dim #ffffff]({default_text})[/dim #ffffff]: "
     ).lower().strip()
 
     if not response:
@@ -682,22 +681,22 @@ def confirm(message: str, default: bool = False) -> bool:
 def show_scan_summary(findings: Dict[str, Any]):
     """Display scan results with vibrant severity-based styling."""
     console.print()
-    console.print(f"  [bold #ff4444]{'═' * 3} SCAN RESULTS {'═' * 3}[/bold #ff4444]")
+    console.print(f"  [bold #ffffff]{'═' * 3} SCAN RESULTS {'═' * 3}[/bold #ffffff]")
     console.print()
 
-    critical = findings.get("critical", 0)
+    info = findings.get("info", 0)
     high = findings.get("high", 0)
     medium = findings.get("medium", 0)
     low = findings.get("low", 0)
 
     # Metric row with vibrant colors
     metrics = []
-    if critical > 0:
-        metrics.append({"label": "Critical", "value": str(critical), "icon": "[bold #ff4444]![/bold #ff4444]", "color": "#ff4444"})
+    if info > 0:
+        metrics.append({"label": "Critical", "value": str(info), "icon": "[bold #ffffff]![/bold #ffffff]", "color": "#ffffff"})
     if high > 0:
-        metrics.append({"label": "High", "value": str(high), "icon": "[bold #ff4444]![/bold #ff4444]", "color": "#ff4444"})
+        metrics.append({"label": "High", "value": str(high), "icon": "[bold #ffffff]![/bold #ffffff]", "color": "#ffffff"})
     if medium > 0:
-        metrics.append({"label": "Medium", "value": str(medium), "icon": "[bold #ff6b6b]![/bold #ff6b6b]", "color": "#ff6b6b"})
+        metrics.append({"label": "Medium", "value": str(medium), "icon": "[bold #888888]![/bold #888888]", "color": "#888888"})
     if low > 0:
         metrics.append({"label": "Low", "value": str(low), "icon": "[bold #81C784]![/bold #81C784]", "color": "#81C784"})
 
@@ -720,14 +719,14 @@ def show_memory_stats(stats: Dict[str, Any]):
     metrics = [
         {"label": "Status", "value": status.upper(), "icon": "[bold #ffffff]◆[/bold #ffffff]", "color": "#ffffff"},
         {"label": "Memories", "value": str(total), "unit": "entries", "icon": "[bold #ffffff]◆[/bold #ffffff]", "color": "#ffffff"},
-        {"label": "Targets", "value": str(targets), "unit": "domains", "icon": "[bold #ff6b6b]◆[/bold #ff6b6b]", "color": "#ff6b6b"},
+        {"label": "Targets", "value": str(targets), "unit": "domains", "icon": "[bold #888888]◆[/bold #888888]", "color": "#888888"},
     ]
     show_metric_row(metrics)
 
     if stats.get("targets"):
         console.print(f"  [dim #ffffff]Recent targets:[/dim #ffffff]")
         for t in stats["targets"][:10]:
-            console.print(f"    [#ff4444]→[/#ff4444] {t}")
+            console.print(f"    [#ffffff]→[/#ffffff] {t}")
         console.print()
 
 
@@ -738,11 +737,11 @@ def show_findings_summary(findings: List[Dict[str, Any]]):
         return
 
     console.print()
-    console.print(f"  [bold #ff4444]{'═' * 3} SECURITY FINDINGS ({len(findings)}) {'═' * 3}[/bold #ff4444]")
+    console.print(f"  [bold #ffffff]{'═' * 3} SECURITY FINDINGS ({len(findings)}) {'═' * 3}[/bold #ffffff]")
     console.print()
 
     # Group by severity
-    severity_counts = {"critical": 0, "high": 0, "medium": 0, "low": 0, "info": 0}
+    severity_counts = {"info": 0, "high": 0, "medium": 0, "low": 0, "info": 0}
     for f in findings:
         sev = f.get("severity", "info").lower()
         if sev in severity_counts:
@@ -779,8 +778,8 @@ def show_toast(message: str, level: str = "info", duration: float = 0.5):
     """
     level_styles = {
         "success": ("#ffffff", "[OK]"),
-        "error":   ("#ff4444", "[FAIL]"),
-        "warning": ("#ff6b6b", "[WARN]"),
+        "error":   ("#ffffff", "[FAIL]"),
+        "warning": ("#888888", "[WARN]"),
         "info":    ("#ffffff", "[INFO]"),
     }
     color, marker = level_styles.get(level, ("#ffffff", "[*]"))
@@ -803,7 +802,7 @@ def show_divider(char: str = "=", width: int = None):
 def show_key_value(key: str, value: str, indent: int = 2):
     """Display a key-value pair with styling."""
     prefix = " " * indent
-    console.print(f"{prefix}[bold #ff4444]{key}:[/bold #ff4444] {value}")
+    console.print(f"{prefix}[bold #ffffff]{key}:[/bold #ffffff] {value}")
 
 
 def show_bullet_list(items: List[str], marker: str = "->", color: str = "#ffffff"):
@@ -852,26 +851,26 @@ def render_sidebar(
     bar_w = width - 6
     bar_filled = int((token_pct / 100) * bar_w)
     bar_empty = bar_w - bar_filled
-    bar_color = "#FF4444" if token_pct > 80 else "#ff4444" if token_pct > 50 else "#ffffff"
+    bar_color = "#ffffff" if token_pct > 80 else "#ffffff" if token_pct > 50 else "#ffffff"
     token_bar = f"[bold {bar_color}]{'#' * bar_filled}[/bold {bar_color}][dim #444444]{'.' * bar_empty}[/dim #444444]"
 
     status_ind = {
-        "ready":    "[bold #ff4444]●[/bold #ff4444]",
+        "ready":    "[bold #ffffff]●[/bold #ffffff]",
         "thinking": "[bold white]◉[/bold white]",
-        "error":    "[bold #FF4444]■[/bold #FF4444]",
+        "error":    "[bold #ffffff]■[/bold #ffffff]",
         "idle":     "[dim #666666]○[/dim #666666]",
     }.get(status, "[dim #666666]○[/dim #666666]")
 
     status_label = {
-        "ready":    "[bold #ff4444]STANDBY[/bold #ff4444]",
+        "ready":    "[bold #ffffff]STANDBY[/bold #ffffff]",
         "thinking": "[bold white]PROCESSING[/bold white]",
-        "error":    "[bold #FF4444]ERROR[/bold #FF4444]",
+        "error":    "[bold #ffffff]ERROR[/bold #ffffff]",
         "idle":     "[dim #666666]IDLE[/dim #666666]",
     }.get(status, "[dim #666666]IDLE[/dim #666666]")
 
     mode_tag = {
-        "scan":    "[bold #ff4444]SCAN[/bold #ff4444]",
-        "research": "[bold #ff4444]RESEARCH[/bold #ff4444]",
+        "scan":    "[bold #ffffff]SCAN[/bold #ffffff]",
+        "research": "[bold #ffffff]RESEARCH[/bold #ffffff]",
         "security_chat": "[bold #888888]SEC-CHAT[/bold #888888]",
     }.get(mode, f"[bold #888888]{mode.upper()}[/bold #888888]")
 
@@ -898,7 +897,7 @@ def render_sidebar(
     # Target block
     if target:
         lines.append(f"  [bold white]TARGET[/bold white]")
-        lines.append(f"  [dim #ff4444]{target}[/dim #ff4444]")
+        lines.append(f"  [dim #ffffff]{target}[/dim #ffffff]")
         lines.append(gap)
 
     # Model block
@@ -922,7 +921,7 @@ def render_sidebar(
     # Scroll indicator
     if scroll_info:
         lines.append(gap)
-        lines.append(f"  [bold #ff4444]SCROLL[/bold #ff4444]")
+        lines.append(f"  [bold #ffffff]SCROLL[/bold #ffffff]")
         lines.append(f"  [dim #ffffff]{scroll_info}[/dim #ffffff]")
         lines.append(f"  [dim #888888]j/k or ↑↓ to scroll[/dim #888888]")
 
@@ -931,7 +930,7 @@ def render_sidebar(
     lines.append(f"  [dim #737373]v99999 (god nine is the best)[/dim #737373]  [dim #777777]Elengenix AI Agent Framework[/dim #777777]")
 
     sidebar_text = "\n".join(lines)
-    return Panel(sidebar_text, border_style="#ff4444", box=ROUNDED, padding=(0, 0), width=width)
+    return Panel(sidebar_text, border_style="#ffffff", box=ROUNDED, padding=(0, 0), width=width)
 
 
 # ---------------------------------------------------------------------------
