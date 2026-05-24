@@ -527,7 +527,6 @@ Sidebar {{ scrollbar_color: {H_DIM}; scrollbar_color_hover: {H_GRAY}; scrollbar_
 
     # ── Animations (30fps) ────────────────────────────────────────────────
 
-    @staticmethod
     def _animate_frame(self) -> None:
         """30fps master tick — pulsing header, spinner, progress."""
         self._anim_frame += 1
