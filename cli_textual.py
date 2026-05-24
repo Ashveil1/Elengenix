@@ -64,8 +64,7 @@ ASCII_BANNER = """
     █████╗  ██║     █████╗  ██╔██╗ ██║██║  ███╗█████╗  ██╔██╗ ██║██║ ╚███╔╝
     ██╔══╝  ██║     ██╔══╝  ██║╚██╗██║██║   ██║██╔══╝  ██║╚██╗██║██║ ██╔██╗
     ███████╗███████╗███████╗██║ ╚████║╚██████╔╝███████╗██║ ╚████║██║██╔╝ ██╗
-    ╚══════╝╚══════╝╚══════╝╚═╝  ╚═══╝ ╚═════╝ ╚══════╝╚═╝  ╚═══╝╚═╝╚═╝  ╚═╝
-                              [dim]v99999[/]"""
+    ╚══════╝╚══════╝╚══════╝╚═╝  ╚═══╝ ╚═════╝ ╚══════╝╚═╝  ╚═══╝╚═╝╚═╝  ╚═╝"""
 
 HELP_TEXT = """\
 [white]━━━ COMMANDS ━━━[/]
@@ -91,14 +90,14 @@ HELP_TEXT = """\
 
 # ── Sidebar ──────────────────────────────────────────────────────────────
 class Sidebar(Container):
-    """Right-hand panel — monochrome minimal."""
+    """Right-hand panel — golden-ratio width, monochrome minimal."""
 
     DEFAULT_CSS = f"""
     Sidebar {{
-        width: 34; height: 1fr;
+        width: 38; height: 1fr;
         background: {MANTLE};
         border-left: solid {DIM};
-        margin: 0; padding: 0 1;
+        margin: 0; padding: 1 1;
         overflow-y: auto;
     }}
     """
@@ -352,16 +351,42 @@ class SettingsOverlayWidget(Widget, can_focus=True):
 
 # ── Main App ───────────────────────────────────────────────────────────
 class ElengenixTextualApp(App):
+    # ── Golden ratio layout: φ ≈ 1.618 ───────────────────────────────────
+    # chat : sidebar = 1.618 : 1  →  side = 100/2.618 ≈ 38
     CSS = f"""
     Screen {{ background: {BASE}; layers: base overlay; }}
-    #header {{ height: 1; background: {BASE}; color: {TEXT}; content-align: center middle; border-bottom: solid {DIM}; }}
+    #header {{
+        height: 1; background: {BASE}; color: {TEXT};
+        content-align: center middle;
+        border-bottom: solid {DIM};
+        padding: 0 5;
+    }}
     #main_row {{ height: 1fr; layer: base; }}
     #chat_col {{ width: 1fr; height: 1fr; background: {BASE}; }}
-    #chat_area {{ height: 1fr; background: {BASE}; padding: 0 1; }}
-    #input_row {{ height: auto; margin: 0; background: {BASE}; border-top: solid {DIM}; border-bottom: solid {DIM}; }}
-    #user_input {{ height: 3; border: none; border-left: thick {WHITE}; background: {MANTLE}; color: {TEXT}; padding: 0 1; }}
+    #chat_area {{
+        height: 1fr; background: {BASE};
+        padding: 1 3 1 3;
+    }}
+    #input_row {{
+        height: auto; margin: 0 3 1 3;
+        background: {BASE};
+        border-top: solid {DIM};
+        border-bottom: solid {DIM};
+    }}
+    #user_input {{
+        height: 3; border: none;
+        border-left: thick {WHITE};
+        background: {MANTLE}; color: {TEXT};
+        padding: 0 3 0 3;
+    }}
     #user_input:focus {{ border-left: thick {WHITE}; }}
-    #suggest_box {{ height: auto; max-height: 8; background: {MANTLE}; color: {TEXT}; border: solid {DIM}; margin: 0 1; padding: 0 1; overflow-y: auto; display: none; }}
+    #suggest_box {{
+        height: auto; max-height: 8;
+        background: {MANTLE}; color: {TEXT};
+        border: solid {DIM};
+        margin: 1 3 0 3; padding: 1 3 2 3;
+        overflow-y: auto; display: none;
+    }}
     """
 
     BINDINGS = [
@@ -484,13 +509,13 @@ class ElengenixTextualApp(App):
     def _chat_write_user(self, text: str) -> None:
         ts = time.strftime("%H:%M")
         self._chat().write(Text.from_markup(
-            f"\n[white]│[/] [dim]{ts}[/] [white]you[/]\n"
-            f"  {text}"
+            f"\n[white]┃[/] [dim]{ts}[/] [white]you[/]\n"
+            f"  [white]{text}[/]"
         ))
 
     def _chat_write_agent(self, text: str) -> None:
         ts = time.strftime("%H:%M")
-        self._chat().write(Text.from_markup(f"\n[white]│[/] [dim]{ts}[/] [white]elengix[/]"))
+        self._chat().write(Text.from_markup(f"\n[white]┃[/] [dim]{ts}[/] [white]elengix[/]"))
         try:
             self._chat().write(Markdown(text))
         except Exception:
@@ -501,7 +526,7 @@ class ElengenixTextualApp(App):
         tag = f" [dim]{t}[/]" if t else ""
         ts = time.strftime("%H:%M")
         self._chat().write(Text.from_markup(
-            f"\n[white]│[/] [dim]{ts}[/] [white]{name}[/]{tag}\n"
+            f"\n[white]┃[/] [dim]{ts}[/] [white]{name}[/]{tag}\n"
             f"  [white]{text[:500]}[/]"
         ))
 
