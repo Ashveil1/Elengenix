@@ -911,11 +911,56 @@ Sidebar {{ scrollbar_color: {H_DIM}; scrollbar_color_hover: {H_GRAY}; scrollbar_
         self._update_sidebar()
         self._chat_write_system(f"[dim]Research: {'ON' if self.mode == 'research' else 'OFF'}[/]")
 
+    def _apply_hunt_theme(self) -> None:
+        """Apply HUNT theme colors via widget.styles."""
+        try:
+            headers = [("#header", f"{H_BASE}" , f"{H_TEXT}", f"{H_DIM}")]
+            self.query_one("#header", Static).styles.background = H_BASE
+            self.query_one("#header", Static).styles.color = H_TEXT
+            self.query_one("#header", Static).styles.border_bottom = f"solid {H_DIM}"
+            self.query_one("#chat_area", RichLog).styles.background = H_BASE
+            self.query_one("#status_bar", StatusBar).styles.background = H_CRUST
+            self.query_one("#status_bar", StatusBar).styles.color = H_MUTED
+            inp = self.query_one("#user_input", Input)
+            inp.styles.background = H_MANTLE; inp.styles.color = H_TEXT
+            self.query_one("#input_row").styles.background = H_BASE
+            self.query_one("#input_row").styles.border_left = f"thick {H_RED}"
+            self.query_one("#input_row").styles.border_top = f"solid {H_DIM}"
+            self.query_one("#input_row").styles.border_bottom = f"solid {H_DIM}"
+            sd = self.query_one("#sidebar", Sidebar)
+            sd.styles.background = H_MANTLE
+            sd.styles.border_left = f"solid {H_DIM}"
+        except Exception:
+            pass
+
+    def _apply_chill_theme(self) -> None:
+        """Apply CHILL theme colors via widget.styles."""
+        try:
+            self.query_one("#header", Static).styles.background = BASE
+            self.query_one("#header", Static).styles.color = TEXT
+            self.query_one("#header", Static).styles.border_bottom = f"solid {DIM}"
+            self.query_one("#chat_area", RichLog).styles.background = BASE
+            self.query_one("#status_bar", StatusBar).styles.background = CRUST
+            self.query_one("#status_bar", StatusBar).styles.color = MUTED
+            inp = self.query_one("#user_input", Input)
+            inp.styles.background = MANTLE; inp.styles.color = TEXT
+            self.query_one("#input_row").styles.background = BASE
+            self.query_one("#input_row").styles.border_left = f"thick {WHITE}"
+            self.query_one("#input_row").styles.border_top = f"solid {DIM}"
+            self.query_one("#input_row").styles.border_bottom = f"solid {DIM}"
+            sd = self.query_one("#sidebar", Sidebar)
+            sd.styles.background = MANTLE
+            sd.styles.border_left = f"solid {DIM}"
+        except Exception:
+            pass
+
     def action_toggle_mode(self) -> None:
         new_mode = "HUNT" if self.mode != "HUNT" else "CHILL"
         self.mode = new_mode
-        self._theme_target = new_mode
-        self._transitioning = True
+        if new_mode == "HUNT":
+            self._apply_hunt_theme()
+        else:
+            self._apply_chill_theme()
         self._update_sidebar()
         icon = "⚔ HUNT" if new_mode == "HUNT" else "❄ CHILL"
         self._chat_write_system(f"[white]{icon}[/] mode")
