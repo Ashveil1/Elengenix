@@ -370,43 +370,32 @@ class SettingsOverlayWidget(Widget, can_focus=True):
 class ElengenixTextualApp(App):
     # ── Golden ratio layout: φ ≈ 1.618 ───────────────────────────────────
     # chat : sidebar = 1.618 : 1  →  side = 100/2.618 ≈ 38
-    CSS = f"""
-    Screen {{ background: {BASE}; layers: base overlay; }}
-    RichLog {{ scrollbar_color: {DIM}; scrollbar_color_hover: {GRAY}; scrollbar_color_active: {WHITE}; }}
-    Sidebar {{ scrollbar_color: {DIM}; scrollbar_color_hover: {GRAY}; scrollbar_color_active: {WHITE}; }}
-    #header {{
-        height: 1; background: {BASE}; color: {TEXT};
-        content-align: center middle;
-        border-bottom: solid {DIM};
-        padding: 0 5;
-    }}
-    #main_row {{ height: 1fr; layer: base; }}
-    #chat_col {{ width: 1fr; height: 1fr; background: {BASE}; }}
-    #chat_area {{
-        height: 1fr; background: {BASE};
-        padding: 1 3 1 3;
-    }}
-    #input_row {{
-        height: auto; margin: 0 3 1 3;
-        background: {BASE};
-        border-top: solid {DIM};
-        border-bottom: solid {DIM};
-        border-left: thick {WHITE};
-    }}
-    #user_input {{
-        height: 3; border: none;
-        background: {MANTLE}; color: {TEXT};
-        padding: 0 3 0 3;
-    }}
-    #user_input:focus {{ border: none; }}
-    #suggest_box {{
-        height: auto; max-height: 6;
-        background: {MANTLE}; color: {TEXT};
-        min-height: 0; border: none;
-        margin: 0 3 0 3; padding: 0 3;
-        overflow-y: auto; display: none;
-    }}
-    """
+    # ── CSS template for dynamic theme swapping ────────────────────────
+    CSS_CHILL = f"""Screen {{ background: {BASE}; layers: base overlay; }}
+RichLog {{ scrollbar_color: {DIM}; scrollbar_color_hover: {GRAY}; scrollbar_color_active: {WHITE}; }}
+Sidebar {{ scrollbar_color: {DIM}; scrollbar_color_hover: {GRAY}; scrollbar_color_active: {WHITE}; }}
+#header {{ height: 1; background: {BASE}; color: {TEXT}; content-align: center middle; border-bottom: solid {DIM}; padding: 0 5; }}
+#main_row {{ height: 1fr; layer: base; }}
+#chat_col {{ width: 1fr; height: 1fr; background: {BASE}; }}
+#chat_area {{ height: 1fr; background: {BASE}; padding: 1 3 1 3; }}
+#input_row {{ height: auto; margin: 0 3 1 3; background: {BASE}; border-top: solid {DIM}; border-bottom: solid {DIM}; border-left: thick {WHITE}; }}
+#user_input {{ height: 3; border: none; background: {MANTLE}; color: {TEXT}; padding: 0 3 0 3; }}
+#user_input:focus {{ border: none; }}
+#suggest_box {{ height: auto; max-height: 6; background: {MANTLE}; color: {TEXT}; min-height: 0; border: none; margin: 0 3 0 3; padding: 0 3; overflow-y: auto; display: none; }}
+"""
+    CSS_HUNT = f"""Screen {{ background: {H_BASE}; layers: base overlay; }}
+RichLog {{ scrollbar_color: {H_DIM}; scrollbar_color_hover: {H_GRAY}; scrollbar_color_active: {H_RED}; }}
+Sidebar {{ scrollbar_color: {H_DIM}; scrollbar_color_hover: {H_GRAY}; scrollbar_color_active: {H_RED}; }}
+#header {{ height: 1; background: {H_BASE}; color: {H_TEXT}; content-align: center middle; border-bottom: solid {H_DIM}; padding: 0 5; }}
+#main_row {{ height: 1fr; layer: base; }}
+#chat_col {{ width: 1fr; height: 1fr; background: {H_BASE}; }}
+#chat_area {{ height: 1fr; background: {H_BASE}; padding: 1 3 1 3; }}
+#input_row {{ height: auto; margin: 0 3 1 3; background: {H_BASE}; border-top: solid {H_DIM}; border-bottom: solid {H_DIM}; border-left: thick {H_RED}; }}
+#user_input {{ height: 3; border: none; background: {H_MANTLE}; color: {H_TEXT}; padding: 0 3 0 3; }}
+#user_input:focus {{ border: none; }}
+#suggest_box {{ height: auto; max-height: 6; background: {H_MANTLE}; color: {H_TEXT}; min-height: 0; border: none; margin: 0 3 0 3; padding: 0 3; overflow-y: auto; display: none; }}
+"""
+    CSS = CSS_CHILL
 
     BINDINGS = [
         Binding("ctrl+r", "toggle_research", "Research", priority=True),
@@ -461,6 +450,7 @@ class ElengenixTextualApp(App):
         self._theme_transition = 0.0  # 0.0 = CHILL, 1.0 = HUNT
         self._theme_target = "CHILL"
         self._transitioning = False
+        self._transition_phase = 0
 
     def compose(self) -> ComposeResult:
         yield Static(f"  ELENGENIX  ❄[dim]CHILL[/]  ⚔[dim]HUNT[/]  {self.target or '(no target)'}[/]  |  /help", id="header")
@@ -498,7 +488,7 @@ class ElengenixTextualApp(App):
 
         # ── 30fps animation timers ──────────────────────────────────────
         # Apply initial CHILL theme immediately
-        self._apply_theme(0.0)
+        self.css = self.CSS_CHILL
 
         self.set_interval(1 / 30, self._animate_frame)
 
@@ -538,73 +528,22 @@ class ElengenixTextualApp(App):
     # ── Animations (30fps) ────────────────────────────────────────────────
 
     @staticmethod
-    def _lerp_color(a: str, b: str, t: float) -> str:
-        """Linear interpolate between two hex colors."""
-        if t <= 0: return a
-        if t >= 1: return b
-        ah = tuple(int(a[i:i+2], 16) for i in (1, 3, 5))
-        bh = tuple(int(b[i:i+2], 16) for i in (1, 3, 5))
-        return f"#{int(ah[0]+(bh[0]-ah[0])*t):02x}{int(ah[1]+(bh[1]-ah[1])*t):02x}{int(ah[2]+(bh[2]-ah[2])*t):02x}"
-
-    def _theme_at(self, t: float, key: str) -> str:
-        """Get interpolated color value for a theme key at transition point t."""
-        return self._lerp_color(CHILL_COLORS[key], HUNT_COLORS[key], t)
-
-    def _apply_theme(self, t: float) -> None:
-        """Apply theme transition to all visible widgets."""
-        try:
-            h = self.query_one("#header", Static)
-            h.styles.color = self._theme_at(t, "TEXT")
-            h.styles.background = self._theme_at(t, "BASE")
-            h.styles.border_bottom = f"solid {self._theme_at(t, 'DIM')}"
-
-            ca = self.query_one("#chat_area", RichLog)
-            ca.styles.background = self._theme_at(t, "BASE")
-
-            sb = self.query_one("#status_bar", StatusBar)
-            sb.styles.background = self._theme_at(t, "CRUST")
-            sb.styles.color = self._theme_at(t, "MUTED")
-
-            inp = self.query_one("#user_input", Input)
-            inp.styles.background = self._theme_at(t, "MANTLE")
-            inp.styles.color = self._theme_at(t, "TEXT")
-            inp.styles.border_left = f"thick {self._theme_at(t, 'WHITE')}"
-
-            ir = self.query_one("#input_row")
-            ir.styles.background = self._theme_at(t, "BASE")
-            ir.styles.border_left = f"thick {self._theme_at(t, 'WHITE')}"
-            ir.styles.border_top = f"solid {self._theme_at(t, 'DIM')}"
-            ir.styles.border_bottom = f"solid {self._theme_at(t, 'DIM')}"
-
-            sd = self.query_one("#sidebar", Sidebar)
-            sd.styles.background = self._theme_at(t, "MANTLE")
-            sd.styles.border_left = f"solid {self._theme_at(t, 'DIM')}"
-
-            tw = self.query_one("#thinking_bar", ThinkingWidget)
-            tw.styles.color = self._theme_at(t, "ACCENT")
-
-            pb = self.query_one("#progress_bar", ProgressBar)
-            pb.styles.background = self._theme_at(t, "MANTLE")
-        except Exception:
-            pass
-
     def _animate_frame(self) -> None:
-        """30fps master tick — theme transition, pulsing header, spinner."""
+        """30fps master tick — pulsing header, spinner, progress."""
         self._anim_frame += 1
 
-        # ── Theme transition (smooth lerp over ~30 frames / 1s) ──────
+        # Theme transition (instant CSS swap with pulse effect over 10 frames)
         if self._transitioning:
-            if self._theme_target == "HUNT":
-                self._theme_transition = min(1.0, self._theme_transition + 0.033)
-                if self._theme_transition >= 1.0:
+            self._transition_phase += 1
+            if self._transition_phase > 10:
+                if self._theme_target == "HUNT":
+                    self.css = self.CSS_HUNT
                     self._theme_transition = 1.0
-                    self._transitioning = False
-            else:
-                self._theme_transition = max(0.0, self._theme_transition - 0.033)
-                if self._theme_transition <= 0.0:
+                else:
+                    self.css = self.CSS_CHILL
                     self._theme_transition = 0.0
-                    self._transitioning = False
-            self._apply_theme(self._theme_transition)
+                self._transitioning = False
+                self._transition_phase = 0
 
         # Header pulse — subtle brightness/red shift every 2s
         if self._anim_frame % 60 == 0:
