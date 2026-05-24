@@ -186,7 +186,8 @@ class Sidebar(Container):
 # ── Thinking Animation ─────────────────────────────────────────────────
 class ThinkingWidget(Static):
     """Animated thinking indicator — driven by 30fps master tick (no own timer)."""
-    DEFAULT_CSS = f"""ThinkingWidget {{ height: 1; padding: 0 1; color: {WHITE}; display: none; }}"""
+    DEFAULT_CSS = f"""ThinkingWidget {{ height: 1; padding: 0 1; color: {WHITE}; display: none; }}
+    ThinkingWidget.visible {{ display: block; }}"""
 
     def on_mount(self) -> None:
         self.frames = ["◐", "◓", "◑", "◒"]
@@ -197,7 +198,7 @@ class ThinkingWidget(Static):
         self.add_class("visible")
 
     def hide(self) -> None:
-        self.remove_class("visible"); self.anim_timer.pause()
+        self.remove_class("visible")
 
 
 # ── Status & Progress Bars ─────────────────────────────────────────────
@@ -746,8 +747,7 @@ class ElengenixTextualApp(App):
         self._chat_write_user(text)
         self.turn_count += 1
         self._update_sidebar()
-        def cb(msg: str): self.call_from_thread(self._chat_write_system, msg)
-        self._send_to_agent(text, cb)
+        self._send_to_agent(text)
 
     def _handle_slash(self, text: str) -> bool:
         low = text.lower().strip()
