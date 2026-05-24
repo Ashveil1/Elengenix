@@ -40,6 +40,7 @@ MANTLE  = "#111111"
 CRUST   = "#0d0d0d"
 SURFACE = "#1a1a1a"
 TEXT    = "#ffffff"
+WHITE   = "#ffffff"
 MUTED   = "#555555"
 DIM     = "#444444"
 GRAY    = "#888888"
@@ -57,7 +58,7 @@ H_RED     = "#ff2222"
 H_BRIGHT  = "#ff6666"
 
 AGENT_NAMES  = {1: "Elengix 1", 2: "Elengix 2", 3: "Elengix 3"}
-AGENT_COLORS = {1: TEXT, 2: GRAY, 3: MUTED}
+AGENT_COLORS = {1: WHITE, 2: GRAY, 3: MUTED}
 
 CHILL_COLORS = {
     "BASE": BASE, "MANTLE": MANTLE, "CRUST": CRUST, "SURFACE": SURFACE,
