@@ -1,0 +1,14 @@
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.backends._legacy:_Backend"
+
+[project]
+name = "elengenix"
+version = "v99999"
+description = "Universal AI Agent for Bug Bounty and Security Research"
+license = {text = "GPL-3.0-only"}
+requires-python = ">=3.10"
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+testpaths = ["tests"]
