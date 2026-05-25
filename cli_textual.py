@@ -479,10 +479,20 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
         self.set_focus(self.query_one("#user_input", Input))
         self._load_agent()
 
-        # ── 30fps animation timers ──────────────────────────────────────
-        # Apply initial CHILL theme immediately
-        self.css = self.CSS_CHILL
+        # Register custom themes and apply CHILL
+        self.register_theme(Theme(
+            name="chill", primary=WHITE, secondary=GRAY, accent=WHITE,
+            background=BASE, surface=MANTLE, panel=CRUST, text=TEXT,
+            error=WHITE, success=WHITE, warning=WHITE, dark=True,
+        ))
+        self.register_theme(Theme(
+            name="hunt", primary=H_RED, secondary=H_GRAY, accent=H_BRIGHT,
+            background=H_BASE, surface=H_MANTLE, panel=H_CRUST, text=H_TEXT,
+            error=H_TEXT, success=H_TEXT, warning=H_TEXT, dark=True,
+        ))
+        self.theme = "chill"
 
+        # ── 30fps animation timers ──────────────────────────────────────
         self.set_interval(1 / 30, self._animate_frame)
 
         # Counter animations (update every 60ms = ~16fps, smoother than jump)
@@ -950,10 +960,7 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
     def action_toggle_mode(self) -> None:
         new_mode = "HUNT" if self.mode != "HUNT" else "CHILL"
         self.mode = new_mode
-        if new_mode == "HUNT":
-            self._apply_hunt_theme()
-        else:
-            self._apply_chill_theme()
+        self.theme = "hunt" if new_mode == "HUNT" else "chill"
         self._update_sidebar()
         icon = "⚔ HUNT" if new_mode == "HUNT" else "❄ CHILL"
         self._chat_write_system(f"[white]{icon}[/] mode")
