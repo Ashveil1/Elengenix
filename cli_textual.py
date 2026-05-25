@@ -439,11 +439,6 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
         self._target_tokens = 0
         self._thinking_dots = 0
 
-        # ── Theme transition ──────────────────────────────────────────
-        self._theme_transition = 0.0  # 0.0 = CHILL, 1.0 = HUNT
-        self._theme_target = "CHILL"
-        self._transitioning = False
-        self._transition_phase = 0
 
     def compose(self) -> ComposeResult:
         yield Static(f"  ELENGENIX  ❄[dim]CHILL[/]  ⚔[dim]HUNT[/]  {self.target or '(no target)'}[/]  |  /help", id="header")
@@ -533,19 +528,6 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
     def _animate_frame(self) -> None:
         """30fps master tick — pulsing header, spinner, progress."""
         self._anim_frame += 1
-
-        # Theme transition (instant CSS swap with pulse effect over 10 frames)
-        if self._transitioning:
-            self._transition_phase += 1
-            if self._transition_phase > 10:
-                if self._theme_target == "HUNT":
-                    self.css = self.CSS_HUNT
-                    self._theme_transition = 1.0
-                else:
-                    self.css = self.CSS_CHILL
-                    self._theme_transition = 0.0
-                self._transitioning = False
-                self._transition_phase = 0
 
         # Header pulse — subtle brightness/red shift every 2s
         if self._anim_frame % 60 == 0:
