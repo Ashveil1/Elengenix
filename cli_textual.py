@@ -373,7 +373,7 @@ class ElengenixTextualApp(App):
     # chat : sidebar = 1.618 : 1  →  side = 100/2.618 ≈ 38
     # ── CSS with transitions, using Textual theme variables ──────────────
     CSS = """
-Screen { background: $surface; layers: base overlay; transition: background 600ms ease-in-out; }
+Screen { background: $surface; layers: base overlay; }
 RichLog, Sidebar { scrollbar_color: $secondary; scrollbar_color_hover: $accent; scrollbar_color_active: $primary; }
 Sidebar { width: 38; height: 1fr; background: $surface; border-left: solid $secondary; margin: 0; padding: 1 1; overflow-y: auto; }
 ThinkingWidget { height: 1; padding: 0 1 0 5; color: $primary; display: none; }
