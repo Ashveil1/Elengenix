@@ -16,6 +16,7 @@ from typing import Optional
 warnings.filterwarnings("ignore", category=FutureWarning)
 
 from textual.app import App, ComposeResult
+from textual.theme import Theme
 from textual.containers import Container, Horizontal, Vertical
 from textual.widgets import Static, RichLog, Input
 from textual.widget import Widget
@@ -370,32 +371,24 @@ class SettingsOverlayWidget(Widget, can_focus=True):
 class ElengenixTextualApp(App):
     # ── Golden ratio layout: φ ≈ 1.618 ───────────────────────────────────
     # chat : sidebar = 1.618 : 1  →  side = 100/2.618 ≈ 38
-    # ── CSS template for dynamic theme swapping ────────────────────────
-    CSS_CHILL = f"""Screen {{ background: {BASE}; layers: base overlay; }}
-RichLog {{ scrollbar_color: {DIM}; scrollbar_color_hover: {GRAY}; scrollbar_color_active: {WHITE}; }}
-Sidebar {{ scrollbar_color: {DIM}; scrollbar_color_hover: {GRAY}; scrollbar_color_active: {WHITE}; }}
-#header {{ height: 1; background: {BASE}; color: {TEXT}; content-align: center middle; border-bottom: solid {DIM}; padding: 0 5; }}
-#main_row {{ height: 1fr; layer: base; }}
-#chat_col {{ width: 1fr; height: 1fr; background: {BASE}; }}
-#chat_area {{ height: 1fr; background: {BASE}; padding: 1 3 1 3; }}
-#input_row {{ height: auto; margin: 0 3 1 3; background: {BASE}; border-top: solid {DIM}; border-bottom: solid {DIM}; border-left: thick {WHITE}; }}
-#user_input {{ height: 3; border: none; background: {MANTLE}; color: {TEXT}; padding: 0 3 0 3; }}
-#user_input:focus {{ border: none; }}
-#suggest_box {{ height: auto; max-height: 6; background: {MANTLE}; color: {TEXT}; min-height: 0; border: none; margin: 0 3 0 3; padding: 0 3; overflow-y: auto; display: none; }}
+    # ── CSS with transitions, using Textual theme variables ──────────────
+    CSS = """
+Screen { background: $surface; layers: base overlay; transition: background 600ms ease-in-out; }
+RichLog, Sidebar { scrollbar_color: $secondary; scrollbar_color_hover: $accent; scrollbar_color_active: $primary; }
+Sidebar { width: 38; height: 1fr; background: $surface; border-left: solid $secondary; margin: 0; padding: 1 1; overflow-y: auto; }
+ThinkingWidget { height: 1; padding: 0 1 0 5; color: $primary; display: none; }
+ThinkingWidget.visible { display: block; }
+StatusBar { height: 1; padding: 0 1; background: $panel; color: $secondary; }
+ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
+#header { height: 1; background: $background; color: $text; content-align: center middle; border-bottom: solid $secondary; padding: 0 5; }
+#main_row { height: 1fr; layer: base; }
+#chat_col { width: 1fr; height: 1fr; background: $background; }
+#chat_area { height: 1fr; background: $background; padding: 1 3 1 3; }
+#input_row { height: auto; margin: 0 3 1 3; background: $background; border-top: solid $secondary; border-bottom: solid $secondary; border-left: thick $primary; }
+#user_input { height: 3; border: none; background: $surface; color: $text; padding: 0 3 0 3; }
+#user_input:focus { border: none; }
+#suggest_box { height: auto; max-height: 6; background: $surface; color: $text; min-height: 0; border: none; margin: 0 3 0 3; padding: 0 3; overflow-y: auto; display: none; }
 """
-    CSS_HUNT = f"""Screen {{ background: {H_BASE}; layers: base overlay; }}
-RichLog {{ scrollbar_color: {H_DIM}; scrollbar_color_hover: {H_GRAY}; scrollbar_color_active: {H_RED}; }}
-Sidebar {{ scrollbar_color: {H_DIM}; scrollbar_color_hover: {H_GRAY}; scrollbar_color_active: {H_RED}; }}
-#header {{ height: 1; background: {H_BASE}; color: {H_TEXT}; content-align: center middle; border-bottom: solid {H_DIM}; padding: 0 5; }}
-#main_row {{ height: 1fr; layer: base; }}
-#chat_col {{ width: 1fr; height: 1fr; background: {H_BASE}; }}
-#chat_area {{ height: 1fr; background: {H_BASE}; padding: 1 3 1 3; }}
-#input_row {{ height: auto; margin: 0 3 1 3; background: {H_BASE}; border-top: solid {H_DIM}; border-bottom: solid {H_DIM}; border-left: thick {H_RED}; }}
-#user_input {{ height: 3; border: none; background: {H_MANTLE}; color: {H_TEXT}; padding: 0 3 0 3; }}
-#user_input:focus {{ border: none; }}
-#suggest_box {{ height: auto; max-height: 6; background: {H_MANTLE}; color: {H_TEXT}; min-height: 0; border: none; margin: 0 3 0 3; padding: 0 3; overflow-y: auto; display: none; }}
-"""
-    CSS = CSS_CHILL
 
     BINDINGS = [
         Binding("ctrl+r", "toggle_research", "Research", priority=True),
