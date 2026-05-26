@@ -46,15 +46,15 @@ MUTED   = "#555555"
 DIM     = "#444444"
 GRAY    = "#888888"
 
-# ── DUAL THEME: HUNT (blood red) ─────────────────────────────────────
-H_BASE    = "#0d0000"
-H_MANTLE  = "#1a0505"
-H_CRUST   = "#120202"
-H_SURFACE = "#220808"
-H_TEXT    = "#ff9999"
-H_MUTED   = "#662222"
-H_DIM     = "#883333"
-H_GRAY    = "#bb5555"
+# ── DUAL THEME: HUNT (red accent only — same background as CHILL) ────
+H_BASE    = BASE
+H_MANTLE  = MANTLE
+H_CRUST   = CRUST
+H_SURFACE = SURFACE
+H_TEXT    = TEXT
+H_MUTED   = MUTED
+H_DIM     = DIM
+H_GRAY    = GRAY
 H_RED     = "#ff2222"
 H_BRIGHT  = "#ff5555"
 
