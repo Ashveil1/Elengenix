@@ -73,7 +73,7 @@ HUNT_COLORS = {
 }
 
 ASCII_BANNER = """
-    [white]███████╗██╗     ███████╗███╗   ██╗ ██████╗ ███████╗███╗   ██╗██╗██╗  ██╗
+    {color}███████╗██╗     ███████╗███╗   ██╗ ██████╗ ███████╗███╗   ██╗██╗██╗  ██╗
     ██╔════╝██║     ██╔════╝████╗  ██║██╔════╝ ██╔════╝████╗  ██║██║╚██╗██╔╝
     █████╗  ██║     █████╗  ██╔██╗ ██║██║  ███╗█████╗  ██╔██╗ ██║██║ ╚███╔╝
     ██╔══╝  ██║     ██╔══╝  ██║╚██╗██║██║   ██║██╔══╝  ██║╚██╗██║██║ ██╔██╗
@@ -388,6 +388,7 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
 #user_input { height: 3; border: none; background: $surface; color: $text; padding: 0 3 0 3; }
 #user_input:focus { border: none; }
 #suggest_box { height: auto; max-height: 6; background: $surface; color: $text; min-height: 0; border: none; margin: 0 3 0 3; padding: 0 3; overflow-y: auto; display: none; }
+#banner { height: auto; display: block; }
 """
 
     BINDINGS = [
@@ -445,6 +446,7 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
         yield Static(f"  ELENGENIX  ❄[dim]CHILL[/]  ⚔[dim]HUNT[/]  {self.target or '(no target)'}[/]  |  /help", id="header")
         with Horizontal(id="main_row"):
             with Vertical(id="chat_col"):
+                yield Static("", id="banner", markup=True)
                 yield RichLog(id="chat_area", highlight=True, markup=True, wrap=True, auto_scroll=True, max_lines=2000)
                 yield ThinkingWidget(id="thinking_bar")
                 yield ProgressBar(id="progress_bar")
@@ -456,7 +458,7 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
         yield SettingsOverlayWidget(id="settings_overlay")
 
     def on_mount(self) -> None:
-        self._chat_write_banner()
+        self._update_banner()
         try:
             from tools.session_manager import SessionManager
             self._session_mgr = SessionManager()
@@ -482,9 +484,9 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
             error=WHITE, success=WHITE, warning=WHITE, dark=True,
         ))
         self.register_theme(Theme(
-            name="hunt", primary=H_RED, secondary=H_GRAY, accent=H_BRIGHT,
-            background=H_BASE, surface=H_MANTLE, panel=H_CRUST, foreground=H_TEXT,
-            error=H_TEXT, success=H_TEXT, warning=H_TEXT, dark=True,
+            name="hunt", primary=H_RED, secondary=H_RED, accent=H_BRIGHT,
+            background=BASE, surface=MANTLE, panel=CRUST, foreground=H_RED,
+            error=H_RED, success=H_RED, warning=H_BRIGHT, dark=True,
         ))
         self.theme = "chill"
 
@@ -604,11 +606,10 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
             self._cached_sidebar = self.query_one("#sidebar", Sidebar)
         return self._cached_sidebar
 
-    def _chat_write_banner(self) -> None:
-        self._chat().write(Text("\n"))
-        for line in ASCII_BANNER.splitlines():
-            self._chat().write(Text.from_markup(f"  {line}"))
-        self._chat().write(Text("\n"))
+    def _update_banner(self) -> None:
+        color = "#ff2222" if self.mode == "HUNT" else "white"
+        lines = "\n".join(f"  {l}" for l in ASCII_BANNER.splitlines())
+        self.query_one("#banner", Static).update(Text.from_markup(f"{lines.format(color=color)}"))
 
     def _chat_write_user(self, text: str) -> None:
         ts = time.strftime("%H:%M")
@@ -766,6 +767,10 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
         if self._handle_slash(text): return
         self._ensure_session()
         self._chat_write_user(text)
+        # Hide banner on first message
+        try:
+            self.query_one("#banner", Static).display = False
+        except: pass
         self.turn_count += 1
         self._update_sidebar()
         self._send_to_agent(text)
@@ -777,6 +782,10 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
         if low == "/clear": self._chat().clear(); return True
         if low == "/reset":
             self._chat().clear()
+            try:
+                self.query_one("#banner", Static).display = True
+                self._update_banner()
+            except: pass
             if self._agent and hasattr(self._agent, "clear_conversation_history"):
                 self._agent.clear_conversation_history()
             self.turn_count = 0; self.tools_run = 0; self.findings = 0
@@ -901,6 +910,7 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
         new_mode = "HUNT" if self.mode != "HUNT" else "CHILL"
         self.mode = new_mode
         self.theme = "hunt" if new_mode == "HUNT" else "chill"
+        self._update_banner()
         self._update_sidebar()
         icon = "⚔ HUNT" if new_mode == "HUNT" else "❄ CHILL"
         self._chat_write_system(f"[white]{icon}[/] mode")
