@@ -21,7 +21,7 @@ from rich.text import Text
 from rich.table import Table
 from rich.layout import Layout
 from rich.progress import Progress, SpinnerColumn, TextColumn
-from rich.console import Group
+from rich.console import Console, Group
 
 from ui_components import console as _ui_console
 

@@ -46,17 +46,17 @@ MUTED   = "#555555"
 DIM     = "#444444"
 GRAY    = "#888888"
 
-# ── DUAL THEME: HUNT (red) ────────────────────────────────────────────
-H_BASE    = "#0a0000"
-H_MANTLE  = "#150505"
-H_CRUST   = "#0d0202"
-H_SURFACE = "#1a0808"
-H_TEXT    = "#ffcccc"
-H_MUTED   = "#553333"
-H_DIM     = "#662222"
-H_GRAY    = "#995555"
+# ── DUAL THEME: HUNT (blood red) ─────────────────────────────────────
+H_BASE    = "#0d0000"
+H_MANTLE  = "#1a0505"
+H_CRUST   = "#120202"
+H_SURFACE = "#220808"
+H_TEXT    = "#ff9999"
+H_MUTED   = "#662222"
+H_DIM     = "#883333"
+H_GRAY    = "#bb5555"
 H_RED     = "#ff2222"
-H_BRIGHT  = "#ff6666"
+H_BRIGHT  = "#ff5555"
 
 AGENT_NAMES  = {1: "Elengix 1", 2: "Elengix 2", 3: "Elengix 3"}
 AGENT_COLORS = {1: WHITE, 2: GRAY, 3: MUTED}
@@ -438,6 +438,7 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
         self._target_findings = 0
         self._target_tokens = 0
         self._thinking_dots = 0
+        self._theme_transition = 0.0
 
 
     def compose(self) -> ComposeResult:
@@ -477,12 +478,12 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
         # Register custom themes and apply CHILL
         self.register_theme(Theme(
             name="chill", primary=WHITE, secondary=GRAY, accent=WHITE,
-            background=BASE, surface=MANTLE, panel=CRUST, text=TEXT,
+            background=BASE, surface=MANTLE, panel=CRUST, foreground=TEXT,
             error=WHITE, success=WHITE, warning=WHITE, dark=True,
         ))
         self.register_theme(Theme(
             name="hunt", primary=H_RED, secondary=H_GRAY, accent=H_BRIGHT,
-            background=H_BASE, surface=H_MANTLE, panel=H_CRUST, text=H_TEXT,
+            background=H_BASE, surface=H_MANTLE, panel=H_CRUST, foreground=H_TEXT,
             error=H_TEXT, success=H_TEXT, warning=H_TEXT, dark=True,
         ))
         self.theme = "chill"
@@ -895,49 +896,6 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
         self.mode = "research" if self.mode != "research" else "auto"
         self._update_sidebar()
         self._chat_write_system(f"[dim]Research: {'ON' if self.mode == 'research' else 'OFF'}[/]")
-
-    def _apply_hunt_theme(self) -> None:
-        """Apply HUNT theme colors via widget.styles."""
-        try:
-            headers = [("#header", f"{H_BASE}" , f"{H_TEXT}", f"{H_DIM}")]
-            self.query_one("#header", Static).styles.background = H_BASE
-            self.query_one("#header", Static).styles.color = H_TEXT
-            self.query_one("#header", Static).styles.border_bottom = f"solid {H_DIM}"
-            self.query_one("#chat_area", RichLog).styles.background = H_BASE
-            self.query_one("#status_bar", StatusBar).styles.background = H_CRUST
-            self.query_one("#status_bar", StatusBar).styles.color = H_MUTED
-            inp = self.query_one("#user_input", Input)
-            inp.styles.background = H_MANTLE; inp.styles.color = H_TEXT
-            self.query_one("#input_row").styles.background = H_BASE
-            self.query_one("#input_row").styles.border_left = f"thick {H_RED}"
-            self.query_one("#input_row").styles.border_top = f"solid {H_DIM}"
-            self.query_one("#input_row").styles.border_bottom = f"solid {H_DIM}"
-            sd = self.query_one("#sidebar", Sidebar)
-            sd.styles.background = H_MANTLE
-            sd.styles.border_left = f"solid {H_DIM}"
-        except Exception:
-            pass
-
-    def _apply_chill_theme(self) -> None:
-        """Apply CHILL theme colors via widget.styles."""
-        try:
-            self.query_one("#header", Static).styles.background = BASE
-            self.query_one("#header", Static).styles.color = TEXT
-            self.query_one("#header", Static).styles.border_bottom = f"solid {DIM}"
-            self.query_one("#chat_area", RichLog).styles.background = BASE
-            self.query_one("#status_bar", StatusBar).styles.background = CRUST
-            self.query_one("#status_bar", StatusBar).styles.color = MUTED
-            inp = self.query_one("#user_input", Input)
-            inp.styles.background = MANTLE; inp.styles.color = TEXT
-            self.query_one("#input_row").styles.background = BASE
-            self.query_one("#input_row").styles.border_left = f"thick {WHITE}"
-            self.query_one("#input_row").styles.border_top = f"solid {DIM}"
-            self.query_one("#input_row").styles.border_bottom = f"solid {DIM}"
-            sd = self.query_one("#sidebar", Sidebar)
-            sd.styles.background = MANTLE
-            sd.styles.border_left = f"solid {DIM}"
-        except Exception:
-            pass
 
     def action_toggle_mode(self) -> None:
         new_mode = "HUNT" if self.mode != "HUNT" else "CHILL"
