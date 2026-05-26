@@ -4,7 +4,9 @@ Monochrome theme — Black & White minimalist hacker aesthetic.
 
 from __future__ import annotations
 
+import math
 import os
+import random
 import sys
 import time
 import logging
@@ -17,6 +19,7 @@ warnings.filterwarnings("ignore", category=FutureWarning)
 
 from textual.app import App, ComposeResult
 from textual.theme import Theme
+from textual.geometry import Spacing
 from textual.containers import Container, Horizontal, Vertical
 from textual.widgets import Static, RichLog, Input
 from textual.widget import Widget
@@ -216,6 +219,30 @@ class ThinkingWidget(Static):
     def hide(self) -> None:
         self.remove_class("visible")
 
+
+# ── Animation Overlay Widgets ──────────────────────────────────────────
+class Scanline(Static):
+    """Horizontal wipe bar — positioned via margin top."""
+    DEFAULT_CSS = """
+    Scanline { layer: overlay; width: 100%; height: 1; display: none; }
+    """
+
+class GlitchFlash(Static):
+    """Full-screen flash overlay."""
+    DEFAULT_CSS = """
+    GlitchFlash { layer: overlay; width: 100%; height: 100%; display: none; }
+    """
+
+GLITCH_CHARS = "!@#$%^&*<>?╳░▒▓│┤╡╢╖╕╣║╗╝╜╛┐└┴┬├─┼╞╟╚╔╩╦╠═╬╧╨╤╥╙╘╒╓╫╪┘┌"
+
+def _lerp(a: float, b: float, t: float) -> float:
+    return a + (b - a) * max(0.0, min(1.0, t))
+
+def _lerp_color(c1: str, c2: str, t: float) -> str:
+    t = max(0.0, min(1.0, t))
+    r1, g1, b1 = int(c1[1:3],16), int(c1[3:5],16), int(c1[5:7],16)
+    r2, g2, b2 = int(c2[1:3],16), int(c2[3:5],16), int(c2[5:7],16)
+    return f"#{int(_lerp(r1,r2,t)):02x}{int(_lerp(g1,g2,t)):02x}{int(_lerp(b2,b1,t)):02x}"
 
 # ── Status & Progress Bars ─────────────────────────────────────────────
 class StatusBar(Static):
@@ -441,9 +468,16 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
         self._thinking_dots = 0
         self._theme_transition = 0.0
 
+        # Cinematic transition state
+        self._trans = False
+        self._trans_frame = 0
+        self._trans_next = ""
+        self._trans_total = 54  # 54 frames @ 30fps = 1.8s
+        self._scanline_y = 0
+        self._header_base_text = "  ELENGENIX  ❄[dim]CHILL[/]  ⚔[dim]HUNT[/]"
 
     def compose(self) -> ComposeResult:
-        yield Static(f"  ELENGENIX  ❄[dim]CHILL[/]  ⚔[dim]HUNT[/]  {self.target or '(no target)'}[/]  |  /help", id="header")
+        yield Static(self._header_base_text + f"  {self.target or ''}  |  /help", id="header")
         with Horizontal(id="main_row"):
             with Vertical(id="chat_col"):
                 yield Static("", id="banner", markup=True)
@@ -455,6 +489,8 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
                     yield Static("", id="suggest_box", markup=True)
                     yield Input(placeholder="  try it!", id="user_input")
             yield Sidebar(id="sidebar")
+        yield Scanline(id="scanline")
+        yield GlitchFlash(id="glitch")
         yield SettingsOverlayWidget(id="settings_overlay")
 
     def on_mount(self) -> None:
@@ -529,19 +565,23 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
     # ── Animations (30fps) ────────────────────────────────────────────────
 
     def _animate_frame(self) -> None:
-        """30fps master tick — pulsing header, spinner, progress."""
+        """30fps master tick — transition, header, spinner, progress."""
         self._anim_frame += 1
 
-        # Header pulse — subtle brightness/red shift every 2s
+        # Cinematic transition
+        if self._trans:
+            self._trans_frame += 1
+            self._run_transition(self._trans_frame)
+            if self._trans_frame >= self._trans_total:
+                self._finish_transition()
+            return
+
+        # Header pulse
         if self._anim_frame % 60 == 0:
             self._header_pulse = (self._header_pulse + 1) % 4
-            if self._theme_transition > 0.5:
-                shades = ["#ff6666", "#ff4444", "#ff2222", "#ff4444"]
-            else:
-                shades = ["#ffffff", "#cccccc", "#999999", "#cccccc"]
-            shade = shades[self._header_pulse]
+            shades = ["#ffffff", "#cccccc", "#999999", "#cccccc"]
             try:
-                self.query_one("#header", Static).styles.color = shade
+                self.query_one("#header", Static).styles.color = shades[self._header_pulse]
             except Exception:
                 pass
 
@@ -595,7 +635,83 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
         if changed:
             self._update_sidebar()
 
-    # ── UI Helpers ───────────────────────────────────────────────────────
+    # ── UI Helpers ───────────────────────────────────────────────────────    def _run_transition(self, f: int) -> None:
+        if self._trans_next not in ("HUNT", "CHILL"):
+            return
+        going_hunt = self._trans_next == "HUNT"
+        total = self._trans_total
+        try:
+            # Phase 1: Glitch flash (f 1-8)
+            if f <= 8:
+                flash = self.query_one("#glitch", GlitchFlash)
+                flash.styles.display = "block"
+                t = f / 8
+                flash.styles.background = "#220000" if going_hunt else "#222222"
+                if f % 2 == 0:
+                    base = "  ELENGENIX  | CHILL | HUNT "
+                    glitched = "".join("!@#$%^&" if __import__("random").random() < 0.35 else c for c in base)
+                    self.query_one("#header", Static).update(glitched)
+                return
+            # Phase 2: Flash fade (f 9-14)
+            if f <= 14:
+                flash = self.query_one("#glitch", GlitchFlash)
+                t = (f - 8) / 6
+                flash.styles.display = "none" if f == 14 else "block"
+                return
+            # Phase 3: Scanline wipe (f 15-44)
+            if f <= 44:
+                sw = total - 14
+                t = (f - 14) / sw
+                ease_t = t * t * (3 - 2 * t)
+                screen_h = self.size.height if self.size else 30
+                scan_y = int(ease_t * screen_h * 1.2)
+                sl = self.query_one("#scanline", Scanline)
+                sl.styles.display = "block"
+                sl.styles.margin = __import__("textual.geometry", fromlist=["Spacing"]).Spacing(scan_y, 0, 0, 0)
+                sl.styles.background = "#ff2222" if going_hunt else "#cccccc"
+                zones = [("#header", 0, 2), ("#chat_area", 2, screen_h - 6), ("#sidebar", 2, screen_h - 6),
+                         ("#input_row", screen_h - 5, screen_h - 2)]
+                for sel, zs, ze in zones:
+                    if scan_y >= zs:
+                        zt = min(1.0, (scan_y - zs) / max(1, ze - zs))
+                        try:
+                            w = self.query_one(sel)
+                            if going_hunt:
+                                w.styles.background = "#0a0000" if zt > 0.3 else "#000000"
+                                w.styles.color = "#ffcccc"
+                            else:
+                                w.styles.background = "#000000"
+                                w.styles.color = "#ffffff"
+                        except: pass
+                return
+            # Phase 4: Settle (f 45-54)
+            if f <= 54:
+                if f == 45:
+                    self.query_one("#scanline", Scanline).styles.display = "none"
+                    self.mode = self._trans_next
+                    self.theme = "hunt" if going_hunt else "chill"
+                    self._update_banner()
+                t = (f - 45) / 9
+                pulse = __import__("math").sin(t * 3.14) * 0.5
+                try:
+                    self.query_one("#header", Static).styles.color = "#ff2222" if going_hunt else "#ffffff"
+                except: pass
+        except Exception:
+            pass
+
+    def _finish_transition(self) -> None:
+        try:
+            self.query_one("#scanline", Scanline).styles.display = "none"
+            self.query_one("#glitch", GlitchFlash).styles.display = "none"
+        except: pass
+        self._trans = False
+        self._trans_frame = 0
+        self.mode = self._trans_next
+        self.theme = "hunt" if self._trans_next == "HUNT" else "chill"
+        self._update_banner()
+        self._update_sidebar()
+
+
     def _chat(self) -> RichLog:
         if self._cached_chat is None:
             self._cached_chat = self.query_one("#chat_area", RichLog)
@@ -907,13 +1023,12 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
         self._chat_write_system(f"[dim]Research: {'ON' if self.mode == 'research' else 'OFF'}[/]")
 
     def action_toggle_mode(self) -> None:
+        if self._trans:
+            return
         new_mode = "HUNT" if self.mode != "HUNT" else "CHILL"
-        self.mode = new_mode
-        self.theme = "hunt" if new_mode == "HUNT" else "chill"
-        self._update_banner()
-        self._update_sidebar()
-        icon = "⚔ HUNT" if new_mode == "HUNT" else "❄ CHILL"
-        self._chat_write_system(f"[white]{icon}[/] mode")
+        self._trans_next = new_mode
+        self._trans = True
+        self._trans_frame = 0
 
     def action_toggle_think(self) -> None:
         self.thinking = not self.thinking
