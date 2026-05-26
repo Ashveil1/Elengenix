@@ -635,7 +635,8 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
         if changed:
             self._update_sidebar()
 
-    # ── UI Helpers ───────────────────────────────────────────────────────    def _run_transition(self, f: int) -> None:
+    # ── Transition Animation Methods ─────────────────────────────────────
+    def _run_transition(self, f: int) -> None:
         if self._trans_next not in ("HUNT", "CHILL"):
             return
         going_hunt = self._trans_next == "HUNT"
@@ -649,7 +650,7 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
                 flash.styles.background = "#220000" if going_hunt else "#222222"
                 if f % 2 == 0:
                     base = "  ELENGENIX  | CHILL | HUNT "
-                    glitched = "".join("!@#$%^&" if __import__("random").random() < 0.35 else c for c in base)
+                    glitched = "".join("!@#$%^&" if random.random() < 0.35 else c for c in base)
                     self.query_one("#header", Static).update(glitched)
                 return
             # Phase 2: Flash fade (f 9-14)
@@ -667,7 +668,7 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
                 scan_y = int(ease_t * screen_h * 1.2)
                 sl = self.query_one("#scanline", Scanline)
                 sl.styles.display = "block"
-                sl.styles.margin = __import__("textual.geometry", fromlist=["Spacing"]).Spacing(scan_y, 0, 0, 0)
+                sl.styles.margin = Spacing(scan_y, 0, 0, 0)
                 sl.styles.background = "#ff2222" if going_hunt else "#cccccc"
                 zones = [("#header", 0, 2), ("#chat_area", 2, screen_h - 6), ("#sidebar", 2, screen_h - 6),
                          ("#input_row", screen_h - 5, screen_h - 2)]
@@ -692,7 +693,7 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
                     self.theme = "hunt" if going_hunt else "chill"
                     self._update_banner()
                 t = (f - 45) / 9
-                pulse = __import__("math").sin(t * 3.14) * 0.5
+                pulse = math.sin(t * 3.14) * 0.5
                 try:
                     self.query_one("#header", Static).styles.color = "#ff2222" if going_hunt else "#ffffff"
                 except: pass
