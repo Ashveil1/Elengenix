@@ -72,13 +72,13 @@ HUNT_COLORS = {
     "WHITE": H_RED, "BORDER": H_DIM, "ACCENT": H_BRIGHT,
 }
 
-ASCII_BANNER = """
-    {color}███████╗██╗     ███████╗███╗   ██╗ ██████╗ ███████╗███╗   ██╗██╗██╗  ██╗
-    ██╔════╝██║     ██╔════╝████╗  ██║██╔════╝ ██╔════╝████╗  ██║██║╚██╗██╔╝
-    █████╗  ██║     █████╗  ██╔██╗ ██║██║  ███╗█████╗  ██╔██╗ ██║██║ ╚███╔╝
-    ██╔══╝  ██║     ██╔══╝  ██║╚██╗██║██║   ██║██╔══╝  ██║╚██╗██║██║ ██╔██╗
-    ███████╗███████╗███████╗██║ ╚████║╚██████╔╝███████╗██║ ╚████║██║██╔╝ ██╗
-    ╚══════╝╚══════╝╚══════╝╚═╝  ╚═══╝ ╚═════╝ ╚══════╝╚═╝  ╚═══╝╚═╝╚═╝  ╚═╝"""
+ASCII_BANNER = """\
+[{color}]███████╗██╗     ███████╗███╗   ██╗ ██████╗ ███████╗███╗   ██╗██╗██╗  ██╗
+[{color}]██╔════╝██║     ██╔════╝████╗  ██║██╔════╝ ██╔════╝████╗  ██║██║╚██╗██╔╝
+[{color}]█████╗  ██║     █████╗  ██╔██╗ ██║██║  ███╗█████╗  ██╔██╗ ██║██║ ╚███╔╝
+[{color}]██╔══╝  ██║     ██╔══╝  ██║╚██╗██║██║   ██║██╔══╝  ██║╚██╗██║██║ ██╔██╗
+[{color}]███████╗███████╗███████╗██║ ╚████║╚██████╔╝███████╗██║ ╚████║██║██╔╝ ██╗
+[{color}]╚══════╝╚══════╝╚══════╝╚═╝  ╚═══╝ ╚═════╝ ╚══════╝╚═╝  ╚═══╝╚═╝╚═╝  ╚═╝[/]"""
 
 HELP_TEXT = """\
 [white]━━━ COMMANDS ━━━[/]
@@ -383,12 +383,12 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
 #header { height: 1; background: $background; color: $text; content-align: center middle; border-bottom: solid $secondary; padding: 0 5; }
 #main_row { height: 1fr; layer: base; }
 #chat_col { width: 1fr; height: 1fr; background: $background; }
-#chat_area { height: 1fr; background: $background; padding: 1 3 1 3; }
+#chat_area { height: 1fr; background: $background; padding: 1 3 1 3; overflow-y: auto; }
 #input_row { height: auto; margin: 0 3 1 3; background: $background; border-top: solid $secondary; border-bottom: solid $secondary; border-left: thick $primary; }
 #user_input { height: 3; border: none; background: $surface; color: $text; padding: 0 3 0 3; }
 #user_input:focus { border: none; }
 #suggest_box { height: auto; max-height: 6; background: $surface; color: $text; min-height: 0; border: none; margin: 0 3 0 3; padding: 0 3; overflow-y: auto; display: none; }
-#banner { height: auto; display: block; }
+#banner { height: auto; display: block; padding: 2 3 0 3; }
 """
 
     BINDINGS = [
@@ -608,8 +608,8 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
 
     def _update_banner(self) -> None:
         color = "#ff2222" if self.mode == "HUNT" else "white"
-        lines = "\n".join(f"  {l}" for l in ASCII_BANNER.splitlines())
-        self.query_one("#banner", Static).update(Text.from_markup(f"{lines.format(color=color)}"))
+        raw = ASCII_BANNER.strip().format(color=color)
+        self.query_one("#banner", Static).update(Text.from_markup(raw))
 
     def _chat_write_user(self, text: str) -> None:
         ts = time.strftime("%H:%M")
