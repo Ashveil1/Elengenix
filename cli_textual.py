@@ -466,8 +466,6 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
         self._target_findings = 0
         self._target_tokens = 0
         self._thinking_dots = 0
-        self._bar_pulse = 0
-        self._last_bar_tokens = 0
         self._theme_transition = 0.0
 
         # Cinematic transition state
@@ -599,58 +597,40 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
 
         # Smooth progress bar tick
         if hasattr(self, "_progress_total") and self._progress_total > 0:
-            self._smooth_progress += (self._progress_cur / max(self._progress_total, 1) - self._smooth_progress) * 0.25
+            self._smooth_progress += (self._progress_cur / max(self._progress_total, 1) - self._smooth_progress) * 0.3
             try:
                 pb = self.query_one("#progress_bar", ProgressBar)
                 w = 30
                 filled = int(self._smooth_progress * w)
-                pct = int(self._smooth_progress * 100)
-                # Color bar accent by progress: dim -> bright
-                bright = int(80 + self._smooth_progress * 175)
-                bar_color = f"#{bright:02x}{bright:02x}{bright:02x}"
                 bar = f"[white]{'█' * filled}[/][dim]{'█' * (w - filled)}[/]"
                 pb.update(f"  {bar}  {self._progress_tool}  [dim]({self._progress_cur}/{self._progress_total})[/]  {self._progress_findings} findings")
             except Exception:
                 pass
 
     def _animate_counters(self) -> None:
-        """Smooth data counters with ease-out + bar animation."""
+        """Smooth counter transitions (~16fps) for sidebar numbers."""
         changed = False
 
-        # Ease-out helper: fast start, slow finish
-        def _ease_out(cur: float, tgt: float) -> float:
-            gap = tgt - cur
-            if abs(gap) < 0.5:
-                return tgt
-            return cur + gap * 0.35
-
-        # Tools run — smooth ease-out
-        new_tools = _ease_out(self._displayed_tools, self._target_tools)
-        if abs(new_tools - self._displayed_tools) > 0.01:
-            self._displayed_tools = new_tools
+        # Tools run counter
+        if self._displayed_tools < self._target_tools:
+            self._displayed_tools = min(self._displayed_tools + 1, self._target_tools)
+            changed = True
+        elif self._displayed_tools > self._target_tools:
+            self._displayed_tools = self._target_tools
             changed = True
 
-        # Findings — smooth ease-out
-        new_findings = _ease_out(self._displayed_findings, self._target_findings)
-        if abs(new_findings - self._displayed_findings) > 0.01:
-            self._displayed_findings = new_findings
+        # Findings counter
+        if self._displayed_findings < self._target_findings:
+            self._displayed_findings = min(self._displayed_findings + 1, self._target_findings)
+            changed = True
+        elif self._displayed_findings > self._target_findings:
+            self._displayed_findings = self._target_findings
             changed = True
 
-        # Tokens — smooth ease-out
-        new_tokens = _ease_out(self._displayed_tokens, self._target_tokens)
-        if abs(new_tokens - self._displayed_tokens) > 1:
-            self._displayed_tokens = int(new_tokens)
+        # Token counter (bigger jumps)
+        if self._displayed_tokens < self._target_tokens:
+            self._displayed_tokens = min(self._displayed_tokens + int((self._target_tokens - self._displayed_tokens) * 0.2) + 1, self._target_tokens)
             changed = True
-
-        # Context bar animation (smooth fill)
-        limit = 128000
-        pct = min(100, int((self._target_tokens / limit) * 100)) if limit > 0 else 0
-        old_pct = min(100, int((self._displayed_old_tokens or 0) / limit) * 100) if limit > 0 else 0
-
-        self._bar_pulse = max(0, self._bar_pulse - 1)
-        if self._displayed_tokens > getattr(self, '_last_bar_tokens', 0) + 500:
-            self._bar_pulse = 8
-        self._last_bar_tokens = self._displayed_tokens
 
         if changed:
             self._update_sidebar()
