@@ -32,6 +32,7 @@ from rich.markdown import Markdown
 from rich.table import Table
 
 from agent import get_agent
+from agents.tui_game import ObbyGame
 
 LOG_FILE = Path("data/elengenix_cli.log")
 LOG_FILE.parent.mkdir(exist_ok=True)
@@ -475,6 +476,8 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
         self._trans_total = 54  # 54 frames @ 30fps = 1.8s
         self._scanline_y = 0
         self._header_base_text = "  ELENGENIX  ❄[dim]CHILL[/]  ⚔[dim]HUNT[/]"
+        self.game = ObbyGame(self, on_exit=self._stop_game)
+        self._game_active = False
 
     def compose(self) -> ComposeResult:
         yield Static(self._header_base_text + f"  {self.target or ''}  |  /help", id="header")
@@ -574,6 +577,15 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
             self._run_transition(self._trans_frame)
             if self._trans_frame >= self._trans_total:
                 self._finish_transition()
+            return
+
+        # Game tick (30fps)
+        if self._game_active and self.game.running:
+            frame = self.game.tick()
+            if frame:
+                self._game_display(frame)
+            elif self.game.game_over:
+                self._game_display(self.game._render_death())
             return
 
         # Header pulse
@@ -843,10 +855,36 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
         if key == "ctrl+s": event.stop(); self.action_show_settings(); return
         if key == "ctrl+t": event.stop(); self.action_toggle_think(); return
         if key == "ctrl+r": event.stop(); self.action_toggle_research(); return
+        if self._game_active:
+            if key == "space":
+                self.game.jump()
+                event.stop(); return
+            if key == "q" or key == "escape":
+                self._stop_game()
+                event.stop(); return
         if key == "ctrl+m": event.stop(); self.action_toggle_mode(); return
         if key == "ctrl+p": event.stop(); self.action_show_model(); return
         if key == "ctrl+g": event.stop(); self.action_show_help(); return
         if key == "ctrl+c": event.stop(); self.action_app_exit(); return
+
+    def _start_game(self) -> None:
+        self._game_active = True
+        self.game.start()
+        bw = self.query_one("#banner", Static)
+        bw.display = True
+        self._update_banner()
+        self._chat_write_system("[dim]🎮 obby started — SPACE jump, Q quit[/dim]")
+
+    def _stop_game(self) -> None:
+        self._game_active = False
+        self.game.running = False
+        self._update_banner()
+
+    def _game_display(self, frame: str) -> None:
+        try:
+            self.query_one("#banner", Static).update(Text.from_markup(frame))
+        except Exception:
+            pass
 
     # ── Input ────────────────────────────────────────────────────────────
     SLASH_COMMANDS = [
@@ -854,7 +892,7 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
         "/mode chill", "/mode hunt",
         "/target <domain>", "/talk 1", "/talk 2", "/talk 3", "/talk all",
         "/session", "/session new", "/session list", "/session load <id>",
-        "/stats", "/team", "/help",
+        "/stats", "/team", "/obby", "/help",
     ]
 
     def on_input_changed(self, event: Input.Changed) -> None:
@@ -979,6 +1017,12 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
                 else: self._chat_write_system(f"Session not found: {sid}")
                 return True
             self._chat_write_system(f"Session: {self.session_name}  Turns: {self.turn_count}"); return True
+        if low == "/obby":
+            if not self._game_active:
+                self._start_game()
+            else:
+                self._stop_game()
+            return True
         if low.startswith("/"): self._chat_write_system(f"Unknown: {low}  (/help)"); return True
         return False
 
