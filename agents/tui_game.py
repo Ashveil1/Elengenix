@@ -38,6 +38,7 @@ class ObbyGame:
         self.running = False
         self.game_over = False
         self.paused = False
+        self.countdown = 0
         self.score = 0
         self.offset = 0.0
         self.player_y = float(GROUND_Y)
@@ -50,12 +51,14 @@ class ObbyGame:
         self.terrain = self._generate_terrain()
 
     def _generate_terrain(self) -> list[str]:
-        """Generate terrain string: '█' = solid, ' ' = pit."""
-        terrain = []
-        pos = 0
+        """Generate terrain: safe start area, then progressive difficulty."""
+        terrain = ["█"] * 15  # Safe flat area to start
+        pos = 15
+        difficulty = 0.0
         while pos < TERRAIN_SEGMENTS:
-            plat_len = random.randint(5, 12)
-            gap_len = random.randint(2, 4)
+            difficulty = min(1.0, pos / 60)  # ramps up over first 60 tiles
+            plat_len = max(3, int(random.randint(4, 12) * (1.0 - difficulty * 0.4)))
+            gap_len = max(1, int(random.randint(1, 3) * difficulty))
             terrain.extend(["█"] * plat_len)
             pos += plat_len
             if pos < TERRAIN_SEGMENTS:
@@ -73,6 +76,7 @@ class ObbyGame:
         """Start the game loop."""
         self.running = True
         self.game_over = False
+        self.countdown = 90  # 90 frames @ 30fps ≈ 3s
         self.score = 0
         self.offset = 0.0
         self.player_y = float(GROUND_Y)
@@ -92,6 +96,11 @@ class ObbyGame:
             return None
 
         self.frame_count += 1
+
+        # Countdown phase
+        if self.countdown > 0:
+            self.countdown -= 1
+            return self._render_countdown()
 
         # Physics: gravity
         if self.jumping:
@@ -118,7 +127,8 @@ class ObbyGame:
                     return self._die()
 
         # Scroll
-        self.offset += 0.8
+        speed = 0.5 + min(0.6, self.score * 0.003)
+        self.offset += speed
         self.score = int(self.offset)
 
         return self._render()
@@ -130,33 +140,55 @@ class ObbyGame:
         self.death_frame = 0
         return self._render_death()
 
+    def _render_countdown(self) -> str:
+        """Render countdown screen."""
+        remaining = self.countdown // 30
+        nums = {3: "  READY?", 2: "    3", 1: "    2", 0: "    1\n\n   GO!"}
+        label = nums.get(remaining, "   GO!")
+        return f"\n\n\n\n{label}\n\n   SPACE to jump | Q to quit"
+
     def _render(self) -> str:
         """Render current frame to string."""
-        lines = [""] * (GROUND_Y + 3)
+        lines = [""] * (GROUND_Y + 4)
 
-        # Sky
+        # Sky with distant clouds
         for y in range(GROUND_Y - 2):
             for x in range(VIEWPORT_W):
                 lines[y] += " "
 
-        # Ground and pits
+        # Ground layer (solid)
+        ground_line = ""
         for x in range(VIEWPORT_W):
             world_x = int(self.offset + x)
             tile = self.get_tile(world_x)
-            lines[GROUND_Y] += ("█" if tile != " " else " ")
-            lines[GROUND_Y + 1] += ("█" if tile != " " else " ")
-            if tile == " ":
-                # Show pit depth
-                lines[GROUND_Y + 2] += " "
+            ground_line += ("▄" if tile != " " else " ")
+        lines[GROUND_Y] = ground_line
 
-        # Player
+        # Ground base
+        base_line = ""
+        for x in range(VIEWPORT_W):
+            world_x = int(self.offset + x)
+            tile = self.get_tile(world_x)
+            base_line += ("█" if tile != " " else " ")
+        lines[GROUND_Y + 1] = base_line
+
+        # Pit indicators (inverse colors for contrast)
+        pit_line = ""
+        for x in range(VIEWPORT_W):
+            world_x = int(self.offset + x)
+            tile = self.get_tile(world_x)
+            if tile == " ":
+                pit_line += "⬇"
+            else:
+                pit_line += " "
+
+        # Player — thick visible character
         py = int(self.player_y)
-        if py < GROUND_Y - 1:
-            lines[py] = lines[py][:PLAYER_X] + "◢◣  " + lines[py][PLAYER_X + 4:]
-            lines[py + 1] = lines[py + 1][:PLAYER_X] + "  ▐▐" + lines[py + 1][PLAYER_X + 4:]
+        player_sprite = "◇◆"
+        if py <= GROUND_Y - 2:
+            lines[py] = lines[py][:PLAYER_X] + player_sprite + lines[py][PLAYER_X + 2:]
         else:
-            lines[GROUND_Y - 1] = lines[GROUND_Y - 1][:PLAYER_X] + "◢◣▐▐" + lines[GROUND_Y - 1][PLAYER_X + 4:]
-            lines[GROUND_Y] = lines[GROUND_Y][:PLAYER_X] + "  ▐▐" + lines[GROUND_Y][PLAYER_X + 4:]
+            lines[GROUND_Y - 1] = lines[GROUND_Y - 1][:PLAYER_X] + player_sprite + lines[GROUND_Y - 1][PLAYER_X + 2:]
 
         # Score bar
         top = f"🎮 OBBY  SCORE: {self.score:05d}  [SPACE] jump  [Q] quit"
