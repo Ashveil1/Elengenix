@@ -182,13 +182,16 @@ class ObbyGame:
             else:
                 pit_line += " "
 
-        # Player — thick visible character
+        # Player — human character (2 rows, 2 chars wide)
         py = int(self.player_y)
-        player_sprite = "◇◆"
+        head = "▐█"  # head
+        body = "▐▌"  # body
         if py <= GROUND_Y - 2:
-            lines[py] = lines[py][:PLAYER_X] + player_sprite + lines[py][PLAYER_X + 2:]
+            lines[py]          = lines[py][:PLAYER_X]          + head + lines[py][PLAYER_X + 2:]
+            lines[py + 1]      = lines[py + 1][:PLAYER_X]      + body + lines[py + 1][PLAYER_X + 2:]
         else:
-            lines[GROUND_Y - 1] = lines[GROUND_Y - 1][:PLAYER_X] + player_sprite + lines[GROUND_Y - 1][PLAYER_X + 2:]
+            lines[GROUND_Y - 1] = lines[GROUND_Y - 1][:PLAYER_X] + head + lines[GROUND_Y - 1][PLAYER_X + 2:]
+            lines[GROUND_Y]    = lines[GROUND_Y][:PLAYER_X]    + body + lines[GROUND_Y][PLAYER_X + 2:]
 
         # Score bar
         top = f"🎮 OBBY  SCORE: {self.score:05d}  [SPACE] jump  [Q] quit"
