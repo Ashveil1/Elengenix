@@ -48,9 +48,8 @@ from __future__ import annotations
 import sys
 import threading
 import time
-from dataclasses import dataclass, field
-from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional, Tuple
+from dataclasses import dataclass
+from typing import Dict, List, Optional
 
 
 @dataclass
@@ -132,9 +131,6 @@ class ProgressDisplay:
         # Try to import rich for better display
         try:
             from rich.console import Console
-            from rich.live import Live
-            from rich.table import Table
-            from rich.progress import Progress, SpinnerColumn, BarColumn, TextColumn
             self._rich_available = True
             self._console = Console()
         except ImportError:

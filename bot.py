@@ -28,16 +28,13 @@ import time
 from collections import defaultdict, deque
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor
-from functools import partial
 
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
  ApplicationBuilder,
  ContextTypes,
  CommandHandler,
- MessageHandler,
  CallbackQueryHandler,
- filters,
 )
 from agent_brain import ElengenixAgent
 from tools.user_preferences import (

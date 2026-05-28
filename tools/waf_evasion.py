@@ -16,14 +16,13 @@ Safety:
 
 from __future__ import annotations
 
-import json
 import logging
 import random
 import re
 import time
 import urllib.parse
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import requests
 

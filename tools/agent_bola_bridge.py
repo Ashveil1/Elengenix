@@ -20,7 +20,7 @@ import json
 import logging
 from typing import Any, Dict, List, Optional
 
-from tools.bola_harness import BOLAHarness, parse_headers_input
+from tools.bola_harness import BOLAHarness
 from tools.mission_state import MissionState
 
 logger = logging.getLogger("elengenix.agent_bola_bridge")

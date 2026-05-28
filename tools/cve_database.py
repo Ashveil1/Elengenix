@@ -8,9 +8,8 @@ tools/cve_database.py — CVE Database & Vulnerability Intelligence (v99999 (god
 
 import json
 import logging
-import re
 import sqlite3
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import List, Dict, Optional, Tuple, Any

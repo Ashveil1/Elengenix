@@ -11,13 +11,11 @@ tools/universal_executor.py — Universal AI Agent Executor (v99999 (god nine is
 from __future__ import annotations
 
 import logging
-import os
 import re
 import shlex
 import subprocess
-import json
 from pathlib import Path
-from typing import Dict, List, Optional, Union, Any
+from typing import Dict, List, Optional, Any
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
@@ -449,6 +447,13 @@ class UniversalExecutor:
             agent_dir.mkdir(parents=True, exist_ok=True)
             work_dir = str(agent_dir)
         
+        # Transparent execution markers for CLI
+        if "sudo " in command or "apt " in command or "pip " in command:
+            print(f"\n[THOUGHT] Agent is executing a system-level action")
+            print(f"[COMMAND] {command}")
+            if "sudo " in command:
+                print(f"[RUN]     Privileged action (sudo) requested. Please provide your password if prompted:\n")
+
         try:
             result = subprocess.run(
                 command,
@@ -553,7 +558,7 @@ class UniversalExecutor:
 
             tool_name = params.get("tool", "")
             tool_target = params.get("target", "")
-            tool_args = params.get("args", "")
+            params.get("args", "")
             tool_list = params.get("tools", [])
 
             # Support parallel execution: if "tools" is a list, run all concurrently

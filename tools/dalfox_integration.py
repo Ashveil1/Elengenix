@@ -9,7 +9,7 @@ import asyncio
 import json
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Union
+from typing import List, Union
 
 from tools.tool_registry import BaseTool, ToolCategory, ToolMetadata, ToolResult, ToolPriority, register_tool
 
@@ -100,7 +100,7 @@ class DalfoxTool(BaseTool):
                             findings.append(finding)
                         except json.JSONDecodeError:
                             continue
-            except Exception as e:
+            except Exception:
                 pass
         
         # Also check for results in stdout if file is empty
@@ -178,7 +178,6 @@ class DalfoxTool(BaseTool):
 
 # Quick test
 if __name__ == "__main__":
-    import sys
     from tools.tool_registry import registry
     
     tool = registry.get_tool("dalfox")

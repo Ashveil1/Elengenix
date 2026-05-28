@@ -91,7 +91,7 @@ class TestSettingsOverlay:
     def test_rate_limit_increment(self, mock_agent, mock_console):
         from tools.overlay_menu import SettingsOverlay
         overlay = SettingsOverlay(mock_agent, mock_console)
-        old = overlay._rate_limits[0]
+        overlay._rate_limits[0]
         overlay._handle_enter()
         # Simulate clicking increase button
         overlay._current_layer = "rate_limits"

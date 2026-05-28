@@ -10,14 +10,12 @@ All backed by SQLite in data/elengenix.db.
 
 from __future__ import annotations
 
-import json
 import logging
 import re
 import sqlite3
 from contextlib import contextmanager
-from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Dict, Generator, List, Optional, Tuple
+from typing import Dict, Generator, List, Tuple
 
 logger = logging.getLogger("elengenix.user_memory")
 

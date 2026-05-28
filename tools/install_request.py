@@ -8,9 +8,8 @@ Author: Elengenix Project
 """
 
 import logging
-from typing import Optional, Callable, Dict, List
-from dataclasses import dataclass, field
-from pathlib import Path
+from typing import Optional, Dict, List
+from dataclasses import dataclass
 
 logger = logging.getLogger("elengenix.install")
 

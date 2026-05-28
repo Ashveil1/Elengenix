@@ -15,7 +15,7 @@ import subprocess
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional
 
-from tools.governance import Governance, GateDecision
+from tools.governance import Governance
 from tools.tool_registry import registry, ToolResult, ToolCategory
 from tools.safe_exec import execute_safely
 from tools.vector_memory import remember
@@ -40,6 +40,9 @@ def execute_tool(
     """
     action_val = action_data.get("action", "")
     if isinstance(action_val, dict):
+        params = action_val.get("params", {})
+        if isinstance(params, dict):
+            action_data.update(params)
         action_val = action_val.get("type", "")
     action = str(action_val).lower()
     cmd_raw = action_data.get("command", "")
@@ -69,10 +72,42 @@ def execute_tool(
         except Exception as e:
             return f"Error executing web_search: {e}"
 
+    if action == "create_ai_tool":
+        try:
+            from tools.ai_tool_creator import AIToolCreator, ToolSpec
+            creator = AIToolCreator()
+            spec = ToolSpec(
+                name=action_data.get("name", "custom_tool"),
+                purpose=action_data.get("purpose", ""),
+                code=action_data.get("code", ""),
+                dependencies=action_data.get("dependencies", []),
+                ai_reasoning=action_data.get("ai_reasoning", "")
+            )
+            success = creator.create_tool(spec)
+            return "Tool created successfully." if success else "Failed to create tool."
+        except Exception as e:
+            return f"Error creating tool: {e}"
+
+    if action == "run_ai_tool":
+        try:
+            from tools.ai_tool_creator import AIToolCreator
+            creator = AIToolCreator()
+            tool_name = action_data.get("name", "")
+            kwargs = action_data.get("kwargs", {})
+            result = creator.execute_tool(tool_name, **kwargs)
+            return json.dumps({
+                "success": result.success,
+                "output": result.output,
+                "error": result.error,
+                "findings": result.findings
+            }, indent=2)
+        except Exception as e:
+            return f"Error running tool: {e}"
+
     if action != "run_shell":
         return (
             f"Error: Unknown action '{action}'. "
-            "Use: run_shell, ask_user, web_search, save_memory, or finish."
+            "Use: run_shell, ask_user, web_search, save_memory, create_ai_tool, run_ai_tool, or finish."
         )
     if not cmd_raw or not isinstance(cmd_raw, str):
         return "Error: Invalid or empty command."
@@ -112,7 +147,7 @@ def execute_shell_command(
             parts = shlex.split(cmd_raw)
             if parts:
                 binary = os.path.basename(parts[0])
-                resolved = _shutil.which(binary)
+                _shutil.which(binary)
         except Exception:
             pass
 

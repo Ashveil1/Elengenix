@@ -74,7 +74,6 @@ def detect_waf_from_response(headers: dict, body: str = "",
         (waf_name, confidence) or (None, 0.0)
     """
     headers_lower = {k.lower(): v.lower() for k, v in headers.items()}
-    header_str = " ".join(f"{k}:{v}" for k, v in headers_lower.items())
     body_lower = (body or "").lower()[:2000]
     cookies_lower = {k.lower(): v.lower() for k, v in (cookies or {}).items()}
 

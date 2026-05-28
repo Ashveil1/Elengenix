@@ -34,12 +34,10 @@ Usage:
 from __future__ import annotations
 
 import logging
-import time
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from tools.mission_state import MissionState, open_mission
 from tools.token_manager import TokenManager, get_token_manager
@@ -339,7 +337,7 @@ class SmartScanner:
         tokens_used = 5000
 
         try:
-            from tools.smart_recon import SmartReconEngine, format_recon_for_display
+            from tools.smart_recon import SmartReconEngine
             engine = SmartReconEngine(
                 target_domain=self.target,
                 rate_limit_rps=2.0,
@@ -440,8 +438,7 @@ class SmartScanner:
         tokens_used = 50000
 
         try:
-            from tools.autonomous_agent import AutonomousAgent, AgentAction, AgentState
-            agent = AutonomousAgent(governance_mode="ask")
+            from tools.autonomous_agent import AgentAction, AgentState
             state = AgentState(
                 root_target=self.target,
                 goal="Verify and confirm discovered vulnerabilities",
@@ -474,7 +471,7 @@ class SmartScanner:
 
         try:
             from tools.pdf_report_generator import PDFReportGenerator, ReportMetadata
-            from datetime import datetime, timezone as _dt
+            from datetime import datetime
             meta = ReportMetadata(
                 title=f"Security Assessment — {self.target}",
                 target=self.target,
@@ -543,7 +540,7 @@ class SmartScanner:
         self.mission.resume_mission()
         
         # Get current phase
-        current_phase = status.get("current_phase", "discovery")
+        status.get("current_phase", "discovery")
         phase_index = status.get("phase_index", 0)
         
         # Resume from next phase

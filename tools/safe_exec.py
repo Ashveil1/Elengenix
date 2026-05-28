@@ -57,6 +57,12 @@ def execute_safely(
         return error_result("Empty command.")
 
     logger.info(f"Executing (shell): {command_str}")
+    # Transparent execution markers for CLI
+    if "sudo " in command_str or "apt " in command_str or "pip " in command_str:
+        print(f"\n[THOUGHT] Agent is executing a system-level action")
+        print(f"[COMMAND] {command_str}")
+        if "sudo " in command_str:
+            print(f"[RUN]     Privileged action (sudo) requested. Please provide your password if prompted:\n")
     try:
         result = subprocess.run(
             command_str,

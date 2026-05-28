@@ -9,23 +9,18 @@ agent_brain.py — Elengenix Intelligent Hunting Engine (v99999 (god nine is the
 import os
 import json
 import re
-import subprocess
-import shlex
 import time
 import asyncio
-import threading
 import logging
-from datetime import datetime
 from pathlib import Path
 from collections import Counter
 from typing import Optional, Callable, Dict, Any, List
 
 from tools.universal_ai_client import AIClientManager, AIMessage
-from tools.tool_registry import registry, ToolCategory, ToolResult
+from tools.tool_registry import registry, ToolResult
 from tools.cvss_calculator import CVSSCalculator
 from tools.vector_memory import remember, recall, get_context_for_ai
 from tools.memory_persistence import save_message as _sqlite_save_message, load_conversation as _sqlite_load_conversation, clear_session as _sqlite_clear_session, get_context_status as _get_context_status
-from tools.universal_executor import get_universal_executor
 from tools.cve_database import get_cve_database
 from tools.mission_state import MissionState, GraphNode, GraphEdge
 from tools.governance import Governance, GateDecision
@@ -42,11 +37,9 @@ logger = logging.getLogger("elengenix.agent")
 # ── Re-export shared helpers from agents/ modules ──────────────────────
 from agents.agent_helpers import (
     _get_now_context,
-    _extract_json_object,
     _extract_target_from_text,
-    _get_memory_profile_context,
 )
-from agents.agent_dataclasses import AttackPhase, AttackStep, AttackTree, AgentThought
+from agents.agent_dataclasses import AttackTree
 from agents.agent_planner import StrategicPlanner
 from agents.agent_logger import ChainOfThoughtLogger
 from agents.agent_executor import (
@@ -163,9 +156,8 @@ class ElengenixAgent:
     def _load_persistent_conversation(self) -> None:
         """Restore previous session conversation from SQLite."""
         try:
-            model_name = ""
             if hasattr(self, "client") and hasattr(self.client, "active_client"):
-                model_name = getattr(self.client.active_client, "model", "")
+                getattr(self.client.active_client, "model", "")
             loaded = _sqlite_load_conversation("default")
             if loaded:
                 self.conversation_history = loaded
@@ -239,9 +231,9 @@ class ElengenixAgent:
                 model_name = getattr(self.client.active_client, "model", "")
 
             if model_name and "claude" in model_name.lower():
-                model_for_summary = model_name
+                pass
             else:
-                model_for_summary = model_name
+                pass
 
             compress_prompt = (
                 "Summarize the following conversation turns into a concise summary "
@@ -522,7 +514,6 @@ To use the CVE database, reference vulnerability types and ask for similar CVEs.
         - Chain of thought logging
         - CVSS scoring integration
         """
-        import asyncio
         
         # 1. Use AI to classify user intent
         intent = self._analyze_intent(user_input)
@@ -583,7 +574,7 @@ Do NOT attempt to run a scan. Respond naturally in the user's language (English 
         mission_state.upsert_node(GraphNode(node_id=mission_state.target, node_type="target", props={"target": mission_state.target}))
         
         #  REMEMBER: Store this mission start in vector memory
-        mission_id = remember(
+        remember(
             f"Started mission: {user_input}. Target: {target or 'general'}",
             target or "global",
             "mission_start",
@@ -731,6 +722,9 @@ Use JSON format: {{"action": "run_shell|ask_user|web_search|submit_findings|save
             # Action Validation
             action_val = action_data.get("action", "")
             if isinstance(action_val, dict):
+                params = action_val.get("params", {})
+                if isinstance(params, dict):
+                    action_data.update(params)
                 action_val = action_val.get("type", "")
             action = str(action_val).lower()
             
@@ -1018,7 +1012,7 @@ Use JSON format: {{"action": "run_shell|ask_user|web_search|submit_findings|save
                     logger.warning(f"MissionState ledger write failed: {e}")
                 
                 #  Log result
-                status = "success" if result.success else "error"
+                "success" if result.success else "error"
                 self.activity_logger.log_result(f"{tool_name}: {len(result.findings)} findings", result.success, step=step)
                 if result.success:
                     display_in_chat_mode(f"{tool_name}: {len(result.findings)} findings", "result")

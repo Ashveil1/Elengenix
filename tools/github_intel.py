@@ -11,10 +11,8 @@ Works without token but with heavily rate-limited results.
 
 import os
 import logging
-import re
 import requests
-from typing import Dict, List, Optional
-from urllib.parse import quote
+from typing import Dict, List
 
 logger = logging.getLogger("elengenix.github_intel")
 

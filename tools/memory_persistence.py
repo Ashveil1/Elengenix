@@ -11,15 +11,11 @@ Table schema:
   messages: id, session_id, role, content, timestamp, token_count
 """
 
-import os
-import json
-import time
 import sqlite3
 import logging
 import threading
-from datetime import datetime
 from pathlib import Path
-from typing import List, Dict, Optional, Tuple
+from typing import List, Dict, Optional
 
 logger = logging.getLogger("elengenix.memory")
 

@@ -10,7 +10,7 @@ import asyncio
 import json
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Union
+from typing import List
 
 from tools.tool_registry import BaseTool, ToolCategory, ToolMetadata, ToolResult, ToolPriority, register_tool
 
@@ -142,7 +142,7 @@ class FfufTool(BaseTool):
                         "cwe": "CWE-200" if status == 200 else None,
                     }
                     findings.append(finding)
-            except (json.JSONDecodeError, KeyError) as e:
+            except (json.JSONDecodeError, KeyError):
                 pass
         
         return ToolResult(

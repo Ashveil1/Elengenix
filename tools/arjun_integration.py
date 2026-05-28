@@ -9,7 +9,7 @@ import asyncio
 import json
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Union
+from typing import List, Union
 
 from tools.tool_registry import BaseTool, ToolCategory, ToolMetadata, ToolResult, ToolPriority, register_tool
 
@@ -97,7 +97,7 @@ class ArjunTool(BaseTool):
                             "value": param.get("value", ""),
                             "cwe": "CWE-200",  # Information Exposure
                         })
-            except (json.JSONDecodeError, KeyError) as e:
+            except (json.JSONDecodeError, KeyError):
                 pass
         
         # Fallback to text parsing

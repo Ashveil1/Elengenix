@@ -34,9 +34,9 @@ if str(project_root) not in sys.path:
 
 from ui_components import console
 from bot_utils import send_telegram_notification
-from orchestrator import run_standard_scan, is_in_scope, normalize_target
-from tools.tool_registry import registry, ToolResult
-from tools.cvss_calculator import CVSSCalculator, Severity
+from orchestrator import run_standard_scan, is_in_scope
+from tools.tool_registry import registry
+from tools.cvss_calculator import CVSSCalculator
 from tools.reporter import generate_bug_report
 from tools.html_reporter import generate_html_report
 

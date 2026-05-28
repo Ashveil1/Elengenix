@@ -42,10 +42,9 @@ from __future__ import annotations
 
 import json
 import logging
-import re
 from difflib import SequenceMatcher, get_close_matches
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger("elengenix.command_suggest")
 
@@ -391,7 +390,7 @@ class CommandSuggester:
     def format_suggestion(self, input_cmd: str, suggestion: str) -> str:
         """Format a suggestion message beautifully."""
         # Highlight differences
-        sm = SequenceMatcher(None, input_cmd, suggestion)
+        SequenceMatcher(None, input_cmd, suggestion)
         
         return f"""
 ┌────────────────────────────────────────────────────────────┐

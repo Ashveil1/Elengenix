@@ -26,19 +26,13 @@ from typing import Optional, Callable
 
 from rich.console import Console
 from rich.markdown import Markdown
-from rich.panel import Panel
 
 from agent import get_agent
-from bot_utils import send_telegram_notification
-from ui_components import console, show_main_banner, render_sidebar
+from ui_components import console, render_sidebar
 from tools.overlay_menu import SettingsOverlay
 
-from rich.live import Live
-from rich.layout import Layout
-from rich.text import Text
-from rich.panel import Panel
 from rich.align import Align
-from rich.box import ROUNDED, MINIMAL
+from rich.box import ROUNDED
 
 # Logging Setup 
 LOG_FILE = Path("data/elengenix_cli.log")
@@ -267,11 +261,7 @@ def select_agent_mode() -> str:
     """Auto-detect mode to save tokens and merge capabilities."""
     return "auto"
 
-from prompt_toolkit import PromptSession
-from prompt_toolkit.completion import WordCompleter
 from prompt_toolkit.formatted_text import HTML
-from prompt_toolkit.patch_stdout import patch_stdout
-from prompt_toolkit.styles import Style as PTStyle
 
 def get_bottom_toolbar(target_state: str, mode_state: str, model_name: str = "default", thinking_on: bool = False):
     """Generate dynamic bottom toolbar with status indicators."""
@@ -662,7 +652,6 @@ def main(mode: str = "auto", target: str = None):
     from rich.box import MINIMAL
 
     SIDEBAR_W = 45
-    MAX_CHAT = 50
 
     from rich.console import Group
 
@@ -763,8 +752,6 @@ def main(mode: str = "auto", target: str = None):
                 
                 # Calculate visible message range based on scroll
                 total_msgs = len(self._messages)
-                visible_start = max(0, total_msgs - self._viewport_lines - self._scroll_offset)
-                visible_end = total_msgs
                 
                 # If scrolled, show older messages first
                 if self._scroll_offset > 0:
@@ -1156,7 +1143,6 @@ def main(mode: str = "auto", target: str = None):
             return
 
         if cmd.lower().startswith("/install"):
-            segments = cmd.split()
             parts = cmd.split(" ", 2)
             # /install → list missing tools
             if len(parts) < 2 or not parts[1].strip():
@@ -1325,7 +1311,7 @@ def main(mode: str = "auto", target: str = None):
 
             def _stream_run():
                 try:
-                    from tools.universal_ai_client import UniversalAIClient, AIMessage
+                    from tools.universal_ai_client import UniversalAIClient
 
                     # Reuse the agent's already-configured active client
                     active_client = None
@@ -1656,7 +1642,7 @@ def main(mode: str = "auto", target: str = None):
                 while True:
                     try:
                         chat.tick_spinner()
-                    except Exception as e:
+                    except Exception:
                         import traceback
                         traceback.print_exc()
                         break

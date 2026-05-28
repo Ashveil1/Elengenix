@@ -11,14 +11,10 @@ import time as time_module
 from pathlib import Path
 from dataclasses import dataclass, field, asdict
 from typing import Dict, List, Set, Optional, Tuple, Any
-from collections import defaultdict
 import hashlib
-import pickle
 import logging
 
 from rich.console import Console
-from rich.table import Table
-from rich.panel import Panel
 
 from file_relationship_mapper import (
     FileRelationshipGraph,
@@ -553,7 +549,6 @@ def run_smart_scan_sync(
 
 
 if __name__ == "__main__":
-    import sys
     print("This module is not meant to be run directly.")
     print("Import SmartOrchestrator or run_smart_scan_sync() instead.")
     print("Example:")

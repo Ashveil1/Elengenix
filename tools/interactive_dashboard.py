@@ -19,15 +19,11 @@ Features:
 
 from __future__ import annotations
 
-import json
 import logging
-import time
 from dataclasses import dataclass
-from datetime import datetime
-from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from tools.dashboard_server import DashboardServer, DashboardHandler
+from tools.dashboard_server import DashboardServer
 
 logger = logging.getLogger("elengenix.interactive_dashboard")
 

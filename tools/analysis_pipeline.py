@@ -10,7 +10,7 @@ import json
 import logging
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Optional
 from urllib.parse import urlparse
 
 from tools.vector_memory import remember
@@ -576,7 +576,7 @@ class AnalysisPipeline:
         callback: Optional[Callable],
     ) -> None:
         try:
-            from tools.protocol_analyzer import ProtocolAnalyzer, ProtocolType
+            pass
 
             iot_ports = {1883, 8883, 502, 102, 47808}
             findings_with_ports = [f for f in result.findings if f.get("port") or f.get("url", "")]
@@ -622,10 +622,9 @@ class AnalysisPipeline:
         mission_state: MissionState,
     ) -> None:
         try:
-            from tools.exploit_chain_builder import ExploitChainBuilder, format_chain_report
+            from tools.exploit_chain_builder import ExploitChainBuilder
 
             all_facts = mission_state.list_facts(limit=50)
-            all_hyps = mission_state.list_hypotheses(limit=30)
 
             all_findings = []
             for fact in all_facts:
@@ -643,7 +642,7 @@ class AnalysisPipeline:
                 if len(finding_types) >= 2:
                     builder = ExploitChainBuilder()
                     builder.process_findings(all_findings)
-                    chains = builder.build_chains()
+                    builder.build_chains()
                     high_value = builder.get_high_value_chains(min_probability=0.4)
 
                     if high_value:

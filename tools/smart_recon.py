@@ -14,7 +14,6 @@ Output: Enriched asset graph stored in MissionState for agent reasoning.
 
 from __future__ import annotations
 
-import json
 import logging
 import re
 import socket
@@ -23,9 +22,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
-from urllib.parse import urlparse
 
 import requests
 

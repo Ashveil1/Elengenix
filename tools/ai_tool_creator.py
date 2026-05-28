@@ -17,19 +17,15 @@ Governance:
 
 from __future__ import annotations
 
-import ast
-import hashlib
 import json
 import logging
-import os
 import re
 import subprocess
 import sys
-import tempfile
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger("elengenix.ai_tool_creator")
 
@@ -353,16 +349,7 @@ Respond in JSON format:
             import importlib.util
             spec = importlib.util.spec_from_file_location(tool_name, tool_path)
             module = importlib.util.module_from_spec(spec)
-            
-            # Execute with restricted globals
-            safe_globals = {
-                "__name__": "__main__",
-                "__file__": str(tool_path),
-                "print": print,
-                "input": lambda x="": "",  # Disable input
-                "open": open,
-            }
-            
+            # Execute
             spec.loader.exec_module(module)
             
             # Call main function if exists

@@ -127,12 +127,23 @@ def validate_target(target: str) -> bool:
     return bool(re.match(pattern, cleaned))
 
 # ── Main Logic ────────────────────────────────────────────────────────────────
+def ensure_path_priorities() -> None:
+    """Ensure Go tools and local binaries take priority in PATH."""
+    go_first = str(Path.home() / "Downloads" / "go-tools" / "bin")
+    go_second = str(Path.home() / "go" / "bin")
+    local_bin = str(Path.home() / ".local" / "bin")
+    current = os.environ.get("PATH", "")
+    new_parts = [p for p in [go_first, go_second, local_bin] if Path(p).is_dir() and p not in current]
+    if new_parts:
+        os.environ["PATH"] = ":".join(new_parts + [current])
+
 def show_banner():
     """Clean minimal banner."""
     from ui_components import show_main_banner
     show_main_banner()
 
 def main():
+    ensure_path_priorities()
     show_banner()
 
     command_choices = [
@@ -348,15 +359,6 @@ def main():
     # Command Router
     try:
         if args.command == "scan":
-            # Ensure Go tools take priority over Python scripts
-            go_first = str(Path.home() / "Downloads" / "go-tools" / "bin")
-            go_second = str(Path.home() / "go" / "bin")
-            local_bin = str(Path.home() / ".local" / "bin")
-            current = os.environ.get("PATH", "")
-            new_parts = [p for p in [go_first, go_second, local_bin] if Path(p).is_dir() and p not in current]
-            if new_parts:
-                os.environ["PATH"] = ":".join(new_parts + [current])
-
             from agent import get_agent
             from bot_utils import send_telegram_notification
             from shutil import which
@@ -401,11 +403,6 @@ def main():
                         console.print(f"    ... +{len(initial_subs) - 5} more")
             except Exception:
                 pass
-
-            # Ensure Go tools are in PATH
-            go_bin = os.path.expanduser("~/Downloads/go-tools/bin")
-            if os.path.isdir(go_bin):
-                os.environ["PATH"] = f"{go_bin}:{os.environ.get('PATH', '')}"
 
             from agent import get_agent
             from bot_utils import send_telegram_notification
@@ -468,7 +465,7 @@ def main():
                         console.print(f"{msg}")
                     elif msg.startswith("__PRIVILEGED__:"):
                         console.print(f"\n[PRIVILEGED] {msg.replace('__PRIVILEGED__:', '').strip()[:150]}")
-                except Exception as cb_err:
+                except Exception:
                     # Fallback - just print the raw safe message
                     try:
                         safe_msg = re.sub(r'\[/?[^\]]+\]', '', msg)
@@ -855,7 +852,7 @@ def main():
                 from tools.interactive_dashboard import InteractiveDashboard
                 dash = InteractiveDashboard(host=host, port=port)
                 dash.run()
-            except Exception as e:
+            except Exception:
                 # Fallback to simple dashboard if interactive fails
                 try:
                     from tools.dashboard_server import DashboardServer, DashboardHandler
@@ -873,7 +870,7 @@ def main():
             from ui_components import show_section, print_info, create_status_table
             
             try:
-                from tools.vector_memory import get_vector_memory, get_vector_memory as vm_get
+                from tools.vector_memory import get_vector_memory as vm_get
                 
                 show_section("AI Memory System")
                 
@@ -1386,7 +1383,6 @@ def main():
         elif args.command == "mission":
             """Mission control - start autonomous scanning mission."""
             from tools.smart_scanner import SmartScanner
-            from tools.token_manager import get_token_manager
             from ui_components import print_info, print_success, print_error
             
             if not args.target:

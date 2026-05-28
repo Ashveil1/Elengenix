@@ -7,19 +7,15 @@ tools_menu.py — Elengenix Production-Hardened Arsenal Menu (v99999 (god nine i
 """
 
 import sys
-import os
 import subprocess
 import logging
 import re
 from pathlib import Path
 from typing import List, Dict
 
-from rich.console import Console
-from rich.table import Table
-from rich.panel import Panel
 
 # Import shared UI utilities (used by _run_tool and show_tools_menu)
-from ui_components import print_error, print_warning, console as ui_console
+from ui_components import print_error, console as ui_console
 
 # ── Setup ───────────────────────────────────────────────────
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")

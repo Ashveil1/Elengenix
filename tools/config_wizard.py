@@ -15,7 +15,7 @@ import logging
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Dict, List, Optional
 
 from ui_components import console, print_info, print_success, print_warning, print_error
 

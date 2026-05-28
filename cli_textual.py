@@ -10,10 +10,8 @@ import random
 import sys
 import time
 import logging
-import threading
 import warnings
 from pathlib import Path
-from typing import Optional
 
 warnings.filterwarnings("ignore", category=FutureWarning)
 
@@ -29,7 +27,6 @@ from textual.binding import Binding
 from rich.text import Text
 from rich.panel import Panel
 from rich.markdown import Markdown
-from rich.table import Table
 
 from agent import get_agent
 from agents.tui_game import ObbyGame
@@ -395,13 +392,61 @@ class SettingsOverlayWidget(Widget, can_focus=True):
             inp.focus()
 
 
+# ── Help Overlay ────────────────────────────────────────────────────────
+class HelpOverlayWidget(Widget, can_focus=True):
+    """Modal overlay for displaying help — Esc to close."""
+
+    DEFAULT_CSS = f"""
+    HelpOverlayWidget {{ layer: overlay; align: center middle; width: 100%; height: 100%; display: none; }}
+    HelpOverlayWidget.visible {{ display: block; }}
+    #help_panel {{ width: 68; height: auto; max-height: 80%; min-height: 14; background: {BASE}; border: solid {DIM}; padding: 0; overflow-y: auto; }}
+    #help_header {{ width: 1fr; height: 1; content-align: center middle; background: {BASE}; color: {WHITE}; text-style: bold; border-bottom: solid {DIM}; }}
+    #help_body {{ width: 1fr; height: auto; background: transparent; padding: 1 2; }}
+    #help_footer {{ width: 1fr; height: 1; content-align: center middle; color: {MUTED}; background: {CRUST}; }}
+    """
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="help_panel"):
+            yield Static("  HELP  ", id="help_header")
+            yield Static("", id="help_body", markup=True)
+            yield Static("  Esc Close", id="help_footer")
+
+    def on_mount(self) -> None:
+        self.query_one("#help_body", Static).update(Text.from_markup(HELP_TEXT))
+
+    def show(self) -> None:
+        self.add_class("visible")
+        try:
+            self.app.query_one("#user_input", Input).disabled = True
+        except Exception:
+            pass
+        self.app.set_timer(0.0, lambda: self.focus())
+
+    def hide(self) -> None:
+        self.remove_class("visible")
+        try:
+            inp = self.app.query_one("#user_input", Input)
+            inp.disabled = False
+            inp.focus()
+        except Exception:
+            pass
+
+    def on_key(self, event) -> None:
+        if not self.has_class("visible"):
+            return
+        event.stop()
+        if event.key == "escape":
+            self.hide()
+
+
 # ── Main App ───────────────────────────────────────────────────────────
 class ElengenixTextualApp(App):
     # ── Golden ratio layout: φ ≈ 1.618 ───────────────────────────────────
     # chat : sidebar = 1.618 : 1  →  side = 100/2.618 ≈ 38
     # ── CSS with transitions, using Textual theme variables ──────────────
     CSS = """
-Screen { background: $surface; layers: base overlay; }
+Screen { background: $surface; layers: base overlay; transition: border 500ms; border: solid transparent; }
+Screen.glow { border: heavy $accent; }
 RichLog, Sidebar { scrollbar_color: $secondary; scrollbar_color_hover: $accent; scrollbar_color_active: $primary; }
 Sidebar { width: 38; height: 1fr; background: $surface; border-left: solid $secondary; margin: 0; padding: 1 1; overflow-y: auto; }
 ThinkingWidget { height: 1; padding: 0 1 0 5; color: $primary; display: none; }
@@ -469,6 +514,11 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
         self._thinking_dots = 0
         self._theme_transition = 0.0
 
+        # Autocomplete suggestion state
+        self._suggest_idx = -1
+        self._original_prefix = ""
+        self._cycling_suggestions = False
+
         # Cinematic transition state
         self._trans = False
         self._trans_frame = 0
@@ -495,9 +545,11 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
         yield Scanline(id="scanline")
         yield GlitchFlash(id="glitch")
         yield SettingsOverlayWidget(id="settings_overlay")
+        yield HelpOverlayWidget(id="help_overlay")
 
     def on_mount(self) -> None:
-        self._update_banner()
+        # Banner is blank at start, animated via boot sequence
+        self.query_one("#banner", Static).update("")
         try:
             from tools.session_manager import SessionManager
             self._session_mgr = SessionManager()
@@ -515,6 +567,7 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
         self._update_sidebar()
         self.set_focus(self.query_one("#user_input", Input))
         self._load_agent()
+        self._run_boot_sequence()
 
         # Register custom themes and apply CHILL
         self.register_theme(Theme(
@@ -705,7 +758,7 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
                     self.theme = "hunt" if going_hunt else "chill"
                     self._update_banner()
                 t = (f - 45) / 9
-                pulse = math.sin(t * 3.14) * 0.5
+                math.sin(t * 3.14) * 0.5
                 try:
                     self.query_one("#header", Static).styles.color = "#ff2222" if going_hunt else "#ffffff"
                 except: pass
@@ -734,6 +787,45 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
         if self._cached_sidebar is None:
             self._cached_sidebar = self.query_one("#sidebar", Sidebar)
         return self._cached_sidebar
+
+    def _update_banner_text(self, text: str) -> None:
+        try:
+            self.query_one("#banner", Static).update(Text.from_markup(text))
+        except Exception:
+            pass
+
+    @work(thread=True)
+    def _run_boot_sequence(self) -> None:
+        """Typewriter ASCII banner boot-up line-by-line accompanied by system bell, then initialization logs."""
+        color = "#ff2222" if self.mode == "HUNT" else "white"
+        lines = ASCII_BANNER.strip().split("\n")
+        current_lines = []
+        for line in lines:
+            current_lines.append(line.format(color=color))
+            self.call_from_thread(self._update_banner_text, "\n".join(current_lines))
+            sys.stdout.write("\a")
+            sys.stdout.flush()
+            time.sleep(0.12)
+            
+        sys_logs = [
+            "[INFO] Loading security knowledge base...",
+            "[INFO] Registering 62 vulnerability detection skills...",
+            "[INFO] Initializing Governance risk engine...",
+            "[INFO] Establishing LLM client session...",
+            "[OK] System initialized successfully. Ready to hunt.",
+        ]
+        for log in sys_logs:
+            time.sleep(0.15)
+            self.call_from_thread(self._chat_write_system, log)
+
+    def _trigger_border_glow(self) -> None:
+        """Temporarily add the .glow class to the screen to trigger border pulse."""
+        try:
+            screen = self.screen
+            screen.add_class("glow")
+            self.set_timer(1.2, lambda: screen.remove_class("glow"))
+        except Exception:
+            pass
 
     def _update_banner(self) -> None:
         color = "#ff2222" if self.mode == "HUNT" else "white"
@@ -821,15 +913,36 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
                     if self.mode == "CHILL" and ad.get("action") in ("run_shell", "run_tool", "shell"):
                         self.call_from_thread(self._chat_write_system, "[dim]tool execution blocked in CHILL mode — Ctrl+M to switch to HUNT[/dim]")
                         return "__FINISH__"
+                    
+                    if ad.get("action") == "submit_findings":
+                        findings_data = ad.get("findings", [])
+                        if not isinstance(findings_data, list):
+                            findings_data = [findings_data]
+                        num_findings = len(findings_data)
+                        if num_findings > 0:
+                            self.findings += num_findings
+                            self.call_from_thread(self._update_sidebar)
+                            self.call_from_thread(self._trigger_border_glow)
+
                     cmd = ad.get("command", "")[:120]
                     risk = "SAFE"
                     try: risk = self._agent.governance.classify_risk(ad)
                     except: pass
                     self.call_from_thread(self._chat_write_governance, cmd, risk)
+                    
                     if self.mode == "HUNT" and risk == "SAFE":
                         self.tools_run += 1
                         self.call_from_thread(self._update_sidebar)
-                    return orig(ad, cb)
+                        self.call_from_thread(self._trigger_border_glow)
+                        
+                    # Wrapped callback to output tool progress directly to TUI chat as system updates
+                    def tui_cb(msg):
+                        if msg:
+                            self.call_from_thread(self._chat_write_system, f"[dim]Progress: {msg}[/dim]")
+                        if cb:
+                            cb(msg)
+                            
+                    return orig(ad, tui_cb)
                 self._agent._execute_tool = wrap
             if hasattr(self._agent, "process_universal"):
                 agent_mode = "auto" if self.mode == "CHILL" else "bug_bounty"
@@ -847,11 +960,45 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
             self.call_from_thread(self._update_sidebar)
 
     def on_key(self, event) -> None:
+        ho = self.query_one("#help_overlay", HelpOverlayWidget)
+        if ho.has_class("visible"):
+            event.stop(); ho.on_key(event); return
         ov = self.query_one("#settings_overlay", SettingsOverlayWidget)
         if ov.has_class("visible"):
             if ov.query_one("#custom_url_row").has_class("visible"): return
             event.stop(); ov.on_key(event); return
         key = event.key
+        if key not in ("tab", "shift+tab"):
+            self._cycling_suggestions = False
+
+        if key == "tab" or key == "shift+tab":
+            inp = self.query_one("#user_input", Input)
+            if inp.has_focus:
+                text = inp.value
+                if text.startswith("/"):
+                    if not self._cycling_suggestions:
+                        self._original_prefix = text
+                        self._suggest_idx = -1
+                        self._cycling_suggestions = True
+                    
+                    parts = self._original_prefix.split()
+                    if len(parts) == 1:
+                        prefix = parts[0].lower()
+                        matches = [c for c in self.SLASH_COMMANDS if c.startswith(prefix)]
+                    else:
+                        matches = []
+                    
+                    if matches:
+                        event.stop()
+                        if key == "tab":
+                            self._suggest_idx = (self._suggest_idx + 1) % len(matches)
+                        else:
+                            self._suggest_idx = (self._suggest_idx - 1) % len(matches)
+                        
+                        inp.value = matches[self._suggest_idx]
+                        inp.cursor_position = len(inp.value)
+                        self._update_suggestion_box(matches)
+                        return
         if key == "ctrl+s": event.stop(); self.action_show_settings(); return
         if key == "ctrl+t": event.stop(); self.action_toggle_think(); return
         if key == "ctrl+r": event.stop(); self.action_toggle_research(); return
@@ -870,19 +1017,21 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
     def _start_game(self) -> None:
         self._game_active = True
         self.game.start()
-        bw = self.query_one("#banner", Static)
-        bw.display = True
+        self.query_one("#user_input", Input).disabled = True
+        self.query_one("#banner", Static).display = True
         self._update_banner()
-        self._chat_write_system("[dim]🎮 obby started — SPACE jump, Q quit[/dim]")
+        self._chat_write_system("[dim]🎮 obby — SPACE jump, Q quit[/dim]")
 
     def _stop_game(self) -> None:
         self._game_active = False
         self.game.running = False
+        self.query_one("#user_input", Input).disabled = False
+        self.set_focus(self.query_one("#user_input", Input))
         self._update_banner()
 
     def _game_display(self, frame: str) -> None:
         try:
-            self.query_one("#banner", Static).update(Text.from_markup(frame))
+            self.query_one("#banner", Static).update(Text(frame))
         except Exception:
             pass
 
@@ -895,28 +1044,47 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
         "/stats", "/team", "/obby", "/help",
     ]
 
+    def _update_suggestion_box(self, matches: list[str]) -> None:
+        box = self.query_one("#suggest_box", Static)
+        lines = []
+        for idx, m in enumerate(matches[:12]):
+            if idx == self._suggest_idx:
+                lines.append(f"[bold reverse]{m}[/]")
+            else:
+                lines.append(f"[dim]{m}[/]")
+        box.update("\n".join(lines))
+
     def on_input_changed(self, event: Input.Changed) -> None:
         text = event.value
+        if not self._cycling_suggestions:
+            self._original_prefix = text
+            self._suggest_idx = -1
+        
         box = self.query_one("#suggest_box", Static)
         if not text or not text.startswith("/"):
             box.styles.display = "none"
+            self._cycling_suggestions = False
             return
-        parts = text.split()
+            
+        parts = self._original_prefix.split()
         if len(parts) == 1:
             prefix = parts[0].lower()
             matches = [c for c in self.SLASH_COMMANDS if c.startswith(prefix)]
         else:
             matches = []
+            
         if matches:
-            box.update("\n".join(f"[dim]{m}[/]" for m in matches[:12]))
+            self._update_suggestion_box(matches)
             box.styles.display = "block"
         else:
             box.styles.display = "none"
+            self._cycling_suggestions = False
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
         text = event.value.strip()
         if not text: return
         event.input.value = ""
+        self._cycling_suggestions = False
         if not self.history or self.history[-1] != text: self.history.append(text)
         self.history_idx = -1
         if self._handle_slash(text): return
@@ -1086,7 +1254,7 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
         self._chat_write_system(f"[dim]Active model(s): {models}[/]")
 
     def action_show_help(self) -> None:
-        self._chat().write(Text.from_markup(HELP_TEXT))
+        self.query_one("#help_overlay", HelpOverlayWidget).show()
 
     def action_show_settings(self) -> None:
         self.query_one("#settings_overlay", SettingsOverlayWidget).show()

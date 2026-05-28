@@ -39,7 +39,6 @@ def _run_forever(loop: asyncio.AbstractEventLoop) -> None:
 
 def _cleanup() -> None:
     """Cleanup registered via ``atexit`` — called on interpreter shutdown."""
-    global _loop
     if _loop is not None and not _loop.is_closed():
         try:
             _loop.call_soon_threadsafe(_loop.stop)

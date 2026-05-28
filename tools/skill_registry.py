@@ -6,14 +6,12 @@ Informs AI about available tools/skills and can request additional installations
 Author: Elengenix Project
 """
 
-import os
 import subprocess
 import shutil
 import logging
-from dataclasses import dataclass, field
-from typing import List, Dict, Optional, Callable
+from dataclasses import dataclass
+from typing import List, Dict, Optional
 from enum import Enum
-from pathlib import Path
 
 logger = logging.getLogger("elengenix.skills")
 

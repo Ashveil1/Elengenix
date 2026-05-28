@@ -135,7 +135,6 @@ class TestTeamAegisSkillAwareness:
 
     def test_team_available_tools_formatting(self):
         from tools.multi_agent import TeamAegis
-        from tools.universal_ai_client import UniversalAIClient
         import unittest.mock as mock
         # Mock 2 clients
         mock_client = mock.MagicMock()

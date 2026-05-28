@@ -16,12 +16,11 @@ Safety:
 
 from __future__ import annotations
 
-import concurrent.futures
 import logging
 logger = logging.getLogger("elengenix.race")
 import time
-from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from dataclasses import dataclass
+from typing import Any, Dict, List
 
 import requests
 
@@ -68,7 +67,7 @@ def _send_request(method: str, url: str, headers: Dict = None,
         r = fn(url, headers=headers, json=json_data, timeout=timeout, verify=False)
         elapsed_ms = (time.time() - start) * 1000
         return r.status_code, len(r.text), elapsed_ms
-    except Exception as e:
+    except Exception:
         elapsed_ms = (time.time() - start) * 1000
         return 0, 0, elapsed_ms
 

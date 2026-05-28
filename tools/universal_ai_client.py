@@ -336,7 +336,7 @@ class UniversalAIClient:
                     time.sleep(2 ** attempt)  # Exponential backoff
                     continue
                 raise
-            except Exception as e:
+            except Exception:
                 if attempt < self.max_retries - 1:
                     time.sleep(2 ** attempt)
                     continue

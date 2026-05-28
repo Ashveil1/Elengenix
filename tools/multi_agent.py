@@ -13,7 +13,6 @@ Architecture:
 Author: Elengenix Project
 """
 
-import os
 import json
 import time
 import logging
@@ -23,7 +22,7 @@ from typing import List, Dict, Any, Optional, Callable
 from dataclasses import dataclass, field
 from heapq import heappush, heappop
 
-from tools.universal_ai_client import UniversalAIClient, AIMessage, AIResponse
+from tools.universal_ai_client import UniversalAIClient
 
 # Try to import skill registry
 try:
@@ -301,7 +300,6 @@ class TeamAegis:
 
         # Show pending tasks from the queue (thread-safe read)
         with self._task_queue_lock:
-            pending = [t for t in self.task_queue if t[3].get("type") != "suggested"]
             suggested = [t for t in self.task_queue if t[3].get("type") == "suggested"]
         if suggested:
             lines.append("\n### PENDING TASKS (suggested by teammates — claim one):")
@@ -611,9 +609,7 @@ Respond with JSON:
         action = action_data.get("action", {})
         action_type = action.get("type", "none")
         
-        finish_vote = False
         if action_type == "finish":
-            finish_vote = True
             if self.callback:
                 self.callback(f"    >> {role['name']} votes to FINISH the scan.")
             if self.async_callback:

@@ -18,13 +18,12 @@ Types of IOCs:
 
 from __future__ import annotations
 
-import hashlib
 import json
 import logging
 import sqlite3
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger("elengenix.threat_intel")
 

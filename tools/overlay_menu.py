@@ -9,8 +9,6 @@ Usage:
 """
 
 import os
-import re
-import json
 import time
 import logging
 from pathlib import Path
@@ -355,7 +353,7 @@ class SettingsOverlay:
 
         if self._current_layer == "mode_settings":
             if item_id.startswith("mode_"):
-                mode = item_id.replace("mode_", "")
+                item_id.replace("mode_", "")
                 self._current_layer = "main"
                 self._selected_idx = 0
                 self._update_items()

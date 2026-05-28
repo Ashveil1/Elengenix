@@ -10,7 +10,7 @@ import sys
 import subprocess
 import logging
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Tuple
 
 logger = logging.getLogger("elengenix.tmux")
 

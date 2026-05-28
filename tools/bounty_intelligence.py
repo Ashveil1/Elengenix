@@ -42,11 +42,10 @@ import logging
 import re
 import sqlite3
 import time
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
-from urllib.parse import urljoin, urlparse
+from typing import Dict, List, Optional
 
 import requests
 
@@ -544,7 +543,6 @@ class BountyIntelligence:
         
         # Calculate max values for normalization
         max_bounty = max((p.max_bounty for p in programs), default=1)
-        min_response = min((p.response_time_hours or 168 for p in programs), default=1)
         
         for program in programs:
             # Score reward (0-40 points)

@@ -12,15 +12,12 @@ import logging
 import re
 import shlex
 import time
-import traceback
-from datetime import datetime, timezone
-from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any, Callable, Dict, List, Optional
 
 from tools.tool_registry import registry, ToolResult, ToolCategory
 from tools.universal_executor import UniversalExecutor
-from tools.governance import Governance, GateDecision
-from tools.vector_memory import remember, recall, get_context_for_ai
+from tools.governance import Governance
+from tools.vector_memory import remember, get_context_for_ai
 from tools.analysis_pipeline import AnalysisPipeline
 from tools.mission_state import MissionState, GraphNode, GraphEdge
 from tools.cvss_calculator import CVSSCalculator
@@ -655,7 +652,7 @@ class HybridAgent:
         lines.append("\n## Action Log")
         for i, a in enumerate(self.action_history, 1):
             purpose = a.get("purpose", a.get("action", ""))
-            tool = a.get("tool", a.get("command", ""))
+            a.get("tool", a.get("command", ""))
             lines.append(f"  {i}. [{a.get('action', '?')}] {purpose[:100]}")
 
         if self.missing_tools:

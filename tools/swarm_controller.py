@@ -24,7 +24,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Set
+from typing import Any, Callable, Dict, List, Optional
 from uuid import uuid4
 
 from tools.mission_state import MissionState
@@ -209,7 +209,6 @@ class SwarmController:
             )
             
             # Import agent brain (lazy to avoid circular imports)
-            from agent_brain import process_agent_turn
             
             # Run agent turn
             def local_progress(step: str, pct: float):
@@ -319,7 +318,7 @@ class SwarmController:
                     completed_count += 1
                     
                     if display_callback:
-                        summary = self.tracker.get_summary()
+                        self.tracker.get_summary()
                         display_callback(
                             f"[{completed_count}/{len(targets)}] {target.target_url} -> "
                             f"{'' if result.success else ''} | Findings: {len(result.findings)}"

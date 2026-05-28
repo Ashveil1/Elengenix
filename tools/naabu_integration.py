@@ -9,7 +9,7 @@ import asyncio
 import json
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Union
+from typing import List, Union
 
 from tools.tool_registry import BaseTool, ToolCategory, ToolMetadata, ToolResult, ToolPriority, register_tool
 
@@ -113,7 +113,7 @@ class NaabuTool(BaseTool):
                         findings.append(finding)
                     except json.JSONDecodeError:
                         continue
-            except Exception as e:
+            except Exception:
                 pass
         
         # Also parse stdout if file is empty

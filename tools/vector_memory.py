@@ -13,7 +13,7 @@ import json
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import List, Dict, Any, Optional, Union
+from typing import List, Dict, Any, Optional
 from dataclasses import dataclass, asdict
 
 logger = logging.getLogger("elengenix.vector_memory")

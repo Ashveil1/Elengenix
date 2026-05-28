@@ -7,14 +7,12 @@ tools/tool_registry.py — Elengenix Plugin System (v99999 (god nine is the best
 """
 
 import asyncio
-import inspect
 import logging
 import shutil
-import subprocess
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Set, Type, Union
+from typing import Any, Callable, Dict, List, Optional, Type, Union
 from enum import Enum
 
 from rich.progress import Progress, SpinnerColumn, TextColumn
@@ -107,7 +105,6 @@ class BaseTool(ABC):
         **kwargs
     ) -> ToolResult:
         """Execute the tool and return standardized result."""
-        pass
     
     def _build_command(
         self, 
@@ -160,7 +157,13 @@ class ToolRegistry:
     def __new__(cls):
         if cls._instance is None:
             cls._instance = super().__new__(cls)
+            cls._instance._initialized = False
         return cls._instance
+        
+    def __init__(self):
+        if not getattr(self, "_initialized", False):
+            self._initialized = True
+            self.load_dynamic_tools()
     
     def register(self, tool: BaseTool) -> None:
         """Register a tool instance."""
@@ -180,6 +183,27 @@ class ToolRegistry:
         if name in self._tools:
             tool = self._tools.pop(name)
             self._categories[tool.metadata.category].remove(name)
+
+    def load_dynamic_tools(self, ai_tools_dir: Union[str, Path] = "tools/ai_generated") -> None:
+        """Dynamically load and register AI-generated tools from the specified directory."""
+        import importlib.util
+        import sys
+        
+        path = Path(ai_tools_dir).resolve()
+        if not path.exists() or not path.is_dir():
+            return
+            
+        for py_file in path.glob("*.py"):
+            try:
+                module_name = f"ai_generated.{py_file.stem}"
+                spec = importlib.util.spec_from_file_location(module_name, py_file)
+                if spec and spec.loader:
+                    module = importlib.util.module_from_spec(spec)
+                    sys.modules[module_name] = module
+                    spec.loader.exec_module(module)
+                    logger.info(f"Dynamically loaded AI tool module: {py_file.name}")
+            except Exception as e:
+                logger.error(f"Failed to load dynamic tool {py_file.name}: {e}")
     
     def get_tool(self, name: str) -> Optional[BaseTool]:
         """Get tool by name."""
@@ -425,7 +449,7 @@ class HttpxTool(BaseTool):
                     execution_time=execution_time,
                     raw_output_file=output_file,
                 )
-            except Exception as e:
+            except Exception:
                 pass
         
         return ToolResult(

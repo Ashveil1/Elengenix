@@ -16,12 +16,11 @@ Safety:
 
 from __future__ import annotations
 
-import hashlib
 import logging
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple
-from urllib.parse import urlparse, urlencode, urlunparse
+from urllib.parse import urlparse
 
 import requests
 
@@ -146,7 +145,7 @@ class SSRFScanner:
                        headers: Dict[str, str] = None) -> List[SSRFTestResult]:
         """Scan a single URL parameter for SSRF."""
         results = []
-        parsed = urlparse(url)
+        urlparse(url)
 
         if not self._baseline_time_ms:
             baseline_status, baseline_time = self._establish_baseline(url, param)

@@ -39,7 +39,7 @@ import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import List, Optional, Tuple
 
 logger = logging.getLogger("elengenix.welcome")
 
@@ -303,7 +303,6 @@ class WelcomeWizard:
     def _configure_ai_provider(self) -> str:
         """Configure AI provider with smart defaults."""
         configured = [(n, d) for n, _, d in self.detected_providers if d == "configured"]
-        available = [(n, d) for n, _, d in self.detected_providers if d != "configured"]
         
         if configured:
             # Auto-pick first configured, but show all

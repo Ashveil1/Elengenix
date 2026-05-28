@@ -19,7 +19,25 @@ If it doesn't exist, use `ask_user` to ask permission to install it.
 
 You MUST respond with valid JSON containing one of these actions:
 
-#### 1. `run_shell` — Execute ANY shell command
+#### 1. `create_ai_tool` — Create a custom Python tool dynamically
+```json
+{
+  "thought": "I need a custom script to exploit this specific vulnerability",
+  "action": {"type": "create_ai_tool", "params": {"name": "custom_exploit", "purpose": "Exploit CVE-XXXX-XXXX via blind SQLi", "code": "import requests\ndef main(**kwargs):\n    return {'output': 'success', 'findings': []}", "dependencies": ["requests"], "ai_reasoning": "Standard tools don't work, writing custom script."}}
+}
+```
+Use this when you need a custom tool that doesn't exist on the system. The tool will be saved and can be run using `run_ai_tool`.
+
+#### 2. `run_ai_tool` — Execute a custom Python tool you created
+```json
+{
+  "thought": "I will run the custom exploit I just created",
+  "action": {"type": "run_ai_tool", "params": {"name": "custom_exploit", "kwargs": {"target": "http://example.com"}}}
+}
+```
+Use this to execute a tool you previously created with `create_ai_tool`.
+
+#### 3. `run_shell` — Execute ANY shell command
 ```json
 {
   "thought": "I need to find subdomains for the target",

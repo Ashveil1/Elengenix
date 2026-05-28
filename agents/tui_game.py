@@ -16,8 +16,8 @@ logger = logging.getLogger("elengenix.game")
 VIEWPORT_W = 40
 GROUND_Y = 9
 PLAYER_X = 6
-GRAVITY = 0.6
-JUMP_VEL = -8
+GRAVITY = 8
+JUMP_VEL = -4
 TERRAIN_SEGMENTS = 200  # pre-generate
 
 PLAYER_SPRITES = {
@@ -152,9 +152,8 @@ class ObbyGame:
         lines = [""] * (GROUND_Y + 4)
 
         # Sky with distant clouds
-        for y in range(GROUND_Y - 2):
-            for x in range(VIEWPORT_W):
-                lines[y] += " "
+        for y in range(GROUND_Y + 1):
+            lines[y] = lines[y].ljust(VIEWPORT_W, ' ')
 
         # Ground layer (solid)
         ground_line = ""
@@ -182,13 +181,14 @@ class ObbyGame:
             else:
                 pit_line += " "
 
-        # Player — human character (2 rows, 2 chars wide)
+        # Player — y = GROUND_Y = ground, y = 3 = peak jump
         py = int(self.player_y)
-        head = "▐█"  # head
-        body = "▐▌"  # body
-        if py <= GROUND_Y - 2:
-            lines[py]          = lines[py][:PLAYER_X]          + head + lines[py][PLAYER_X + 2:]
-            lines[py + 1]      = lines[py + 1][:PLAYER_X]      + body + lines[py + 1][PLAYER_X + 2:]
+        y_draw = max(0, py - 2)  # head row
+        head = "▐█"
+        body = "▐▌"
+        if y_draw < GROUND_Y - 1:
+            lines[y_draw]          = lines[y_draw][:PLAYER_X]          + head + lines[y_draw][PLAYER_X + 2:]
+            lines[y_draw + 1]      = lines[y_draw + 1][:PLAYER_X]      + body + lines[y_draw + 1][PLAYER_X + 2:]
         else:
             lines[GROUND_Y - 1] = lines[GROUND_Y - 1][:PLAYER_X] + head + lines[GROUND_Y - 1][PLAYER_X + 2:]
             lines[GROUND_Y]    = lines[GROUND_Y][:PLAYER_X]    + body + lines[GROUND_Y][PLAYER_X + 2:]

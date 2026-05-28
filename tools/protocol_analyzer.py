@@ -15,14 +15,12 @@ Output: Protocol analysis report with security findings
 
 from __future__ import annotations
 
-import json
 import logging
 logger = logging.getLogger("elengenix.protocol")
 import re
 import struct
 from dataclasses import dataclass, field
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple, Union
+from typing import Any, Dict, List, Optional, Set, Tuple
 from enum import Enum
 
 logger = logging.getLogger("elengenix.protocol_analyzer")
@@ -246,7 +244,7 @@ class MQTTAnalyzer:
                 # Try to decode as text
                 try:
                     result["payload_text"] = payload.decode('utf-8', errors='ignore')[:200]
-                except Exception as e:
+                except Exception:
                     result["payload_hex"] = payload[:50].hex()
             
             return result
@@ -584,7 +582,7 @@ class ProtobufAnalyzer:
             
             return field_count > 0 and field_count < 100
             
-        except Exception as e:
+        except Exception:
             return False
     
     def parse_protobuf(self, data: bytes, max_depth: int = 3) -> List[Dict[str, Any]]:
@@ -828,7 +826,7 @@ class ProtocolAnalyzer:
         """Analyze hex dump string."""
         try:
             data = bytes.fromhex(hex_data.replace(' ', '').replace('\n', ''))
-        except Exception as e:
+        except Exception:
             return {"error": "Invalid hex data"}
         
         protocol = self.detect_protocol(data)

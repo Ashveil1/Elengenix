@@ -9,7 +9,6 @@ tools/html_reporter.py — Interactive HTML Dashboard Generator (v99999 (god nin
 from __future__ import annotations
 
 import html
-import os
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List

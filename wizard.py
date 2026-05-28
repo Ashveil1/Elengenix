@@ -15,10 +15,9 @@ Dependencies:
 
 import yaml
 import questionary
-import os
 import logging
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List
 from rich.console import Console
 
 logger = logging.getLogger("elengenix.wizard")

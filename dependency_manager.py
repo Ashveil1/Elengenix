@@ -14,9 +14,8 @@ import sys
 import os
 import time
 from pathlib import Path
-from typing import List, Optional
+from typing import List
 from rich.console import Console
-from rich.progress import Progress, SpinnerColumn, TextColumn
 
 # ── Setup ───────────────────────────────────────────────────
 console = Console()

@@ -5,22 +5,18 @@ live_display.py — Real-time Log & Activity Monitor (v99999 (god nine is the be
 - Can run standalone or in tmux split pane
 """
 
-import sys
 import time
 import json
-import logging
 from pathlib import Path
 from datetime import datetime
-from typing import List, Dict, Optional
+from typing import List, Optional
 from dataclasses import dataclass, asdict
 from collections import deque
 
 from rich.live import Live
 from rich.panel import Panel
 from rich.text import Text
-from rich.table import Table
 from rich.layout import Layout
-from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.console import Console, Group
 
 from ui_components import console as _ui_console

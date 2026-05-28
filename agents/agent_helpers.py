@@ -91,7 +91,6 @@ def _extract_json_object(text: str) -> Optional[Dict[str, Any]]:
         return json.loads(cleaned)
     except Exception:
         logger.debug(f"JSON parse failed, trying regex fallback: {cleaned[:80]}")
-        pass
 
     m = re.search(r"\{.*\}", cleaned, re.DOTALL)
     if not m:

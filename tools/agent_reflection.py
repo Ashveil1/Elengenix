@@ -16,10 +16,9 @@ Usage:
 
 from __future__ import annotations
 
-import json
 import logging
 import sqlite3
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional

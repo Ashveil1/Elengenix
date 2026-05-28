@@ -11,7 +11,6 @@ import logging
 import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Dict, List
-from urllib.parse import urlencode, urlparse, parse_qs, urljoin
 
 import requests
 

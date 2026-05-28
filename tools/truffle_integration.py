@@ -9,7 +9,7 @@ import asyncio
 import json
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Union
+from typing import List, Union
 
 from tools.tool_registry import BaseTool, ToolCategory, ToolMetadata, ToolResult, ToolPriority, register_tool
 
@@ -55,7 +55,7 @@ class TrufflehogTool(BaseTool):
         """
         start_time = time.time()
         
-        output_file = report_dir / "trufflehog_results.json"
+        report_dir / "trufflehog_results.json"
         
         # Build command based on scan type
         if scan_type == "git":
@@ -135,7 +135,7 @@ class TrufflehogTool(BaseTool):
                         findings.append(finding)
                     except json.JSONDecodeError:
                         continue
-            except Exception as e:
+            except Exception:
                 pass
         
         # Generate summary

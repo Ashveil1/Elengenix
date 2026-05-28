@@ -4,7 +4,6 @@ redteam_agent/governance.py — Delegates to the canonical Governance in tools/g
 Kept as a thin re-export wrapper so existing imports in redteam_agent/ continue to work.
 """
 
-import re
 from tools.governance import Governance as _CanonicalGovernance
 
 

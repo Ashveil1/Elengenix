@@ -24,7 +24,7 @@ def run_subdomain_enum(domain: str, output_dir: str) -> str:
     logger.info(f"Starting subdomain enumeration for: {domain}")
     Path(output_dir).mkdir(parents=True, exist_ok=True)
 
-    raw_file    = os.path.join(output_dir, f"{domain}_raw.txt")
+    os.path.join(output_dir, f"{domain}_raw.txt")
     unique_file = os.path.join(output_dir, f"{domain}_subs.txt")
 
     raw_lines: list[str] = []

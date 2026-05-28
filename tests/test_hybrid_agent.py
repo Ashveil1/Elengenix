@@ -8,8 +8,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import pytest
-from agents.hybrid_agent import HybridAgent, _extract_json, _SIMPLE_COMMANDS
-from tools.tool_registry import ToolResult, ToolCategory
+from agents.hybrid_agent import HybridAgent, _extract_json
 
 
 class FakeClient:

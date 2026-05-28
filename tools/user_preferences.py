@@ -13,7 +13,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import List
 
 DB_PATH = Path(__file__).parent.parent / "data" / "user_preferences.db"
 

@@ -7,9 +7,8 @@ tools/cvss_calculator.py — CVSS 3.1/4.0 Scoring Engine (v99999 (god nine is th
 """
 
 import logging
-import re
-from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Tuple
+from dataclasses import dataclass
+from typing import Any, Dict, Optional
 from enum import Enum
 
 # LLMClient was removed — use UniversalAIClient from tools/universal_ai_client.py instead.

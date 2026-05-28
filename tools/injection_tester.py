@@ -14,7 +14,6 @@ Safety:
 """
 
 import logging
-import re
 import uuid
 import requests
 from typing import Dict, List, Optional
@@ -170,7 +169,7 @@ def test_sqli(url: str, params: Optional[List[str]] = None) -> List[Dict]:
             baseline_url = _inject_param(url, param, "1")
             baseline = session.get(baseline_url, timeout=_TIMEOUT)
             baseline_len = len(baseline.text)
-            baseline_status = baseline.status_code
+            baseline.status_code
         except Exception:
             continue
 

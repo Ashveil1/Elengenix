@@ -7,11 +7,10 @@ file_relationship_mapper.py — Dependency & Coupling Analysis Engine
 """
 from __future__ import annotations
 
-import os
 from pathlib import Path
 from dataclasses import dataclass, field
-from typing import Dict, List, Set, Tuple, Optional, Iterator
-from collections import defaultdict, deque
+from typing import Dict, List, Set, Tuple
+from collections import deque
 
 try:
     import networkx as nx
@@ -22,7 +21,6 @@ except ImportError:
 
 from rich.console import Console
 from rich.table import Table
-from rich.tree import Tree
 
 console = Console()
 

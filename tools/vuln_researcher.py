@@ -44,11 +44,9 @@ import json
 import logging
 import re
 import time
-from dataclasses import dataclass, field
-from datetime import datetime
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
-from urllib.parse import urljoin
+from typing import Any, Dict, List, Optional
 
 import requests
 
@@ -434,20 +432,6 @@ class VulnerabilityResearcher:
             return ""
         
         try:
-            prompt = f"""Summarize this CVE for a security researcher:
-
-CVE: {nvd_data.get('cve_id')}
-Severity: {nvd_data.get('severity')} ({nvd_data.get('cvss_score')})
-Description: {nvd_data.get('description')[:500]}
-
-Prerequisites: {', '.join(exploit_conditions.get('prerequisites', []))}
-Attack Vector: {exploit_conditions.get('attack_vector')}
-
-Provide:
-1. One-sentence summary
-2. Key exploitation requirements
-3. Recommended testing approach
-"""
             # Would call AI client here
             return "AI summary generation requires configured AI client"
         except Exception as e:

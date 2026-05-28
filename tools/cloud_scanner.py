@@ -21,7 +21,7 @@ import logging
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger("elengenix.cloud_scanner")
 
@@ -239,7 +239,7 @@ class AWSScanner:
         }
         
         for rule in sg_rules:
-            protocol = rule.get('IpProtocol', '')
+            rule.get('IpProtocol', '')
             from_port = rule.get('FromPort', 0)
             to_port = rule.get('ToPort', 0)
             ip_ranges = rule.get('IpRanges', [])

@@ -12,7 +12,6 @@ import asyncio
 import re
 import logging
 import ipaddress
-import shutil
 from pathlib import Path
 from urllib.parse import urlparse
 from typing import Optional, List, Set, Any
@@ -240,7 +239,6 @@ def _suggest_missing_tools(
     if auto_install:
         console.print(f"  [red]{' '.join(auto_install)}[/red]")
 
-        from rich.panel import Panel
         from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn
         import questionary
         try:
@@ -461,7 +459,7 @@ async def run_standard_scan(
             
         else:
             # Legacy mode (fallback)
-            semaphore = asyncio.Semaphore(rate_limit)
+            asyncio.Semaphore(rate_limit)
             tasks = [
                 run_subfinder_legacy(normalized, report_dir),
                 run_httpx_legacy(normalized, report_dir),
