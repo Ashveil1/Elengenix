@@ -1,549 +1,168 @@
 <div align="center">
 
-# ELENGENIX v99999 (god nai is the best)
+# ELENGENIX
 
-**The Universal AI Agent for Bug Bounty and Security Research**
+### Autonomous AI Agent Framework for Security Research
 
-[![Python](https://img.shields.io/badge/Python-3.10%2B-ff4444?style=flat-square)](https://python.org)
-[![License](https://img.shields.io/badge/License-GPL-ff4444?style=flat-square)](LICENSE)
-[![Version](https://img.shields.io/badge/version-99999-ff4444?style=flat-square)]()
-
-> AI that thinks, plans, and chooses tools by itself. No fixed methodology, no whitelists.
-> Just 3 rules: SAFE runs immediately, PRIVILEGED asks the user, DESTRUCTIVE is blocked.
-
----
+[![Python](https://img.shields.io/badge/Python-3.10%2B-blue?style=flat-square)](https://python.org)
+[![Go](https://img.shields.io/badge/Go-1.20%2B-00ADD8?style=flat-square)](https://golang.org)
+[![License](https://img.shields.io/badge/License-GPL-green?style=flat-square)](LICENSE)
+[![Tests](https://img.shields.io/badge/Tests-Passing-brightgreen?style=flat-square)]()
 
 </div>
 
-## Table of Contents
+---
 
-- [Features](#features)
-- [Architecture](#architecture)
-- [Quick Start](#quick-start)
-- [Configuration](#configuration)
-- [Usage](#usage)
-- [Multi-Agent Team](#multi-agent-team)
-- [Security Model](#security-model)
-- [Project Structure](#project-structure)
-- [Commands](#commands)
-- [Testing](#testing)
-- [Contributing](#contributing)
-- [License](#license)
+## What is Elengenix?
+
+Elengenix is an open-source framework that turns security research into a reasoning problem. Rather than scripting fixed attack sequences, it deploys an AI agent that reads a target, builds an attack tree, selects tools, interprets findings, and adapts its strategy in real-time — the same way a skilled penetration tester thinks.
+
+It is designed to be **provider-agnostic**, **mobile-deployable** (Termux), and **safe by design**: every command passes through a governance engine that blocks destructive operations without limiting research flexibility.
 
 ---
 
-## Features
+## Why It Exists
 
-### Core AI
+The current state of security tooling has a fundamental gap: tools are powerful, but brittle. They require deep expertise to chain together, produce unfiltered noise, and cannot reason about what a finding actually means in the context of a target's architecture.
 
-| Feature | Description |
-|---------|-------------|
-| **Autonomous Agent** | AI decides what to do. Recon → scan → exploit → report. Or skip straight to exploit. No fixed methodology. |
-| **Universal Mode** | Beyond security — code review, script writing, web research, file editing, package management. |
-| **Multi-Agent Team** | Up to 3 AI models collaborate in real-time. Share intel, confirm findings, assign tasks. |
-| **Governance System** | SAFE→run immediately, PRIVILEGED→ask user, DESTRUCTIVE→blocked. No whitelist needed. |
-| **Self-Writing Tools** | If no tool fits, AI writes a Python script, tests it, fixes it, uses it. |
+Elengenix exists to close this gap — to give researchers a collaborator that understands both the technical and business dimensions of a vulnerability, can estimate its exploitability and payout value, and documents the full chain of evidence automatically.
 
-### Security Arsenal
+---
 
-| Category | Tools |
-|----------|-------|
-| **Reconnaissance** | subfinder, httpx, naabu, katana, waybackurls, gau, amass |
-| **Vulnerability Scan** | nuclei (10,000+ templates), dalfox, ffuf, arjun |
-| **Secrets Detection** | trufflehog, github-intel |
-| **Exploitation** | SSRF scanner, CORS checker, injection tester, race condition tester |
-| **Analysis** | CVSS 3.1/4.0 scoring, exploit chain builder, bounty predictor |
-| **Cloud** | AWS/GCP/Azure misconfiguration scanner |
-| **Mobile** | Mobile API security testing |
-| **ICS/IoT** | Protocol analyzer (MQTT, Modbus, BACnet) |
+## Core Design Principles
 
-### Memory & Persistence
+- **Reasoning over rules** — The agent dynamically constructs its attack plan from a live understanding of the target, not a predefined checklist.
+- **Multi-model collaboration** — Up to 3 AI models work as a team (Strategist, Recon Lead, Exploit Analyst), cross-validating findings and sharing context.
+- **Safety without friction** — A governance layer classifies every action as SAFE, PRIVILEGED, or DESTRUCTIVE. Dangerous commands are blocked; sensitive ones require user confirmation; safe ones execute immediately.
+- **Memory across sessions** — Findings, decisions, and context persist across sessions via semantic vector memory (ChromaDB / SQLite FTS5 fallback).
 
-| Feature | Backend |
-|---------|---------|
-| **Vector Memory** | ChromaDB (or SQLite FTS5 fallback, zero deps) |
-| **Cross-Session Recall** | Automatic. Recall past findings, conversations, decisions. |
-| **Session Manager** | Save/load/resume sessions. Auto-save on exit. |
-| **Conversation Compression** | Auto-compress when context exceeds 80% window. |
+---
 
-### UI
+## Quick Start
 
-| Interface | Description |
-|-----------|-------------|
-| **Textual TUI v6** | Full terminal UI. Sidebar, governance bar, multi-agent display, mouse support. |
-| **Rich CLI** | Interactive chat mode with slash commands. |
-| **Settings Overlay** | Ctrl+E floating modal. Change providers, models, rate limits live. |
-| **Dashboard** | Web-based scan dashboard (HTML). |
+**Prerequisites:** Python 3.10+, Go 1.20+
 
-### Integrations
+```bash
+git clone https://github.com/Ashveil1/Elengenix.git && cd Elengenix
 
-| Service | Purpose |
-|---------|---------|
-| **OpenAI** | GPT-4o, GPT-4o-mini |
-| **Anthropic** | Claude 3.5 Sonnet, 3 Opus, 3 Haiku |
-| **Google Gemini** | 1.5 Flash, 1.5 Pro |
-| **Groq** | Llama 3, Mixtral (fast inference) |
-| **NVIDIA NIM** | Nemotron, Llama on NVIDIA hardware |
-| **DeepSeek / Mistral / Perplexity / OpenRouter** | OpenAI-compatible |
-| **Ollama** | Local models (llama3, mistral, etc.) |
-| **Telegram** | Remote control + notifications |
-| **HackerOne** | Bounty program intel |
-| **VulnCheck** | CVE intelligence |
+# Install dependencies (Python + Go security tools)
+chmod +x setup.sh && ./setup.sh
+
+# Verify environment
+python3 main.py doctor
+
+# Configure AI providers
+python3 main.py configure
+```
+
+*Supports Android via Termux: `chmod +x termux_setup.sh && ./termux_setup.sh`*
+
+---
+
+## Usage
+
+### Terminal UI
+```bash
+python3 main.py cli
+```
+
+Two operational modes:
+- **CHILL** — Safe research, chat, code review. Tool execution disabled.
+- **HUNT** — Full autonomous vulnerability hunting.
+
+| Key | Action |
+|-----|--------|
+| `Ctrl+M` | Toggle CHILL / HUNT |
+| `Ctrl+S` | Settings overlay |
+| `Ctrl+G` | Help |
+
+### Slash Commands
+```
+/target <domain>        Set target scope
+/mode <chill|hunt>      Switch mode
+/talk <1|2|3|all>       Route to specific agent in the team
+/session <new|list|load> Manage sessions
+/stats                  Memory & scan statistics
+```
+
+### CLI Commands
+```bash
+python3 main.py scan <target>       # Full automated scan pipeline
+python3 main.py autonomous <target> # Fully autonomous mode
+python3 main.py sast <path>         # Static code analysis
+python3 main.py research <cve>      # CVE / exploit research
+python3 main.py watchman            # 24/7 monitoring daemon
+```
 
 ---
 
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                      USER INPUT                                  │
-└────────────────────────┬────────────────────────────────────────┘
-                         │
-                         ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                     GOVERNANCE GATE                              │
-│  classify(command) → DESTRUCTIVE | PRIVILEGED | SAFE             │
-│                     │            │           │                    │
-│               BLOCKED        ASK USER      RUN                   │
-└──────────────────────────────┼──────────────┘                    │
-                               │                                   │
-                               ▼                                   │
-┌─────────────────────────────────────────────────────────────────┐
-│                      ELENGENIX AGENT                             │
-│  ┌─────────────┐  ┌──────────┐  ┌─────────────────────────┐     │
-│  │   Strategic  │  │   Tool   │  │    Analysis Pipeline      │     │
-│  │   Planner    │  │ Registry │  │  ┌──────────────────┐   │     │
-│  │  (AI plans)  │  │ (90+     │  │  │ Business Logic    │   │     │
-│  └─────────────┘  │  tools)  │  │  │ BOLA Bridge       │   │     │
-│                   └──────────┘  │  │ WAF Evasion       │   │     │
-│  ┌─────────────┐                │  │ SOC Analyzer      │   │     │
-│  │ Multi-Agent │                │  │ Exploit Chain     │   │     │
-│  │ (Team Aegis)│                │  │ Bounty Predictor  │   │     │
-│  └─────────────┘                │  └──────────────────┘   │     │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-### Agent Freedom Model
-
-```
-AI Command ──→ Governance.classify()
-                  │
-                  ├─ DESTRUCTIVE ───→ ❌ BLOCKED
-                  │    rm -rf /, dd, mkfs, fork bomb
-                  │
-                  ├─ PRIVILEGED ───→ ⏳ ASK USER
-                  │    sudo, pip install, go install,
-                  │    chmod, write to /etc, apt install
-                  │
-                  └─ SAFE ─────────→ ✅ RUN IMMEDIATELY
-                       curl, nuclei, python3, subfinder,
-                       echo, ls, git, nmap, ffuf, ...
+User Input ──► Governance Gate ──► AI Reasoning Engine
+                                          │
+                     ┌────────────────────┼────────────────────┐
+                     ▼                    ▼                    ▼
+               Attack Planner      Tool Registry         Analysis Pipeline
+               (Dynamic tree)      (90+ tools)           (BOLA, CVSS, WAF,
+                                                          SOC, Exploit Chain)
+                                          │
+                                   Vector Memory
+                                   (Cross-session recall)
 ```
 
 ---
 
-## Quick Start
+## AI Providers Supported
 
-### Prerequisites
-
-```bash
-# Required
-python3 --version    # 3.10+
-go version           # 1.20+
-git --version
-
-# Optional (recommended)
-gcc --version        # for CGO-based tools like katana
-```
-
-### Installation
-
-```bash
-# Clone
-git clone https://github.com/Ashveil1/Elengenix.git
-cd Elengenix
-
-# Linux / Ubuntu
-chmod +x setup.sh
-./setup.sh
-
-# Termux (Android)
-chmod +x termux_setup.sh
-./termux_setup.sh
-
-# Or manual (Python only)
-pip install -r requirements.txt
-```
-
-### Verify Installation
-
-```bash
-elengenix doctor
-```
-
----
-
-## Configuration
-
-### Interactive Wizard
-
-```bash
-elengenix configure
-```
-
-The wizard guides you through:
-
-1. **AI Providers** — Add API keys for OpenAI, Gemini, Claude, Groq, NVIDIA, etc.
-2. **Model Selection** — Choose specific models per provider.
-3. **Integrations** — Telegram Bot, HackerOne API, Tavily AI, VulnCheck.
-4. **Rate Limits** — Global requests-per-minute per model.
-5. **Default Target** — Set a primary target for automated scans.
-6. **Health Check** — Verify all security tools are installed.
-
-### Manual `.env`
-
-```env
-# ── AI Provider (pick one or more) ──────────────────────
-OPENAI_API_KEY=sk-...
-GEMINI_API_KEY=...
-ANTHROPIC_API_KEY=...
-GROQ_API_KEY=...
-NVIDIA_API_KEY=...
-
-# ── Active provider & models ────────────────────────────
-ACTIVE_AI_PROVIDER=openai
-ACTIVE_MODELS=openai/gpt-4o-mini,gemini/gemini-1.5-flash
-
-# ── Telegram (optional) ─────────────────────────────────
-TELEGRAM_BOT_TOKEN=...
-TELEGRAM_CHAT_ID=...
-
-# ── RPM limits (optional) ───────────────────────────────
-RPM_GPT4=40
-RPM_CLAUDE=30
-```
-
----
-
-## Usage
-
-### Launch TUI (recommended)
-
-```bash
-elengenix cli
-```
-
-Full terminal UI with:
-- Chat area (scrollable, mouse support)
-- Sidebar (target, models, scan stats, context usage)
-- Governance bar (shows what AI is doing)
-- Settings overlay (Ctrl+E)
-- Multi-agent display
-
-### Interactive CLI
-
-```bash
-elengenix ai
-```
-
-### Full Scan
-
-```bash
-elengenix scan example.com
-elengenix scan example.com --smart-scan       # Smart orchestrator
-```
-
-### Single Commands
-
-| Command | Description |
-|---------|-------------|
-| `elengenix doctor` | System health check |
-| `elengenix configure` | Configuration wizard |
-| `elengenix arsenal` | Browse available tools |
-| `elengenix mission <target>` | Start a mission |
-| `elengenix sast <path>` | Static code analysis |
-| `elengenix research <cve>` | CVE/vulnerability research |
-| `elengenix bounty <program>` | HackerOne program intel |
-| `elengenix report` | View last scan report |
-| `elengenix cve-update` | Update CVE database |
-| `elengenix watchman` | Start 24/7 monitoring |
-
-### TUI Keyboard Shortcuts
-
-| Key | Action |
-|-----|--------|
-| `Ctrl+R` | Toggle research mode |
-| `Ctrl+B` | Toggle scan mode |
-| `Ctrl+T` | Toggle thinking (NVIDIA) |
-| `Ctrl+P` | Show active model |
-| `Ctrl+G` | Help |
-| `Ctrl+E` | Settings overlay |
-| `Ctrl+U` | Scroll up |
-| `Ctrl+D` | Scroll down |
-| `↑` / `↓` | Input history |
-
-### TUI Slash Commands
-
-| Command | Description |
-|---------|-------------|
-| `/help` | Show help |
-| `/clear` | Clear chat |
-| `/reset` | Reset conversation |
-| `/mode <x>` | Set mode: auto, research, scan, casual |
-| `/target <x>` | Set target domain |
-| `/talk <n>` | Talk to agent 1, 2, 3, or all |
-| `/session` | Show session info |
-| `/session new` | New session (auto-save) |
-| `/session list` | List saved sessions |
-| `/stats` | Memory statistics |
-| `/team` | Show active team |
-| `/quit` | Exit |
-
----
-
-## Multi-Agent Team
-
-Up to 3 AI models work together as a security research team.
-
-### Setup
-
-```bash
-export ACTIVE_MODELS="openai/gpt-4o,anthropic/claude-3-sonnet,gemini/gemini-1.5-flash"
-elengenix cli
-```
-
-### How It Works
-
-```
-Round 1:
-  Elengix 1: "Running subfinder on target..."
-  Elengix 2: "I'll scan with nuclei in parallel"
-  Elengix 3: "Searching for CVE intel"
-
-  ▶ SAFE subfinder -d target.com
-  ▶ SAFE nuclei -u target.com
-
-Round 2:
-  Elengix 1: "Found XSS at /search — needs confirmation"
-  Elengix 2: "Confirmed XSS at /search — WAF bypass possible"
-  Elengix 3: "Found API key in JS — critical"
-
-  ▶ PRIVILEGED go install dalfox... (asks user)
-```
-
-### Talk to Specific Agent
-
-```
-/talk 1     →  Talk to Elengix 1
-/talk 2     →  Talk to Elengix 2
-/talk 3     →  Talk to Elengix 3
-/talk all   →  Back to full team mode
-```
-
----
-
-## Security Model
-
-Elengenix uses a **Governance-based security model** — no whitelists, no fixed allowlists.
-
-### Three Risk Levels
-
-| Level | Examples | Action |
-|-------|----------|--------|
-| **DESTRUCTIVE** | `rm -rf /`, `dd if=/dev/zero`, `mkfs.ext4`, fork bomb | **Blocked** — cannot be executed |
-| **PRIVILEGED** | `sudo`, `pip install`, `go install`, `chmod`, write to `/etc` | **Ask user** — command is shown before execution |
-| **SAFE** | `curl`, `nuclei`, `python3`, `ls`, `echo`, `git`, `nmap` | **Run immediately** — no questions asked |
-
-### Defense Layers
-
-```
-Layer 1: Governance.classify(command)   → DESTRUCTIVE / PRIVILEGED / SAFE
-Layer 2: safe_exec.execute_safely()     → shell=False + metacharacter blocking
-Layer 3: subprocess.run(..., shell=False)→ OS-level execve, no shell injection
-```
-
-### What Changed from v3 to v99999
-
-| Aspect | Before | Now |
-|--------|--------|-----|
-| Tool allowlist | 19 tools whitelist | **Removed** — any binary allowed |
-| Command allowlist | 50 commands | **Removed** — governance handles it |
-| Binary allowlist | `ALLOWED_BINARIES` | **Removed** — empty sentinel |
-| Agent planning | 5-phase fixed methodology | **AI decides** — no fixed plan |
-| Binary path check | `os.path.basename()` only | `shutil.which()` resolves full PATH |
-| Event loop | New loop per tool call | Shared persistent loop |
-| Memory fallback | Single summary blob | SQLite FTS5 full-text search |
-| UI theme | Basic colors | Minimal theme (black/red/white/gray/orange) |
-
----
-
-## Project Structure
-
-```
-├── main.py                 # CLI entry point — argparse command router
-├── agent_brain.py          # ElengenixAgent — core AI engine
-├── cli_textual.py          # Textual TUI v6 — Catppuccin minimal theme
-├── cli.py                  # Legacy interactive CLI mode
-├── orchestrator.py         # Tool pipeline orchestrator + scope management
-├── ui_components.py        # Shared UI components (colors, banners, tables)
-├── agent.py                # Agent factory bridge
-├── dependency_manager.py   # Go tool installer (subfinder, nuclei, etc.)
-├── knowledge_loader.py     # Secure knowledge base loader
-│
-├── tools/
-│   ├── governance.py           # Risk classification engine
-│   ├── analysis_pipeline.py    # 13 post-finding analyzers
-│   ├── universal_ai_client.py  # OpenAI-compatible AI client
-│   ├── universal_executor.py   # Universal shell executor
-│   ├── safe_exec.py            # Metacharacter-safe execution
-│   ├── vector_memory.py        # ChromaDB / SQLite FTS5 memory
-│   ├── token_counter.py        # tiktoken token counting
-│   ├── multi_agent.py          # Team Aegis engine
-│   ├── tool_registry.py        # Plugin system (90+ tools)
-│   ├── session_manager.py      # Session save/load/resume
-│   ├── context_compressor.py   # Conversation compression
-│   ├── mission_state.py        # Mission state graph
-│   ├── cvss_calculator.py      # CVSS 3.1/4.0 scoring
-│   ├── cve_database.py         # Local CVE database
-│   ├── bounty_reporter.py      # Bug bounty report generator
-│   ├── bounty_predictor.py     # ML-based payout prediction
-│   ├── exploit_chain_builder.py# Attack path discovery
-│   ├── soc_analyzer.py         # Sigma rule generation
-│   ├── sast_engine.py          # Static code analysis
-│   ├── cloud_scanner.py        # Cloud misconfiguration scanner
-│   ├── mobile_api_tester.py    # Mobile API security testing
-│   ├── protocol_analyzer.py    # IoT/ICS protocol analyzer
-│   ├── config_wizard.py        # Configuration wizard
-│   ├── welcome_wizard.py       # First-run wizard
-│   ├── autonomous_agent.py     # Full autonomous mode
-│   ├── swarm_controller.py     # Multi-target parallel execution
-│   └── ... (80+ more modules)
-│
-├── prompts/
-│   └── system_prompt.txt       # AI system instruction
-│
-├── knowledge/
-│   └── methodology.md          # Bug bounty methodology
-│
-├── tests/
-│   ├── test_security.py        # Security path tests
-│   ├── test_overlay.py         # Settings overlay tests
-│   ├── test_skill_team.py      # Multi-agent skill tests
-│   └── conftest.py
-│
-├── data/
-│   ├── vector_memory/          # ChromaDB persistent storage
-│   ├── cot_logs/               # Chain-of-thought logs
-│   ├── missions/               # Mission state snapshots
-│   ├── scan_state/             # Smart scan state cache
-│   └── sessions/               # Saved sessions (gitignored)
-│
-├── setup.sh                    # Linux / Ubuntu installer
-├── termux_setup.sh             # Termux (Android) installer
-├── requirements.txt            # Python dependencies
-├── config.yaml.example         # Configuration template
-└── .env.example                # Environment template
-```
+OpenAI · Anthropic · Google Gemini · Groq · NVIDIA NIM · Mistral · DeepSeek · Perplexity · OpenRouter · Ollama (local)
 
 ---
 
 ## Testing
 
 ```bash
-# Run all tests
 python3 -m pytest tests/ -v
-
-# Run specific test file
-python3 -m pytest tests/test_security.py -v
-
-# Run with coverage (if pytest-cov installed)
-python3 -m pytest tests/ --cov=. --cov-report=term
 ```
+
+Test coverage includes: governance enforcement, metacharacter injection prevention, target validation, multi-agent coordination, and session management.
 
 ---
 
-## Commands Reference
+## Project Structure
 
-### System
-
-```bash
-elengenix doctor                # Full system health check
-elengenix configure              # Configuration wizard
-elengenix update                 # Update dependencies
-elengenix cve-update             # Update CVE database
 ```
-
-### Scanning
-
-```bash
-elengenix scan <target>         # Full scan pipeline
-elengenix scan <target> --smart-scan  # With smart orchestrator
-elengenix autonomous <target>    # Full autonomous mode
-elengenix arsenal                # Browse/run tools
+main.py              # CLI router
+agent_brain.py       # Core AI reasoning engine
+cli_textual.py       # Terminal UI (Textual)
+tools/
+  governance.py      # Risk classification engine
+  multi_agent.py     # Team Aegis collaboration (up to 3 models)
+  analysis_pipeline.py  # Post-finding analysis (CVSS, BOLA, chains)
+  vector_memory.py   # Semantic memory (ChromaDB / SQLite FTS5)
+  safe_exec.py       # Metacharacter-safe subprocess execution
+tests/               # pytest test suite
+knowledge/           # Security methodology documentation
 ```
-
-### Analysis
-
-```bash
-elengenix research <cve>         # CVE/vulnerability research
-elengenix sast <path>            # Static code analysis
-elengenix cloud <path>           # Cloud config scan
-elengenix mobile <target>        # Mobile API testing
-elengenix memory                 # View memory stats
-```
-
-### Reporting
-
-```bash
-elengenix report                 # View last report
-elengenix pdf <target>           # Generate PDF report
-elengenix bounty <program>       # Bounty program intel
-```
-
-### Monitoring
-
-```bash
-elengenix watchman               # Start 24/7 monitoring daemon
-elengenix gateway                # Start Telegram gateway
-```
-
----
-
-## Version History
-
-| Version | Date | Changes |
-|---------|------|---------|
-| v99999 | 2026 | God Nine Edition. Governance security model, multi-agent, FTS5 memory, Textual TUI v6. |
-| v5.0 | 2026 | Universal agent mode, analysis pipeline, Team Aegis. |
-| v3.0 | 2026 | Tool registry, CVSS scoring, vector memory. |
-| v2.0 | 2026 | CLI rewrite, agent bridge, Telegram gateway. |
-| v1.0 | 2026 | Initial release. |
 
 ---
 
 ## Contributing
 
-Contributions are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for code standards, logging conventions, and security rules.
 
-### Quick Rules
-
-- 4-space indentation (no tabs)
-- Type hints on all function signatures
-- Docstrings on modules, classes, and public functions
-- API keys go in `.env`, never in `config.yaml`
+**Core rules:** 4-space indent · type hints everywhere · no `shell=True` · API keys in `.env` only
 
 ---
 
 ## License
 
-GPL License — see [LICENSE](LICENSE) for details.
+GPL License — see [LICENSE](LICENSE).
 
 ---
 
 <div align="center">
 
-**Developed by Ashveil1**
-
-*"god nai is the best"*
+*Built by independent security researchers, for the open-source security community.*
 
 </div>

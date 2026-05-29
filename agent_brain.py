@@ -139,6 +139,14 @@ class ElengenixAgent:
         #  Smart Orchestrator (Upgraded Scan Engine)
         self.smart_orchestrator = SmartOrchestrator(max_concurrency=5)
 
+        #  Analysis Pipeline (13+ post-finding analyzers)
+        try:
+            from tools.analysis_pipeline import AnalysisPipeline
+            self.analysis_pipeline = AnalysisPipeline(self)
+        except Exception as e:
+            logger.warning(f"Failed to initialize centralized AnalysisPipeline: {e}")
+            self.analysis_pipeline = None
+
         #  Skill Registry (Tool Awareness)
         try:
             from tools.skill_registry import get_skill_registry
@@ -1060,17 +1068,28 @@ Use JSON format: {{"action": "run_shell|ask_user|web_search|submit_findings|save
                         logger.warning(f"MissionState update from finding failed: {e}")
 
                 # ── ANALYSIS PIPELINE (13 analyzers) ─────────────────────
-                from tools.analysis_pipeline import AnalysisPipeline
-                pipeline = AnalysisPipeline(self)
-                pipeline.run_all(
-                    result=result,
-                    tool_name=tool_name,
-                    target=target,
-                    step=step,
-                    mission_key=mission_key,
-                    mission_state=mission_state,
-                    callback=callback,
-                )
+                if self.analysis_pipeline:
+                    self.analysis_pipeline.run_all(
+                        result=result,
+                        tool_name=tool_name,
+                        target=target,
+                        step=step,
+                        mission_key=mission_key,
+                        mission_state=mission_state,
+                        callback=callback,
+                    )
+                else:
+                    from tools.analysis_pipeline import AnalysisPipeline
+                    pipeline = AnalysisPipeline(self)
+                    pipeline.run_all(
+                        result=result,
+                        tool_name=tool_name,
+                        target=target,
+                        step=step,
+                        mission_key=mission_key,
+                        mission_state=mission_state,
+                        callback=callback,
+                    )
                 
                 # Mark step as completed in attack tree
                 if self.current_tree and step < len(self.current_tree.steps):
@@ -1412,3 +1431,187 @@ Use JSON format: {{"action": "run_shell|ask_user|web_search|submit_findings|save
                 callback(safe[:200])
             except Exception:
                 pass
+
+    def resume_mission(
+        self,
+        mission_id: str,
+        callback: Optional[Callable] = None,
+        use_smart_scan: bool = False,
+    ) -> str:
+        """Resume a previously interrupted mission from its MissionState ledger.
+
+        Loads past state and findings, recovers the strategic attack tree, and continues
+        from the next uncompleted step.
+        """
+        from tools.mission_state import open_mission, _get_conn, _uj, _now
+        mission_state = open_mission(mission_id)
+        if not mission_state:
+            return f"Error: Mission '{mission_id}' not found in database."
+
+        target = mission_state.target
+        objective = mission_state.objective
+
+        if callback:
+            callback(f"Resuming mission: {mission_id}")
+            callback(f"Target: {target} | Objective: {objective}")
+
+        # Fetch ledger history from DB
+        ledger_entries = []
+        try:
+            with _get_conn() as conn:
+                rows = conn.execute(
+                    "SELECT tool, action_json, result_json, ts FROM ledger WHERE mission_id = ? ORDER BY ts ASC",
+                    (mission_id,),
+                ).fetchall()
+                for r in rows:
+                    ledger_entries.append({
+                        "tool": r[0],
+                        "action": _uj(r[1]),
+                        "result": _uj(r[2]),
+                        "ts": r[3]
+                    })
+        except Exception as e:
+            logger.warning(f"Could not load mission ledger: {e}")
+
+        completed_steps_count = len(ledger_entries)
+        if callback:
+            callback(f"Recovered {completed_steps_count} previously executed ledger steps.")
+
+        # Re-initialize the strategic attack tree
+        if self.enable_planning and target:
+            self.current_tree = self.planner.generate_attack_tree(target, objective=objective)
+            # Mark completed steps as completed in tree
+            for i, entry in enumerate(ledger_entries):
+                if self.current_tree and i < len(self.current_tree.steps):
+                    self.current_tree.steps[i].completed = True
+
+        # Now launch standard process_query scan loop but skipping completed steps
+        # Setup report directory
+        safe_target = target.replace('.', '_') if target else "global"
+        report_dir = Path("reports") / f"agent_{safe_target}_resumed_{int(time.time())}"
+        report_dir.mkdir(parents=True, exist_ok=True)
+
+        action_history = [e["action"] for e in ledger_entries]
+        previous_results = []
+        for e in ledger_entries:
+            res_data = e["result"] or {}
+            # Reconstruct dummy ToolResult for context
+            try:
+                from tools.tool_registry import ToolResult, ToolCategory
+                dummy_res = ToolResult(
+                    success=res_data.get("success", True),
+                    tool_name=e["tool"] or "shell",
+                    category=ToolCategory.UTILITY,
+                    output=res_data.get("output", ""),
+                    findings=res_data.get("findings", []),
+                    error_message=res_data.get("error_message", ""),
+                )
+                previous_results.append(dummy_res)
+            except Exception:
+                pass
+
+        # Update status
+        mission_state.resume_mission()
+
+        # Execute remaining steps
+        start_step = min(completed_steps_count, self.max_steps - 1)
+        if start_step >= self.max_steps:
+            return f"Mission '{mission_id}' is already fully completed (executed {completed_steps_count} steps)."
+
+        display_in_chat_mode(f"Resuming scan starting at step {start_step + 1}", "system")
+
+        # Reuse execution loop of process_query starting from start_step
+        for step in range(start_step, self.max_steps):
+            # Determine next action
+            if self.current_tree and step < len(self.current_tree.steps):
+                current_step = self.current_tree.steps[step]
+                tool_name = current_step.tool_name
+                action_data = {
+                    "action": "run_shell",
+                    "command": f"{tool_name} {target}",
+                    "tool": tool_name,
+                    "purpose": current_step.purpose,
+                }
+                reasoning = f"{current_step.purpose}"
+            else:
+                semantic_context = get_context_for_ai(objective, target=target, max_memories=5)
+                now_context = _get_now_context()
+                prompt = f"""You are the dynamic specialist. Decide the next scanning action.
+Objective: {objective}
+Target: {target}
+Step: {step + 1}/{self.max_steps}
+
+{now_context}
+{semantic_context}
+
+Return a single JSON block representing the action. Example:
+{{"action": "run_shell", "command": "nuclei -t cves/ -u {target}", "tool": "nuclei", "purpose": "Vulnerability scan"}}"""
+                messages = [
+                    AIMessage(role="system", content=prompt),
+                    AIMessage(role="user", content=f"Last results: {[r.tool_name for r in previous_results[-3:]]}")
+                ]
+                res_content = (self.client.chat(messages).content or "").strip()
+                action_data = self._extract_json(res_content) or {"action": "finish", "purpose": "Scan completed"}
+                reasoning = action_data.get("purpose", "Dynamic execution")
+
+            if action_data.get("action") == "finish":
+                break
+
+            display_in_chat_mode(f"Step {step+1}: {reasoning}", "thought")
+
+            # Execute tool safely
+            if callback:
+                callback(f"Executing: {action_data.get('command')}")
+            
+            tool_name = action_data.get("tool", "shell")
+            result_str = self._execute_tool(action_data, callback)
+
+            # Reconstruct structured result
+            from tools.tool_registry import ToolResult, ToolCategory
+            dummy_findings = []
+            if "finding" in result_str.lower() or "vuln" in result_str.lower():
+                dummy_findings.append({"title": "Discovered vulnerability", "severity": "medium", "evidence": result_str})
+
+            res_obj = ToolResult(
+                success=True,
+                tool_name=tool_name,
+                category=ToolCategory.UTILITY,
+                output=result_str[:self.max_output_len],
+                findings=dummy_findings,
+            )
+
+            # Record finding to database
+            mission_state.add_ledger_entry(
+                entry_id=f"entry:{tool_name}:{step}",
+                kind="tool_execution",
+                tool=tool_name,
+                action=action_data,
+                result={"success": True, "output": result_str[:400], "findings": dummy_findings}
+            )
+
+            # Trigger analysis pipeline
+            if self.analysis_pipeline:
+                self.analysis_pipeline.run_all(
+                    result=res_obj,
+                    tool_name=tool_name,
+                    target=target,
+                    step=step,
+                    mission_key=mission_id,
+                    mission_state=mission_state,
+                    callback=callback,
+                )
+
+            previous_results.append(res_obj)
+
+        mission_state.touch()
+        # Set to completed state
+        try:
+            with _get_conn() as conn:
+                conn.execute(
+                    "UPDATE missions SET status = 'completed', updated_at = ? WHERE mission_id = ?",
+                    (_now(), mission_id),
+                )
+        except Exception:
+            pass
+
+        return f"Resumed mission '{mission_id}' completed successfully."

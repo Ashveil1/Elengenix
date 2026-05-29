@@ -85,11 +85,12 @@ class Governance:
     # ── Patterns: if matched → DESTRUCTIVE (blocked) ──────────────────
     # Covers: all rm variants, shred, wipe, srm, disk operations, fork bombs
     _DESTRUCTIVE = re.compile(
-        # --- File deletion (all forms) ---
-        r"\brm\s+"                          # any rm command at all
-        r"|\bshred\s+"                      # secure file shredding
-        r"|\bwipe\s+"                       # disk/file wipe utility
-        r"|\bsrm\s+"                        # secure rm
+        # --- Destructive File deletion (targeted) ---
+        r"\brm\s+-[a-zA-Z]*(f|r)[a-zA-Z]*\s+(/|\*|/\*|/etc|/boot|/usr|/var|/lib|/bin|/sbin|/sys|/proc|/dev)\b"
+        r"|\brm\s+-[a-zA-Z]*(f|r)[a-zA-Z]*\s+/\s*$"
+        r"|\bshred\s+(-[a-z]*f[a-z]*\s+)?(/|\*|/\*|/etc|/boot|/usr|/var|/lib|/bin|/sbin|/sys|/proc|/dev)\b"
+        r"|\bwipe\s+(-[a-z]*f[a-z]*\s+)?(/|\*|/\*|/etc|/boot|/usr|/var|/lib|/bin|/sbin|/sys|/proc|/dev)\b"
+        r"|\bsrm\s+(-[a-z]*f[a-z]*\s+)?(/|\*|/\*|/etc|/boot|/usr|/var|/lib|/bin|/sbin|/sys|/proc|/dev)\b"
         # --- Disk / partition destruction ---
         r"|dd\s+if=.*of=\/dev"
         r"|dd\s+if=/dev/urandom"

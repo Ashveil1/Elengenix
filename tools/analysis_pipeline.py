@@ -106,7 +106,12 @@ class AnalysisPipeline:
             from tools.agent_bola_bridge import AgentBOLABridge, extract_headers_from_mission_state
 
             headers_a, headers_b = extract_headers_from_mission_state(mission_state.snapshot(max_items=20))
+
+            # ── Fallback: unauthenticated BOLA surface probe ──────────────────
+            # When no auth headers are available (most sessions) we still run a
+            # lightweight unauthenticated probe to surface BOLA/IDOR candidates.
             if not headers_a or not headers_b:
+                self._run_bola_surface_probe(result, target, mission_key, mission_state, callback)
                 return
 
             base_url = target or self._base_url_hint(mission_state)
@@ -147,6 +152,77 @@ class AnalysisPipeline:
                 display_in_chat_mode(f"BOLA test complete: {summary.get('findings_count', 0)} findings", "result")
         except Exception as e:
             logger.debug(f"BOLA bridge integration failed: {e}")
+
+    def _run_bola_surface_probe(
+        self,
+        result: ToolResult,
+        target: str,
+        mission_key: str,
+        mission_state: MissionState,
+        callback: Optional[Callable],
+    ) -> None:
+        """Unauthenticated BOLA surface probe — runs when no auth headers are available.
+
+        Checks common object-level API endpoints for unauthenticated access.
+        Findings are stored as hypotheses in mission_state for follow-up.
+        """
+        try:
+            probe_target = target or self._base_url_hint(mission_state)
+            if not probe_target:
+                return
+
+            # Only probe when the current tool result has web endpoints or subdomains
+            has_web_findings = any(
+                f.get("url") or f.get("subdomain") or f.get("host")
+                for f in result.findings
+            )
+            if not has_web_findings and not target:
+                return
+
+            from tools.autonomous_agent import _exec_bola_probe, AgentAction, AgentState
+
+            bola_gate = self.governance.gate(
+                mission_id=mission_key,
+                target=probe_target,
+                action={
+                    "action": "run_bola_surface_probe",
+                    "tool": "bola_probe",
+                    "command": f"GET {probe_target}/api/users/1",
+                    "purpose": "Unauthenticated BOLA surface detection",
+                },
+                callback=callback,
+            )
+            if not bola_gate.allowed:
+                return
+
+            agent_state = AgentState(
+                root_target=probe_target,
+                goal="bola_surface_probe",
+            )
+            action = AgentAction(name="bola_probe", target=probe_target)
+            findings = _exec_bola_probe(action, agent_state)
+
+            if findings:
+                display_in_chat_mode(
+                    f"[BOLA] {len(findings)} unauthenticated object endpoints found on {probe_target}",
+                    "warning",
+                )
+                for i, f in enumerate(findings):
+                    mission_state.upsert_hypothesis(
+                        hyp_id=f"bola_surface:{probe_target}:{i}",
+                        title=f.get("title", "Unauthenticated object endpoint"),
+                        description=f.get("description", ""),
+                        confidence=0.55,
+                        status="open",
+                        tags=["bola", "idor", "unauthenticated"],
+                        evidence=f,
+                    )
+            else:
+                logger.debug(f"[BOLA] No unauthenticated surfaces on {probe_target}")
+        except Exception as e:
+            logger.debug(f"BOLA surface probe failed: {e}")
+
+
 
     def _run_payload_mutation(
         self,

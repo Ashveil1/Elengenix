@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from typing import Any
 
 from tools.universal_ai_client import AIMessage
@@ -45,8 +46,82 @@ _INTENT_PROMPT = """You are an intelligent intent classifier. Analyze the user's
 Reply with ONLY ONE word: casual, research, scan, or security_chat"""
 
 
-def analyze_intent(client: Any, query: str) -> str:
-    """Use AI to classify user intent."""
+# ── Fast-path patterns (no AI call needed) ───────────────────────────────────
+
+# Casual: pure greetings / identity questions — no domain, no security verbs
+_CASUAL_PATTERN = re.compile(
+    r"^[\s]*("
+    r"hi|hello|hey|hiya|yo|sup|howdy|greetings"
+    r"|\u0E2A\u0E27\u0E31\u0E2A\u0E14\u0E35|\u0E2B\u0E27\u0E31\u0E14\u0E14\u0E35|\u0E27\u0E48\u0E32\u0E44\u0E07|\u0E44\u0E07|\u0E14\u0E35"
+    r"|who are you|what are you|what can you do"
+    r"|what('s| is) your name"
+    r"|help me|help$"
+    r"|how are you"
+    r")[\s!?.]*$",
+    re.IGNORECASE | re.UNICODE,
+)
+
+# Scan: explicit security action verb + domain/IP token
+_SCAN_PATTERN = re.compile(
+    r"\b(scan|pentest|hack|attack|recon|hunt|audit|fuzz)\s+"
+    r"(https?://)?[\w][\w.-]{1,}\.[\w]{2,}",
+    re.IGNORECASE,
+)
+
+# Research: time-sensitive live data keywords
+_RESEARCH_PATTERN = re.compile(
+    r"\b("
+    r"today'?s?\s+(score|news|weather|price|rate|match|game)"
+    r"|latest\s+(news|update|score|price)"
+    r"|current\s+(price|rate|weather|score)"
+    r"|stock\s+price"
+    r"|tomorrow'?s?\s+weather"
+    r"|\u0E23\u0E32\u0E04\u0E32\s*\u0E27\u0E31\u0E19\u0E19\u0E35\u0E49|\u0E02\u0E48\u0E32\u0E27\s*\u0E27\u0E31\u0E19\u0E19\u0E35\u0E49|\u0E1C\u0E25\s*\u0E1A\u0E2D\u0E25"
+    r")",
+    re.IGNORECASE | re.UNICODE,
+)
+
+
+def _fast_path_classify(query: str) -> "str | None":
+    """Return intent string if obvious, else None (triggers AI call).
+
+    Args:
+        query: Raw user input string.
+
+    Returns:
+        Intent string ('casual', 'scan', 'research') or None if ambiguous.
+    """
+    q = query.strip()
+    if not q:
+        return "casual"
+
+    if _CASUAL_PATTERN.match(q):
+        return "casual"
+
+    if _SCAN_PATTERN.search(q):
+        return "scan"
+
+    if _RESEARCH_PATTERN.search(q):
+        return "research"
+
+    # Short Thai-only text that isn't a scan → casual
+    thai_only = bool(re.fullmatch(r"[\s\u0E00-\u0E7F.!?]+", q))
+    if thai_only and len(q) <= 12:
+        return "casual"
+
+    return None  # Needs AI
+
+
+def _ai_classify(client: Any, query: str) -> str:
+    """Call AI to classify intent when fast-path is inconclusive.
+
+    Args:
+        client: AI client instance with a .chat() method.
+        query: User input string.
+
+    Returns:
+        Intent string: 'casual', 'research', 'scan', or 'security_chat'.
+    """
     try:
         res = client.chat([
             AIMessage(role="system", content=_INTENT_PROMPT),
@@ -64,3 +139,22 @@ def analyze_intent(client: Any, query: str) -> str:
     except Exception as e:
         logger.warning(f"Intent classification failed: {e}")
         return "security_chat"
+
+
+def analyze_intent(client: Any, query: str) -> str:
+    """Classify user intent: fast-path regex first, AI only when ambiguous.
+
+    Args:
+        client: AI client instance.
+        query: Raw user input.
+
+    Returns:
+        One of: 'casual', 'research', 'scan', 'security_chat'.
+    """
+    intent = _fast_path_classify(query)
+    if intent:
+        logger.debug(f"Intent fast-path: '{query[:40]}' -> {intent}")
+        return intent
+
+    # Ambiguous input — delegate to AI
+    return _ai_classify(client, query)

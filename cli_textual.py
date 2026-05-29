@@ -141,59 +141,77 @@ class Sidebar(Container):
         findings = d.get("findings", 0)
         tools_run = d.get("tools_run", 0)
         talk_to  = d.get("talk_to", "all")
+        game_active = d.get("game_active", False)
+        game_frame = d.get("game_frame", "")
 
-        dot = f"[white]●[/]" if status == "ready" else f"[dim]●[/]"
-        slabel = "[white]READY[/]" if status == "ready" else "[dim]WORKING[/]"
-        mode_icon = "[white]❄ CHILL[/]" if mode == "CHILL" else "[white]⚔ HUNT[/]"
-        think_tag = f"  [dim]THINK[/]" if thinking else ""
-        team_tag = f"  [dim]TEAM {team}[/]" if team > 1 else ""
-        talk_tag = ""
-        if talk_to != "all" and team > 0:
-            name = AGENT_NAMES.get(talk_to, f"#{talk_to}")
-            talk_tag = f"\n  [dim]▶ {name}[/]"
-
-        pct   = min(100, int((tokens / limit) * 100)) if limit > 0 else 0
-        bar_w = 24
-        filled = int((pct / 100) * bar_w)
-        bar  = f"[white]{'█' * filled}[/][dim]{'█' * (bar_w - filled)}[/]"
-
-        target_line = f"\n  [white]{target[:28]}[/]" if target else f"\n  [dim]none[/]"
-
-        model_lines = []
-        if models:
-            for i, m in enumerate(models):
-                name = AGENT_NAMES.get(i + 1, f"#{i + 1}")
-                short = m.split("/")[-1] if "/" in m else m
-                color = AGENT_COLORS.get(i + 1, TEXT)
-                model_lines.append(f"  [{color}]{name}[/] [dim]{short[:20]}[/]")
+        if game_active:
+            sidebar_text = (
+                f"[white]┌ {game_frame}[/]\n"
+                f"[dim]─" + "─" * 28 + "[/]\n"
+                f"[white]SHORTCUTS[/]\n"
+                f"  [dim]SPACE[/] Jump / Restart\n"
+                f"  [dim]Q / Esc[/] Quit Game\n"
+                f"[dim]─" + "─" * 28 + "[/]\n"
+                f"[white]DETAILS[/]\n"
+                f"  Turns: [white]{turns}[/]  [dim]Tools:[/] {tools_run}\n"
+                f"  [dim]Findings:[/] {findings}\n"
+                f"  Target: [white]{target[:18] or 'none'}[/]\n"
+            )
         else:
-            model_lines.append(f"  [dim]default[/]")
+            dot = f"[white]●[/]" if status == "ready" else f"[dim]●[/]"
+            slabel = "[white]READY[/]" if status == "ready" else "[dim]WORKING[/]"
+            if os.environ.get("TEAM_STAGGERING") == "1":
+                slabel = "[white]STAGGER[/]"
+            mode_icon = "[white]❄ CHILL[/]" if mode == "CHILL" else "[white]⚔ HUNT[/]"
+            think_tag = f"  [dim]THINK[/]" if thinking else ""
+            team_tag = f"  [dim]TEAM {team}[/]" if team > 1 else ""
+            talk_tag = ""
+            if talk_to != "all" and team > 0:
+                name = AGENT_NAMES.get(talk_to, f"#{talk_to}")
+                talk_tag = f"\n  [dim]▶ {name}[/]"
 
-        sidebar_text = (
-            f"[white]┌ ELENGENIX[/]\n"
-            f"  {dot} {mode_icon}  {slabel}{think_tag}{team_tag}{talk_tag}\n"
-            f"[dim]─" + "─" * 28 + "[/]\n"
-            f"[white]TARGET[/]{target_line}\n"
-            f"[dim]─" + "─" * 28 + "[/]\n"
-            f"[white]SESSION[/]\n"
-            f"  [dim]{session[:20]}[/]\n"
-            f"  Mode: [white]{mode}[/] [dim]Turns: {turns}[/]\n"
-            f"[dim]─" + "─" * 28 + "[/]\n"
-            f"[white]SCAN[/]\n"
-            f"  [dim]Tools:[/] {tools_run}  [dim]Findings:[/] {findings}\n"
-            f"[dim]─" + "─" * 28 + "[/]\n"
-            f"[white]MODELS[/]\n"
-            + "\n".join(model_lines) + "\n"
-            f"[dim]─" + "─" * 28 + "[/]\n"
-            f"[white]CONTEXT[/]\n"
-            f"  {bar}\n"
-            f"  [dim]{tokens}[/dim]/[dim]{limit}[/]  {pct}%\n"
-            f"[dim]─" + "─" * 28 + "[/]\n"
-            f"[white]SHORTCUTS[/]\n"
-            f"  [dim]Ctrl+R[/] Research [dim]Ctrl+M[/] CHILL/HUNT\n"
-            f"  [dim]Ctrl+T[/] Think   [dim]Ctrl+P[/] Model\n"
-            f"  [dim]Ctrl+G[/] Help    [dim]Ctrl+S[/] Settings\n"
-        )
+            pct   = min(100, int((tokens / limit) * 100)) if limit > 0 else 0
+            bar_w = 24
+            filled = int((pct / 100) * bar_w)
+            bar  = f"[white]{'█' * filled}[/][dim]{'█' * (bar_w - filled)}[/]"
+
+            target_line = f"\n  [white]{target[:28]}[/]" if target else f"\n  [dim]none[/]"
+
+            model_lines = []
+            if models:
+                for i, m in enumerate(models):
+                    name = AGENT_NAMES.get(i + 1, f"#{i + 1}")
+                    short = m.split("/")[-1] if "/" in m else m
+                    color = AGENT_COLORS.get(i + 1, TEXT)
+                    model_lines.append(f"  [{color}]{name}[/] [dim]{short[:20]}[/]")
+            else:
+                model_lines.append(f"  [dim]default[/]")
+
+            sidebar_text = (
+                f"[white]┌ ELENGENIX[/]\n"
+                f"  {dot} {mode_icon}  {slabel}{think_tag}{team_tag}{talk_tag}\n"
+                f"[dim]─" + "─" * 28 + "[/]\n"
+                f"[white]TARGET[/]{target_line}\n"
+                f"[dim]─" + "─" * 28 + "[/]\n"
+                f"[white]SESSION[/]\n"
+                f"  [dim]{session[:20]}[/]\n"
+                f"  Mode: [white]{mode}[/] [dim]Turns: {turns}[/]\n"
+                f"[dim]─" + "─" * 28 + "[/]\n"
+                f"[white]SCAN[/]\n"
+                f"  [dim]Tools:[/] {tools_run}  [dim]Findings:[/] {findings}\n"
+                f"[dim]─" + "─" * 28 + "[/]\n"
+                f"[white]MODELS[/]\n"
+                + "\n".join(model_lines) + "\n"
+                f"[dim]─" + "─" * 28 + "[/]\n"
+                f"[white]CONTEXT[/]\n"
+                f"  {bar}\n"
+                f"  [dim]{tokens}[/dim]/[dim]{limit}[/]  {pct}%\n"
+                f"[dim]─" + "─" * 28 + "[/]\n"
+                f"[white]SHORTCUTS[/]\n"
+                f"  [dim]Ctrl+R[/] Research [dim]Ctrl+M[/] CHILL/HUNT\n"
+                f"  [dim]Ctrl+T[/] Think   [dim]Ctrl+P[/] Model\n"
+                f"  [dim]Ctrl+G[/] Help    [dim]Ctrl+S[/] Settings\n"
+            )
         try:
             self.query_one("#sidebar_content", Static).update(sidebar_text)
         except Exception:
@@ -523,11 +541,12 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
         self._trans = False
         self._trans_frame = 0
         self._trans_next = ""
-        self._trans_total = 54  # 54 frames @ 30fps = 1.8s
+        self._trans_total = 24  # 24 frames @ 30fps = 0.8s
         self._scanline_y = 0
         self._header_base_text = "  ELENGENIX  ❄[dim]CHILL[/]  ⚔[dim]HUNT[/]"
         self.game = ObbyGame(self, on_exit=self._stop_game)
         self._game_active = False
+        self._current_game_frame = ""
 
     def compose(self) -> ComposeResult:
         yield Static(self._header_base_text + f"  {self.target or ''}  |  /help", id="header")
@@ -702,66 +721,77 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
 
     # ── Transition Animation Methods ─────────────────────────────────────
     def _run_transition(self, f: int) -> None:
+        """Premium pulse-crossfade transition between HUNT and CHILL modes."""
         if self._trans_next not in ("HUNT", "CHILL"):
             return
         going_hunt = self._trans_next == "HUNT"
-        total = self._trans_total
         try:
-            # Phase 1: Glitch flash (f 1-8)
-            if f <= 8:
+            # Phase 1: Quick bright pulse flash (f 1-3)
+            if f <= 3:
                 flash = self.query_one("#glitch", GlitchFlash)
                 flash.styles.display = "block"
-                t = f / 8
-                flash.styles.background = "#220000" if going_hunt else "#222222"
-                if f % 2 == 0:
-                    base = "  ELENGENIX  | CHILL | HUNT "
-                    glitched = "".join("!@#$%^&" if random.random() < 0.35 else c for c in base)
-                    self.query_one("#header", Static).update(glitched)
+                intensities = [0.5, 1.0, 0.3]
+                v = intensities[f - 1]
+                if going_hunt:
+                    r = int(255 * v)
+                    g = int(20 * v)
+                    flash.styles.background = f"#{r:02x}{g:02x}00"
+                else:
+                    c = int(240 * v)
+                    flash.styles.background = f"#{c:02x}{c:02x}{c:02x}"
                 return
-            # Phase 2: Flash fade (f 9-14)
-            if f <= 14:
-                flash = self.query_one("#glitch", GlitchFlash)
-                t = (f - 8) / 6
-                flash.styles.display = "none" if f == 14 else "block"
-                return
-            # Phase 3: Scanline wipe (f 15-44)
-            if f <= 44:
-                sw = total - 14
-                t = (f - 14) / sw
-                ease_t = t * t * (3 - 2 * t)
-                screen_h = self.size.height if self.size else 30
-                scan_y = int(ease_t * screen_h * 1.2)
-                sl = self.query_one("#scanline", Scanline)
-                sl.styles.display = "block"
-                sl.styles.margin = Spacing(scan_y, 0, 0, 0)
-                sl.styles.background = "#ff2222" if going_hunt else "#cccccc"
-                zones = [("#header", 0, 2), ("#chat_area", 2, screen_h - 6), ("#sidebar", 2, screen_h - 6),
-                         ("#input_row", screen_h - 5, screen_h - 2)]
-                for sel, zs, ze in zones:
-                    if scan_y >= zs:
-                        zt = min(1.0, (scan_y - zs) / max(1, ze - zs))
-                        try:
-                            w = self.query_one(sel)
-                            if going_hunt:
-                                w.styles.background = "#0a0000" if zt > 0.3 else "#000000"
-                                w.styles.color = "#ffcccc"
-                            else:
-                                w.styles.background = "#000000"
-                                w.styles.color = "#ffffff"
-                        except: pass
-                return
-            # Phase 4: Settle (f 45-54)
-            if f <= 54:
-                if f == 45:
-                    self.query_one("#scanline", Scanline).styles.display = "none"
+
+            # Phase 2: Smooth crossfade all UI elements (f 4-18)
+            if f <= 18:
+                if f == 4:
+                    try:
+                        self.query_one("#glitch", GlitchFlash).styles.display = "none"
+                    except Exception:
+                        pass
+                t = (f - 3) / 15.0
+                ease = t * t * (3 - 2 * t)  # smoothstep easing
+
+                if going_hunt:
+                    bg_r = int(ease * 10)
+                    bg = f"#{bg_r:02x}0000"
+                    txt_g = int(255 - ease * 51)
+                    txt_b = int(255 - ease * 51)
+                    txt = f"#ff{txt_g:02x}{txt_b:02x}"
+                else:
+                    bg_r = int(10 - ease * 10)
+                    bg = f"#{bg_r:02x}0000"
+                    txt_v = int(204 + ease * 51)
+                    txt = f"#{txt_v:02x}{txt_v:02x}{txt_v:02x}"
+
+                for sel in ("#header", "#chat_area", "#sidebar", "#input_row"):
+                    try:
+                        w = self.query_one(sel)
+                        w.styles.background = bg
+                        w.styles.color = txt
+                    except Exception:
+                        pass
+
+                # Switch mode at midpoint for seamless feel
+                if f == 11:
                     self.mode = self._trans_next
                     self.theme = "hunt" if going_hunt else "chill"
                     self._update_banner()
-                t = (f - 45) / 9
-                math.sin(t * 3.14) * 0.5
+                return
+
+            # Phase 3: Accent settle with header glow (f 19-24)
+            if f <= 24:
+                t = (f - 18) / 6.0
+                ease = t * t
                 try:
-                    self.query_one("#header", Static).styles.color = "#ff2222" if going_hunt else "#ffffff"
-                except: pass
+                    header = self.query_one("#header", Static)
+                    if going_hunt:
+                        g = int(34 * (1 - ease * 0.5))
+                        header.styles.color = f"#ff{g:02x}{g:02x}"
+                    else:
+                        v = int(220 + ease * 35)
+                        header.styles.color = f"#{v:02x}{v:02x}{v:02x}"
+                except Exception:
+                    pass
         except Exception:
             pass
 
@@ -800,11 +830,11 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
         color = "#ff2222" if self.mode == "HUNT" else "white"
         lines = ASCII_BANNER.strip().split("\n")
         current_lines = []
+        bell_enabled = "--no-bell" not in sys.argv and os.environ.get("ELENGENIX_BELL") != "0"
+        
         for line in lines:
             current_lines.append(line.format(color=color))
             self.call_from_thread(self._update_banner_text, "\n".join(current_lines))
-            sys.stdout.write("\a")
-            sys.stdout.flush()
             time.sleep(0.12)
             
         sys_logs = [
@@ -817,6 +847,11 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
         for log in sys_logs:
             time.sleep(0.15)
             self.call_from_thread(self._chat_write_system, log)
+
+        # Single friendly notification ring on complete boot
+        if bell_enabled:
+            sys.stdout.write("\a")
+            sys.stdout.flush()
 
     def _trigger_border_glow(self) -> None:
         """Temporarily add the .glow class to the screen to trigger border pulse."""
@@ -866,9 +901,9 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
     def _chat_write_error(self, markup: str) -> None:
         self._chat().write(Text.from_markup(f"[white]error:[/] {markup}"))
 
-    def _update_sidebar(self) -> None:
+    def _update_sidebar(self, force: bool = False) -> None:
         now = time.monotonic()
-        if now - self._last_sidebar_update < 0.3: return
+        if not force and (now - self._last_sidebar_update < 0.3): return
         self._last_sidebar_update = now
         tokens = 0; model = "default"; team = 0; models: list[str] = []
         try:
@@ -895,6 +930,8 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
                 team=team, tools_run=self._displayed_tools,
                 findings=self._displayed_findings,
                 talk_to=self._talk_to,
+                game_active=self._game_active,
+                game_frame=getattr(self, "_current_game_frame", ""),
             )
         except: pass
 
@@ -929,6 +966,12 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
                     try: risk = self._agent.governance.classify_risk(ad)
                     except: pass
                     self.call_from_thread(self._chat_write_governance, cmd, risk)
+                    
+                    if risk == "DESTRUCTIVE":
+                        self.call_from_thread(
+                            self._chat_write_system,
+                            f"\n[bold #ff2222]🛡️ [GOVERNANCE] Action blocked: '{cmd}' violates safety/integrity rules.[/bold #ff2222]\n"
+                        )
                     
                     if self.mode == "HUNT" and risk == "SAFE":
                         self.tools_run += 1
@@ -1004,7 +1047,10 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
         if key == "ctrl+r": event.stop(); self.action_toggle_research(); return
         if self._game_active:
             if key == "space":
-                self.game.jump()
+                if self.game.game_over:
+                    self.game.start()
+                else:
+                    self.game.jump()
                 event.stop(); return
             if key == "q" or key == "escape":
                 self._stop_game()
@@ -1014,26 +1060,35 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
         if key == "ctrl+g": event.stop(); self.action_show_help(); return
         if key == "ctrl+c": event.stop(); self.action_app_exit(); return
 
+    def on_resize(self, event) -> None:
+        """Handle window resizing - auto-hide sidebar on compact layouts (< 95 width)."""
+        try:
+            sidebar = self.query_one("#sidebar")
+            if event.size.width < 95:
+                sidebar.display = False
+            else:
+                sidebar.display = True
+        except Exception:
+            pass
+
     def _start_game(self) -> None:
         self._game_active = True
+        self._current_game_frame = ""
         self.game.start()
         self.query_one("#user_input", Input).disabled = True
-        self.query_one("#banner", Static).display = True
-        self._update_banner()
-        self._chat_write_system("[dim]🎮 obby — SPACE jump, Q quit[/dim]")
+        self._update_sidebar(force=True)
+        self._chat_write_system("[dim]🎮 game — SPACE jump, Q quit[/dim]")
 
     def _stop_game(self) -> None:
         self._game_active = False
         self.game.running = False
         self.query_one("#user_input", Input).disabled = False
         self.set_focus(self.query_one("#user_input", Input))
-        self._update_banner()
+        self._update_sidebar(force=True)
 
     def _game_display(self, frame: str) -> None:
-        try:
-            self.query_one("#banner", Static).update(Text(frame))
-        except Exception:
-            pass
+        self._current_game_frame = frame
+        self._update_sidebar(force=True)
 
     # ── Input ────────────────────────────────────────────────────────────
     SLASH_COMMANDS = [
@@ -1041,7 +1096,7 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
         "/mode chill", "/mode hunt",
         "/target <domain>", "/talk 1", "/talk 2", "/talk 3", "/talk all",
         "/session", "/session new", "/session list", "/session load <id>",
-        "/stats", "/team", "/obby", "/help",
+        "/stats", "/team", "/game", "/help",
     ]
 
     def _update_suggestion_box(self, matches: list[str]) -> None:
@@ -1185,7 +1240,7 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
                 else: self._chat_write_system(f"Session not found: {sid}")
                 return True
             self._chat_write_system(f"Session: {self.session_name}  Turns: {self.turn_count}"); return True
-        if low == "/obby":
+        if low == "/game":
             if not self._game_active:
                 self._start_game()
             else:

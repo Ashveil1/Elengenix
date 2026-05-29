@@ -4,8 +4,8 @@ build-backend = "setuptools.backends._legacy:_Backend"
 
 [project]
 name = "elengenix"
-version = "v99999"
-description = "Universal AI Agent for Bug Bounty and Security Research"
+version = "1.0.0"
+description = "Autonomous AI Agent Framework for Security Research"
 license = {text = "GPL-3.0-only"}
 requires-python = ">=3.10"
 

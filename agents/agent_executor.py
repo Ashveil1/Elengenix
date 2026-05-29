@@ -45,6 +45,32 @@ def execute_tool(
             action_data.update(params)
         action_val = action_val.get("type", "")
     action = str(action_val).lower()
+
+    # Normalize action name aliases so AI output variations all work
+    _ACTION_ALIASES = {
+        "shell": "run_shell",
+        "bash": "run_shell",
+        "exec": "run_shell",
+        "execute": "run_shell",
+        "command": "run_shell",
+        "run_command": "run_shell",
+        "run_bash": "run_shell",
+        "search": "web_search",
+        "google": "web_search",
+        "search_web": "web_search",
+        "internet_search": "web_search",
+        "remember": "save_memory",
+        "memorize": "save_memory",
+        "store_memory": "save_memory",
+        "done": "finish",
+        "complete": "finish",
+        "end": "finish",
+        "exit": "finish",
+        "create_tool": "create_ai_tool",
+        "run_tool": "run_ai_tool",
+    }
+    action = _ACTION_ALIASES.get(action, action)
+
     cmd_raw = action_data.get("command", "")
 
     if action == "finish":

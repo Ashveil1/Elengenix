@@ -294,6 +294,24 @@ class HybridAgent:
             self._execute_registry_tool(tool, tool_name, cmd_target, cycle)
             return
 
+        # Try auto-install if tool is known but missing/unavailable
+        try:
+            import shutil
+            if not shutil.which(tool_name):
+                from dependency_manager import TOOLS as INSTALLABLE_TOOLS, run_with_streaming, verify_and_advise
+                if tool_name in INSTALLABLE_TOOLS:
+                    console.print(f"  [cyan]├─ [INSTALL] Missing '{tool_name}'. Attempting auto-installation...[/cyan]")
+                    if run_with_streaming(INSTALLABLE_TOOLS[tool_name]):
+                        if verify_and_advise(tool_name):
+                            console.print(f"  [white][OK] '{tool_name}' successfully installed and integrated[/white]")
+                            # Refresh registry/tool status if possible
+                            tool = registry.get_tool(tool_name)
+                            if tool and tool.is_available:
+                                self._execute_registry_tool(tool, tool_name, cmd_target, cycle)
+                                return
+        except Exception as e:
+            logger.debug(f"Auto-installation of tool '{tool_name}' failed: {e}")
+
         # Tool not registered — note it and try shell
         if tool_name not in self.missing_tools:
             self.missing_tools.add(tool_name)
@@ -378,11 +396,15 @@ class HybridAgent:
     def _execute_registry_tool(
         self, tool: Any, tool_name: str, cmd_target: str, cycle: int
     ):
-        """Execute via ToolRegistry (shell=False, structured)."""
+        """Execute via ToolRegistry using the shared persistent event loop.
+
+        Uses asyncio.run_coroutine_threadsafe() against the shared loop from
+        tools/event_loop.py so we never create/teardown a loop per tool call.
+        """
         import asyncio
+        from pathlib import Path
 
         console.print(f"  [cyan]├─ [{tool_name}] via ToolRegistry[/cyan]")
-        from pathlib import Path
 
         report_dir = (
             Path("reports") / f"hybrid_{tool_name}_{int(time.time())}"
@@ -390,22 +412,34 @@ class HybridAgent:
         report_dir.mkdir(parents=True, exist_ok=True)
 
         try:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
+            # Prefer the shared persistent event loop (avoids per-call loop cost)
+            from tools.event_loop import get_shared_loop
+            loop = get_shared_loop()
             sem = asyncio.Semaphore(3)
-            result = loop.run_until_complete(
-                tool.execute(cmd_target, report_dir, sem)
+            timeout = getattr(getattr(tool, "metadata", None), "timeout_seconds", 180)
+            future = asyncio.run_coroutine_threadsafe(
+                tool.execute(cmd_target, report_dir, sem), loop
             )
-            loop.close()
+            result = future.result(timeout=timeout)
         except Exception as e:
-            result = ToolResult(
-                success=False,
-                tool_name=tool_name,
-                category=ToolCategory.UTILITY,
-                error_message=str(e),
-            )
+            # Fallback: isolated event loop if shared loop unavailable
+            try:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                sem = asyncio.Semaphore(3)
+                result = loop.run_until_complete(tool.execute(cmd_target, report_dir, sem))
+                loop.close()
+            except Exception as inner_e:
+                result = ToolResult(
+                    success=False,
+                    tool_name=tool_name,
+                    category=ToolCategory.UTILITY,
+                    error_message=str(inner_e),
+                )
 
         self._process_tool_result(result, tool_name, cmd_target, cycle)
+
+
 
     def _execute_shell_command(self, command: str, cycle: int):
         """Execute shell command with Governance gating."""
@@ -535,8 +569,106 @@ class HybridAgent:
 
     @staticmethod
     def _extract_findings(output: str, command: str) -> List[Dict]:
-        """Heuristic extraction of potential findings from shell output."""
+        """Heuristic and structured extraction of potential findings from shell output.
+
+        Attempts to parse structured JSON / JSON-Lines outputs from security tools
+        (Nuclei, Httpx, Subfinder, etc.) and falls back to regex patterns for raw text.
+        """
         findings = []
+        if not output or not output.strip():
+            return findings
+
+        # Clean command for reference
+        cmd_lower = command.lower() if command else ""
+
+        # ── 1. Try JSON / JSONL Parsing ──────────────────────────────────────
+        json_lines = []
+        for line in output.splitlines():
+            line_str = line.strip()
+            if not line_str:
+                continue
+            if line_str.startswith("{") and line_str.endswith("}"):
+                try:
+                    json_lines.append(json.loads(line_str))
+                except Exception:
+                    pass
+
+        # Try to parse entire output as single JSON array/object if no lines parsed
+        if not json_lines and output.strip().startswith(("[", "{")):
+            try:
+                parsed = json.loads(output.strip())
+                if isinstance(parsed, list):
+                    json_lines.extend(parsed)
+                elif isinstance(parsed, dict):
+                    json_lines.append(parsed)
+            except Exception:
+                pass
+
+        # Process parsed JSON objects
+        if json_lines:
+            for item in json_lines:
+                if not isinstance(item, dict):
+                    continue
+
+                # A. Nuclei JSON Format
+                if "template-id" in item or "template" in item:
+                    info = item.get("info", {})
+                    severity = info.get("severity", item.get("severity", "info")).lower()
+                    findings.append({
+                        "type": "nuclei",
+                        "severity": severity,
+                        "title": f"Nuclei: {info.get('name', item.get('template-id', 'finding'))}",
+                        "target": item.get("matched-at", item.get("host", "")),
+                        "url": item.get("matched-at", ""),
+                        "description": f"Template: {item.get('template-id')}. Matched: {item.get('matched-at') or item.get('host')}",
+                        "evidence": item.get("extracted-results", item.get("matcher-name", "")),
+                    })
+
+                # B. Httpx JSON Format
+                elif "webserver" in item or "status-code" in item or "tech" in item:
+                    findings.append({
+                        "type": "httpx_probe",
+                        "severity": "info",
+                        "title": f"Httpx: {item.get('url', 'host')} [{item.get('status-code', '')}]",
+                        "target": item.get("url", item.get("host", "")),
+                        "url": item.get("url", ""),
+                        "description": f"Server: {item.get('webserver', 'unknown')}. Tech: {', '.join(item.get('tech', []))}",
+                        "evidence": f"Title: {item.get('title', '')} | Status: {item.get('status-code')}",
+                    })
+
+                # C. Generic security finding
+                elif any(k in item for k in ("vuln", "vulnerability", "finding", "issue", "severity")):
+                    severity = item.get("severity", "medium").lower()
+                    findings.append({
+                        "type": item.get("type", "generic_finding"),
+                        "severity": severity,
+                        "title": item.get("title", item.get("name", "Security Finding")),
+                        "target": item.get("target", item.get("url", "")),
+                        "url": item.get("url", ""),
+                        "description": item.get("description", item.get("message", "")),
+                        "evidence": json.dumps(item),
+                    })
+
+            if findings:
+                return findings
+
+        # ── 2. Fallback to Regex Heuristics (for plain text shell output) ─────
+        # Look for subdomains/hosts lists (e.g. from subfinder or simple list commands)
+        if "subfinder" in cmd_lower or "assetfinder" in cmd_lower:
+            hosts = []
+            for line in output.splitlines():
+                line_str = line.strip()
+                if line_str and not line_str.startswith("[") and "." in line_str:
+                    hosts.append(line_str)
+            if hosts:
+                findings.append({
+                    "type": "subdomains_discovered",
+                    "severity": "info",
+                    "title": f"Discovered {len(hosts)} subdomains",
+                    "description": f"Found: {', '.join(hosts[:10])}...",
+                    "evidence": "\n".join(hosts),
+                })
+                return findings
 
         # Look for URLs in output
         urls = re.findall(r"https?://[^\s\"'>]+", output)

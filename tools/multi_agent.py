@@ -719,13 +719,20 @@ Respond with JSON:
             self.callback(f" TEAM AEGIS — Round {self.round} | Target: {self.target} (PARALLEL)")
             self.callback(f"{'='*60}")
         
-        # Run all agents concurrently
+        # Run all agents concurrently with staggered starts
         agent_results = []
         with concurrent.futures.ThreadPoolExecutor(max_workers=self.team_size) as pool:
-            future_to_id = {
-                pool.submit(self._run_single_agent, i, executor): i 
-                for i in range(self.team_size)
-            }
+            future_to_id = {}
+            import os
+            for i in range(self.team_size):
+                if i > 0:
+                    import random
+                    os.environ["TEAM_STAGGERING"] = "1"
+                    time.sleep(random.uniform(0.3, 0.8))
+                future_to_id[pool.submit(self._run_single_agent, i, executor)] = i
+            
+            os.environ["TEAM_STAGGERING"] = "0"
+
             for future in concurrent.futures.as_completed(future_to_id):
                 agent_id = future_to_id[future]
                 try:
