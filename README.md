@@ -15,6 +15,9 @@
   <img src="assets/elengenix.png" alt="Elengenix Terminal User Interface" width="850">
 </p>
 
+> [!IMPORTANT]  
+> **LEGAL & SECURITY DISCLAIMER:** This framework is designed strictly for educational purposes, authorized security research, and defensive penetration testing. The authors are not responsible for any misuse, unauthorized targeting, or damage caused by the autonomous execution capabilities of this tool. Users are solely responsible for ensuring full legal authorization before initiating any scans or test sequences.
+
 ---
 
 ## What is Elengenix?
@@ -161,7 +164,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for code standards, logging conventions, 
 
 ## License
 
-GPL License — see [LICENSE](LICENSE).
+- **License**: GPL-3.0 — see [LICENSE](LICENSE) for details.
 
 ---
 
