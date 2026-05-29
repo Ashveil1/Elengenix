@@ -1,5 +1,5 @@
 """
-tools/cvss_calculator.py — CVSS 3.1/4.0 Scoring Engine (v99999 (god nine is the best))
+tools/cvss_calculator.py — CVSS 3.1/4.0 Scoring Engine
 - Calculates CVSS scores from vulnerability findings
 - AI-assisted severity adjustment
 - Severity classification (Critical/High/Medium/Low/Info)

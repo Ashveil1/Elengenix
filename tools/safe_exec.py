@@ -1,5 +1,5 @@
 """
-tools/safe_exec.py — Native Shell Executor (v99999 (god nine is the best))
+tools/safe_exec.py — Native Shell Executor
 - shell=True enabled for full pipeline / redirect / chaining support
 - Security handled by Governance (tools/governance.py) upstream
 - Timeout & output size limits enforced

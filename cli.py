@@ -1,12 +1,12 @@
 """
-cli.py — Elengenix AI Partner Mode (v99999 (god nine is the best))
+cli.py — Elengenix AI Partner Mode
 - Universal Agent Mode: Flexible like Claude Code / Gemini CLI
 - Bug Bounty Specialist Mode: Deep security expertise
 - Secure Interactive CLI with Input Sanitization
 - Usage Logging & Rate Limiting
 - Non-blocking input with timeout support
 - Robust Error Handling and Thread-safe Callbacks
-- AI Usage Disclaimer & Consent Tracking (v99999 (god nine is the best))
+- AI Usage Disclaimer & Consent Tracking
 """
 
 import os
@@ -53,7 +53,7 @@ _file_handler = logging.FileHandler(LOG_FILE, encoding="utf-8")
 _file_handler.setFormatter(logging.Formatter("%(asctime)s - %(levelname)s - %(message)s"))
 logger.addHandler(_file_handler)
 
-# ── AI Disclaimer & Consent Management (v99999 (god nine is the best)) ─────────────────────────
+# ── AI Disclaimer & Consent Management ─────────────────────────
 CONSENT_FILE = Path("data/.ai_consent_accepted")
 
 AI_DISCLAIMER_TEXT = """
@@ -852,7 +852,7 @@ def main(mode: str = "auto", target: str = None):
 
     def _header() -> Panel:
         return Panel(
-            "[bold #ffffff] Elengenix AI Agent Framework v99999 (god nine is the best) [/bold #ffffff]"
+            "[bold #ffffff] Elengenix AI Agent Framework [/bold #ffffff]"
             "  [dim #757575]| Ctrl+R: Research  Ctrl+B: Scan  Ctrl+T: Think  Ctrl+P: Models  Ctrl+E: Settings  Ctrl+G: Help  /quit: Exit[/dim #757575]",
             box=MINIMAL, padding=(0, 1),
         )

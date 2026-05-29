@@ -1,5 +1,5 @@
 """
-tools/dalfox_integration.py — XSS Scanner Integration (v99999 (god nine is the best))
+tools/dalfox_integration.py — XSS Scanner Integration
 - Dalfox: Powerful XSS scanning and parameter analysis
 - Finds reflected parameters, DOM XSS, stored XSS
 - Generates PoC automatically

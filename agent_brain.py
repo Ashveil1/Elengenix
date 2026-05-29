@@ -1,5 +1,5 @@
 """
-agent_brain.py — Elengenix Intelligent Hunting Engine (v99999 (god nine is the best))
+agent_brain.py — Elengenix Intelligent Hunting Engine
 - Strategic Planning Module (Attack Tree Generation)
 - Chain of Thought Logging
 - Tool Selection Intelligence

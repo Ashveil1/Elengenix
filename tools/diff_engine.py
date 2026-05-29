@@ -1,5 +1,5 @@
 """
-tools/diff_engine.py — Change Detection Engine (v99999 (god nine is the best))
+tools/diff_engine.py — Change Detection Engine
 - Compares current scan results against stored baseline
 - Returns new, removed, and unchanged items
 - Thread-safe file operations

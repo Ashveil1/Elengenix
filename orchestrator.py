@@ -1,5 +1,5 @@
 """
-orchestrator.py — Tool Registry Pipeline Orchestrator (v99999 (god nine is the best))
+orchestrator.py — Tool Registry Pipeline Orchestrator
 - Uses Tool Registry for dynamic tool management
 - Scoping via scope.txt or ELENGENIX_SCOPE env var
 - RFC-compliant domain and IP validation

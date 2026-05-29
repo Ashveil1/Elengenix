@@ -1,5 +1,5 @@
 """
-tools/tool_registry.py — Elengenix Plugin System (v99999 (god nine is the best))
+tools/tool_registry.py — Elengenix Plugin System
 - Dynamic tool registration and discovery
 - Standardized interface for all security tools
 - Async execution with semaphore-based rate limiting

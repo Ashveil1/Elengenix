@@ -1,4 +1,4 @@
-"""cli_textual.py — Elengenix AI Partner Mode (Textual TUI v99999)
+"""cli_textual.py — Elengenix AI Partner Mode (Textual TUI 1.0.0)
 Monochrome theme — Black & White minimalist hacker aesthetic.
 """
 

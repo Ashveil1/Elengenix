@@ -1,5 +1,5 @@
 """
-tools/naabu_integration.py — Fast Port Scanner (v99999 (god nine is the best))
+tools/naabu_integration.py — Fast Port Scanner
 - Naabu: Fast port scanner using SYN/CONNECT
 - SYN Scan, Service Discovery, CDN/WAF bypass
 - Integrates with nmap for service detection

@@ -82,7 +82,7 @@ class BountyReporter:
         # Header
         lines.append(f"# Bug Bounty Report: {self.target}")
         lines.append(f"**Date**: {datetime.now(timezone.utc).isoformat()}Z")
-        lines.append(f"**Tool**: Elengenix v99999 (god nine is the best) - Expert System")
+        lines.append(f"**Tool**: Elengenix - Expert System")
         lines.append("")
 
         # Executive Summary
@@ -161,7 +161,7 @@ class BountyReporter:
         data = {
             "target": self.target,
             "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
-            "tool": "Elengenix v99999",
+            "tool": "Elengenix 1.0.0",
             "findings": [
                 {
                     "id": f.finding_id,

@@ -1,5 +1,5 @@
 """
-tmux_manager.py — Tmux Session Manager for Split-Screen Experience (v99999 (god nine is the best))
+tmux_manager.py — Tmux Session Manager for Split-Screen Experience
 - Auto-detects if running in tmux
 - Creates split windows for chat + logs
 - Synchronized log viewing

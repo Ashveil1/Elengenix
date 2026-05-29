@@ -1,5 +1,5 @@
 """
-wizard.py -- Elengenix AI Provider Configuration Wizard (v99999 (god nine is the best))
+wizard.py -- Elengenix AI Provider Configuration Wizard
 
 Interactive wizard for selecting and configuring AI providers.
 Supports multi-provider setup with model selection and API key validation.

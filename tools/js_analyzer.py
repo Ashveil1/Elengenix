@@ -1,5 +1,5 @@
 """
-tools/js_analyzer.py — JavaScript Secret & Endpoint Extractor (v99999 (god nine is the best))
+tools/js_analyzer.py — JavaScript Secret & Endpoint Extractor
 - Comprehensive regex patterns for secrets, tokens, endpoints, cloud refs
 - Deduplication of matches
 - Severity classification

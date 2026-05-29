@@ -1,5 +1,5 @@
 """
-tools/truffle_integration.py — Secret Detection (v99999 (god nine is the best))
+tools/truffle_integration.py — Secret Detection
 - TruffleHog: Find credentials, API keys, secrets in code
 - Scans Git history, files, and URLs
 - Deep inspection capability

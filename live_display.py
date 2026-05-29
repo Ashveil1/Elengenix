@@ -1,5 +1,5 @@
 """
-live_display.py — Real-time Log & Activity Monitor (v99999 (god nine is the best))
+live_display.py — Real-time Log & Activity Monitor
 - Displays agent thoughts, tool execution, and progress
 - Rich Live display for beautiful real-time updates
 - Can run standalone or in tmux split pane

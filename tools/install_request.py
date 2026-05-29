@@ -1,5 +1,5 @@
 """
-tools/install_request.py — AI Tool Installation Request System (v99999 (god nine is the best))
+tools/install_request.py — AI Tool Installation Request System
 
 When AI determines a tool is needed but not installed, ask the user to confirm,
 then auto-install it.

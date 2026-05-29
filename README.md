@@ -49,10 +49,10 @@ git clone https://github.com/Ashveil1/Elengenix.git && cd Elengenix
 chmod +x setup.sh && ./setup.sh
 
 # Verify environment
-python3 main.py doctor
+elengenix doctor
 
 # Configure AI providers
-python3 main.py configure
+elengenix configure
 ```
 
 *Supports Android via Termux: `chmod +x termux_setup.sh && ./termux_setup.sh`*
@@ -63,7 +63,7 @@ python3 main.py configure
 
 ### Terminal UI
 ```bash
-python3 main.py cli
+elengenix cli
 ```
 
 Two operational modes:
@@ -87,11 +87,11 @@ Two operational modes:
 
 ### CLI Commands
 ```bash
-python3 main.py scan <target>       # Full automated scan pipeline
-python3 main.py autonomous <target> # Fully autonomous mode
-python3 main.py sast <path>         # Static code analysis
-python3 main.py research <cve>      # CVE / exploit research
-python3 main.py watchman            # 24/7 monitoring daemon
+elengenix scan <target>       # Full automated scan pipeline
+elengenix autonomous <target> # Fully autonomous mode
+elengenix sast <path>         # Static code analysis
+elengenix research <cve>      # CVE / exploit research
+elengenix watchman            # 24/7 monitoring daemon
 ```
 
 ---

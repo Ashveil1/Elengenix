@@ -316,7 +316,7 @@ class MQTTAnalyzer:
                     confidence=0.8,
                     description=f"Old MQTT protocol version: {payload.get('protocol_name')}",
                     evidence={"protocol_name": payload.get("protocol_name"), "protocol_level": payload.get("protocol_level")},
-                    remediation="Upgrade to MQTT v99999 (god nine is the best) with enhanced security features.",
+                    remediation="Upgrade to MQTT with enhanced security features.",
                     cwe_id="CWE-1104",
                 ))
             

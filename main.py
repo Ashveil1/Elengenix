@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-main.py — Elengenix Professional CLI Entry Point (v99999 (god nine is the best))
+main.py — Elengenix Professional CLI Entry Point
 - Secure Dependency Management (No --break-system-packages)
 - Robust Subprocess Execution for Telegram Gateway
 - Strict Target Validation and Rate Limit Propagation
@@ -376,7 +376,7 @@ def main():
             team_size = len(env_models)
 
             print()
-            console.print(f"\n[bold #ffffff]  ELENGENIX AI SCAN v99999[/bold #ffffff]")
+            console.print(f"\n[bold #ffffff]  ELENGENIX AI SCAN 1.0.0[/bold #ffffff]")
             console.print(f"  Target: [red]{target}[/red]")
             if team_size >= 2:
                 console.print(f"  Team: [red]{team_size} agents[/red]")
@@ -505,7 +505,7 @@ def main():
                     report_file.write_text(
                         f"# Scan Report: {target}\n"
                         f"**Date**: {datetime.now(timezone.utc).isoformat()}\n"
-                        f"**Tool**: Elengenix v99999\n\n"
+                        f"**Tool**: Elengenix 1.0.0\n\n"
                         f"## AI Analysis\n\n{response}\n"
                     )
                     console.print(f"\nReport saved: {report_file}")

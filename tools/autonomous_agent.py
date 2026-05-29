@@ -1,6 +1,6 @@
 """tools/autonomous_agent.py
 
-Elengenix Autonomous Agent v99999 (god nine is the best) — True Agentic Loop.
+Elengenix Autonomous Agent — True Agentic Loop.
 
 Instead of a fixed pipeline, the AI decides what to do next at each
 iteration based on what it has discovered so far:
@@ -1586,7 +1586,7 @@ class AutonomousAgent:
             self.tool_creator = None
 
         self.decision_history: List[AgentAction] = []
-        logger.info(f"AutonomousAgent v99999 (god nine is the best) initialized (mode: {governance_mode}, "
+        logger.info(f"AutonomousAgent initialized (mode: {governance_mode}, "
                     f"ai={'yes' if self.ai_client else 'fallback'})")
 
     def run_autonomous_scan(self, target: str, goal: str = None) -> ScanResult:

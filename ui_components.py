@@ -1,5 +1,5 @@
 """
-ui_components.py — Elengenix Professional UI Component Library (v99999 (god nine is the best))
+ui_components.py — Elengenix Professional UI Component Library
 
 Centralized UI components for the entire Elengenix framework.
 Provides consistent styling, Monochrome Black & White color scheme, and reusable
@@ -130,7 +130,7 @@ def show_main_banner():
     info_table.add_row(
         "[bold white][OK] System Online[/bold white]",
         "[bold white][WARN] Security Mode Active[/bold white]",
-        "[bold #ffffff][INFO] v99999 (god nine is the best)[/bold #ffffff]",
+        "[bold #ffffff][INFO][/bold #ffffff]",
     )
     console.print(Panel(
         info_table,
@@ -166,7 +166,7 @@ def show_arsenal_banner():
     """Display the Security Arsenal banner with vibrant styling."""
     console.print()
     console.print(f"  [bold #ffffff]❖ Security Arsenal ❖[/bold #ffffff]")
-    console.print(f"  [dim]Select a tool to begin  |  Press ESC to cancel  |  v99999[/dim]")
+    console.print(f"  [dim]Select a tool to begin  |  Press ESC to cancel  |  1.0.0[/dim]")
     console.print(f"  [dim #737373]{'─' * 70}[/dim #737373]")
     console.print()
 
@@ -602,7 +602,7 @@ def show_categorized_menu():
     console.print()
     console.print(Panel(
         table,
-        title="[bold #ffffff] ELENGENIX v99999 (god nine is the best) — MAIN MENU [/bold #ffffff]",
+        title="[bold #ffffff] ELENGENIX — MAIN MENU [/bold #ffffff]",
         border_style="#ffffff",
         box=ROUNDED,
         padding=(0, 0),
@@ -923,7 +923,7 @@ def render_sidebar(
 
     # Footer
     lines.append(sep)
-    lines.append(f"  [dim #737373]v99999 (god nine is the best)[/dim #737373]  [dim #777777]Elengenix AI Agent Framework[/dim #777777]")
+    lines.append(f"  [dim #737373][/dim #737373]  [dim #777777]Elengenix AI Agent Framework[/dim #777777]")
 
     sidebar_text = "\n".join(lines)
     return Panel(sidebar_text, border_style="#ffffff", box=ROUNDED, padding=(0, 0), width=width)

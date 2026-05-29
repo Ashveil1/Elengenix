@@ -1,5 +1,5 @@
 """
-watchman.py — Elengenix 24/7 Target Monitoring Daemon (v99999 (god nine is the best))
+watchman.py — Elengenix 24/7 Target Monitoring Daemon
 - Automated Periodic Scanning with State Tracking
 - SHA256 Result Fingerprinting (Token Optimization)
 - Smart AI Analysis on Change Detection
@@ -82,7 +82,7 @@ async def start_watching(target_list_path: str = "targets_to_watch.txt", interva
     logger.info("[START] Watchman Activated. 24/7 Monitoring Initialized.")
     send_telegram_notification("[START] *Watchman Mode:* Activated. Continuous monitoring is now online.")
 
-    # Initialize AI Agent (v99999 (god nine is the best) Factory)
+    # Initialize AI Agent ( Factory)
     try:
         agent = get_agent()
     except Exception as e:

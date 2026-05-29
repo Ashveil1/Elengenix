@@ -1,7 +1,7 @@
 """
 agent.py — Elengenix AI Agent Entry Point
 Bridge module to initialize and configure ElengenixAgent.
-Version: v99999
+Version: 1.0.0
 """
 
 import logging

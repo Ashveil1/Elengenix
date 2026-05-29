@@ -1,5 +1,5 @@
 """
-bot.py -- Elengenix Telegram Bot Gateway (v99999 (god nine is the best))
+bot.py -- Elengenix Telegram Bot Gateway
 
 Secure Telegram bot interface for remote control of Elengenix operations.
 
@@ -148,7 +148,7 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.info(f"Chat ID auto-detected: {chat_id}")
     
     welcome = (
-        "*Elengenix Bot v99999*\n\n"
+        "*Elengenix Bot 1.0.0*\n\n"
         f"Your Chat ID: `{chat_id}`\n\n"
         "Professional Bug Bounty Automation Hub.\n\n"
         "*Commands:*\n"
@@ -644,7 +644,7 @@ def main():
     
     app.add_handler(CallbackQueryHandler(button_callback))
 
-    logger.info("[START] Elengenix Bot is now operational (v99999 (god nine is the best))")
+    logger.info("[START] Elengenix Bot is now operational")
     logger.info("Send /start to your bot to auto-detect your Chat ID")
     app.run_polling(drop_pending_updates=True)
 

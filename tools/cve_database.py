@@ -1,5 +1,5 @@
 """
-tools/cve_database.py — CVE Database & Vulnerability Intelligence (v99999 (god nine is the best))
+tools/cve_database.py — CVE Database & Vulnerability Intelligence
 - Local CVE cache for offline analysis
 - NVD (National Vulnerability Database) integration
 - AI-powered vulnerability matching

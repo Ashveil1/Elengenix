@@ -1,5 +1,5 @@
 """
-tools/doctor.py — System Health Check & Auto-Repair (v99999 (god nine is the best))
+tools/doctor.py — System Health Check & Auto-Repair
 - Checks Python version, config, all security tools
 - Checks AI provider connectivity
 - Auto-repair mode: installs missing tools via setup.sh hint
@@ -88,7 +88,7 @@ def check_health(interactive: bool = True) -> bool:
     from ui_components import console, print_error, print_success, print_warning, confirm
     import questionary
     
-    console.print("\n[bold red]System Health Check[/bold red] [dim]v99999[/dim]\n")
+    console.print("\n[bold red]System Health Check[/bold red] [dim]1.0.0[/dim]\n")
     all_ok = True
 
     # ── Python Version ─────────────────────────────────────────────────────────

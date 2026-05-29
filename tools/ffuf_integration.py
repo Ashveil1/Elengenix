@@ -1,5 +1,5 @@
 """
-tools/ffuf_integration.py — Fast Web Fuzzer (v99999 (god nine is the best))
+tools/ffuf_integration.py — Fast Web Fuzzer
 - FFUF: Fast web fuzzer for directory and parameter discovery
 - Custom wordlist support with AI-generated lists
 - Recursive directory fuzzing

@@ -1,5 +1,5 @@
 """
-tools/research_tool.py — OSINT Web Research Tool (v99999 (god nine is the best))
+tools/research_tool.py — OSINT Web Research Tool
 - DuckDuckGo search as primary free backend (real snippets, no API key)
 - Tavily API as preferred backend when TAVILY_API_KEY is set
 - trafilatura for clean text extraction from URLs

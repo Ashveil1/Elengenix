@@ -1,5 +1,5 @@
 """
-tools/memory_manager.py — Persistent SQLite Memory Store (v99999 (god nine is the best))
+tools/memory_manager.py — Persistent SQLite Memory Store
 - Thread-safe via WAL mode
 - Per-target summarization with token budget
 - Category-based storage

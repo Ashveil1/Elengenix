@@ -1,5 +1,5 @@
 """
-tools/skill_registry.py — Skill & Tool Awareness System (v99999 (god nine is the best))
+tools/skill_registry.py — Skill & Tool Awareness System
 
 Informs AI about available tools/skills and can request additional installations when needed.
 

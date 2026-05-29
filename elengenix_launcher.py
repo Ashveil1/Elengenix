@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-elengenix_launcher.py -- Elengenix CLI Launcher (v99999 (god nine is the best))
+elengenix_launcher.py -- Elengenix CLI Launcher
 
 Lightweight entry point for the Elengenix Bug Bounty Automation Platform.
 Routes user commands to the appropriate subsystem modules without
@@ -122,7 +122,7 @@ class ElengenixUI:
         line = Colors.BLUE + ("─" * width) + Colors.END
         print()
         print(line)
-        print(f"{Colors.BOLD}{Colors.CYAN}  ELENGENIX{Colors.END}  {Colors.DIM}v99999 (god nine is the best)  |  Universal AI + Bug Bounty Agent{Colors.END}")
+        print(f"{Colors.BOLD}{Colors.CYAN}  ELENGENIX{Colors.END}  {Colors.DIM}  |  Universal AI + Bug Bounty Agent{Colors.END}")
         print(line)
         print()
 

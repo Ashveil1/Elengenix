@@ -1,5 +1,5 @@
 """
-tools/wordlist_manager.py — AI-Driven Smart Wordlist Management (v99999 (god nine is the best))
+tools/wordlist_manager.py — AI-Driven Smart Wordlist Management
 
 Hybrid approach:
 - Tier 1: Rule-based wordlists (external files, tech detection)

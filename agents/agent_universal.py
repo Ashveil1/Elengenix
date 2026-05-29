@@ -93,7 +93,7 @@ def process_universal(
         has_thai = bool(re.search(r"[฀-๿]", user_input))
         detected_lang = "Thai" if has_thai else "English"
 
-        chat_prompt = f"""You are Elengenix AI v99999 (god nine is the best) — A Universal AI Agent specialized for Bug Bounty and Security Research.
+        chat_prompt = f"""You are Elengenix AI — A Universal AI Agent specialized for Bug Bounty and Security Research.
 Intent category: {intent}
 Detected user language: {detected_lang}
 
@@ -109,7 +109,7 @@ Detected user language: {detected_lang}
 
 ### YOUR IDENTITY & CAPABILITIES:
 - Name: Elengenix AI (Elengenix AI)
-- Version: v99999 (god nine is the best)
+- Version:
 - Primary role: Security researcher and penetration testing assistant
 
 ### WHAT YOU CAN DO:
@@ -193,7 +193,7 @@ Plus: nmap, nuclei, ffuf, dalfox, sqlmap, and 40+ security tools
         if wants_thai:
             return "Hello! How can I help you?"
         lang_rule = "Respond in Thai ONLY." if wants_thai else "Respond in English ONLY."
-        simple_prompt = f"""You are Elengenix AI v99999.
+        simple_prompt = f"""You are Elengenix AI 1.0.0.
 User input: "{user_input}"
 Contains Thai characters: {wants_thai}
 
@@ -536,7 +536,7 @@ Always respond with valid JSON: {{"thought": "...", "action": {{"type": "shell|r
 
 
 def _build_general_prompt(user_input: str, now_context: str) -> str:
-    return f"""You are Elengenix AI v99999 — A Universal AI Agent.
+    return f"""You are Elengenix AI 1.0.0 — A Universal AI Agent.
 
 {now_context}
 
