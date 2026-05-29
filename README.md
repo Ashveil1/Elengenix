@@ -161,6 +161,16 @@ GPL License — see [LICENSE](LICENSE).
 
 ---
 
+## ⚡ Compute Sponsorship & API Integration
+
+We are incredibly grateful to the **AMD AI Cloud** program for sponsoring the high-performance compute infrastructure powered by **AMD Instinct™ MI300X** accelerators.
+
+Rather than competing with general-purpose frontier models, Elengenix is built on a **hybrid-intelligence model**:
+- **Downstream Utility Specialization** — We leverage local AMD accelerators to pre-process large security data sets, run high-frequency log parsing, and train specialized, lightweight helper models (e.g., 7B/8B parameter models) for specific local formatting and regex extraction tasks.
+- **Frontier API Orchestration** — The main strategic planners, multi-agent consensus logic, and high-level reasoning systems are designed to consume frontier APIs like Claude and GPT. These models act as the master orchestrators that direct our local utilities.
+
+---
+
 <div align="center">
 
 *Built by independent security researchers, for the open-source security community.*
