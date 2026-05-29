@@ -63,7 +63,7 @@ elengenix configure
 
 ### Terminal UI
 ```bash
-elengenix cli
+elengenix tui
 ```
 
 Two operational modes:
