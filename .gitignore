@@ -16,11 +16,15 @@ MEMORY.md
 # Reports and discovered data
 reports/
 data/*.db
+data/*.db-wal
+data/*.db-shm
 data/*.log
 data/scans/
 data/wordlists/
 data/vector_memory/
 elengenix.db
+*.db-wal
+*.db-shm
 
 # Python artifacts
 __pycache__/

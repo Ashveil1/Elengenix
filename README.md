@@ -11,6 +11,10 @@
 
 </div>
 
+<p align="center">
+  <img src="assets/elengenix.png" alt="Elengenix Terminal User Interface" width="850">
+</p>
+
 ---
 
 ## What is Elengenix?
