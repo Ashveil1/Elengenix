@@ -4,6 +4,7 @@
 #   Elengenix - Indestructible Professional Installer
 #   Supports: Debian, Arch, Fedora, macOS
 #   Version: 1.0.0
+#   Optimized: Installs only Python dependencies
 # ============================================================
 
 set -e
@@ -49,37 +50,6 @@ run_with_spinner() {
     return $status
 }
 
-# Install Java Runtime Environment (required for OWASP ZAP)
-if ! command -v java >/dev/null 2>&1; then
-    info "Installing default-jre (Java Runtime) ..."
-    sudo apt-get update -y && sudo apt-get install -y default-jre
-    success "Java installed."
-else
-    info "Java already installed."
-fi
-
-# Install OWASP ZAP (headless daemon)
-ZAP_DIR="$(pwd)/tools/external/zap"
-if [ ! -d "$ZAP_DIR" ]; then
-    info "Downloading OWASP ZAP ..."
-    mkdir -p "$ZAP_DIR"
-    wget -q -O /tmp/ZAP_latest.tar.gz "https://github.com/zaproxy/zaproxy/releases/download/v2.14.0/ZAP_2_14_0_unix.tar.gz"
-    tar -xzf /tmp/ZAP_latest.tar.gz -C "$ZAP_DIR" --strip-components=1
-    rm /tmp/ZAP_latest.tar.gz
-    success "ZAP downloaded to $ZAP_DIR."
-else
-    info "OWASP ZAP already present."
-fi
-
-# Install Python zaproxy client (must be after pip install commands)
-if ! python -c "import zapv2" 2>/dev/null; then
-    info "Installing zaproxy Python client..."
-    pip install zaproxy
-    success "zaproxy client installed."
-else
-    info "zaproxy Python client already installed."
-fi
-
 #  ERROR TRAP
 trap 'echo -e "\n${RED}[!] Error occurred at line $LINENO. Installation failed.${NC}";' ERR
 
@@ -98,7 +68,7 @@ echo " ███████╗███████╗███████╗�
 echo " ╚══════╝╚══════╝╚══════╝╚═╝  ╚═══╝ ╚═════╝ ╚══════╝╚═╝  ╚═══╝╚═╝╚═╝  ╚═╝"
 echo -e "${NC}"
 echo -e "  ${BOLD}Professional Installation Hub"
-echo -e "  ${GRAY}Universal Agent + Bug Bounty Specialist${NC}"
+echo -e "  ${GRAY}Universal Agent + Bug Bounty Specialist (Python Only)${NC}"
 echo -e "  ${GRAY}──────────────────────────────────────────────${NC}"
 echo ""
 
@@ -110,185 +80,50 @@ if [[ "$OS" == "Linux" ]]; then
     if [[ "$EUID" -ne 0 ]]; then
         info "Checking sudo access..."
         if ! sudo -n true 2>/dev/null; then
-            warning "This script requires sudo privileges. You may be prompted for password."
+            warning "This script requires sudo privileges to install system packages. You may be prompted for password."
             sudo -v
         fi
     fi
 fi
 
-# 2. System Dependencies
-info "STEP 1/5: Installing system dependencies..."
+# 2. System Dependencies (Python only)
+info "STEP 1/4: Installing system dependencies..."
 if [[ "$OS" == "Linux" ]]; then
     if [ -f /etc/debian_version ]; then
         sudo apt-get update -qq
-        sudo apt-get install -y python3 python3-pip python3-venv golang git curl libpcap-dev libyaml-dev build-essential
+        sudo apt-get install -y python3 python3-pip python3-venv git curl libyaml-dev build-essential
     elif [ -f /etc/arch-release ]; then
-        sudo pacman -Sy --noconfirm python python-pip go git curl libyaml base-devel
+        sudo pacman -Sy --noconfirm python python-pip git curl libyaml base-devel
     elif [ -f /etc/fedora-release ]; then
-        sudo dnf install -y python3 python3-pip golang git curl libyaml-devel gcc
+        sudo dnf install -y python3 python3-pip git curl libyaml-devel gcc
     fi
 elif [[ "$OS" == "Darwin" ]]; then
     if ! command -v brew >/dev/null 2>&1; then
         error "Homebrew not found. Install it from https://brew.sh/"
     fi
-    brew install python go git curl libyaml
+    brew install python git curl libyaml
 fi
 success "System dependencies installed."
 
 # 3. Virtual Environment
-info "STEP 2/5: Setting up isolated Virtual Environment..."
+info "STEP 2/4: Setting up isolated Virtual Environment..."
 if [ ! -d "venv" ]; then
     python3 -m venv venv
     success "Created venv"
 fi
 source venv/bin/activate
+VENV_PYTHON="$(pwd)/venv/bin/python"
 info "Installing Python requirements..."
 if [ ! -f "requirements.txt" ]; then
     error "requirements.txt not found. Ensure you're in the Elengenix directory."
 fi
-if ! pip install --upgrade pip --quiet; then error "Failed to upgrade pip"; fi
-if ! pip install -r requirements.txt --quiet; then error "Failed to install requirements.txt"; fi
-
-# 3.5 Textual TUI Framework (for mouse/scroll support)
-info "Installing Textual TUI framework..."
-if pip install textual --quiet; then
-    success "Textual TUI framework installed"
-else
-    warning "Textual installation had issues (optional)"
-fi
-
-# 3.6 Token counting (optional — improves accuracy, fallback works without)
-info "Installing tokenizer (optional)..."
-pip install tiktoken --quiet 2>/dev/null || true
-
-# 3.7 Vector Memory Dependencies (ChromaDB + Sentence Transformers)
-info "Installing Vector Memory system (ChromaDB)..."
-if pip install chromadb sentence-transformers --quiet 2>/dev/null; then
-    success "Vector Memory system installed"
-else
-    warning "ChromaDB installation had issues (optional - will use SQLite fallback)"
-fi
-
-# 3.6 AI Provider Dependencies (Comprehensive support)
-info "AI provider dependencies are installed via requirements.txt"
-success "AI providers installed (set API keys in config to use)"
+if ! "$VENV_PYTHON" -m pip install --upgrade pip setuptools wheel --quiet; then error "Failed to upgrade pip"; fi
+if ! "$VENV_PYTHON" -m pip install -r requirements.txt --quiet; then error "Failed to install requirements.txt"; fi
 
 success "Python environment secured."
 
-# 4. Security Tools
-info "STEP 3/5: Installing Security Tools..."
-export GOPATH="$HOME/go"
-export PATH="$PATH:$GOPATH/bin:/usr/local/bin"
-
-# 4.1 Go-based Tools (ProjectDiscovery + Additional)
-declare -A GO_TOOLS=(
-    ["subfinder"]="github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest"
-    ["nuclei"]="github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest"
-    ["httpx"]="github.com/projectdiscovery/httpx/cmd/httpx@latest"
-    ["naabu"]="github.com/projectdiscovery/naabu/v2/cmd/naabu@latest"
-    ["katana"]="github.com/projectdiscovery/katana/cmd/katana@latest"
-    ["dalfox"]="github.com/hahwul/dalfox/v2@latest"
-    ["ffuf"]="github.com/ffuf/ffuf/v2@latest"
-)
-
-info "Installing Go-based security tools..."
-for tool in "${!GO_TOOLS[@]}"; do
-    if ! command -v "$tool" >/dev/null 2>&1; then
-        CMD="go install -v ${GO_TOOLS[$tool]}"
-        # katana requires CGO_ENABLED=1 for the latest versions
-        if [ "$tool" = "katana" ]; then
-            CMD="CGO_ENABLED=1 $CMD"
-        fi
-        if ! run_with_spinner "Installing $tool (Go)..." $CMD; then
-            warning "  Could not install $tool (may require manual installation)"
-        fi
-    else
-        success "  $tool already installed"
-    fi
-done
-
-# Ensure Go bin is in PATH for tool verification
-export PATH="$PATH:$GOPATH/bin"
-
-# 4.2 Python-based Tools
-info "Installing Python-based security tools..."
-
-# Arjun - Parameter discovery
-if ! command -v arjun >/dev/null 2>&1; then
-    info "  Installing arjun..."
-    if pip install arjun 2>/dev/null; then
-        success "  arjun installed"
-    else
-        warning "  Could not install arjun"
-    fi
-else
-    success "  arjun already installed"
-fi
-
-# 4.3 TruffleHog - Secret Detection
-if ! command -v trufflehog >/dev/null 2>&1; then
-    info "Installing TruffleHog (secret scanner)..."
-    info "  Fetching latest release from GitHub..."
-
-    TRUFFLE_URL=$(curl -s https://api.github.com/repos/trufflesecurity/trufflehog/releases/latest 2>/dev/null | grep "browser_download_url.*linux_amd64" | cut -d '"' -f 4)
-
-    if [ -n "$TRUFFLE_URL" ]; then
-        # Download checksums first
-        CHECKSUMS_URL=$(echo "$TRUFFLE_URL" | sed 's/linux_amd64\.tar\.gz/checksums.txt/')
-        curl -sL "$CHECKSUMS_URL" -o /tmp/trufflehog_checksums.txt 2>/dev/null || true
-
-        # Download binary archive
-        curl -sL "$TRUFFLE_URL" -o /tmp/trufflehog.tar.gz
-
-        # Verify checksum if we have one
-        if [ -f /tmp/trufflehog_checksums.txt ] && [ -s /tmp/trufflehog_checksums.txt ]; then
-            EXPECTED_HASH=$(grep "trufflehog_linux_amd64" /tmp/trufflehog_checksums.txt 2>/dev/null | awk '{print $1}')
-            if [ -n "$EXPECTED_HASH" ]; then
-                COMPUTED_HASH=$(sha256sum /tmp/trufflehog.tar.gz | awk '{print $1}')
-                if [ "$EXPECTED_HASH" != "$COMPUTED_HASH" ]; then
-                    warning "  Checksum mismatch! Skipping TruffleHog installation"
-                    rm -f /tmp/trufflehog.tar.gz /tmp/trufflehog_checksums.txt
-                    continue
-                fi
-                success "  Checksum verified"
-            fi
-        else
-            info "  No checksum file available, installing without verification"
-        fi
-
-        tar -xzf /tmp/trufflehog.tar.gz -C /tmp/
-        sudo mv /tmp/trufflehog /usr/local/bin/trufflehog 2>/dev/null || mv /tmp/trufflehog "$GOPATH/bin/trufflehog"
-        chmod +x /usr/local/bin/trufflehog 2>/dev/null || chmod +x "$GOPATH/bin/trufflehog"
-        rm -f /tmp/trufflehog.tar.gz /tmp/trufflehog_checksums.txt
-        success "  TruffleHog installed to /usr/local/bin"
-    else
-        warning "  Could not determine latest release URL (API rate limit?)"
-        warning "  Install manually: https://github.com/trufflesecurity/trufflehog"
-    fi
-else
-    success "  TruffleHog already installed"
-fi
-
-# 4.4 Verify all critical tools
-info "Verifying tool installation..."
-MISSING_TOOLS=()
-for tool in subfinder httpx nuclei naabu katana dalfox ffuf; do
-    if command -v "$tool" >/dev/null 2>&1 || [ -f "$GOPATH/bin/$tool" ]; then
-        success "   $tool"
-    else
-        MISSING_TOOLS+=("$tool")
-        warning "   $tool not in PATH"
-    fi
-done
-
-if [ ${#MISSING_TOOLS[@]} -gt 0 ]; then
-    warning "Some tools may need manual installation or PATH configuration"
-    info "Add this to your ~/.bashrc or ~/.zshrc:"
-    echo "export PATH=\"\$PATH:$GOPATH/bin\""
-fi
-
-# 5. Global Command Creation
-info "STEP 4/5: Creating global command 'elengenix'..."
+# 4. Global Command Creation
+info "STEP 3/4: Creating global command 'elengenix'..."
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SENTINEL_PATH="$PROJECT_DIR/sentinel"
 
@@ -302,10 +137,10 @@ else
     echo -e "export PATH=\"\$PATH:$PROJECT_DIR\""
 fi
 
-# 6. Configuration
-info "STEP 5/5: Finalizing Configuration..."
+# 5. Configuration
+info "STEP 4/4: Finalizing Configuration..."
 if [ -f "wizard.py" ]; then
-    python3 wizard.py || warning "Wizard issues detected."
+    "$VENV_PYTHON" wizard.py || warning "Wizard issues detected."
 else
     warning "wizard.py not found."
 fi
@@ -315,19 +150,6 @@ echo -e "${RED}═════════════════════�
 echo -e "${WHITE}   INSTALLATION SUCCESSFUL!${NC}"
 echo -e "${RED}══════════════════════════════════════════${NC}"
 echo ""
-echo -e "    ${BOLD}Installed Security Tools:${NC}"
-echo ""
-
-# Show installed tools status
-for tool in subfinder httpx nuclei naabu dalfox ffuf katana arjun trufflehog; do
-    if command -v "$tool" >/dev/null 2>&1 || [ -f "$GOPATH/bin/$tool" ] || [ -f "$HOME/.local/bin/$tool" ]; then
-        echo -e "    ${WHITE}●${NC} $tool"
-    else
-        echo -e "    ${GRAY}○${NC} $tool (optional/manual install)"
-    fi
-done
-
-echo ""
 echo -e "   ${BOLD}Start hunting with:${NC}"
 if command -v elengenix >/dev/null 2>&1; then
     echo -e "      elengenix           - Launch interactive menu"
@@ -335,6 +157,6 @@ if command -v elengenix >/dev/null 2>&1; then
     echo -e "      elengenix scan <target>  - Run full scan"
 fi
 echo ""
-echo -e "  ${RED}Note:${NC} If tools are not found, restart your terminal or run:"
+echo -e "  ${RED}Note:${NC} If commands are not found, restart your terminal or run:"
 echo -e "      source ~/.bashrc"
 echo ""

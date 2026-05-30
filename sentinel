@@ -31,6 +31,43 @@ info() {
     echo -e "\033[0;31m[*] $1\033[0m"
 }
 
+warn() {
+    echo -e "\033[0;90m[WARN] $1\033[0m"
+}
+
+is_termux() {
+    [[ -n "${TERMUX_VERSION:-}" ]] || [[ "${PREFIX:-}" == "/data/data/com.termux/files/usr" ]]
+}
+
+recommended_setup_script() {
+    if is_termux; then
+        echo "./termux_setup.sh"
+    else
+        echo "./setup.sh"
+    fi
+}
+
+resolve_venv_python() {
+    local venv_dir="$1"
+    local candidate=""
+
+    for candidate in "$venv_dir/bin/python" "$venv_dir/bin/python3"; do
+        if [[ -x "$candidate" ]]; then
+            echo "$candidate"
+            return 0
+        fi
+    done
+
+    for candidate in "$venv_dir"/bin/python3.*; do
+        if [[ -x "$candidate" ]]; then
+            echo "$candidate"
+            return 0
+        fi
+    done
+
+    return 1
+}
+
 # ── Python Detection ──────────────────────────────────────────────────────────
 if command -v python3 >/dev/null 2>&1; then
     PYTHON_CMD="python3"
@@ -52,18 +89,39 @@ fi
 
 # 2. Check and Activate Virtual Environment
 if [[ -d "$VENV_DIR" ]] && [[ -f "$VENV_DIR/bin/activate" ]]; then
-    source "$VENV_DIR/bin/activate"
-    info "Virtual environment activated."
+    if VENV_PYTHON="$(resolve_venv_python "$VENV_DIR")"; then
+        source "$VENV_DIR/bin/activate"
+        export VIRTUAL_ENV="$VENV_DIR"
+        export PATH="$VENV_DIR/bin:$PATH"
+        PYTHON_CMD="$VENV_PYTHON"
+        info "Virtual environment activated."
+    else
+        warn "Virtual environment exists but Python inside it is not usable."
+        warn "This usually means the venv was created on a different platform."
+        warn "Run: $(recommended_setup_script)"
+        echo ""
+    fi
+elif [[ -n "${VIRTUAL_ENV:-}" ]]; then
+    if command -v python >/dev/null 2>&1; then
+        PYTHON_CMD="$(command -v python)"
+    elif command -v python3 >/dev/null 2>&1; then
+        PYTHON_CMD="$(command -v python3)"
+    fi
+    info "Using active shell virtual environment."
 elif [[ -z "${VIRTUAL_ENV:-}" ]]; then
-    echo -e "\033[0;90m[!] Warning: Virtual environment not found.\033[0m"
-    echo -e "    Run: ./setup.sh to install dependencies properly."
+    warn "Virtual environment not found."
+    echo -e "    Run: $(recommended_setup_script) to install dependencies properly."
     echo ""
 fi
 
 # 3. Canary Dependency Check
-if [[ -f "$REQUIREMENTS" ]] && ! $PYTHON_CMD -c "import rich" >/dev/null 2>&1; then
-    echo -e "\033[0;90m[!] Warning: Core dependencies (rich) missing.\033[0m"
-    echo -e "     Run: pip install -r $REQUIREMENTS"
+if [[ -f "$REQUIREMENTS" ]] && ! "$PYTHON_CMD" -c "import rich" >/dev/null 2>&1; then
+    warn "Core dependencies (rich) missing."
+    if [[ -n "${VIRTUAL_ENV:-}" ]]; then
+        echo -e "     Run: \"$PYTHON_CMD\" -m pip install -r $REQUIREMENTS"
+    else
+        echo -e "     Run: $(recommended_setup_script)"
+    fi
     echo ""
 fi
 

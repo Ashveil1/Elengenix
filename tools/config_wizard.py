@@ -238,26 +238,29 @@ class ConfigWizard:
         while True:
             console.print("\n[bold]Select configuration:[/bold]")
             console.print("  [1] Manage AI Providers (Multi-Key)")
-            console.print("  [2] Manage Integrations (Tavily, VulnCheck, etc.)")
-            console.print("  [3] Configure Default Target")
-            console.print("  [4] Configure Rate Limits")
-            console.print("  [5] View configuration status")
-            console.print("  [6] Check system (Health Check)")
+            console.print("  [2] Configure Team Aegis (3-AI Role Assignment)")
+            console.print("  [3] Manage Integrations (Tavily, VulnCheck, etc.)")
+            console.print("  [4] Configure Default Target")
+            console.print("  [5] Configure Rate Limits")
+            console.print("  [6] View configuration status")
+            console.print("  [7] Check system (Health Check)")
             console.print("  [0] Exit")
 
-            choice = console.input("\nSelect [0-6]: ").strip()
+            choice = console.input("\nSelect [0-7]: ").strip()
 
             if choice == "1":
                 self._manage_all_providers()
             elif choice == "2":
-                self._manage_integrations()
+                self._manage_team_aegis()
             elif choice == "3":
-                self._setup_default_target()
+                self._manage_integrations()
             elif choice == "4":
-                self._setup_rate_limits()
+                self._setup_default_target()
             elif choice == "5":
-                self._show_status()
+                self._setup_rate_limits()
             elif choice == "6":
+                self._show_status()
+            elif choice == "7":
                 self._health_check()
             elif choice == "0":
                 console.print("\n[dim]Saving configuration...[/dim]")
@@ -405,6 +408,7 @@ class ConfigWizard:
                             os.environ[env_key] = rpm_val
                             self._save_env_var(env_key, rpm_val)
                             
+                        self._save_team_to_yaml(final_team)
                         print_success("Team Aegis configuration saved!")
                 except Exception as e:
                     print_warning(f"Failed to launch Team Builder: {e}")
@@ -943,6 +947,242 @@ class ConfigWizard:
         lines = self.env_file.read_text().splitlines()
         lines = [l for l in lines if not l.startswith(f"{key}=")]
         self.env_file.write_text("\n".join(lines) + "\n")
+
+    def _load_yaml_config(self) -> dict:
+        """Load config.yaml safely."""
+        import yaml
+        config_file = self.config_dir / "config.yaml"
+        if not config_file.exists():
+            example_file = self.config_dir / "config.yaml.example"
+            if example_file.exists():
+                try:
+                    return yaml.safe_load(example_file.read_text()) or {}
+                except Exception:
+                    pass
+            return {}
+        try:
+            return yaml.safe_load(config_file.read_text()) or {}
+        except Exception as e:
+            logger.error(f"Failed to load config.yaml: {e}")
+            return {}
+
+    def _save_yaml_config(self, config: dict) -> None:
+        """Save config.yaml safely."""
+        import yaml
+        config_file = self.config_dir / "config.yaml"
+        try:
+            config_file.write_text(yaml.dump(config, default_flow_style=False, allow_unicode=True), encoding="utf-8")
+        except Exception as e:
+            logger.error(f"Failed to save config.yaml: {e}")
+            print_error(f"Failed to save config.yaml: {e}")
+
+    def _save_team_to_yaml(self, final_team: list) -> None:
+        """Save Team Aegis config to config.yaml."""
+        try:
+            config = self._load_yaml_config()
+            ta = config.setdefault("team_aegis", {})
+            ta["enabled"] = True
+            
+            roles = ["strategist", "specialist", "critic"]
+            for i, role in enumerate(roles):
+                if i < len(final_team):
+                    agent = final_team[i]
+                    role_cfg = ta.setdefault(role, {})
+                    role_cfg["provider"] = agent.get("provider", "gemini")
+                    role_cfg["model"] = agent.get("model", "")
+            
+            self._save_yaml_config(config)
+            logger.info("Saved team configuration to config.yaml under team_aegis")
+        except Exception as e:
+            logger.error(f"Failed to save team to config.yaml: {e}")
+
+    def _manage_team_aegis(self) -> None:
+        """Dedicated Team Aegis 3-AI configuration dashboard."""
+        from rich.table import Table
+        
+        while True:
+            config = self._load_yaml_config()
+            ta = config.setdefault("team_aegis", {})
+            enabled = ta.get("enabled", False)
+            
+            status_text = "[bold green]ENABLED (3-AI Mode)[/bold green]" if enabled else "[dim]DISABLED (Legacy Mode)[/dim]"
+            console.print(f"\n  [bold red]Team Aegis v2 — 3-AI Collaboration Settings[/bold red]  ({status_text})")
+            console.print("  Collaborative Pipeline: Strategist (Plan) \u2192 Specialist (Execute) \u2192 Critic (Validate)\n")
+            
+            table = Table(show_header=True, header_style="bold red", border_style="dim")
+            table.add_column("Role", width=25)
+            table.add_column("AI Provider", width=15, justify="center")
+            table.add_column("Model Name", width=40)
+            table.add_column("Status", width=12, justify="center")
+            
+            roles = [
+                ("strategist", "Strategist (Planner)"),
+                ("specialist", "Specialist (Executor)"),
+                ("critic", "Critic (Validator)"),
+            ]
+            
+            for role_key, role_name in roles:
+                role_cfg = ta.get(role_key, {})
+                prov = role_cfg.get("provider", "")
+                mod = role_cfg.get("model", "")
+                
+                if prov:
+                    env_key = f"{prov.upper()}_API_KEY"
+                    has_key = True if prov == "ollama" else bool(os.getenv(env_key, ""))
+                    status = "[green]Ready[/green]" if has_key else "[dim #ffa500]No key[/dim #ffa500]"
+                    prov_display = prov.upper()
+                    model_display = mod or "(default)"
+                else:
+                    prov_display = "(not set)"
+                    model_display = "(falls back to main provider)"
+                    status = "[dim]Ready[/dim]"
+                
+                table.add_row(role_name, prov_display, model_display, status)
+                
+            console.print(table)
+            
+            console.print("\n  [bold]Options:[/bold]")
+            toggle_label = "Disable 3-AI Mode" if enabled else "Enable 3-AI Mode"
+            console.print(f"  [1] {toggle_label}")
+            console.print("  [2] Configure Strategist AI (Planner)")
+            console.print("  [3] Configure Specialist AI (Executor)")
+            console.print("  [4] Configure Critic AI (Validator)")
+            console.print("  [5] Quick-build recommended team (Gemini + Anthropic + OpenAI)")
+            console.print("  [6] Reset / Clear Team Configuration")
+            console.print("  [0] Back")
+            
+            choice = console.input("\nSelect [0-6]: ").strip()
+            
+            if choice == "0" or not choice:
+                break
+                
+            elif choice == "1":
+                ta["enabled"] = not enabled
+                self._save_yaml_config(config)
+                print_success(f"Multi-AI mode set to: {'ENABLED' if ta['enabled'] else 'DISABLED'}")
+                
+            elif choice in ("2", "3", "4"):
+                role_idx = int(choice) - 2
+                role_key = roles[role_idx][0]
+                role_name = roles[role_idx][1]
+                self._configure_team_role(role_key, role_name, config)
+                
+            elif choice == "5":
+                ta["enabled"] = True
+                ta["strategist"] = {"provider": "gemini", "model": "gemini-2.0-flash"}
+                ta["specialist"] = {"provider": "anthropic", "model": "claude-3-5-haiku-20241022"}
+                ta["critic"] = {"provider": "openai", "model": "gpt-4o-mini"}
+                self._save_yaml_config(config)
+                
+                os.environ["ACTIVE_AI_PROVIDER"] = "gemini"
+                models_str = "gemini/gemini-2.0-flash,anthropic/claude-3-5-haiku-20241022,openai/gpt-4o-mini"
+                os.environ["ACTIVE_MODELS"] = models_str
+                self._save_env_var("ACTIVE_AI_PROVIDER", "gemini")
+                self._save_env_var("ACTIVE_MODELS", models_str)
+                
+                print_success("Quick-built recommended 3-AI team successfully!")
+                
+            elif choice == "6":
+                ta["enabled"] = False
+                for r in ("strategist", "specialist", "critic"):
+                    if r in ta:
+                        del ta[r]
+                self._save_yaml_config(config)
+                self._remove_env_var("ACTIVE_MODELS")
+                print_success("Team configuration cleared.")
+
+    def _configure_team_role(self, role_key: str, role_name: str, config: dict) -> None:
+        """Interactive role configuration."""
+        console.print(f"\n[bold red]Configuring role: {role_name}[/bold red]")
+        
+        console.print("\nSelect AI Provider:")
+        for idx, p in enumerate(self.AI_PROVIDERS, 1):
+            env_key = p.env_key
+            has_key = True if p.name == "Ollama (Local)" else bool(os.getenv(env_key, ""))
+            status = "[green][READY][/green]" if has_key else "[dim][NO KEY][/dim]"
+            console.print(f"  [{idx}] {p.name:<22} {status}")
+        console.print("  [0] Cancel")
+        
+        prov_choice = console.input("\nSelect [0-14]: ").strip()
+        if prov_choice == "0" or not prov_choice:
+            return
+            
+        try:
+            prov_idx = int(prov_choice) - 1
+            if 0 <= prov_idx < len(self.AI_PROVIDERS):
+                provider = self.AI_PROVIDERS[prov_idx]
+            else:
+                print_warning("Invalid selection")
+                return
+        except ValueError:
+            print_warning("Please enter a number")
+            return
+            
+        pkey = self._PROVIDER_KEY_MAP.get(provider.name, provider.name.lower())
+        
+        local_models = self.DEFAULT_MODELS.get(provider.name, ["default"])
+        api_key = os.getenv(provider.env_key, "")
+        
+        remote_models = []
+        if api_key and provider.name != "Ollama (Local)":
+            with console.status(f"[bold yellow]Fetching models for {provider.name}...[/bold yellow]"):
+                remote_models = self._fetch_remote_models(provider, api_key)
+                
+        models = remote_models if remote_models else local_models
+        for lm in local_models:
+            if lm not in models:
+                models.append(lm)
+                
+        console.print(f"\nSelect Model for {role_name} ({provider.name}):")
+        for idx, m in enumerate(models, 1):
+            console.print(f"  [{idx}] {m}")
+        console.print(f"  [{len(models) + 1}] Custom (Enter identifier)")
+        console.print("  [0] Cancel")
+        
+        model_choice = console.input(f"\nSelect [0-{len(models) + 1}]: ").strip()
+        if model_choice == "0" or not model_choice:
+            return
+            
+        selected_model = ""
+        try:
+            m_idx = int(model_choice) - 1
+            if 0 <= m_idx < len(models):
+                selected_model = models[m_idx]
+            elif m_idx == len(models):
+                selected_model = console.input("Enter custom model identifier: ").strip()
+        except ValueError:
+            selected_model = model_choice
+            
+        if not selected_model:
+            return
+            
+        ta = config.setdefault("team_aegis", {})
+        role_cfg = ta.setdefault(role_key, {})
+        role_cfg["provider"] = pkey
+        role_cfg["model"] = selected_model
+        self._save_yaml_config(config)
+        
+        active_models_str = os.environ.get("ACTIVE_MODELS", "")
+        team = []
+        for m in active_models_str.split(","):
+            m = m.strip()
+            if m and "/" in m:
+                p, mod = m.split("/", 1)
+                team.append({"provider": p, "model": mod})
+        
+        role_idx_map = {"strategist": 0, "specialist": 1, "critic": 2}
+        idx = role_idx_map[role_key]
+        
+        while len(team) <= idx:
+            team.append({"provider": "gemini", "model": "gemini-1.5-flash"})
+            
+        team[idx] = {"provider": pkey, "model": selected_model}
+        
+        models_str = ",".join([f"{t['provider']}/{t['model']}" for t in team])
+        os.environ["ACTIVE_MODELS"] = models_str
+        self._save_env_var("ACTIVE_MODELS", models_str)
+        
+        print_success(f"Configured {role_name} AI: {pkey}/{selected_model} successfully!")
 
 
 def run_config_wizard() -> None:

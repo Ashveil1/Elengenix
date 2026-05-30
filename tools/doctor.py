@@ -1,35 +1,151 @@
 """
 tools/doctor.py — System Health Check & Auto-Repair
-- Checks Python version, config, all security tools
+- Checks Python version, config, and core library dependencies
 - Checks AI provider connectivity
-- Auto-repair mode: installs missing tools via setup.sh hint
+- Auto-repair mode: guides/installs missing libraries via pip
 """
 
 from __future__ import annotations
 
 import logging
 import os
-import shutil
+import subprocess
 import sys
 import yaml
 from pathlib import Path
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 
 logger = logging.getLogger("elengenix.doctor")
 
-SECURITY_TOOLS: List[str] = [
-    "subfinder", "nuclei", "httpx", "katana",
-    "waybackurls", "nmap", "ffuf", "gau",
-    "naabu", "arjun", "dalfox", "trufflehog"
+# Python libraries to check: (import_name, pip_name, is_required)
+PYTHON_LIBRARIES: List[Tuple[str, str, bool]] = [
+    ("rich", "rich", True),
+    ("yaml", "PyYAML", True),
+    ("questionary", "questionary", True),
+    ("dotenv", "python-dotenv", True),
+    ("requests", "requests", True),
+    ("textual", "textual", True),
+    ("chromadb", "chromadb", True),
+    ("sentence_transformers", "sentence-transformers", True),
+    ("tiktoken", "tiktoken", True),
 ]
 
 PYTHON_MIN = (3, 10)
 
 
-def _check_python() -> Tuple[bool, str]:
-    v = sys.version_info
-    ok = (v.major, v.minor) >= PYTHON_MIN
-    return ok, f"{v.major}.{v.minor}.{v.micro}"
+def _in_virtualenv() -> bool:
+    """Return True when the current Python interpreter is running inside a venv."""
+    return sys.prefix != getattr(sys, "base_prefix", sys.prefix)
+
+
+def _project_root() -> Path:
+    """Return the project root directory based on this module location."""
+    return Path(__file__).resolve().parent.parent
+
+
+def _venv_candidates() -> List[Path]:
+    """Return supported virtual environment directories in priority order."""
+    root = _project_root()
+    candidates: List[Path] = []
+    active_venv = os.environ.get("VIRTUAL_ENV", "").strip()
+    if active_venv:
+        candidates.append(Path(active_venv))
+    candidates.extend([root / "venv", root / ".venv"])
+    return candidates
+
+
+def _resolve_venv_python(venv_dir: Path) -> Optional[Path]:
+    """Return the best available Python executable inside a venv."""
+    bin_dir = venv_dir / "bin"
+    direct_candidates = [
+        bin_dir / "python",
+        bin_dir / "python3",
+    ]
+    for candidate in direct_candidates:
+        if candidate.exists():
+            return candidate
+
+    versioned = sorted(bin_dir.glob("python3.*"), reverse=True)
+    for candidate in versioned:
+        if candidate.exists():
+            return candidate
+    return None
+
+
+def _venv_needs_repair(venv_dir: Path) -> bool:
+    """Return True when a venv directory exists but does not contain a usable Python."""
+    return venv_dir.exists() and _resolve_venv_python(venv_dir) is None
+
+
+def _find_project_venv() -> Optional[Path]:
+    """Return the project virtual environment directory if one already exists."""
+    for candidate in _venv_candidates():
+        if _resolve_venv_python(candidate) is not None:
+            return candidate
+    return None
+
+
+def _project_python() -> Path:
+    """Return the Python executable that should be used for checks and installs."""
+    project_venv = _find_project_venv()
+    if project_venv:
+        python_executable = _resolve_venv_python(project_venv)
+        if python_executable is not None:
+            return python_executable
+    return Path(sys.executable)
+
+
+def _ensure_project_venv() -> Tuple[Optional[Path], str]:
+    """Ensure the project venv exists and return (python_path, output)."""
+    existing = _find_project_venv()
+    if existing:
+        python_executable = _resolve_venv_python(existing)
+        if python_executable is not None:
+            return python_executable, ""
+
+    target_dir = _project_root() / "venv"
+    venv_args = [sys.executable, "-m", "venv"]
+    if _venv_needs_repair(target_dir):
+        venv_args.append("--clear")
+    venv_args.append(str(target_dir))
+    proc = subprocess.run(
+        venv_args,
+        capture_output=True,
+        text=True,
+        cwd=_project_root(),
+    )
+    output = "\n".join(part for part in [proc.stdout, proc.stderr] if part).strip()
+    python_path = _resolve_venv_python(target_dir)
+    if proc.returncode == 0 and python_path is not None:
+        return python_path, output
+    return None, output
+
+
+def _check_python(python_executable: Path) -> Tuple[bool, str]:
+    """Check the version of the Python interpreter used by Elengenix."""
+    proc = subprocess.run(
+        [str(python_executable), "-c", "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}')"],
+        capture_output=True,
+        text=True,
+    )
+    version = (proc.stdout or "").strip() or "unknown"
+    parts = version.split(".")
+    try:
+        parsed = tuple(int(part) for part in parts[:3])
+    except ValueError:
+        parsed = (0, 0, 0)
+    ok = parsed >= PYTHON_MIN
+    return ok, version
+
+
+def _check_library(import_name: str, python_executable: Path) -> Tuple[bool, str]:
+    """Check if a Python library is importable from the runtime interpreter."""
+    proc = subprocess.run(
+        [str(python_executable), "-c", f"import {import_name}"],
+        capture_output=True,
+        text=True,
+    )
+    return proc.returncode == 0, "Installed" if proc.returncode == 0 else "Not found"
 
 
 def _check_config() -> Tuple[bool, str]:
@@ -72,11 +188,32 @@ def _check_config() -> Tuple[bool, str]:
         return False, f"Parse error: {e}"
 
 
-def _check_tool(tool: str) -> Tuple[bool, str]:
-    path = shutil.which(tool)
-    if path:
-        return True, path
-    return False, "Not found"
+def _install_python_packages(packages: List[str]) -> Tuple[bool, str]:
+    """Install Python packages into the project venv and return (success, combined_output)."""
+    python_executable = _project_python()
+    venv_output = ""
+
+    if _find_project_venv() is None:
+        python_executable, venv_output = _ensure_project_venv()
+        if python_executable is None:
+            return False, venv_output
+
+    upgrade = subprocess.run(
+        [str(python_executable), "-m", "pip", "install", "--upgrade", "pip"],
+        capture_output=True,
+        text=True,
+        cwd=_project_root(),
+    )
+    install = subprocess.run(
+        [str(python_executable), "-m", "pip", "install", *packages],
+        capture_output=True,
+        text=True,
+        cwd=_project_root(),
+    )
+    output = "\n".join(
+        part for part in [venv_output, upgrade.stdout, upgrade.stderr, install.stdout, install.stderr] if part
+    ).strip()
+    return install.returncode == 0, output
 
 
 def check_health(interactive: bool = True) -> bool:
@@ -86,17 +223,24 @@ def check_health(interactive: bool = True) -> bool:
     Returns True if system is healthy.
     """
     from ui_components import console, print_error, print_success, print_warning, confirm
-    import questionary
     
     console.print("\n[bold red]System Health Check[/bold red] [dim]1.0.0[/dim]\n")
     all_ok = True
+    runtime_python = _project_python()
+    project_venv = _find_project_venv()
 
     # ── Python Version ─────────────────────────────────────────────────────────
-    py_ok, py_ver = _check_python()
+    py_ok, py_ver = _check_python(runtime_python)
     console.print("[bold red]Python Runtime[/bold red]")
     status = "[bold white]OK[/bold white]" if py_ok else "[bold red]FAIL[/bold red]"
     detail = py_ver + (f" (need >={PYTHON_MIN[0]}.{PYTHON_MIN[1]})" if not py_ok else "")
     console.print(f"  Version: {status} {detail}")
+    if project_venv:
+        console.print(f"  Runtime: [bold white]venv[/bold white] [dim]({runtime_python})[/dim]")
+    elif _in_virtualenv():
+        console.print(f"  Runtime: [bold white]active virtualenv[/bold white] [dim]({runtime_python})[/dim]")
+    else:
+        console.print(f"  Runtime: [bold white]system python[/bold white] [dim]({runtime_python})[/dim]")
     if not py_ok:
         all_ok = False
     console.print()
@@ -122,59 +266,79 @@ def check_health(interactive: bool = True) -> bool:
                 logger.error(f"Wizard failed: {e}")
     console.print()
 
-    # ── Security Tools ─────────────────────────────────────────────────────────
-    console.print("[bold red]Security Tools[/bold red]")
+    # ── Python Libraries ─────────────────────────────────────────────────────────
+    console.print("[bold red]Python Libraries[/bold red]")
     
-    missing: List[str] = []
-    for tool in SECURITY_TOOLS:
-        ok, info = _check_tool(tool)
-        status = "[bold white]OK[/bold white]" if ok else "[bold red]Missing[/bold red]"
-        console.print(f"  {tool}: {status}")
-        if not ok:
-            missing.append(tool)
-            all_ok = False
+    missing_required: List[str] = []
+    missing_optional: List[str] = []
+    
+    for import_name, pip_name, is_required in PYTHON_LIBRARIES:
+        ok, info = _check_library(import_name, runtime_python)
+        if ok:
+            status = "[bold white]OK[/bold white]"
+            console.print(f"  {pip_name}: {status}")
+        else:
+            if is_required:
+                status = "[bold red]Missing (Required)[/bold red]"
+                missing_required.append(pip_name)
+                all_ok = False
+            else:
+                status = "[bold yellow]Missing (Optional)[/bold yellow]"
+                missing_optional.append(pip_name)
+            console.print(f"  {pip_name}: {status}")
+            
     console.print()
 
-    if missing:
-        print_error(f"Missing tools: {', '.join(missing)}")
+    # Auto-repair / instructions for missing libraries
+    if missing_required or missing_optional:
+        if missing_required:
+            print_error(f"Missing required libraries: {', '.join(missing_required)}")
+        if missing_optional:
+            print_warning(f"Missing optional libraries: {', '.join(missing_optional)}")
+            
         if interactive:
             try:
-                while True:
-                    choice = questionary.select(
-                        "Missing security tools detected. What would you like to do?",
-                        choices=[
-                            "Install ALL missing tools (Recommended)",
-                            "Select specific tools to install",
-                            "Skip for now"
-                        ]
-                    ).ask()
-                    
-                    if choice == "Install ALL missing tools (Recommended)":
-                        import dependency_manager
-                        dependency_manager.check_and_install_dependencies()
-                        break
-                    elif choice == "Select specific tools to install":
-                        selected = questionary.checkbox(
-                            "Select tools to install (Press Space to select, Enter to confirm):",
-                            choices=missing
-                        ).ask()
-                        if not selected:
-                            console.print("[grey70]No tools selected. Returning to menu...[/grey70]")
-                            continue  # Loop back to the main menu
-                        
-                        import dependency_manager
-                        for tool in selected:
-                            if tool in dependency_manager.TOOLS:
-                                console.print(f"[*] Installing {tool}...")
-                                dependency_manager.run_with_streaming(dependency_manager.TOOLS[tool])
-                        break
-                    else:
-                        console.print("[dim]Skipping tool installation.[/dim]")
-                        break
+                import questionary
+                choices = []
+                if missing_required:
+                    choices.append("Install missing required libraries")
+                if missing_optional:
+                    choices.append("Install missing optional libraries")
+                choices.append("Skip for now")
+                
+                choice = questionary.select(
+                    "Missing python libraries detected. What would you like to do?",
+                    choices=choices
+                ).ask()
+                
+                if choice == "Install missing required libraries":
+                    to_install = [name for import_name, name, req in PYTHON_LIBRARIES if req and name in missing_required]
+                    console.print(f"[*] Installing required libraries: {', '.join(to_install)}...")
+                    success, output = _install_python_packages(to_install)
+                    if success:
+                        console.print("[bold white][OK][/bold white] Dependencies installed into project venv")
+                        all_ok = check_health(interactive=False)
+                        return all_ok
+                    print_error("Automatic installation failed")
+                    if output:
+                        console.print(f"[dim]{output[-1200:]}[/dim]")
+                    return False
+                elif choice == "Install missing optional libraries":
+                    to_install = [name for import_name, name, req in PYTHON_LIBRARIES if not req and name in missing_optional]
+                    console.print(f"[*] Installing optional libraries: {', '.join(to_install)}...")
+                    success, output = _install_python_packages(to_install)
+                    if success:
+                        console.print("[bold white][OK][/bold white] Dependencies installed into project venv")
+                        all_ok = check_health(interactive=False)
+                        return all_ok
+                    print_error("Automatic installation failed")
+                    if output:
+                        console.print(f"[dim]{output[-1200:]}[/dim]")
+                    return False
             except ImportError:
                 print_warning("questionary module missing. Run setup.sh to install core dependencies.")
             except Exception as e:
-                logger.error(f"Error during tool installation prompt: {e}")
+                logger.error(f"Error during library installation prompt: {e}")
 
     # ── Final Verdict ──────────────────────────────────────────────────────────
     console.print()

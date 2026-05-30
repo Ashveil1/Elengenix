@@ -1,8 +1,20 @@
-"""agents/hybrid_agent.py — Hybrid Agent combining redteam_agent flexibility with Elengenix structure.
+"""agents/hybrid_agent.py — Hybrid Agent with TeamAegis v2 support.
 
-Strategist (AI 1) plans at a high level.
-Specialist (AI 2) executes actions in a loop with full shell flexibility.
-Every result feeds into Elengenix's analysis pipeline, memory, and reporting.
+Two modes of operation:
+
+1. Legacy 2-agent mode (single client):
+   Strategist (AI 1) plans, Specialist (AI 2) executes.
+   Same client used for both roles.
+
+2. TeamAegis v2 mode (3 separate clients):
+   Strategist (AI #1) plans the attack.
+   Specialist (AI #2) executes tools and shell commands.
+   Critic (AI #3) validates findings and filters false positives.
+   Coordinated by AgentCouncil via SharedInbox message bus.
+
+The mode is selected automatically based on which clients are provided.
+If only `client` is given, legacy mode is used. If `strategist_client`,
+`specialist_client`, or `critic_client` are provided, TeamAegis v2 is used.
 """
 
 from __future__ import annotations
@@ -66,7 +78,7 @@ class HybridAgent:
 
     def __init__(
         self,
-        client: Any = None,  # AIClientManager-like, must have .chat()
+        client: Any = None,  # Legacy: single AIClientManager for both roles
         governance: Governance = None,
         target: str = "",
         max_steps: int = 50,
@@ -75,6 +87,14 @@ class HybridAgent:
         enable_memory: bool = True,
         loop_threshold: int = 4,
         callback: Optional[Callable] = None,
+        # TeamAegis v2 — separate clients per role
+        strategist_client: Any = None,
+        specialist_client: Any = None,
+        critic_client: Any = None,
+        strategist_label: str = "Strategist AI",
+        specialist_label: str = "Specialist AI",
+        critic_label: str = "Critic AI",
+        risk_threshold: str = "critical",
     ):
         self.client = client
         self.governance = governance or Governance(require_approval_high_risk=True)
@@ -85,6 +105,18 @@ class HybridAgent:
         self.enable_memory = enable_memory
         self.loop_threshold = loop_threshold
         self.callback = callback
+
+        # TeamAegis v2 client references
+        self._strategist_client = strategist_client
+        self._specialist_client = specialist_client
+        self._critic_client = critic_client
+        self._strategist_label = strategist_label
+        self._specialist_label = specialist_label
+        self._critic_label = critic_label
+        self._risk_threshold = risk_threshold
+
+        # Detect mode: use TeamAegis v2 if any separate client is provided
+        self._use_council = bool(strategist_client or specialist_client or critic_client)
 
         # Shared infrastructure
         self.executor = UniversalExecutor(base_dir=".")
@@ -104,10 +136,24 @@ class HybridAgent:
     # ── Public Entry ────────────────────────────────────────────────────
 
     def run(self, objective: str) -> str:
-        """Main entry: Strategist → Specialist loop. Returns final report."""
+        """Main entry: routes to TeamAegis v2 council or legacy 2-agent loop.
+
+        Args:
+            objective: High-level mission objective string.
+
+        Returns:
+            Final markdown report string.
+        """
         self.objective = objective
         self.start_time = time.time()
 
+        # ── TeamAegis v2 (3-agent council) ────────────────────────────────────
+        if self._use_council:
+            self._log(f"[TeamAegis v2] Mission started: {objective[:120]}")
+            council = self._build_council()
+            return council.run(objective)
+
+        # ── Legacy 2-agent mode ───────────────────────────────────────────────
         self._log(f"[Hybrid] Mission started: {objective[:120]}")
 
         # 1. Strategist generates initial plan
@@ -136,6 +182,52 @@ class HybridAgent:
         # 3. Finalize
         return self._finalize_mission()
 
+    def _build_council(self) -> "AgentCouncil":
+        """Build an AgentCouncil with 3 specialized agents.
+
+        Falls back to the single `client` for any role that has no dedicated client.
+
+        Returns:
+            Configured AgentCouncil instance.
+        """
+        from agents.agent_council import AgentCouncil
+        from agents.strategist_agent import StrategistAgent
+        from agents.specialist_agent import SpecialistAgent
+        from agents.critic_agent import CriticAgent
+
+        # Resolve clients: use dedicated if available, else fall back to self.client
+        s_client = self._strategist_client or self.client
+        sp_client = self._specialist_client or self.client
+        cr_client = self._critic_client or self.client
+
+        strategist = StrategistAgent(
+            client=s_client,
+            model_label=self._strategist_label,
+            enable_workers=self.enable_memory,
+            max_tasks=10,
+        )
+        specialist = SpecialistAgent(
+            client=sp_client,
+            model_label=self._specialist_label,
+            governance=self.governance,
+            enable_workers=True,
+        )
+        critic = CriticAgent(
+            client=cr_client,
+            model_label=self._critic_label,
+            enable_workers=True,
+        )
+
+        return AgentCouncil(
+            strategist=strategist,
+            specialist=specialist,
+            critic=critic,
+            target=self.target,
+            max_rounds=self.max_steps,
+            risk_threshold=self._risk_threshold,
+            callback=self.callback,
+        )
+
     # ── Strategist ──────────────────────────────────────────────────────
 
     def _run_strategist(self):
@@ -152,7 +244,7 @@ class HybridAgent:
 
         available_tools = registry.list_available_tools()
         tool_summary = "\n".join([
-            f"  {name} ({info['category']}) — {'✓' if info['available'] else '✗ not installed'}"
+            f"  {name} ({info['category']}) - {'[OK]' if info['available'] else '[FAIL] not installed'}"
             for name, info in sorted(available_tools.items())
         ]) or "  (no tools registered)"
 
@@ -190,7 +282,7 @@ class HybridAgent:
 
         thought = decision.get("thought", "")
         if thought:
-            console.print(f"  [dim]├─ {thought}[/dim]")
+            console.print(f"  [INFO] {thought}")
 
         action = decision.get("action", "")
         self.action_history.append({"action": action, **decision})
@@ -211,7 +303,7 @@ class HybridAgent:
         elif action == "complete_mission":
             return False
         else:
-            console.print(f"  [yellow]├─ Unknown action: {action}[/yellow]")
+            console.print(f"  [yellow][WARN] Unknown action: {action}[/yellow]")
 
         return True
 
@@ -285,7 +377,7 @@ class HybridAgent:
         cmd_target = decision.get("target", self.target or "")
 
         if not tool_name:
-            console.print("  [yellow]├─ No tool specified[/yellow]")
+            console.print("  [yellow][WARN] No tool specified[/yellow]")
             return
 
         # Try ToolRegistry first
@@ -300,7 +392,7 @@ class HybridAgent:
             if not shutil.which(tool_name):
                 from dependency_manager import TOOLS as INSTALLABLE_TOOLS, run_with_streaming, verify_and_advise
                 if tool_name in INSTALLABLE_TOOLS:
-                    console.print(f"  [cyan]├─ [INSTALL] Missing '{tool_name}'. Attempting auto-installation...[/cyan]")
+                    console.print(f"  [cyan][RUN] [INSTALL] Missing '{tool_name}'. Attempting auto-installation...[/cyan]")
                     if run_with_streaming(INSTALLABLE_TOOLS[tool_name]):
                         if verify_and_advise(tool_name):
                             console.print(f"  [white][OK] '{tool_name}' successfully installed and integrated[/white]")
@@ -324,7 +416,7 @@ class HybridAgent:
         """Execute an arbitrary shell command."""
         command = decision.get("command", "")
         if not command:
-            console.print("  [yellow]├─ No command specified[/yellow]")
+            console.print("  [yellow][WARN] No command specified[/yellow]")
             return
 
         # Check if command starts with a registered tool name
@@ -347,12 +439,12 @@ class HybridAgent:
         try:
             result = self.executor.file_editor.read_file(file_path, limit=80)
             if result.success:
-                console.print(f"  [cyan]├─ File: {file_path}[/cyan]")
+                console.print(f"  [cyan][INFO] File: {file_path}[/cyan]")
                 console.print(f"  {result.output[:600]}")
             else:
-                console.print(f"  [red]├─ {result.error}[/red]")
+                console.print(f"  [red][FAIL] {result.error}[/red]")
         except Exception as e:
-            console.print(f"  [red]├─ File error: {e}[/red]")
+            console.print(f"  [red][FAIL] File error: {e}[/red]")
 
     def _handle_update_intel(self, decision: Dict):
         """Save discovered intelligence to vector memory."""
@@ -366,7 +458,7 @@ class HybridAgent:
                 "hybrid_intel",
                 session_type="hybrid",
             )
-        console.print(f"  [magenta]├─ Intel saved: {list(intel.keys())}[/magenta]")
+        console.print(f"  [magenta][OK] Intel saved: {list(intel.keys())}[/magenta]")
 
     def _handle_search_web(self, decision: Dict):
         """Search the web for information."""
@@ -378,18 +470,18 @@ class HybridAgent:
             "params": {"query": query, "num_results": 5},
         })
         if result.success:
-            console.print(f"  [blue]├─ Web: {query[:80]}[/blue]")
+            console.print(f"  [blue][INFO] Web: {query[:80]}[/blue]")
             console.print(f"  {result.output[:500]}")
         else:
-            console.print(f"  [red]├─ Search error: {result.error}[/red]")
+            console.print(f"  [red][FAIL] Search error: {result.error}[/red]")
 
     def _handle_message(self, decision: Dict):
         """Display a message to the user and wait."""
         msg = decision.get("message", "")
         purpose = decision.get("purpose", "")
         if purpose:
-            console.print(f"  [bold]├─ [{purpose}][/bold]")
-        console.print(f"\n  [green]├─ AI: {msg}[/green]")
+            console.print(f"  [bold][INFO] {purpose}[/bold]")
+        console.print(f"\n  [green][INFO] AI: {msg}[/green]")
 
     # ── Execution Backends ──────────────────────────────────────────────
 
@@ -404,7 +496,7 @@ class HybridAgent:
         import asyncio
         from pathlib import Path
 
-        console.print(f"  [cyan]├─ [{tool_name}] via ToolRegistry[/cyan]")
+        console.print(f"  [cyan][RUN] [{tool_name}] via ToolRegistry[/cyan]")
 
         report_dir = (
             Path("reports") / f"hybrid_{tool_name}_{int(time.time())}"
@@ -453,17 +545,17 @@ class HybridAgent:
         if not gate.allowed:
             if gate.risk_level == "DESTRUCTIVE":
                 console.print(
-                    f"  [red]├─ BLOCKED: {gate.rationale}[/red]"
+                    f"  [red][FAIL] BLOCKED: {gate.rationale}[/red]"
                 )
             else:
                 console.print(
-                    f"  [yellow]├─ Requires approval: {command[:80]}[/yellow]"
+                    f"  [yellow][WARN] Requires approval: {command[:80]}[/yellow]"
                 )
             return
 
         safe_name = command.split()[0] if command.split() else "shell"
         console.print(
-            f"  [dim]├─ [{safe_name}] via shell[/dim]"
+            f"  [dim][RUN] [{safe_name}] via shell[/dim]"
         )
 
         result = self.executor.execute_shell(command, timeout=300)
@@ -471,10 +563,10 @@ class HybridAgent:
         if result.success:
             snippet = result.output[:300].strip()
             if snippet:
-                console.print(f"  [dim]│  {snippet}[/dim]")
+                console.print(f"  [dim]{snippet}[/dim]")
         else:
             console.print(
-                f"  [red]├─ FAIL ({result.error[:100]})[/red]"
+                f"  [red][FAIL] {result.error[:100]}[/red]"
             )
 
         # Convert to ToolResult-like for analysis
@@ -501,7 +593,7 @@ class HybridAgent:
 
         if result.findings:
             console.print(
-                f"  [green]├─ {len(result.findings)} findings[/green]"
+                f"  [green][OK] {len(result.findings)} findings[/green]"
             )
 
         # Persist to MissionState

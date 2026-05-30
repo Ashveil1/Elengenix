@@ -35,3 +35,37 @@ ai:
 telegram:
   # bot_token: Read from TELEGRAM_BOT_TOKEN
   # chat_id: Read from TELEGRAM_CHAT_ID
+
+# ═══════════════════════════════════════════════════════
+# TeamAegis v2 — Multi-AI Collaboration (3 AI Agents)
+# ═══════════════════════════════════════════════════════
+# When enabled, the hybrid hunt mode uses 3 separate AI
+# models that collaborate: plan → execute → validate.
+#
+# Each role can use a different provider and model.
+# If a role has no provider set, it falls back to the
+# main active_provider above.
+#
+# Roles:
+#   strategist — Plans the attack tree (high-level thinker)
+#   specialist — Executes tools and shell commands
+#   critic     — Validates findings, filters false positives
+# ═══════════════════════════════════════════════════════
+team_aegis:
+  enabled: false   # Set to true to activate 3-AI mode
+
+  strategist:
+    provider: gemini          # Provider for planning AI
+    model: gemini-2.0-flash   # Model name (optional override)
+
+  specialist:
+    provider: anthropic       # Provider for execution AI
+    model: claude-3-5-haiku-20241022
+
+  critic:
+    provider: openai          # Provider for validation AI
+    model: gpt-4o-mini
+
+  # risk_threshold: critical  # When to require human approval
+  #   "high"     = vote on HIGH + CRITICAL risk tasks
+  #   "critical" = only CRITICAL tasks (default, less disruptive)

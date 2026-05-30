@@ -209,7 +209,11 @@ class ElengenixApp:
 
     def run(self, args: List[str]):
         """Route the command to the appropriate handler."""
-        if not args or args[0] in ["help", "-h", "--help"]:
+        if not args:
+            self._delegate(["tui"])
+            return
+
+        if args[0] in ["help", "-h", "--help"]:
             self.show_help()
             return
 

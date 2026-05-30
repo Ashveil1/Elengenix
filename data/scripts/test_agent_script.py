@@ -1,0 +1,1 @@
+print("SCRIPT_WORKS_OK")

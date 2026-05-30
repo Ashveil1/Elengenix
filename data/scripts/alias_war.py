@@ -1,0 +1,1 @@
+print("WAR_OK")

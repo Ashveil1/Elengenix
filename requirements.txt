@@ -34,13 +34,9 @@ tenacity>=8.0.0         # Advanced retry & backoff strategies
 # ── Token Counting ─────────────────────────────────────
 tiktoken                # Accurate token counting (auto-detected, lightweight)
 
-# ── Vector Memory (OPTIONAL — heavy deps) ──────────────
-# chromadb + sentence-transformers = ~2 GB.
-# The system works without them (SQLite fallback).
-# Install only if you need semantic vector search:
-#   pip install chromadb sentence-transformers
-# chromadb
-# sentence-transformers
+# ── Vector Memory & Semantic Search ────────────────────
+chromadb                # Persistent vector memory backend
+sentence-transformers   # Embeddings for semantic recall/search
 
 # ── Async HTTP (OPTIONAL) ──────────────────────────────
 # httpx provides async HTTP for AI client.
@@ -50,7 +46,7 @@ tiktoken                # Accurate token counting (auto-detected, lightweight)
 # ── Recon & Web Intelligence ───────────────────────────
 trafilatura             # High-precision web content extraction
 googlesearch-python     # Basic search discovery (Keep for now)
-ddgs                    # DuckDuckGo search for real-time web results
+duckduckgo-search       # DuckDuckGo search for real-time web results
 
 
 # -- Recommended Security Tools (Optional) ---
@@ -60,4 +56,3 @@ ddgs                    # DuckDuckGo search for real-time web results
 # -- Testing and Development --
 pytest>=7.0.0             # Unit and integration testing
 pytest-asyncio            # Async test support
-zaproxy

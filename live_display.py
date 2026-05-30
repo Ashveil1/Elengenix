@@ -17,7 +17,7 @@ from rich.live import Live
 from rich.panel import Panel
 from rich.text import Text
 from rich.layout import Layout
-from rich.console import Console, Group
+from rich.console import Group
 
 from ui_components import console as _ui_console
 
@@ -105,7 +105,7 @@ class LiveDisplay:
     """
     
     def __init__(self):
-        self.console = Console()
+        self.console = _ui_console
         self.activity_logger = ActivityLogger()
         self.running = False
         self.current_mode = "chat"  # chat, logs, or full

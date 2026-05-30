@@ -465,7 +465,8 @@ class ElengenixTextualApp(App):
     CSS = """
 Screen { background: $surface; layers: base overlay; transition: border 500ms; border: solid transparent; }
 Screen.glow { border: heavy $accent; }
-RichLog, Sidebar { scrollbar_color: $secondary; scrollbar_color_hover: $accent; scrollbar_color_active: $primary; }
+RichLog, Sidebar { scrollbar_color: rgba(128, 128, 128, 0.15); scrollbar_color_hover: $accent; scrollbar_color_active: $primary; }
+RichLog:hover, Sidebar:hover { scrollbar_color: $secondary; }
 Sidebar { width: 38; height: 1fr; background: $surface; border-left: solid $secondary; margin: 0; padding: 1 1; overflow-y: auto; }
 ThinkingWidget { height: 1; padding: 0 1 0 5; color: $primary; display: none; }
 ThinkingWidget.visible { display: block; }
@@ -894,6 +895,9 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
     def _chat_write_system(self, markup: str) -> None:
         self._chat().write(Text.from_markup(f"[dim]{markup}[/]"))
 
+    def _chat_write_panel(self, panel: Panel) -> None:
+        self._chat().write(panel)
+
     def _chat_write_governance(self, cmd: str, risk: str) -> None:
         """Show governance action in status bar only (not in chat log)."""
         self.query_one("#status_bar", StatusBar).show_action(cmd, risk)
@@ -980,18 +984,91 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
                         
                     # Wrapped callback to output tool progress directly to TUI chat as system updates
                     def tui_cb(msg):
-                        if msg:
-                            self.call_from_thread(self._chat_write_system, f"[dim]Progress: {msg}[/dim]")
+                        if msg and not msg.startswith("exec:"):
+                            self.call_from_thread(self._chat_write_system, f"[#444444]┊ {msg}[/]")
                         if cb:
                             cb(msg)
                             
                     return orig(ad, tui_cb)
                 self._agent._execute_tool = wrap
+            def agent_callback(msg: str):
+                if not msg: return
+
+                if msg.startswith("thought:"):
+                    thought_content = msg.split(":", 1)[1].strip()
+                    self.call_from_thread(
+                        self._chat_write_system,
+                        f"[#333333]┊[/] [#444444]{thought_content}[/]"
+                    )
+
+                elif msg.startswith("exec:"):
+                    # Structured command execution block — render inside a beautiful Panel card
+                    import json as _json
+                    try:
+                        data = _json.loads(msg[5:])
+                        cmd = data.get("cmd", "")
+                        out = (data.get("output") or "").strip()
+                        ok = data.get("success", True)
+                        purpose = data.get("purpose", "")
+                        thought = data.get("thought", "")
+                        
+                        status = "[bold #ffffff][OK][/bold #ffffff]" if ok else "[bold #ffffff][FAIL][/bold #ffffff]"
+                        
+                        # Build panel content
+                        body_parts = []
+                        if thought:
+                            body_parts.append(f"[dim #737373]Thought : {thought}[/dim #737373]")
+                        if purpose:
+                            body_parts.append(f"[dim #999999]Purpose : {purpose}[/dim #999999]")
+                        if thought or purpose:
+                            body_parts.append("")
+                        
+                        body_parts.append(f"[bold #ffffff]~$ {cmd}[/bold #ffffff]")
+                        
+                        # Truncate long output
+                        lines = out.splitlines()
+                        preview_lines = lines[:15]
+                        preview = "\n".join(preview_lines)
+                        if len(lines) > 15:
+                            preview += f"\n[dim #737373]... ({len(lines)-15} more lines)[/dim #737373]"
+                        
+                        if preview.strip():
+                            body_parts.append(f"[#cccccc]{preview}[/#cccccc]")
+                        
+                        body_parts.append(status)
+                        
+                        panel_content = Text.from_markup("\n".join(body_parts))
+                        
+                        from rich.box import ROUNDED
+                        panel = Panel(
+                            panel_content,
+                            title="[#888888]shell[/]",
+                            border_style="#444444",
+                            box=ROUNDED,
+                            padding=(0, 1),
+                            expand=False,
+                        )
+                        self.call_from_thread(self._chat_write_panel, panel)
+                    except Exception:
+                        # Fallback: just show the raw message
+                        self.call_from_thread(self._chat_write_system, f"[dim]{msg[5:]}[/dim]")
+
+                elif msg.startswith("AI classified intent as:"):
+                    # Suppress internal intent classification noise
+                    return
+
+                else:
+                    # Generic progress — only show if not a bare mode keyword
+                    _stripped = msg.strip().upper()
+                    if _stripped in ("CASUAL", "RESEARCH", "SCAN", "SECURITY_CHAT", "AUTO"):
+                        return
+                    self.call_from_thread(self._chat_write_system, f"[#444444]┊ {msg}[/]")
+
             if hasattr(self._agent, "process_universal"):
                 agent_mode = "auto" if self.mode == "CHILL" else "bug_bounty"
-                resp = self._agent.process_universal(text, target=self.target or "", mode=agent_mode)
+                resp = self._agent.process_universal(text, target=self.target or "", mode=agent_mode, callback=agent_callback)
             else:
-                resp = self._agent.process_query(user_input=text, target=self.target or "")
+                resp = self._agent.process_query(user_input=text, target=self.target or "", callback=agent_callback)
             if resp: self.call_from_thread(self._chat_write_agent, str(resp))
             else: self.call_from_thread(self._chat_write_error, "No response.")
         except Exception as exc:
@@ -1281,8 +1358,8 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
     def action_app_exit(self) -> None:
         sid = self._save_session()
         logger.info(f"Session {sid} saved on exit")
-        from rich.console import Console
-        Console().print(f"\n  thank you for using elengenix\n  session: {sid}\n", style="dim")
+        from ui_components import console
+        console.print(f"\n  thank you for using elengenix\n  session: {sid}\n", style="dim")
         self.exit()
 
     def action_toggle_research(self) -> None:

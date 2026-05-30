@@ -116,16 +116,17 @@ User input → _analyze_intent() → [casual|research|scan|security_chat]
 ### Tool Execution Path
 1. `ElengenixAgent._execute_tool_registry()` → preferred path
 2. Falls back to `_execute_tool_subprocess()` if registry fails
-3. Legacy direct subprocess in `_execute_tool()` — only for allowlisted binaries
+3. Shell-capable executor path in `_execute_tool()` — all raw shell commands must pass through `tools.governance.Governance` before `tools.safe_exec.execute_safely()`
 
 ---
 
 ## Critical Conventions & Gotchas
 
 ### Security (HARD RULES)
-- **`shell=True` is NEVER allowed** in any `subprocess` call. Always use list form.
-- **Tool allowlist**: `ElengenixAgent.ALLOWED_TOOLS` — only binaries in this set can be executed via the agent's `_execute_tool()`. New tools must be added explicitly.
-- **Metacharacter blocking**: `|`, `&`, `;`, `` ` ``, `$(` , `>`, `<`, `\` are rejected in agent commands.
+- **Raw shell execution is intentional but gated**: `shell=True` is allowed only in the dedicated shell runners (`tools/safe_exec.py`, `tools/universal_executor.py`) after `Governance.gate()` has classified the command.
+- **Governance is the execution policy source of truth**: `DESTRUCTIVE` commands are denied, `PRIVILEGED` commands require approval, and `SAFE` commands run freely.
+- **No tool allowlist for raw shell mode**: `ElengenixAgent.ALLOWED_TOOLS` is a backward-compatibility sentinel. Registry/subprocess fallback templates still use list-form commands where possible.
+- **Shell metacharacters are allowed**: pipes, redirects, chaining, variables, and local scripts are supported for power-user workflows, but destructive and privileged patterns must be caught by governance.
 - **API keys go in `.env`**, NEVER in `config.yaml`. Both files are gitignored.
 - **Target validation**: `validate_target()` in main.py and `is_valid_target()` in orchestrator must pass before any scan.
 - **Scope enforcement**: `orchestrator.is_in_scope()` checks against `scope.txt` or `ELENGENIX_SCOPE` env var.
@@ -186,8 +187,8 @@ User input → _analyze_intent() → [casual|research|scan|security_chat]
 ## Testing Strategy
 
 Tests live in `tests/` (currently one file: `test_security.py`). Focus is on security-critical paths:
-- Tool allowlist enforcement
-- Shell metacharacter blocking
+- Governance enforcement for destructive and privileged shell commands
+- Native shell support for pipes, redirects, chaining, variables, and custom scripts
 - Target validation and normalization
 
 Use `_lightweight_agent()` pattern to create test instances without full initialization overhead.

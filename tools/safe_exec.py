@@ -14,10 +14,10 @@ from typing import Dict, Union
 
 logger = logging.getLogger("elengenix.safe_exec")
 
-# Metacharacter blocking has been removed to allow the AI full shell access.
-# Pipes (|), redirects (>), background (&), and command chaining (;) are now
-# permitted.  Authorisation is handled upstream by tools/governance.py which
-# blocks DESTRUCTIVE commands (rm, dd, mkfs, etc.) before they ever reach here.
+# Metacharacter blocking has been removed to preserve native shell workflows.
+# This module is intentionally low-level: callers must run tools.governance
+# first so DESTRUCTIVE commands are denied and PRIVILEGED commands are approved
+# before reaching shell=True.
 
 MAX_OUTPUT = 50_000  # chars
 
@@ -31,9 +31,8 @@ def execute_safely(
     Execute a shell command with full pipeline support.
 
     The command is run via ``shell=True`` so that pipes, redirects, and
-    command chaining work natively.  Security classification is handled
-    upstream by ``tools/governance.py`` (DESTRUCTIVE commands are denied
-    before reaching this function).
+    command chaining work natively. Security classification must happen
+    upstream in ``tools.governance.py`` before calling this function.
 
     Args:
         command_str: Raw shell command string (may contain |, >, &, etc.).

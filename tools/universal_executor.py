@@ -421,6 +421,41 @@ class UniversalExecutor:
 
         # SAFE or needs_approval — caller gates privileged
         return True, ""
+
+    def _approve_shell_command(self, command: str) -> tuple[bool, str]:
+        """Apply canonical Governance gating before shell execution."""
+        gate = self._governance.gate(
+            mission_id="universal_executor",
+            target="unknown",
+            action={"type": "run_shell", "command": command},
+        )
+
+        if gate.decision == "deny":
+            return False, gate.rationale
+
+        if gate.decision == "needs_approval":
+            try:
+                from agents.agent_executor import _prompt_approval
+                approved, enable_auto = _prompt_approval(
+                    cmd=command,
+                    risk_level=gate.risk_level,
+                    purpose="UniversalExecutor shell command",
+                    governance=self._governance,
+                )
+            except Exception:
+                approved, enable_auto = False, False
+
+            if enable_auto:
+                self._governance.auto_approve_privileged = True
+            if not approved:
+                return False, "Command rejected by user."
+
+        try:
+            shlex.split(command.strip())
+        except ValueError as e:
+            return False, f"Parse error: {e}"
+
+        return True, ""
     
     def execute_shell(self, command: str, timeout: int = 300, cwd: str = None, agent_id: int = -1) -> ExecutionResult:
         """Execute shell command with native shell support (shell=True).
@@ -435,8 +470,8 @@ class UniversalExecutor:
             cwd: Working directory override
             agent_id: Agent identifier for workspace isolation (-1 = no isolation)
         """
-        safe, reason = self.is_safe_command(command)
-        if not safe:
+        approved, reason = self._approve_shell_command(command)
+        if not approved:
             return ExecutionResult(False, "", reason, "shell", {"command": command})
         
         # Agent workspace isolation: each agent gets its own temp dir

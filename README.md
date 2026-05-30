@@ -7,7 +7,7 @@
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue?style=flat-square)](https://python.org)
 [![Go](https://img.shields.io/badge/Go-1.20%2B-00ADD8?style=flat-square)](https://golang.org)
 [![License](https://img.shields.io/badge/License-GPL-green?style=flat-square)](LICENSE)
-[![Tests](https://img.shields.io/badge/Tests-Passing-brightgreen?style=flat-square)]()
+[![Tests](https://github.com/Ashveil1/Elengenix/actions/workflows/test.yml/badge.svg)](https://github.com/Ashveil1/Elengenix/actions/workflows/test.yml)
 
 </div>
 
@@ -132,7 +132,7 @@ OpenAI · Anthropic · Google Gemini · Groq · NVIDIA NIM · Mistral · DeepSee
 python3 -m pytest tests/ -v
 ```
 
-Test coverage includes: governance enforcement, metacharacter injection prevention, target validation, multi-agent coordination, and session management.
+Test coverage includes: governance enforcement, native shell execution policy, target validation, multi-agent coordination, and session management.
 
 ---
 
@@ -147,7 +147,7 @@ tools/
   multi_agent.py     # Team Aegis collaboration (up to 3 models)
   analysis_pipeline.py  # Post-finding analysis (CVSS, BOLA, chains)
   vector_memory.py   # Semantic memory (ChromaDB / SQLite FTS5)
-  safe_exec.py       # Metacharacter-safe subprocess execution
+  safe_exec.py       # Governance-gated native shell execution
 tests/               # pytest test suite
 knowledge/           # Security methodology documentation
 ```
@@ -158,7 +158,7 @@ knowledge/           # Security methodology documentation
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for code standards, logging conventions, and security rules.
 
-**Core rules:** 4-space indent · type hints everywhere · no `shell=True` · API keys in `.env` only
+**Core rules:** 4-space indent · type hints everywhere · raw shell only behind governance · API keys in `.env` only
 
 ---
 

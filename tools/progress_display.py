@@ -107,15 +107,15 @@ class ProgressDisplay:
     - Auto-updates in background thread
     """
     
-    # Unicode box drawing characters (clean, professional)
-    TREE_BRANCH = "├──"
-    TREE_END = "└──"
-    TREE_VERT = "│"
+    # ASCII tree characters for log-friendly terminal output.
+    TREE_BRANCH = "|--"
+    TREE_END = "`--"
+    TREE_VERT = "|"
     TREE_SPACE = "   "
     
     # Progress bar characters
-    BAR_FILL = "█"
-    BAR_EMPTY = "░"
+    BAR_FILL = "#"
+    BAR_EMPTY = "."
     BAR_WIDTH = 20
     
     def __init__(self, target: str, use_rich: bool = True):
@@ -130,9 +130,9 @@ class ProgressDisplay:
         
         # Try to import rich for better display
         try:
-            from rich.console import Console
+            from ui_components import console
             self._rich_available = True
-            self._console = Console()
+            self._console = console
         except ImportError:
             self._rich_available = False
             self._console = None

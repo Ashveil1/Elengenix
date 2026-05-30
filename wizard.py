@@ -18,10 +18,9 @@ import questionary
 import logging
 from pathlib import Path
 from typing import Dict, List
-from rich.console import Console
+from ui_components import console
 
 logger = logging.getLogger("elengenix.wizard")
-console = Console()
 
 # ---------------------------------------------------------------------------
 # Supported AI Providers

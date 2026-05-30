@@ -126,6 +126,31 @@ def validate_target(target: str) -> bool:
     pattern = r"^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}|^\d{1,3}(\.\d{1,3}){3}$"
     return bool(re.match(pattern, cleaned))
 
+
+def is_authorized_scan_target(target: str) -> bool:
+    """Return True when target format is valid and target is in configured scope."""
+    if not validate_target(target):
+        return False
+
+    from orchestrator import is_in_scope
+    return is_in_scope(target)
+
+
+def require_authorized_scan_target(target: str) -> bool:
+    """Validate scan target and print a clear error for invalid or out-of-scope input."""
+    if not validate_target(target):
+        print_error("[FAIL] SECURITY ERROR: Invalid target format")
+        return False
+
+    from orchestrator import is_in_scope, normalize_target
+    normalized = normalize_target(target)
+    if not is_in_scope(target):
+        print_error(f"[FAIL] SCOPE VIOLATION: '{normalized}' is not in the authorized scope")
+        console.print("[dim]Configure scope with scope.txt or ELENGENIX_SCOPE.[/dim]")
+        return False
+
+    return True
+
 # ── Main Logic ────────────────────────────────────────────────────────────────
 def ensure_path_priorities() -> None:
     """Ensure Go tools and local binaries take priority in PATH."""
@@ -256,6 +281,10 @@ def main():
     if _simplified != args.command:
         args.command = _simplified
 
+    # If no command or target is specified and it's "auto" (default), run the TUI
+    if args.command == "auto" and not args.target:
+        args.command = "tui"
+
     # Auto-detect mode (default) - Smart routing based on target
     # Auto-detect mode — skip for explicit commands
     explicit_commands = {"scan", "ai", "cli", "tui", "hunt", "recon", "sast", "cloud", "mobile", "soc", "bola", "waf"}
@@ -368,8 +397,7 @@ def main():
 
             target = args.target or console.input("Enter target: ").strip()
             if not target: return
-            if not validate_target(target):
-                console.print("[bold red][FAIL] SECURITY ERROR: Invalid target format[/bold red]")
+            if not require_authorized_scan_target(target):
                 return
 
             env_models = [m.strip() for m in os.environ.get("ACTIVE_MODELS", "").split(",") if m.strip()]
@@ -676,6 +704,9 @@ def main():
             if hasattr(args, 'mode') and args.mode:
                 mode = args.mode
 
+            if not require_authorized_scan_target(args.target):
+                return
+
             console.print(f"[bold]Elengenix Autonomous Mode[/bold]")
             console.print(f"Target: [red]{args.target}[/red]")
             console.print(f"Governance: [grey70]{mode}[/grey70]")
@@ -726,9 +757,7 @@ def main():
                 border_style="red",
             ))
 
-            # Validate target
-            if not validate_target(target):
-                print_error("Invalid target format")
+            if not require_authorized_scan_target(target):
                 return
 
             from agent import get_agent
@@ -944,6 +973,8 @@ def main():
             if not base_url:
                 print_error("Base URL is required")
                 return
+            if not require_authorized_scan_target(base_url):
+                return
 
             print_info("Paste headers for Account A (one per line: Header: value). Empty line to finish.")
             lines_a = []
@@ -1016,6 +1047,8 @@ def main():
             if not target_url:
                 print_error("Target URL is required")
                 return
+            if not require_authorized_scan_target(target_url):
+                return
 
             base_payload = console.input("[red]Base payload to test[/red] [dim](default: <script>alert(1)</script>)[/dim]: ").strip()
             if not base_payload:
@@ -1066,6 +1099,8 @@ def main():
             target = args.target or console.input("[red]Target domain[/red] (e.g., example.com): ").strip()
             if not target:
                 print_error("Target domain is required")
+                return
+            if not require_authorized_scan_target(target):
                 return
 
             print_info(f"Starting smart recon for {target}...")
@@ -1394,6 +1429,8 @@ def main():
             
             target = args.target
             pause_after = 3  # Default: pause after 3 hours without findings
+            if not require_authorized_scan_target(target):
+                return
             
             # Parse pause-after option
             if "--pause-after" in sys.argv:

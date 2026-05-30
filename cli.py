@@ -32,7 +32,7 @@ from ui_components import console, render_sidebar
 from tools.overlay_menu import SettingsOverlay
 
 from rich.align import Align
-from rich.box import ROUNDED
+from rich.box import ASCII
 
 # Logging Setup 
 LOG_FILE = Path("data/elengenix_cli.log")
@@ -766,13 +766,13 @@ def main(mode: str = "auto", target: str = None):
                     text = msg["text"]
                     if role == "user":
                         t = Text.from_markup(text) if text.startswith("[") else Text(text, style="white")
-                        panels.append(Panel(t, box=ROUNDED, border_style="#ffffff", title="You", title_align="left", padding=(0, 1), style="on #0a0a0a"))
+                        panels.append(Panel(t, box=ASCII, border_style="#ffffff", title="You", title_align="left", padding=(0, 1), style="on #0a0a0a"))
                     elif role == "agent":
-                        panels.append(Panel(Markdown(text), box=ROUNDED, border_style="#555555", title="Agent", title_align="left", padding=(0, 1), style="on #0a0a0a"))
+                        panels.append(Panel(Markdown(text), box=ASCII, border_style="#555555", title="Agent", title_align="left", padding=(0, 1), style="on #0a0a0a"))
                     elif role == "system":
                         panels.append(Text.from_markup(text))
                     elif role == "error":
-                        panels.append(Panel(Text.from_markup(text), box=ROUNDED, border_style="#ffffff", padding=(0, 1), style="on #0a0a0a"))
+                        panels.append(Panel(Text.from_markup(text), box=ASCII, border_style="#ffffff", padding=(0, 1), style="on #0a0a0a"))
 
                 # Streaming response with spinner animation
                 if self._streaming_active:
@@ -781,9 +781,9 @@ def main(mode: str = "auto", target: str = None):
                         spin = self._spinner_frames[self._spinner_idx % len(self._spinner_frames)]
                         dots = "." * ((self._spinner_idx // 2) % 4)
                         display_text = f"{spin} [THINKING{dots}]"
-                    panels.append(Panel(Markdown(display_text), box=ROUNDED, border_style="#555555", title="Agent", title_align="left", padding=(0, 1), style="on #0a0a0a"))
+                    panels.append(Panel(Markdown(display_text), box=ASCII, border_style="#555555", title="Agent", title_align="left", padding=(0, 1), style="on #0a0a0a"))
                 elif self._streaming_done and self._streaming_text:
-                    panels.append(Panel(Markdown(self._streaming_text), box=ROUNDED, border_style="#555555", title="Agent", title_align="left", padding=(0, 1), style="on #0a0a0a"))
+                    panels.append(Panel(Markdown(self._streaming_text), box=ASCII, border_style="#555555", title="Agent", title_align="left", padding=(0, 1), style="on #0a0a0a"))
 
                 if self._thinking:
                     spin = self._spinner_frames[self._spinner_idx % len(self._spinner_frames)]
@@ -792,7 +792,7 @@ def main(mode: str = "auto", target: str = None):
                     thinking_text.append(" AGENT ", style="bold white on #0a0a0a")
                     thinking_text.append(spin, style="bold #ffffff on #0a0a0a")
                     thinking_text.append(f"  THINKING{dots}", style="bold #ffffff on #0a0a0a")
-                    panels.append(Panel(thinking_text, box=ROUNDED, border_style="#ffffff", padding=(0, 1), style="on #0a0a0a"))
+                    panels.append(Panel(thinking_text, box=ASCII, border_style="#ffffff", padding=(0, 1), style="on #0a0a0a"))
 
                 # Add scroll indicator if scrolled
                 if self._scroll_offset > 0 or total_msgs > self._viewport_lines:
@@ -922,7 +922,7 @@ def main(mode: str = "auto", target: str = None):
         combined.append(top)
         combined.append(bottom)
 
-        return Panel(combined, box=ROUNDED, border_style="#111111", padding=(0, 1), style="on #0a0a0a")
+        return Panel(combined, box=ASCII, border_style="#111111", padding=(0, 1), style="on #0a0a0a")
 
     # ── Raw terminal input (replaces prompt_toolkit for Live compatibility) ─
     import termios

@@ -23,8 +23,8 @@ try:
 except ImportError:
     pass  # nest_asyncio not available, but not critical for orchestrator
 
-from rich.console import Console
 from rich.panel import Panel
+from ui_components import console
 from tools.tool_registry import registry, ToolCategory, ToolResult
 from tools.cvss_calculator import CVSSCalculator
 from scan_engine_upgrade import SmartOrchestrator
@@ -33,7 +33,6 @@ from bot_utils import send_telegram_notification
 # ── Setup ───────────────────────────────────────────────────
 logging.basicConfig(level=logging.INFO, format='%(asctime)s | %(levelname)s | %(message)s')
 logger = logging.getLogger("elengenix.orchestrator")
-console = Console()
 
 # ── Scope Management ─────────────────────────────────────────
 def load_allowed_domains(scope_file: str = "scope.txt") -> Set[str]:

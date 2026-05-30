@@ -83,6 +83,10 @@ class ElengenixAgent:
         verbose_thoughts: bool = True
     ):
         self.client = AIClientManager()
+
+        # ── TeamAegis v2: per-role AI clients ───────────────────────────────────
+        # Reads config.yaml team_aegis section. Falls back to self.client if not set.
+        self._team_aegis_clients = self._init_team_aegis_clients()
         self.max_steps = max_steps
         self.loop_threshold = loop_threshold
         self.history_limit = history_limit
@@ -172,6 +176,73 @@ class ElengenixAgent:
                 logger.info(f"Loaded {len(loaded)} messages from persistent memory")
         except Exception as e:
             logger.warning(f"Could not load persistent conversation: {e}")
+
+    def _init_team_aegis_clients(self) -> dict:
+        """Initialize per-role AI clients for TeamAegis v2 from config.
+
+        Reads config.yaml team_aegis section:
+          team_aegis:
+            enabled: true
+            strategist:
+              provider: gemini
+              model: gemini-2.0-flash
+            specialist:
+              provider: anthropic
+              model: claude-3-5-haiku-20241022
+            critic:
+              provider: openai
+              model: gpt-4o-mini
+
+        Returns:
+            Dict with keys: strategist_client, specialist_client, critic_client,
+            strategist_label, specialist_label, critic_label, enabled.
+        """
+        defaults = {
+            "enabled": False,
+            "strategist_client": None,
+            "specialist_client": None,
+            "critic_client": None,
+            "strategist_label": "Strategist AI",
+            "specialist_label": "Specialist AI",
+            "critic_label": "Critic AI",
+        }
+
+        try:
+            import yaml
+            config_path = Path(__file__).parent / "config.yaml"
+            if not config_path.exists():
+                return defaults
+
+            with open(config_path, encoding="utf-8") as fh:
+                config = yaml.safe_load(fh) or {}
+
+            ta = config.get("team_aegis", {})
+            if not ta.get("enabled", False):
+                return defaults
+
+            result = {"enabled": True}
+
+            for role in ("strategist", "specialist", "critic"):
+                role_cfg = ta.get(role, {})
+                provider = role_cfg.get("provider", "")
+                model = role_cfg.get("model", "")
+
+                if provider:
+                    client = AIClientManager(preferred_order=[provider])
+                    if model and client.active_client:
+                        client.active_client.model = model
+                    result[f"{role}_client"] = client
+                    result[f"{role}_label"] = model or provider
+                else:
+                    result[f"{role}_client"] = None
+                    result[f"{role}_label"] = f"{role.capitalize()} AI"
+
+            return {**defaults, **result}
+
+        except Exception as exc:
+            logger.debug(f"[TeamAegis] Config load failed: {exc}")
+            return defaults
+
 
     def _save_to_persistent_memory(self, role: str, content: str) -> None:
         """Save a message to SQLite for cross-session persistence."""
@@ -1358,6 +1429,7 @@ Use JSON format: {{"action": "run_shell|ask_user|web_search|submit_findings|save
         target = re.sub(r"^https?://", "", target.rstrip("/"))
 
         # 4. Initialize HybridAgent with Elengenix infrastructure
+        ta = self._team_aegis_clients
         hybrid = HybridAgent(
             client=self.client,
             governance=self.governance,
@@ -1367,6 +1439,13 @@ Use JSON format: {{"action": "run_shell|ask_user|web_search|submit_findings|save
             enable_analysis=True,
             enable_memory=True,
             callback=callback,
+            # TeamAegis v2 clients (None = fall back to self.client)
+            strategist_client=ta.get("strategist_client"),
+            specialist_client=ta.get("specialist_client"),
+            critic_client=ta.get("critic_client"),
+            strategist_label=ta.get("strategist_label", "Strategist AI"),
+            specialist_label=ta.get("specialist_label", "Specialist AI"),
+            critic_label=ta.get("critic_label", "Critic AI"),
         )
 
         # Wire up shared infrastructure

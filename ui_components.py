@@ -1,5 +1,5 @@
 """
-ui_components.py — Elengenix Professional UI Component Library
+ui_components.py - Elengenix Professional UI Component Library
 
 Centralized UI components for the entire Elengenix framework.
 Provides consistent styling, Monochrome Black & White color scheme, and reusable
@@ -20,7 +20,7 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 from rich.style import Style
-from rich.box import ROUNDED, MINIMAL
+from rich.box import ASCII, MINIMAL
 from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TimeElapsedColumn
 from typing import List, Dict, Any
 import time
@@ -38,7 +38,7 @@ console.width = max(100, console.width or 120)
 
 
 # ---------------------------------------------------------------------------
-# MONOCHROME COLOR SCHEME — Black & White Minimalist
+# MONOCHROME COLOR SCHEME - Black & White Minimalist
 # ---------------------------------------------------------------------------
 
 COLORS = {
@@ -63,7 +63,7 @@ COLORS = {
 
 
 # ---------------------------------------------------------------------------
-# STYLES — Reusable Rich Style objects
+# STYLES - Reusable Rich Style objects
 # ---------------------------------------------------------------------------
 
 STYLES = {
@@ -84,7 +84,7 @@ STYLES = {
 
 
 # ---------------------------------------------------------------------------
-# MARKERS — Professional text-only markers
+# MARKERS - Professional text-only markers
 # ---------------------------------------------------------------------------
 
 MARKERS = {
@@ -103,41 +103,22 @@ MARKERS = {
 # ---------------------------------------------------------------------------
 
 def show_main_banner():
-    """Display the main application banner with red ASCII art."""
+    """Display the main application banner styled to match the TUI."""
     console.print()
 
     ascii_art = [
-        " ███████╗██╗     ███████╗███╗   ██╗ ██████╗ ███████╗███╗   ██╗",
-        " ██╔════╝██║     ██╔════╝████╗  ██║██╔════╝ ██╔════╝████╗  ██║",
-        " █████╗  ██║     █████╗  ██╔██╗ ██║██║  ███╗█████╗  ██╔██╗ ██║",
-        " ██╔══╝  ██║     ██╔══╝  ██║╚██╗██║██║   ██║██╔══╝  ██║╚██╗██║",
-        " ███████╗███████╗███████╗██║ ╚████║╚██████╔╝███████╗██║ ╚████║",
-        " ╚══════╝╚══════╝╚══════╝╚═╝  ╚═══╝ ╚═════╝ ╚══════╝╚═╝  ╚═══╝",
+        "███████╗██╗     ███████╗███╗   ██╗ ██████╗ ███████╗███╗   ██╗██╗██╗  ██╗",
+        "██╔════╝██║     ██╔════╝████╗  ██║██╔════╝ ██╔════╝████╗  ██║██║╚██╗██╔╝",
+        "█████╗  ██║     █████╗  ██╔██╗ ██║██║  ███╗█████╗  ██╔██╗ ██║██║ ╚███╔╝ ",
+        "██╔══╝  ██║     ██╔══╝  ██║╚██╗██║██║   ██║██╔══╝  ██║╚██╗██║██║ ██╔██╗ ",
+        "███████╗███████╗███████╗██║ ╚████║╚██████╔╝███████╗██║ ╚████║██║██╔╝ ██╗",
+        "╚══════╝╚══════╝╚══════╝╚═╝  ╚═══╝ ╚═════╝ ╚══════╝╚═╝  ╚═══╝╚═╝╚═╝  ╚═╝",
     ]
 
     for line in ascii_art:
         console.print(f"  [bold #ffffff]{line}[/bold #ffffff]")
-    console.print(f"  [dim #ffffff]{'═' * 72}[/dim #ffffff]")
-    console.print(f"  [bold #ffffff]              Universal AI & Bug Bounty Agent               [/bold #ffffff]")
-    console.print(f"  [dim #ffffff]                   Aegis Protocol Active                    [/dim #ffffff]")
-    console.print()
-    
-    # Info bar
-    info_table = Table(show_header=False, box=MINIMAL, padding=(0, 1), expand=True)
-    info_table.add_column(justify="center", min_width=20)
-    info_table.add_column(justify="center", min_width=20)
-    info_table.add_column(justify="center", min_width=20)
-    info_table.add_row(
-        "[bold white][OK] System Online[/bold white]",
-        "[bold white][WARN] Security Mode Active[/bold white]",
-        "[bold #ffffff][INFO][/bold #ffffff]",
-    )
-    console.print(Panel(
-        info_table,
-        border_style="#ffffff",
-        box=ROUNDED,
-        padding=(0, 0),
-    ))
+    console.print("           [dim #ffffff]Universal AI & Bug Bounty Agent[/dim #ffffff]")
+    console.print("           [dim]Type /help for commands[/dim]")
     console.print()
 
 
@@ -156,18 +137,18 @@ def show_cli_banner(mode: str = "agent"):
     mode_name, status, color = mode_info.get(mode, ("AI Partner", "[bold #ffffff]ONLINE[/bold #ffffff]", "#ffffff"))
 
     console.print()
-    console.print(f"  [bold {color}]❖ {mode_name} ❖[/bold {color}]")
+    console.print(f"  [bold {color}][INFO] {mode_name}[/bold {color}]")
     console.print(f"  [dim]Status: {status}  |  Type /help for commands  |  /exit to quit[/dim]")
-    console.print(f"  [dim #737373]{'─' * 70}[/dim #737373]")
+    console.print(f"  [dim #737373]{'-' * 70}[/dim #737373]")
     console.print()
 
 
 def show_arsenal_banner():
     """Display the Security Arsenal banner with vibrant styling."""
     console.print()
-    console.print(f"  [bold #ffffff]❖ Security Arsenal ❖[/bold #ffffff]")
+    console.print(f"  [bold #ffffff][INFO] Security Arsenal[/bold #ffffff]")
     console.print(f"  [dim]Select a tool to begin  |  Press ESC to cancel  |  1.0.0[/dim]")
-    console.print(f"  [dim #737373]{'─' * 70}[/dim #737373]")
+    console.print(f"  [dim #737373]{'-' * 70}[/dim #737373]")
     console.print()
 
 
@@ -179,7 +160,7 @@ def show_section(title: str, subtitle: str = ""):
         subtitle: Optional subtitle text.
     """
     console.print()
-    console.print(f"  [bold #ffffff]{'═' * 3} {title.upper()} {'═' * 3}[/bold #ffffff]")
+    console.print(f"  [bold #ffffff]--- {title.upper()} ---[/bold #ffffff]")
     if subtitle:
         console.print(f"  [dim #ffffff]{subtitle}[/dim #ffffff]")
     console.print()
@@ -188,8 +169,8 @@ def show_section(title: str, subtitle: str = ""):
 def show_subsection(title: str):
     """Print a subsection divider with accent color."""
     console.print()
-    console.print(f"  [bold #ffffff]▸ {title}[/bold #ffffff]")
-    console.print(f"  [dim #737373]{'─' * 50}[/dim #737373]")
+    console.print(f"  [bold #ffffff][INFO] {title}[/bold #ffffff]")
+    console.print(f"  [dim #737373]{'-' * 50}[/dim #737373]")
 
 
 # ---------------------------------------------------------------------------
@@ -208,7 +189,7 @@ def show_card(title: str, content: str, border_style: str = "#ffffff"):
         content,
         title=f"[bold {border_style}]{title}[/bold {border_style}]",
         border_style=border_style,
-        box=ROUNDED,
+        box=ASCII,
         padding=(1, 2),
     ))
     console.print()
@@ -233,7 +214,7 @@ def show_metric_card(label: str, value: str, unit: str = "", icon: str = "", col
     console.print(Panel(
         f"[bold {color}]{label}[/bold {color}]\n{display}",
         border_style=color,
-        box=ROUNDED,
+        box=ASCII,
         padding=(0, 2),
     ))
 
@@ -259,7 +240,7 @@ def show_metric_row(metrics: List[Dict[str, str]]):
     console.print(Panel(
         table,
         border_style="#ffffff",
-        box=ROUNDED,
+        box=ASCII,
         padding=(1, 0),
     ))
     console.print()
@@ -398,7 +379,7 @@ def create_status_table(title: str) -> Table:
     """
     return Table(
         title=f"[bold #ffffff]{title}[/bold #ffffff]",
-        box=ROUNDED,
+        box=ASCII,
         border_style="#ffffff",
         header_style="bold #ffffff",
         show_lines=True,
@@ -414,7 +395,7 @@ def create_tools_table(tools: List[Dict[str, str]]) -> Table:
     table = Table(
         show_header=True,
         header_style="bold #ffffff",
-        box=ROUNDED,
+        box=ASCII,
         border_style="#ffffff",
         show_lines=True,
     )
@@ -435,7 +416,7 @@ def create_doctor_table(checks: List[Dict[str, Any]]) -> Table:
         checks: List of dicts with 'name', 'status', and 'details' keys.
     """
     table = Table(
-        box=ROUNDED,
+        box=ASCII,
         border_style="#ffffff",
         show_lines=False,
         padding=(0, 1),
@@ -472,7 +453,7 @@ def create_finding_table(findings: List[Dict[str, Any]]) -> Table:
     table = Table(
         show_header=True,
         header_style="bold #ffffff",
-        box=ROUNDED,
+        box=ASCII,
         border_style="#ffffff",
         show_lines=True,
     )
@@ -500,16 +481,16 @@ def create_finding_table(findings: List[Dict[str, Any]]) -> Table:
 MENU_CATEGORIES = [
     {
         "title": "AI & Agent",
-        "icon": "[#ffffff]◆[/#ffffff]",
+        "icon": "[#ffffff][INFO][/#ffffff]",
         "items": [
             ("AI Partner",      "Interactive AI assistant (chat mode)",             "ai"),
-            ("Universal Agent", "Autonomous agent — executes tasks end-to-end",    "universal"),
+            ("Universal Agent", "Autonomous agent - executes tasks end-to-end",    "universal"),
             ("Autonomous",      "Fully autonomous scan with AI decision-making",   "autonomous"),
         ],
     },
     {
         "title": "Reconnaissance",
-        "icon": "[#ffffff]◆[/#ffffff]",
+        "icon": "[#ffffff][INFO][/#ffffff]",
         "items": [
             ("Recon",           "Subdomain + asset discovery & correlation",        "recon"),
             ("Omni-Scan",       "Full pipeline: Recon -> Vuln -> Report",           "scan"),
@@ -518,7 +499,7 @@ MENU_CATEGORIES = [
     },
     {
         "title": "Exploitation & Testing",
-        "icon": "[#888888]◆[/#888888]",
+        "icon": "[#888888][INFO][/#888888]",
         "items": [
             ("BOLA / IDOR",     "Broken access control & IDOR differential tests", "bola"),
             ("WAF / XSS",       "WAF detection, bypass & XSS mutation engine",     "waf"),
@@ -528,9 +509,9 @@ MENU_CATEGORIES = [
     },
     {
         "title": "Analysis & Intelligence",
-        "icon": "[#ffffff]◆[/#ffffff]",
+        "icon": "[#ffffff][INFO][/#ffffff]",
         "items": [
-            ("SAST",            "Static analysis — Python, JS, Go, Java, PHP",     "sast"),
+            ("SAST",            "Static analysis - Python, JS, Go, Java, PHP",     "sast"),
             ("Cloud",           "Cloud/Terraform/IaC security review",             "cloud"),
             ("Mobile / API",    "Mobile API traffic analysis & fuzzing",           "mobile"),
             ("SOC Analyzer",    "Security log & threat intelligence analysis",      "soc"),
@@ -538,7 +519,7 @@ MENU_CATEGORIES = [
     },
     {
         "title": "Reports & Memory",
-        "icon": "[#CE93D8]◆[/#CE93D8]",
+        "icon": "[#CE93D8][INFO][/#CE93D8]",
         "items": [
             ("Report",          "Generate HTML/PDF security report",               "report"),
             ("Memory",          "View & manage AI semantic memory",               "memory"),
@@ -548,9 +529,9 @@ MENU_CATEGORIES = [
     },
     {
         "title": "System",
-        "icon": "[#737373]◆[/#737373]",
+        "icon": "[#737373][INFO][/#737373]",
         "items": [
-            ("Doctor",          "System health check — tools & API keys",          "doctor"),
+            ("Doctor",          "System health check - tools & API keys",          "doctor"),
             ("Configure",       "Set up AI providers, Telegram, HackerOne",        "configure"),
             ("Arsenal",         "Legacy manual tool picker",                        "arsenal"),
             ("Telegram",        "Start Telegram bot gateway",                      "gateway"),
@@ -573,7 +554,7 @@ def show_categorized_menu():
     """Render the main menu grouped by category with vibrant modern styling."""
     table = Table(
         show_header=False,
-        box=ROUNDED,
+        box=ASCII,
         border_style="#ffffff",
         padding=(0, 2),
         show_lines=True,
@@ -596,15 +577,15 @@ def show_categorized_menu():
             item_num += 1
 
     # Exit row
-    table.add_row("", "[bold #737373]◆ SYSTEM[/bold #737373]", "")
+    table.add_row("", "[bold #737373][INFO] SYSTEM[/bold #737373]", "")
     table.add_row(f"{item_num}.", "Exit", "Quit application", style="dim #737373")
 
     console.print()
     console.print(Panel(
         table,
-        title="[bold #ffffff] ELENGENIX — MAIN MENU [/bold #ffffff]",
+        title="[bold #ffffff] ELENGENIX - MAIN MENU [/bold #ffffff]",
         border_style="#ffffff",
-        box=ROUNDED,
+        box=ASCII,
         padding=(0, 0),
     ))
     console.print(f"\n[dim #ffffff]  Enter number or type a command  |  Ctrl+C to quit[/dim #ffffff]\n")
@@ -677,7 +658,7 @@ def confirm(message: str, default: bool = False) -> bool:
 def show_scan_summary(findings: Dict[str, Any]):
     """Display scan results with vibrant severity-based styling."""
     console.print()
-    console.print(f"  [bold #ffffff]{'═' * 3} SCAN RESULTS {'═' * 3}[/bold #ffffff]")
+    console.print(f"  [bold #ffffff]{'-' * 3} SCAN RESULTS {'-' * 3}[/bold #ffffff]")
     console.print()
 
     info = findings.get("info", 0)
@@ -705,7 +686,7 @@ def show_scan_summary(findings: Dict[str, Any]):
 def show_memory_stats(stats: Dict[str, Any]):
     """Display AI memory system statistics with vibrant styling."""
     console.print()
-    console.print(f"  [bold #CE93D8]{'═' * 3} MEMORY STATISTICS {'═' * 3}[/bold #CE93D8]")
+    console.print(f"  [bold #CE93D8]{'-' * 3} MEMORY STATISTICS {'-' * 3}[/bold #CE93D8]")
     console.print()
 
     status = stats.get("status", "unknown")
@@ -713,16 +694,16 @@ def show_memory_stats(stats: Dict[str, Any]):
     targets = stats.get("unique_targets", 0)
 
     metrics = [
-        {"label": "Status", "value": status.upper(), "icon": "[bold #ffffff]◆[/bold #ffffff]", "color": "#ffffff"},
-        {"label": "Memories", "value": str(total), "unit": "entries", "icon": "[bold #ffffff]◆[/bold #ffffff]", "color": "#ffffff"},
-        {"label": "Targets", "value": str(targets), "unit": "domains", "icon": "[bold #888888]◆[/bold #888888]", "color": "#888888"},
+        {"label": "Status", "value": status.upper(), "icon": "[bold #ffffff][INFO][/bold #ffffff]", "color": "#ffffff"},
+        {"label": "Memories", "value": str(total), "unit": "entries", "icon": "[bold #ffffff][INFO][/bold #ffffff]", "color": "#ffffff"},
+        {"label": "Targets", "value": str(targets), "unit": "domains", "icon": "[bold #888888][INFO][/bold #888888]", "color": "#888888"},
     ]
     show_metric_row(metrics)
 
     if stats.get("targets"):
         console.print(f"  [dim #ffffff]Recent targets:[/dim #ffffff]")
         for t in stats["targets"][:10]:
-            console.print(f"    [#ffffff]→[/#ffffff] {t}")
+            console.print(f"    [#ffffff]->[/#ffffff] {t}")
         console.print()
 
 
@@ -733,7 +714,7 @@ def show_findings_summary(findings: List[Dict[str, Any]]):
         return
 
     console.print()
-    console.print(f"  [bold #ffffff]{'═' * 3} SECURITY FINDINGS ({len(findings)}) {'═' * 3}[/bold #ffffff]")
+    console.print(f"  [bold #ffffff]{'-' * 3} SECURITY FINDINGS ({len(findings)}) {'-' * 3}[/bold #ffffff]")
     console.print()
 
     # Group by severity
@@ -808,7 +789,7 @@ def show_bullet_list(items: List[str], marker: str = "->", color: str = "#ffffff
 
 
 # ---------------------------------------------------------------------------
-# SIDEBAR — Live status panel for CLI mode
+# SIDEBAR - Live status panel for CLI mode
 # ---------------------------------------------------------------------------
 
 SIDEBAR_TITLE = " ELENGENIX"
@@ -851,11 +832,11 @@ def render_sidebar(
     token_bar = f"[bold {bar_color}]{'#' * bar_filled}[/bold {bar_color}][dim #444444]{'.' * bar_empty}[/dim #444444]"
 
     status_ind = {
-        "ready":    "[bold #ffffff]●[/bold #ffffff]",
-        "thinking": "[bold white]◉[/bold white]",
-        "error":    "[bold #ffffff]■[/bold #ffffff]",
-        "idle":     "[dim #666666]○[/dim #666666]",
-    }.get(status, "[dim #666666]○[/dim #666666]")
+        "ready":    "[bold #ffffff][OK][/bold #ffffff]",
+        "thinking": "[bold white][RUN][/bold white]",
+        "error":    "[bold #ffffff][FAIL][/bold #ffffff]",
+        "idle":     "[dim #666666][INFO][/dim #666666]",
+    }.get(status, "[dim #666666][INFO][/dim #666666]")
 
     status_label = {
         "ready":    "[bold #ffffff]STANDBY[/bold #ffffff]",
@@ -871,7 +852,7 @@ def render_sidebar(
     }.get(mode, f"[bold #888888]{mode.upper()}[/bold #888888]")
 
     w = width - 4
-    sep = f"  [dim #444444]{'─' * w}[/dim #444444]"
+    sep = f"  [dim #444444]{'-' * w}[/dim #444444]"
     gap = ""
 
     lines = []
@@ -911,7 +892,7 @@ def render_sidebar(
     lines.append(f"  [bold white]SHORTCUTS[/bold white]")
     lines.append(f"  [dim #888888]Ctrl+R[/dim #888888][dim #999999] Research  [/dim #999999][dim #888888]Ctrl+B[/dim #888888][dim #999999] Mode[/dim #999999]")
     lines.append(f"  [dim #888888]Ctrl+T[/dim #888888][dim #999999] Think     [/dim #999999][dim #888888]Ctrl+P[/dim #888888][dim #999999] Models[/dim #999999]")
-    lines.append(f"  [dim #888888]Ctrl+G[/dim #888888][dim #999999] Help      [/dim #999999][dim #888888]↑↓[/dim #888888][dim #999999]   History[/dim #999999]")
+    lines.append(f"  [dim #888888]Ctrl+G[/dim #888888][dim #999999] Help      [/dim #999999][dim #888888]Up/Down[/dim #888888][dim #999999]   History[/dim #999999]")
     lines.append(f"  [dim #888888]Ctrl+E[/dim #888888][dim #999999] Settings  (Overlay menu)[/dim #999999]")
     
     # Scroll indicator
@@ -919,14 +900,92 @@ def render_sidebar(
         lines.append(gap)
         lines.append(f"  [bold #ffffff]SCROLL[/bold #ffffff]")
         lines.append(f"  [dim #ffffff]{scroll_info}[/dim #ffffff]")
-        lines.append(f"  [dim #888888]j/k or ↑↓ to scroll[/dim #888888]")
+        lines.append(f"  [dim #888888]j/k or Up/Down to scroll[/dim #888888]")
 
     # Footer
     lines.append(sep)
     lines.append(f"  [dim #737373][/dim #737373]  [dim #777777]Elengenix AI Agent Framework[/dim #777777]")
 
     sidebar_text = "\n".join(lines)
-    return Panel(sidebar_text, border_style="#ffffff", box=ROUNDED, padding=(0, 0), width=width)
+    return Panel(sidebar_text, border_style="#ffffff", box=ASCII, padding=(0, 0), width=width)
+
+
+
+# ---------------------------------------------------------------------------
+# COMMAND EXECUTION DISPLAY - Live run panel (Antigravity/OpenCode style)
+# ---------------------------------------------------------------------------
+
+def show_command_execution(
+    cmd: str,
+    result: str,
+    success: bool,
+    purpose: str = "",
+    thought: str = "",
+    elapsed: float = 0.0,
+) -> None:
+    """Display a command execution result panel similar to Antigravity / OpenCode.
+
+    Shows a compact panel with:
+      - AI thought + purpose (if provided)
+      - The exact command that ran
+      - [OK] / [FAIL] status + elapsed time
+      - First few lines of output (truncated if long)
+
+    Args:
+        cmd: The shell command that was executed.
+        result: stdout/stderr output from the command.
+        success: Whether the command exited with code 0.
+        purpose: AI-stated reason for the command.
+        thought: AI's internal reasoning (optional).
+        elapsed: Elapsed time in seconds.
+    """
+    from rich.text import Text
+    from rich.rule import Rule
+
+    status_color = "#ffffff" if success else "#ffffff"
+    status_marker = "[OK]" if success else "[FAIL]"
+
+    # Trim output for display - show first 12 lines, then ellipsis
+    output_lines = [l for l in result.splitlines() if l.strip()]
+    display_lines = output_lines[:12]
+    truncated = len(output_lines) > 12
+    output_preview = "\n".join(display_lines)
+    if truncated:
+        output_preview += f"\n[dim #737373]... ({len(output_lines) - 12} more lines)[/dim #737373]"
+
+    # Build panel body
+    body_parts: list[str] = []
+
+    if thought:
+        body_parts.append(f"[dim #737373]Thought : {thought[:120]}[/dim #737373]")
+    if purpose:
+        body_parts.append(f"[dim #999999]Purpose : {purpose[:120]}[/dim #999999]")
+
+    if thought or purpose:
+        body_parts.append("")
+
+    # Command line and Output block combined
+    body_parts.append(f"[bold #ffffff]~$ {cmd}[/bold #ffffff]")
+    
+    if output_preview.strip():
+        body_parts.append(output_preview)
+
+    border = "#ffffff" if success else "#ffffff"
+    title_tag = (
+        f"[bold {border}]{status_marker}[/bold {border}]"
+        f" [dim #999999]{cmd.split()[0] if cmd.split() else 'shell'}[/dim #999999]"
+    )
+
+    console.print(
+        Panel(
+            "\n".join(body_parts),
+            title=title_tag,
+            border_style=border,
+            box=ASCII,
+            padding=(0, 1),
+            expand=False,
+        )
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -959,6 +1018,8 @@ __all__ = [
     "show_toast",
     # Helpers
     "show_key_value", "show_bullet_list",
+    # Command execution display
+    "show_command_execution",
     # Sidebar
     "render_sidebar", "SIDEBAR_TITLE", "SIDEBAR_SUBTITLE",
     # Shared objects

@@ -14,15 +14,13 @@ from typing import Dict, List, Set, Optional, Tuple, Any
 import hashlib
 import logging
 
-from rich.console import Console
-
 from file_relationship_mapper import (
     FileRelationshipGraph,
     get_scan_recommendations,
 )
 from tools.tool_registry import registry, ToolResult
+from ui_components import console
 
-console = Console()
 logger = logging.getLogger("scan_engine_upgrade")
 
 from tools.event_loop import get_shared_loop

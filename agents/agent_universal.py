@@ -260,16 +260,21 @@ Respond with JSON:
             break
 
         # Parse JSON
+        thought = ""
         try:
             decision = json.loads(response_text) if response_text.startswith("{") else _extract_json_from_text(response_text)
             if not decision:
                 action_data = {"type": "finish"}
             else:
+                thought = decision.get("thought", "")
                 action_data = decision.get("action", decision)
                 if isinstance(action_data, dict) and "type" not in action_data:
                     action_data = {"type": "shell", "params": action_data}
         except (json.JSONDecodeError, ValueError):
             action_data = {"type": "finish"}
+
+        if callback and thought:
+            callback(f"thought:{thought}")
 
         action_type = action_data.get("type", "shell") if isinstance(action_data, dict) else "shell"
         params = action_data.get("params", {}) if isinstance(action_data, dict) else {}
@@ -310,8 +315,11 @@ Respond with JSON:
                     continue
 
         # Execute
-        result_obj = executor.execute_action({"type": action_type, "params": params})
+        result_obj = executor.execute_action({"type": action_type, "params": params}, callback=callback)
         result = result_obj.output if result_obj.success else f"{result_obj.error}"
+
+
+
         _append_history(history, "assistant", f"[{action_type}] {result[:300]}")
 
         # Score findings

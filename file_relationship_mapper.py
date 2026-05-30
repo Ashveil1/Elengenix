@@ -19,10 +19,8 @@ except ImportError:
     NETWORKX_AVAILABLE = False
     nx = None
 
-from rich.console import Console
 from rich.table import Table
-
-console = Console()
+from ui_components import console
 
 
 @dataclass

@@ -68,6 +68,12 @@ def execute_tool(
         "exit": "finish",
         "create_tool": "create_ai_tool",
         "run_tool": "run_ai_tool",
+        "write_and_run": "write_script",
+        "write_and_exec": "write_script",
+        "script": "write_script",
+        "install": "install_tool",
+        "install_package": "install_tool",
+        "install_binary": "install_tool",
     }
     action = _ACTION_ALIASES.get(action, action)
 
@@ -130,15 +136,26 @@ def execute_tool(
         except Exception as e:
             return f"Error running tool: {e}"
 
+    if action == "write_script":
+        return execute_write_script(action_data, governance, max_output_len, callback)
+
+    if action == "install_tool":
+        return execute_install_tool(action_data, governance, max_output_len, callback)
+
     if action != "run_shell":
         return (
             f"Error: Unknown action '{action}'. "
-            "Use: run_shell, ask_user, web_search, save_memory, create_ai_tool, run_ai_tool, or finish."
+            "Use: run_shell, write_script, install_tool, ask_user, web_search, "
+            "save_memory, create_ai_tool, run_ai_tool, or finish."
         )
     if not cmd_raw or not isinstance(cmd_raw, str):
         return "Error: Invalid or empty command."
 
-    return execute_shell_command(cmd_raw, governance, max_output_len, callback)
+    return execute_shell_command(
+        cmd_raw, governance, max_output_len, callback,
+        purpose=action_data.get("purpose", ""),
+        thought=action_data.get("thought", ""),
+    )
 
 
 def execute_shell_command(
@@ -146,8 +163,22 @@ def execute_shell_command(
     governance: Governance,
     max_output_len: int = 5000,
     callback: Optional[Callable] = None,
+    purpose: str = "",
+    thought: str = "",
 ) -> str:
-    """Run a shell command through the Governance gate."""
+    """Run a shell command through the Governance gate.
+
+    Args:
+        cmd_raw: Raw shell command string.
+        governance: Governance instance for risk classification.
+        max_output_len: Maximum characters to return from output.
+        callback: Optional streaming callback.
+        purpose: AI-stated reason for this command (shown in approval prompt).
+        thought: AI's internal reasoning (shown in approval prompt).
+
+    Returns:
+        Command output or error message.
+    """
     gate = governance.gate(
         mission_id="cli_tool_exec",
         target="local",
@@ -156,42 +187,301 @@ def execute_shell_command(
     )
 
     if gate.decision == "deny":
-        return f"Command blocked by governance: {gate.rationale}"
+        return f"[WARN] Command blocked by governance: {gate.rationale}"
 
     if gate.decision == "needs_approval":
-        from ui_components import confirm
-        try:
-            approved = confirm("Run this command?", default=False)
-        except Exception:
-            approved = False
+        approved, enable_auto = _prompt_approval(
+            cmd=cmd_raw,
+            risk_level=gate.risk_level,
+            purpose=purpose,
+            thought=thought,
+            governance=governance,
+        )
+        if enable_auto:
+            governance.auto_approve_privileged = True
+            logger.info("[OK] Auto-approve mode enabled for this session.")
         if not approved:
-            return "Command rejected by user."
+            return "[SKIP] Command rejected by user."
 
     try:
-        import shutil as _shutil
-        try:
-            parts = shlex.split(cmd_raw)
-            if parts:
-                binary = os.path.basename(parts[0])
-                _shutil.which(binary)
-        except Exception:
-            pass
-
+        import time as _time
+        _t0 = _time.perf_counter()
         safe_result = execute_safely(cmd_raw, timeout=300)
-        if not safe_result["success"]:
-            err = safe_result["error"] or safe_result["stderr"][:500]
-            return f"Command failed: {err}"
+        elapsed = _time.perf_counter() - _t0
+
+        success = safe_result["success"]
         output = safe_result["stdout"]
         if safe_result["stderr"]:
             output += "\n" + safe_result["stderr"]
-        return output[:max_output_len]
+        output = output[:max_output_len]
+
+        # Route display through callback when available (TUI mode) so it
+        # renders inside the chat window instead of printing to raw stdout.
+        # The TUI agent_callback intercepts "exec:" prefixed messages.
+        if callback:
+            import json as _json
+            callback("exec:" + _json.dumps({
+                "cmd": cmd_raw,
+                "output": output,
+                "success": success,
+                "elapsed": round(elapsed, 2),
+                "purpose": purpose,
+                "thought": thought,
+            }))
+        else:
+            # Fallback for non-TUI (CLI / terminal) mode
+            from ui_components import show_command_execution
+            show_command_execution(
+                cmd=cmd_raw, result=output, success=success,
+                purpose=purpose, thought=thought, elapsed=elapsed,
+            )
+
+        if not success:
+            err = safe_result["error"] or safe_result["stderr"][:500]
+            return f"[FAIL] Command failed: {err}"
+        return output
 
     except subprocess.TimeoutExpired:
-        return "Error: Command timed out after 300 seconds."
+        return "[FAIL] Error: Command timed out after 300 seconds."
     except ValueError as e:
-        return f"Error: Invalid command syntax: {e}"
+        return f"[FAIL] Error: Invalid command syntax: {e}"
     except Exception as e:
-        return f"Error executing tool: {str(e)}"
+        return f"[FAIL] Error executing tool: {str(e)}"
+
+
+def _prompt_approval(
+    cmd: str,
+    risk_level: str = "PRIVILEGED",
+    purpose: str = "",
+    thought: str = "",
+    governance: Optional[Any] = None,
+) -> tuple[bool, bool]:
+    """Display a 3-choice approval prompt for privileged commands.
+
+    Choices:
+        y  — Allow (this command only)
+        a  — Allow Auto (this command + all future PRIVILEGED in this session)
+        n  — Deny
+
+    Args:
+        cmd: The shell command to run.
+        risk_level: Governance risk classification string.
+        purpose: AI's stated purpose for running this command.
+        thought: AI's internal chain-of-thought (optional).
+        governance: Governance instance (used to check current auto-approve state).
+
+    Returns:
+        Tuple (approved: bool, enable_auto: bool).
+        enable_auto is True only when the user selects Allow Auto.
+    """
+    from ui_components import console, confirm
+    from rich.panel import Panel
+
+    label_color = "yellow" if risk_level == "PRIVILEGED" else "red"
+
+    lines = []
+    if thought:
+        lines.append(f"[grey70]Thought : {thought}[/grey70]")
+    if purpose:
+        lines.append(f"[white]Purpose : {purpose}[/white]")
+    lines.append("")
+    lines.append(f"[{label_color}]Command :[/{label_color}]")
+    lines.append(f"  [bold white]{cmd}[/bold white]")
+
+    console.print(
+        Panel(
+            "\n".join(lines),
+            title=f"[{label_color}][{risk_level}] Agent Wants to Run a System Command[/{label_color}]",
+            border_style=label_color,
+            expand=False,
+        )
+    )
+
+    # Show 3-choice prompt
+    console.print(
+        "  [bold][[green]y[/green]][/bold] Allow  "
+        "[bold][[cyan]a[/cyan]][/bold] Allow Auto (skip prompts this session)  "
+        "[bold][[red]n[/red]][/bold] Deny"
+    )
+
+    try:
+        raw = input("  Choice [y/a/n]: ").strip().lower()
+    except (EOFError, KeyboardInterrupt):
+        raw = "n"
+
+    if raw == "a":
+        console.print("  [cyan][INFO] Auto-approve enabled — PRIVILEGED commands will run without prompts this session.[/cyan]")
+        return True, True
+    if raw == "y":
+        return True, False
+    return False, False
+
+
+def execute_write_script(
+    action_data: Dict[str, Any],
+    governance: Governance,
+    max_output_len: int = 5000,
+    callback: Optional[Callable] = None,
+) -> str:
+    """Write a script file and execute it immediately.
+
+    Lets the AI create a Python/Bash/Go script on the fly and run it without
+    resorting to shell escaping tricks like ``echo '...' > file.py && python3 file.py``.
+
+    Expected action_data keys:
+        filename (str): e.g. "exploit.py" or "scanner.sh" — written to data/scripts/
+        code     (str): Full script source code.
+        runner   (str): Interpreter — "python3", "bash", "go run", etc. Default: auto-detect.
+        args     (str): Extra CLI arguments to pass to the script.
+        purpose  (str): AI's reason for writing this script.
+        thought  (str): AI's internal reasoning.
+
+    Args:
+        action_data: Action payload from the AI.
+        governance: Governance instance for risk classification.
+        max_output_len: Maximum output length.
+        callback: Streaming callback.
+
+    Returns:
+        Script execution output or error message.
+    """
+    import tempfile
+    from pathlib import Path as _Path
+
+    filename = action_data.get("filename", "agent_script.py").strip()
+    code = action_data.get("code", "").strip()
+    runner = action_data.get("runner", "").strip()
+    args = action_data.get("args", "").strip()
+    purpose = action_data.get("purpose", "")
+    thought = action_data.get("thought", "")
+
+    if not code:
+        return "[FAIL] write_script: 'code' field is required."
+
+    # Auto-detect runner from filename extension
+    if not runner:
+        ext = _Path(filename).suffix.lower()
+        runner = {
+            ".py": "python3",
+            ".sh": "bash",
+            ".rb": "ruby",
+            ".go": "go run",
+            ".js": "node",
+            ".ts": "ts-node",
+        }.get(ext, "python3")
+
+    # Write to data/scripts/ (persistent) so AI can inspect them later
+    scripts_dir = _Path(__file__).parent.parent / "data" / "scripts"
+    scripts_dir.mkdir(parents=True, exist_ok=True)
+    script_path = scripts_dir / filename
+
+    try:
+        script_path.write_text(code, encoding="utf-8")
+        logger.info(f"[OK] Script written: {script_path}")
+    except Exception as e:
+        return f"[FAIL] Failed to write script: {e}"
+
+    # Verify: read back the file and confirm content matches what was intended.
+    # This prevents silent failures where the write appeared to succeed but
+    # the disk content is wrong (e.g. test pollution, encoding issues).
+    try:
+        written_content = script_path.read_text(encoding="utf-8")
+        if written_content.strip() != code.strip():
+            logger.warning(f"[WARN] Write verification failed for {script_path}")
+            return (
+                f"[FAIL] File was written to {script_path} but content verification failed.\n"
+                f"Expected:\n{code}\n\nActual on disk:\n{written_content}"
+            )
+    except Exception as e:
+        return f"[FAIL] Could not verify written file {script_path}: {e}"
+
+    cmd = f"{runner} {script_path} {args}".strip()
+
+    # Route info messages through callback (TUI) or console.print (terminal)
+    if callback:
+        import json as _json
+        callback("exec:" + _json.dumps({
+            "cmd": f"write_script {script_path}",
+            "output": f"Successfully wrote script to {script_path}",
+            "success": True,
+            "elapsed": 0.0,
+            "purpose": purpose,
+            "thought": thought,
+        }))
+    else:
+        from ui_components import console
+        console.print(f"\n[grey70][INFO] AI wrote script: {script_path}[/grey70]")
+        if purpose:
+            console.print(f"[grey70][INFO] Purpose: {purpose}[/grey70]")
+        console.print(f"[grey70][RUN]  {cmd}[/grey70]\n")
+
+    shell_output = execute_shell_command(
+        cmd, governance, max_output_len, callback,
+        purpose=purpose, thought=thought,
+    )
+    # Prepend the absolute path so the AI always knows where the file lives
+    # and does not confuse relative-path shell lookups with the actual file.
+    return f"[OK] File saved at: {script_path}\n{shell_output}"
+
+
+def execute_install_tool(
+    action_data: Dict[str, Any],
+    governance: Governance,
+    max_output_len: int = 5000,
+    callback: Optional[Callable] = None,
+) -> str:
+    """Install a tool/package with a clear user approval prompt.
+
+    Constructs the appropriate install command based on the package manager
+    (go, pip, apt, cargo, npm, gem) and routes it through Governance so the
+    user sees exactly what will be installed before anything runs.
+
+    Expected action_data keys:
+        name      (str): Tool/package name, e.g. "subfinder", "httpx".
+        manager   (str): Package manager — "go", "pip", "apt", "cargo", "npm", "gem".
+                         If omitted, the AI should specify the install_cmd directly.
+        version   (str): Optional version specifier (e.g. "@latest", "==2.1.0").
+        install_cmd (str): Full install command if manager is unknown or custom.
+        purpose   (str): Why this tool is needed.
+        thought   (str): AI reasoning.
+
+    Args:
+        action_data: Action payload from the AI.
+        governance: Governance instance.
+        max_output_len: Maximum output length.
+        callback: Streaming callback.
+
+    Returns:
+        Installation output or error message.
+    """
+    name = action_data.get("name", "").strip()
+    manager = action_data.get("manager", "").strip().lower()
+    version = action_data.get("version", "").strip()
+    install_cmd = action_data.get("install_cmd", "").strip()
+    purpose = action_data.get("purpose", f"Install {name} for security testing")
+    thought = action_data.get("thought", "")
+
+    if not install_cmd:
+        if not name:
+            return "[FAIL] install_tool: 'name' or 'install_cmd' is required."
+
+        # Build install command for known managers
+        _MANAGERS = {
+            "go":    f"go install github.com/{name}{version or '@latest'}",
+            "pip":   f"pip install {name}{version}",
+            "pip3":  f"pip3 install {name}{version}",
+            "apt":   f"sudo apt-get install -y {name}",
+            "cargo": f"cargo install {name}",
+            "npm":   f"npm install -g {name}",
+            "gem":   f"gem install {name}",
+            "brew":  f"brew install {name}",
+        }
+        install_cmd = _MANAGERS.get(manager, f"pip install {name}{version}")
+
+    return execute_shell_command(
+        install_cmd, governance, max_output_len, callback,
+        purpose=purpose, thought=thought,
+    )
 
 
 def handle_ask_user(

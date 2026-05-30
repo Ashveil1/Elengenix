@@ -15,10 +15,9 @@ import os
 import time
 from pathlib import Path
 from typing import List
-from rich.console import Console
+from ui_components import console
 
-# ── Setup ───────────────────────────────────────────────────
-console = Console()
+# Setup
 logger = logging.getLogger("elengenix.installer")
 
 # Security tool installation commands (Go-based tools use 'go install')
