@@ -104,8 +104,12 @@ info "Installing dependencies..."
 if [ ! -f "requirements.txt" ]; then
     error "requirements.txt not found. Ensure you're in the Elengenix directory."
 fi
+
+info "Filtering heavy dependencies for Termux..."
+grep -vE "^(chromadb|sentence-transformers|tiktoken|trafilatura)" requirements.txt > requirements_termux.txt
+
 run_with_spinner "Upgrading pip/setuptools/wheel..." "$VENV_PYTHON" -m pip install --upgrade pip setuptools wheel || error "Failed to upgrade pip/setuptools/wheel"
-run_with_spinner "Installing Python requirements..." "$VENV_PYTHON" -m pip install -r requirements.txt || error "Failed to install requirements.txt"
+run_with_spinner "Installing Python requirements..." "$VENV_PYTHON" -m pip install -r requirements_termux.txt || error "Failed to install requirements.txt"
 success "Python dependencies secured."
 
 # 3. Global Command Integration
