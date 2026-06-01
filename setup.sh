@@ -3,7 +3,7 @@
 # ============================================================
 #   Elengenix - Indestructible Professional Installer
 #   Supports: Debian, Arch, Fedora, macOS
-#   Version: 1.0.0
+#   Version: v99999
 #   Optimized: Installs only Python dependencies
 # ============================================================
 
@@ -51,7 +51,7 @@ run_with_spinner() {
 }
 
 #  ERROR TRAP
-trap 'echo -e "\n${RED}[!] Error occurred at line $LINENO. Installation failed.${NC}";' ERR
+trap 'echo -e "\n${RED}[!] Error occurred at line ${BASH_LINENO[0]}. Installation failed.${NC}";' ERR
 
 # Verify we're in the right directory
 if [ ! -f "sentinel" ] && [ ! -f "main.py" ]; then
@@ -90,7 +90,7 @@ fi
 info "STEP 1/4: Installing system dependencies..."
 if [[ "$OS" == "Linux" ]]; then
     if [ -f /etc/debian_version ]; then
-        sudo apt-get update -qq
+        sudo apt-get update -qq || true
         sudo apt-get install -y python3 python3-pip python3-venv git curl libyaml-dev build-essential
     elif [ -f /etc/arch-release ]; then
         sudo pacman -Sy --noconfirm python python-pip git curl libyaml base-devel
@@ -118,7 +118,21 @@ if [ ! -f "requirements.txt" ]; then
     error "requirements.txt not found. Ensure you're in the Elengenix directory."
 fi
 if ! "$VENV_PYTHON" -m pip install --upgrade pip setuptools wheel --quiet; then error "Failed to upgrade pip"; fi
-if ! "$VENV_PYTHON" -m pip install -r requirements.txt --quiet; then error "Failed to install requirements.txt"; fi
+
+info "Installing all Python dependencies..."
+"$VENV_PYTHON" -m pip install --default-timeout=120 -r requirements.txt --quiet || {
+    warning "Some packages failed to install. Retrying with longer timeout..."
+    "$VENV_PYTHON" -m pip install --default-timeout=300 -r requirements.txt --quiet || {
+        warning "Second attempt also failed. Trying individual core packages..."
+        "$VENV_PYTHON" -m pip install --default-timeout=300 --quiet \
+            pyyaml requests python-dotenv rich questionary prompt-toolkit \
+            textual nest-asyncio tenacity openai google-generativeai tiktoken \
+            trafilatura duckduckgo-search googlesearch-python \
+            pytest pytest-asyncio \
+        || error "Failed to install core packages"
+        warning "Some optional packages could not be installed (sentence-transformers, chromadb, etc.)"
+    }
+}
 
 success "Python environment secured."
 
@@ -126,14 +140,23 @@ success "Python environment secured."
 info "STEP 3/4: Creating global command 'elengenix'..."
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SENTINEL_PATH="$PROJECT_DIR/sentinel"
-
-chmod +x "$SENTINEL_PATH"
 WRAPPER_PATH="/usr/local/bin/elengenix"
 
-if sudo ln -sf "$SENTINEL_PATH" "$WRAPPER_PATH" 2>/dev/null; then
-    success "Global command 'elengenix' linked at $WRAPPER_PATH"
+if [ -f "$SENTINEL_PATH" ]; then
+    chmod +x "$SENTINEL_PATH"
 else
-    warning "Permission denied. Please add this to your .bashrc:"
+    error "sentinel file not found at $SENTINEL_PATH"
+fi
+
+if [ -L "$WRAPPER_PATH" ] || [ ! -e "$WRAPPER_PATH" ]; then
+    if sudo ln -sf "$SENTINEL_PATH" "$WRAPPER_PATH" 2>/dev/null; then
+        success "Global command 'elengenix' linked at $WRAPPER_PATH"
+    else
+        warning "Permission denied. Please add this to your .bashrc:"
+        echo -e "export PATH=\"\$PATH:$PROJECT_DIR\""
+    fi
+else
+    warning "A file already exists at $WRAPPER_PATH and is not a symlink. Skipping."
     echo -e "export PATH=\"\$PATH:$PROJECT_DIR\""
 fi
 
@@ -142,7 +165,7 @@ info "STEP 4/4: Finalizing Configuration..."
 if [ -f "wizard.py" ]; then
     "$VENV_PYTHON" wizard.py || warning "Wizard issues detected."
 else
-    warning "wizard.py not found."
+    warning "wizard.py not found. Skipping configuration wizard."
 fi
 
 echo ""
@@ -156,6 +179,8 @@ if command -v elengenix >/dev/null 2>&1; then
     echo -e "      elengenix doctor    - Check tool installation"
     echo -e "      elengenix scan <target>  - Run full scan"
 fi
+echo ""
+echo -e "  ${GREEN}Run 'elengenix doctor' to verify everything is set up correctly.${NC}"
 echo ""
 echo -e "  ${RED}Note:${NC} If commands are not found, restart your terminal or run:"
 echo -e "      source ~/.bashrc"
