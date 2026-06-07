@@ -27,6 +27,13 @@ try:
 except ImportError:
     pass  # python-dotenv not installed, user must set env vars manually
 
+# --- Suppress urllib3 InsecureRequestWarning (we intentionally use verify=False for hostile targets) ---
+try:
+    import urllib3
+    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+except (ImportError, AttributeError):
+    pass
+
 # --- Rich & Interactive UI ---
 from rich.console import Console
 from rich.panel import Panel

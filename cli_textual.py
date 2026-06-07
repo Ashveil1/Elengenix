@@ -316,7 +316,17 @@ class SettingsOverlayWidget(Widget, can_focus=True):
     def _reload(self) -> None:
         try:
             from tools.overlay_menu import SettingsOverlay
-            self._overlay = SettingsOverlay(getattr(self.app, "_agent", None), None, target=getattr(self.app, "target", ""))
+            # Wait for agent to be ready (max 3 seconds)
+            agent = getattr(self.app, "_agent", None)
+            if agent is None:
+                import time as _time
+                deadline = _time.monotonic() + 3.0
+                while _time.monotonic() < deadline:
+                    agent = getattr(self.app, "_agent", None)
+                    if agent is not None:
+                        break
+                    _time.sleep(0.05)
+            self._overlay = SettingsOverlay(agent, None, target=getattr(self.app, "target", ""))
         except Exception:
             self._overlay = None
 
@@ -359,13 +369,15 @@ class SettingsOverlayWidget(Widget, can_focus=True):
             sid = r.split(":", 1)[1]
             self.hide()
             if hasattr(self.app, "_load_session_by_id"): self.app._load_session_by_id(sid)
-        elif r == "saved":
-            self.app._chat_write_system("[dim]Settings saved.[/]")
-            if hasattr(self.app, "_agent") and self.app._agent:
-                try:
-                    from tools.governance import Governance
-                    self.app._agent.governance = Governance()
-                except: pass
+        elif r and r.startswith("saved"):
+            self.app._chat_write_system("[dim]Settings saved. Reloading agent...[/]")
+            # Extract active models if provided
+            if ":" in r:
+                models_part = r.split(":", 1)[1]
+                if models_part:
+                    os.environ["ACTIVE_MODELS"] = models_part
+            # Reload agent with new config
+            self.app._load_agent()
             self.hide()
         elif r == "error":
             self.app._chat_write_system("[dim]Settings failed.[/]"); self.hide()

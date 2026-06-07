@@ -628,13 +628,29 @@ class SettingsOverlay:
 
             self._save_config()
 
-            saved_history = getattr(self.agent, "conversation_history", []).copy()
-            from tools.universal_ai_client import AIClientManager
-            new_manager = AIClientManager()
-            self.agent.client = new_manager
-            self.agent.conversation_history = saved_history
+            # Clear global agent cache so next get_agent() creates fresh instance with new config
+            try:
+                import agent
+                agent._agent_instance = None
+            except Exception:
+                pass
 
-            return "saved"
+            # If we have an agent, preserve history but re-init client
+            if self.agent:
+                saved_history = getattr(self.agent, "conversation_history", []).copy()
+                from tools.universal_ai_client import AIClientManager
+                new_manager = AIClientManager()
+                self.agent.client = new_manager
+                # Also re-init team_aegis clients
+                if hasattr(self.agent, "_init_team_aegis_clients"):
+                    self.agent._team_aegis_clients = self.agent._init_team_aegis_clients()
+                # Re-create planner with new client
+                if hasattr(self.agent, "planner") and self.agent.planner:
+                    from agent_brain import StrategicPlanner
+                    self.agent.planner = StrategicPlanner(new_manager)
+                self.agent.conversation_history = saved_history
+
+            return f"saved:{','.join(active_models)}"
         except Exception as e:
             logger.error(f"Save failed: {e}")
             return "error"

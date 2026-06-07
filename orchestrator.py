@@ -523,8 +523,33 @@ async def _run_phase3_fuzz(
 
         fuzz_findings: List[Dict[str, Any]] = []
         all_fuzz_results = []
-        for f_url, f_param in fuzz_targets:
-            xss_fuzz = fuzzer.fuzz_parameter(f_url, f_param, xss_payloads)
+
+        async def _fuzz_one(f_url: str, f_param: str) -> List[Any]:
+            # Run sync fuzzer in a worker thread so the event loop stays alive
+            # and KeyboardInterrupt can be delivered promptly.
+            return await asyncio.to_thread(
+                fuzzer.fuzz_parameter, f_url, f_param, xss_payloads
+            )
+
+        # Fuzz all targets concurrently (bounded by asyncio.to_thread parallelism)
+        async def _fuzz_xss_and_sqli(f_url: str, f_param: str):
+            xss_results = await asyncio.to_thread(
+                fuzzer.fuzz_parameter, f_url, f_param, xss_payloads
+            )
+            sql_results = await asyncio.to_thread(
+                fuzzer.fuzz_parameter, f_url, f_param, sqli_payloads
+            )
+            return xss_results, sql_results
+
+        fuzz_results_per_target = await asyncio.gather(
+            *(_fuzz_xss_and_sqli(url, param) for url, param in fuzz_targets),
+            return_exceptions=True,
+        )
+        for result in fuzz_results_per_target:
+            if isinstance(result, Exception):
+                console.print(f"  [WARN] Fuzz target failed: {result}")
+                continue
+            xss_fuzz, sql_fuzz = result
             for fr in xss_fuzz:
                 if fr.is_interesting:
                     fuzz_findings.append({
@@ -532,12 +557,10 @@ async def _run_phase3_fuzz(
                         "type": "xss",
                         "severity": "High",
                         "url": fr.url,
-                        "title": f"Possible XSS in {f_param}: payload {fr.payload[:30]}",
+                        "title": f"Possible XSS: payload {fr.payload[:30]}",
                         "details": fr.reasoning,
                     })
             all_fuzz_results.extend(xss_fuzz)
-
-            sql_fuzz = fuzzer.fuzz_parameter(f_url, f_param, sqli_payloads)
             for fr in sql_fuzz:
                 if fr.is_interesting:
                     fuzz_findings.append({
@@ -545,7 +568,7 @@ async def _run_phase3_fuzz(
                         "type": "sqli",
                         "severity": "Critical",
                         "url": fr.url,
-                        "title": f"Possible SQLi in {f_param}: payload {fr.payload[:30]}",
+                        "title": f"Possible SQLi: payload {fr.payload[:30]}",
                         "details": fr.reasoning,
                     })
             all_fuzz_results.extend(sql_fuzz)
@@ -686,26 +709,38 @@ async def run_elengenix_modules(
     report_dir.mkdir(parents=True, exist_ok=True)
 
     # ── Phase 1 + 2 in parallel (both independent of each other) ──
-    recon_result, waf_findings = await asyncio.gather(
-        _run_phase1_recon(target, base_url, report_dir, timeout),
-        _run_phase2_waf(base_url),
-    )
+    try:
+        recon_result, waf_findings = await asyncio.gather(
+            _run_phase1_recon(target, base_url, report_dir, timeout),
+            _run_phase2_waf(base_url),
+        )
+    except KeyboardInterrupt:
+        console.print("[yellow][WARN] Scan cancelled by user during Phase 1-2[/yellow]")
+        return findings
     findings.extend(_recon_to_findings(recon_result, base_url))
     findings.extend(waf_findings)
 
     # ── Phase 3 + 4 in parallel (both depend on recon_result) ──
-    fuzz_findings, bola_findings = await asyncio.gather(
-        _run_phase3_fuzz(recon_result, base_url),
-        _run_phase4_bola(recon_result, base_url),
-    )
+    try:
+        fuzz_findings, bola_findings = await asyncio.gather(
+            _run_phase3_fuzz(recon_result, base_url),
+            _run_phase4_bola(recon_result, base_url),
+        )
+    except KeyboardInterrupt:
+        console.print("[yellow][WARN] Scan cancelled by user during Phase 3-4[/yellow]")
+        return findings
     findings.extend(fuzz_findings)
     findings.extend(bola_findings)
 
     # ── Phase 5 + 6 in parallel (both depend on accumulated findings) ──
-    await asyncio.gather(
-        _run_phase5_learning(findings, target, report_dir),
-        _run_phase6_coverage(findings, report_dir),
-    )
+    try:
+        await asyncio.gather(
+            _run_phase5_learning(findings, target, report_dir),
+            _run_phase6_coverage(findings, report_dir),
+        )
+    except KeyboardInterrupt:
+        console.print("[yellow][WARN] Scan cancelled by user during Phase 5-6[/yellow]")
+        return findings
 
     return findings
 
