@@ -57,25 +57,86 @@ class ToolExecutionResult:
 
 
 class AIGovernance:
-    """Governance layer for AI tool creation and execution."""
-    
+    """Governance layer for AI tool creation and execution.
+
+    Two-tier safety:
+    1. AST-based static analysis (RealDangerousPatternDetector) — catches
+       dangerous imports, eval/exec, subprocess calls, dunder access,
+       reverse-shell tokens, and more.
+    2. Legacy regex patterns — kept as a fast first-line filter for
+       backward compatibility with audit logs.
+    """
+
+    # Legacy regex patterns — kept for backward compat with existing logs.
+    # Real detection is done by RealDangerousPatternDetector (AST).
     DANGEROUS_PATTERNS = [
         r"rm\s+-rf",
         r"os\.system\s*\(.*rm",
         r"eval\s*\(",
         r"exec\s*\(",
     ]
-    
-    def __init__(self, mode: str = "ask", auto_approve_tools: List[str] = None):
+
+    def __init__(
+        self,
+        mode: str = "ask",
+        auto_approve_tools: List[str] = None,
+        use_ast_sandbox: bool = True,
+    ):
         self.mode = mode
         self.auto_approve_tools = auto_approve_tools or []
         self.approval_history: List[Dict] = []
-        
+        self.use_ast_sandbox = use_ast_sandbox
+        # Lazy import to avoid circular deps and to allow disabling.
+        if use_ast_sandbox:
+            try:
+                from tools.ai_sandbox import RealDangerousPatternDetector
+                self._detector = RealDangerousPatternDetector(
+                    allow_network=False,
+                    allow_dangerous_imports=False,
+                    allow_eval_exec=False,
+                )
+            except ImportError:
+                logger.warning("ai_sandbox not available; falling back to regex only")
+                self._detector = None
+        else:
+            self._detector = None
+
     def check_tool_safety(self, tool_spec: ToolSpec) -> Tuple[bool, str]:
-        """Check if tool is safe to create/execute."""
+        """Check if tool is safe to create/execute.
+
+        Two-tier:
+        1. AST analysis (if enabled) — catches a wide range of dangerous
+           patterns including ones regex would miss.
+        2. Legacy regex check — backward compat.
+
+        Returns (is_safe, reason). On critical AST hits, the reason names
+        the specific pattern_id that triggered.
+        """
+        # Tier 1: AST analysis (preferred)
+        if self._detector is not None:
+            report = self._detector.analyze(tool_spec.code)
+            if report.syntax_error:
+                return False, f"SyntaxError: {report.syntax_error}"
+            if report.has_critical():
+                # Surface the first critical hit for clarity
+                crit = report.by_severity("critical")[0]
+                return False, (
+                    f"AST safety violation ({crit.pattern_id}): {crit.description} "
+                    f"at line {crit.line}"
+                )
+            # High-severity hits do not block by default but are logged
+            high = report.by_severity("high")
+            if high:
+                logger.info(
+                    f"Tool {tool_spec.name} has {len(high)} high-severity "
+                    f"AST hit(s); allowing with warning"
+                )
+
+        # Tier 2: Legacy regex (fast first line)
         for pattern in self.DANGEROUS_PATTERNS:
             if re.search(pattern, tool_spec.code, re.IGNORECASE):
                 return False, f"Dangerous pattern detected: {pattern}"
+
         return True, "Safe"
     
     def request_approval(self, action: str, details: Dict) -> bool:

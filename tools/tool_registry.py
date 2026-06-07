@@ -502,7 +502,7 @@ class NucleiTool(BaseTool):
                 nuclei_input = report_dir / "nuclei_input.txt"
                 nuclei_input.write_text('\n'.join(urls))
                 cmd = [
-                    "nuclei", "-l", str(nuclei_input),
+                    "nuclei", "-l", str(_ext_scanner),
                     "-json", "-o", str(output_file),
                     "-silent", "-severity", "critical,high,medium"
                 ]

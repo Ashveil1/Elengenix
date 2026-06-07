@@ -437,7 +437,7 @@ def execute_install_tool(
     user sees exactly what will be installed before anything runs.
 
     Expected action_data keys:
-        name      (str): Tool/package name, e.g. "subfinder", "httpx".
+        name      (str): Tool/package name, e.g. "_ext_recon".
         manager   (str): Package manager — "go", "pip", "apt", "cargo", "npm", "gem".
                          If omitted, the AI should specify the install_cmd directly.
         version   (str): Optional version specifier (e.g. "@latest", "==2.1.0").

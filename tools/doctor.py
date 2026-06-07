@@ -1,8 +1,10 @@
 """
-tools/doctor.py — System Health Check & Auto-Repair
-- Checks Python version, config, and core library dependencies
+tools/doctor.py — Elengenix Framework Health Check
+- Checks Python version, config, and core library dependencies that BUILD Elengenix
 - Checks AI provider connectivity
 - Auto-repair mode: guides/installs missing libraries via pip
+- Does NOT check third-party security tools (nuclei, subfinder, etc.).
+  Those are external — the AI can discover them via shell or request user to install.
 """
 
 from __future__ import annotations
@@ -17,7 +19,8 @@ from typing import List, Optional, Tuple
 
 logger = logging.getLogger("elengenix.doctor")
 
-# Python libraries to check: (import_name, pip_name, is_required)
+# Python libraries that BUILD Elengenix itself: (import_name, pip_name, is_required)
+# These are the framework's own dependencies, not third-party security tools.
 PYTHON_LIBRARIES: List[Tuple[str, str, bool]] = [
     ("rich", "rich", True),
     ("yaml", "PyYAML", True),
@@ -26,8 +29,10 @@ PYTHON_LIBRARIES: List[Tuple[str, str, bool]] = [
     ("requests", "requests", True),
     ("textual", "textual", True),
     ("chromadb", "chromadb", True),
-    ("sentence_transformers", "sentence-transformers", True),
-    ("tiktoken", "tiktoken", True),
+    # Heavy ML deps are OPTIONAL — only required for vector memory embeddings.
+    # The core framework runs without them; memory will use keyword fallback.
+    ("sentence_transformers", "sentence-transformers", False),
+    ("tiktoken", "tiktoken", False),
 ]
 
 PYTHON_MIN = (3, 10)
@@ -131,7 +136,7 @@ def _check_python(python_executable: Path) -> Tuple[bool, str]:
     version = (proc.stdout or "").strip() or "unknown"
     parts = version.split(".")
     try:
-        parsed = tuple(int(part) for part in parts[:3])
+        parsed: tuple = tuple(int(part) for part in parts[:3])
     except ValueError:
         parsed = (0, 0, 0)
     ok = parsed >= PYTHON_MIN
@@ -139,13 +144,24 @@ def _check_python(python_executable: Path) -> Tuple[bool, str]:
 
 
 def _check_library(import_name: str, python_executable: Path) -> Tuple[bool, str]:
-    """Check if a Python library is importable from the runtime interpreter."""
-    proc = subprocess.run(
-        [str(python_executable), "-c", f"import {import_name}"],
-        capture_output=True,
-        text=True,
-    )
-    return proc.returncode == 0, "Installed" if proc.returncode == 0 else "Not found"
+    """Check if a Python library is importable from the runtime interpreter.
+
+    Uses a hard 10s timeout per import. Heavy ML libraries (sentence_transformers,
+    torch, tiktoken) can take 30-60s to import on first run, so we cap the
+    subprocess to avoid hanging the health check.
+    """
+    try:
+        proc = subprocess.run(
+            [str(python_executable), "-c", f"import {import_name}"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        return proc.returncode == 0, "Installed" if proc.returncode == 0 else "Not found"
+    except subprocess.TimeoutExpired:
+        return False, "Import timed out (>10s)"
+    except Exception as e:
+        return False, f"Check failed: {type(e).__name__}"
 
 
 def _check_config() -> Tuple[bool, str]:
@@ -339,6 +355,13 @@ def check_health(interactive: bool = True) -> bool:
                 print_warning("questionary module missing. Run setup.sh to install core dependencies.")
             except Exception as e:
                 logger.error(f"Error during library installation prompt: {e}")
+
+    # ── Note about external tools ───────────────────────────────────────────────
+    # Elengenix does NOT bundle or check third-party security tools (scanners, fuzzers, etc.).
+    # The AI agent discovers tools via shell (`which`, `command -v`) and can request
+    # the user to install a tool when needed. See `install_tool` action in the system prompt.
+    console.print("[dim]Note: External security tools are not checked here. The AI agent discovers and requests them on demand.[/dim]")
+    console.print()
 
     # ── Final Verdict ──────────────────────────────────────────────────────────
     console.print()

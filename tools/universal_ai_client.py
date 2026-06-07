@@ -25,7 +25,17 @@ import logging
 import os
 import time
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Dict, Generator, List, Optional
+
+# Auto-load .env so API keys are available without manual setup
+try:
+    from dotenv import load_dotenv
+    _ENV_PATH = Path(__file__).resolve().parent.parent / ".env"
+    if _ENV_PATH.exists():
+        load_dotenv(_ENV_PATH, override=False)
+except ImportError:
+    pass
 
 # Primary transport: httpx (async-capable, faster).
 # Fallback: requests (synchronous, always available).
@@ -72,9 +82,9 @@ class UniversalAIClient:
             "default_model": "gpt-4o-mini",
         },
         "gemini": {
-            "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/v1",  # Corrected OpenAI compatibility URL
+            "base_url": "https://generativelanguage.googleapis.com/v1beta/openai",  # OpenAI-compatible endpoint, NO /v1 suffix
             "env_key": "GEMINI_API_KEY",
-            "default_model": "gemini-1.5-flash",
+            "default_model": "gemini-2.5-flash",
         },
         "anthropic": {
             "base_url": "https://api.anthropic.com/v1",  # Claude uses different format, needs adapter
@@ -140,7 +150,7 @@ class UniversalAIClient:
     ):
         """
         Initialize universal AI client.
-        
+
         Args:
             provider: Provider name (openai, gemini, anthropic, ollama, etc.) or "auto"
             base_url: Custom API endpoint (overrides provider default)
@@ -148,39 +158,53 @@ class UniversalAIClient:
             model: Model name (overrides provider default)
             timeout: Request timeout in seconds
             max_retries: Number of retries on failure
+
+        Settings resolution priority (high → low):
+          1. Constructor params
+          2. config.yaml providers.{name}.*  (via tools.ai_config)
+          3. .env  {PROVIDER}_API_KEY, {PROVIDER}_MODEL, {PROVIDER}_BASE_URL
+          4. PROVIDER_CONFIGS hardcoded defaults (this class)
         """
+        # Late import to avoid circular dep
+        from tools.ai_config import resolve_provider_settings
+
         self.timeout = timeout
         self.max_retries = max_retries
-        
+
         # Auto-detect provider if not specified
         if provider == "auto":
             provider = self._detect_provider()
-        
+
         self.provider = provider
         config = self.PROVIDER_CONFIGS.get(provider, {})
 
-        # Set base URL
-        self.base_url = base_url or config.get("base_url", "")
+        # Resolve all settings via ai_config (which reads config.yaml + env)
+        resolved = resolve_provider_settings(
+            provider=provider,
+            model=model,
+            base_url=base_url,
+            api_key=api_key,
+        )
+        # base_url: param > config.yaml > env > PROVIDER_CONFIGS hardcoded
+        self.base_url = resolved["base_url"] or config.get("base_url", "")
         if provider == "custom" and not self.base_url:
             self.base_url = os.getenv("CUSTOM_API_BASE", "")
-
-        # Set API key (priority: param > env > None)
-        if api_key:
-            self.api_key = api_key
-        elif provider == "custom":
+        # model: param > config.yaml > env > PROVIDER_CONFIGS default
+        self.model = (
+            resolved["model"]
+            or os.getenv(f"{provider.upper()}_MODEL")
+            or config.get("default_model", "gpt-4o-mini")
+        )
+        # api_key: param > config.yaml lookup > PROVIDER_CONFIGS env_key
+        self.api_key = resolved["api_key"]
+        if not self.api_key and provider == "custom":
             self.api_key = os.getenv("CUSTOM_API_KEY", "")
-        elif "env_key" in config:
+        elif not self.api_key and config.get("env_key"):
             self.api_key = os.getenv(config["env_key"], "")
-        else:
-            self.api_key = ""
-        
-        # Set model (priority: param > env > config default)
-        env_model_key = f"{provider.upper()}_MODEL" if provider != "auto" else ""
-        self.model = model or os.getenv(env_model_key) or config.get("default_model", "gpt-4o-mini")
-        
+
         # Check if provider needs custom format (like Anthropic)
         self.custom_format = config.get("custom_format", False)
-        
+
         # Session for connection pooling
         self.session = requests.Session()
         self.session.headers.update({
@@ -190,14 +214,18 @@ class UniversalAIClient:
             self.session.headers.update({
                 "Authorization": f"Bearer {self.api_key}",
             })
-            
+
         # Rate Limiting configuration
         env_rpm_key = f"RPM_{self.model.upper()}"
         self.rpm_limit = int(os.environ.get(env_rpm_key, "40"))
         self.min_delay = 60.0 / max(1, self.rpm_limit)
         self.last_request_time = 0.0
-        
-        logger.info(f"Universal AI Client initialized: {provider} @ {self.base_url}, model={self.model}, RPM={self.rpm_limit}")
+
+        logger.info(
+            f"Universal AI Client initialized: {provider} @ {self.base_url}, "
+            f"model={self.model}, api_key={'***' if self.api_key else '(missing)'}, "
+            f"sources={resolved['sources']}"
+        )
 
     def _detect_provider(self) -> str:
         """Auto-detect provider from environment variables."""
@@ -532,15 +560,54 @@ class UniversalAIClient:
         return response.content
 
     def is_available(self) -> bool:
-        """Check if the client is properly configured."""
+        """Check if the client is properly configured and the endpoint is reachable.
+
+        For local providers (ollama, local, custom with localhost) we ping the
+        server first to avoid reporting a "phantom" client that points at a
+        dead localhost port. For cloud providers we only check that we have
+        an API key (no network call here — keep init fast).
+        """
         if not self.base_url:
             return False
-        # Special case for Ollama which doesn't need a key
-        if self.provider == "ollama":
-            return True
+        if self.provider == "ollama" or self.base_url.startswith("http://localhost") or self.base_url.startswith("http://127.0.0.1"):
+            # Local provider — must actually be reachable
+            return self._ping_local()
         if not self.api_key:
             return False
         return True
+
+    def _ping_local(self, timeout: float = 1.0) -> bool:
+        """Quick TCP/HTTP ping to a local provider.
+
+        Tries GET /v1/models first (OpenAI-compatible), falls back to a raw
+        TCP connect to the host:port. Returns True if the server responds.
+        Cached per-instance so we only ping once.
+        """
+        if hasattr(self, "_ping_ok"):
+            return self._ping_ok
+        from urllib.parse import urlparse
+        parsed = urlparse(self.base_url)
+        host = parsed.hostname or "localhost"
+        port = parsed.port or (443 if parsed.scheme == "https" else 80)
+        # Try HTTP GET /v1/models first (OpenAI convention)
+        try:
+            r = requests.get(
+                self.base_url.rstrip('/') + '/models',
+                timeout=timeout,
+            )
+            self._ping_ok = r.status_code < 500
+            return self._ping_ok
+        except Exception:
+            pass
+        # Fallback: raw TCP connect
+        try:
+            import socket
+            with socket.create_connection((host, port), timeout=timeout):
+                self._ping_ok = True
+                return True
+        except Exception:
+            self._ping_ok = False
+            return False
 
     def fetch_available_models(self) -> List[str]:
         """Fetch models from the provider's /v1/models endpoint."""
@@ -603,25 +670,22 @@ class AIClientManager:
     def __init__(self, preferred_order: Optional[List[str]] = None):
         """
         Initialize with preferred provider order.
-        
+
         Args:
-            preferred_order: List of provider names in preference order
+            preferred_order: List of provider names in preference order.
+                If None, uses ai_config.get_provider_order() (from config.yaml).
         """
-        self.preferred_order = preferred_order or [
-            "gemini", "openai", "anthropic", "groq", "nvidia", 
-            "deepseek", "mistral", "openrouter", "together", 
-            "perplexity", "ollama"
-        ]
-        # Reorder preferred_order if ACTIVE_AI_PROVIDER is set
-        active_provider = os.getenv("ACTIVE_AI_PROVIDER", "").lower()
-        if active_provider in self.preferred_order:
-            self.preferred_order.remove(active_provider)
-            self.preferred_order.insert(0, active_provider)
-            logger.info(f"Priority set to {active_provider} (from ACTIVE_AI_PROVIDER)")
+        if preferred_order is not None:
+            self.preferred_order = list(preferred_order)
+        else:
+            # Single source of truth: config.yaml > ACTIVE_AI_PROVIDER env > hardcoded
+            from tools.ai_config import get_provider_order, get_active_provider
+            self.preferred_order = get_provider_order()
+            logger.info(f"Provider order from config.yaml: {self.preferred_order[:3]}... (active={get_active_provider()})")
 
         self.clients: Dict[str, UniversalAIClient] = {}
         self.active_client: Optional[UniversalAIClient] = None
-        
+
         self._init_clients()
 
     def _init_clients(self) -> None:
@@ -633,7 +697,7 @@ class AIClientManager:
                     self.clients[provider] = client
                     if not self.active_client:
                         self.active_client = client
-                        logger.info(f"Active AI provider: {provider}")
+                        logger.info(f"Active AI provider: {provider} / {client.model}")
             except Exception as e:
                 logger.debug(f"Failed to initialize {provider}: {e}")
 

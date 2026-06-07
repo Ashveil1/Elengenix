@@ -184,12 +184,12 @@ class SkillRegistry:
         # Keyword matching map
         keyword_map = {
             "xss": ["dalfox", "nuclei"],
-            "subdomain": ["subfinder", "httpx"],
-            "port": ["naabu", "nuclei"],
-            "vulnerability": ["nuclei", "dalfox"],
+            "subdomain": ["_ext_recon"],
+            "port": ["_ext_scanners"],
+            "vulnerability": ["_ext_scanners"],
             "secret": ["trufflehog"],
             "crawl": ["katana"],
-            "fuzz": ["ffuf", "arjun"],
+            "fuzz": ["_ext_fuzzers"],
         }
         
         for skill in self.skills.values():

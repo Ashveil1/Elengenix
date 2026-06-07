@@ -99,7 +99,64 @@ elengenix autonomous <target> # Fully autonomous mode
 elengenix sast <path>         # Static code analysis
 elengenix research <cve>      # CVE / exploit research
 elengenix watchman            # 24/7 monitoring daemon
+elengenix scan <target> -q    # Quiet mode: suppress phase-by-phase output
 ```
+
+### Phase 0: Elengenix Framework Pre-flight
+
+Every `elengenix scan` invocation starts with **Phase 0: Pre-flight**, which runs
+5 pure-Python modules + a PythonRecon fallback to produce baseline findings
+**without requiring any third-party tool or AI provider**. This guarantees
+actionable output even when the network is rate-limited, AI quota is exhausted,
+or no scanners are installed.
+
+| Phase | Module | What it does |
+|:-----:|--------|--------------|
+| 1 | `PythonRecon` | HTTP probe, directory discovery, port scan, subdomain enumeration, parameter discovery (interest-based delta) |
+| 2 | `SmartWAFDetector` | Probe-based WAF detection + suggested evasions (Cloudflare, Akamai, ModSecurity, etc.) |
+| 3 | `ActiveFuzzer` | XSS / SQLi / SSTI payload testing on top-3 discovered parameters |
+| 4 | `BOLATester` | Differential IDOR testing on endpoints with user/account/profile path tokens |
+| 5 | `LearningEngine` | Records every finding to a per-target SQLite database |
+| 6 | `CoverageAnalyzer` | Tracks endpoint coverage and untested paths |
+
+The preflight findings are passed to the AI agent (if available) as context and
+saved to `reports/<target>_<timestamp>/elengenix_findings.json`.
+
+### elengenix_findings.json format
+
+```json
+[
+  {
+    "tool": "python_recon",
+    "type": "param_discovery",
+    "severity": "Low",
+    "url": "https://target.com/api/users",
+    "title": "Interesting parameter: q (GET)",
+    "details": "Delta: 42% (baseline=1200, test=1700)"
+  }
+]
+```
+
+Fields: `tool`, `type` (recon_http|endpoint|port|subdomain|param_discovery|waf|xss|sqli|bola),
+`severity` (Critical|High|Medium|Low|Informational), `url`, `title`, `details`.
+
+### When AI is unavailable
+
+If the configured AI provider (Gemini, OpenAI, NVIDIA NIM, etc.) returns errors
+— usually due to quota exhaustion, invalid API key, or network issues — Elengenix
+**does not produce an empty report**. Instead it auto-generates a report from
+preflight findings:
+
+- **Severity breakdown** — count by Critical/High/Medium/Low/Informational
+- **Type breakdown** — count by finding type
+- **High-priority targets** — top 10 Critical/High findings with URLs
+- **Recommended next steps** — numbered list of follow-up actions
+- **AI provider fix instructions** — link to https://aistudio.google.com/apikey
+
+A prominent yellow banner is printed when AI is unavailable. Fix AI access:
+1. Check API keys in `.env` (GEMINI_API_KEY, OPENAI_API_KEY, etc.)
+2. Verify provider quota at https://aistudio.google.com/apikey
+3. Or reconfigure with `python3 main.py configure`
 
 ---
 

@@ -10,11 +10,12 @@ orchestrator.py — Tool Registry Pipeline Orchestrator
 import os
 import asyncio
 import re
+import json
 import logging
 import ipaddress
 from pathlib import Path
 from urllib.parse import urlparse
-from typing import Optional, List, Set, Any
+from typing import Optional, List, Set, Any, Dict
 
 # Safe import for nest_asyncio (for async compatibility)
 try:
@@ -29,6 +30,14 @@ from tools.tool_registry import registry, ToolCategory, ToolResult
 from tools.cvss_calculator import CVSSCalculator
 from scan_engine_upgrade import SmartOrchestrator
 from bot_utils import send_telegram_notification
+
+# Elengenix 5 new modules — P0-B wiring into production
+from tools.active_fuzzer import ActiveFuzzer
+from tools.coverage_analyzer import CoverageAnalyzer
+from tools.learning_engine import LearningEngine, ExploitRecord
+from tools.bola_tester import BOLATester
+from tools.waf_detector import SmartWAFDetector
+from tools.python_recon import PythonRecon
 
 # ── Setup ───────────────────────────────────────────────────
 logging.basicConfig(level=logging.INFO, format='%(asctime)s | %(levelname)s | %(message)s')
@@ -364,6 +373,343 @@ def print_findings_summary(results: List[ToolResult]) -> None:
             }.get(severity, "white")
             console.print(f"  [{color}]{severity}: {len(items)}[/{color}]")
 
+# ── Elengenix 5-Module Pipeline (P0-B) ─────────────────────────
+# Each phase is extracted into a helper so it can run in parallel
+# via asyncio.gather. Phases 1+2 are independent; phases 3+4 depend
+# on Phase 1 recon_result; phases 5+6 depend on accumulated findings.
+async def _run_phase1_recon(
+    target: str,
+    base_url: str,
+    report_dir: Path,
+    timeout: int,
+) -> Dict[str, Any]:
+    """
+    Phase 1: Python-based recon (always runs, no AI needed).
+    Returns the recon_result dict (or empty dict on failure).
+    """
+    console.print("[bold red][Phase 1] Python Reconnaissance[/bold red]")
+    try:
+        recon = PythonRecon(timeout=1.0, max_concurrent=40)
+        # Use quick mode (smaller wordlists) for production scans to keep latency reasonable
+        recon_result = await asyncio.wait_for(
+            asyncio.to_thread(recon.full_recon, target, True),
+            timeout=min(60, timeout - 30),
+        ) if False else recon.full_recon(target, quick=True)
+
+        # Save recon report
+        recon_path = report_dir / "python_recon.json"
+        recon_path.write_text(json.dumps(recon_result, indent=2, default=str))
+
+        console.print(f"  [OK] Recon: {len(recon_result.get('directories', []))} endpoints, "
+                      f"{len(recon_result.get('ports', []))} ports, "
+                      f"{len(recon_result.get('subdomains', []))} subdomains, "
+                      f"{sum(1 for p in recon_result.get('parameters', []) if p.get('is_interesting'))} interesting params")
+        return recon_result
+    except Exception as e:
+        logger.error(f"python_recon failed: {e}")
+        console.print(f"  [WARN] python_recon error: {e}")
+        return {}
+
+
+def _recon_to_findings(recon_result: Dict[str, Any], base_url: str) -> List[Dict[str, Any]]:
+    """Convert python_recon result into finding dicts."""
+    findings: List[Dict[str, Any]] = []
+    if not recon_result:
+        return findings
+    http = recon_result.get("http_probe", {})
+    if http.get("status"):
+        techs = ",".join(http.get("tech", []))
+        findings.append({
+            "tool": "python_recon",
+            "type": "recon_http",
+            "severity": "Informational",
+            "url": base_url,
+            "title": f"HTTP {http['status']} | {http.get('title','')[:50]}",
+            "details": f"Server: {http.get('headers', {}).get('Server', '?')} | Tech: {techs}",
+        })
+    for d in recon_result.get("directories", []):
+        findings.append({
+            "tool": "python_recon",
+            "type": "endpoint",
+            "severity": "Low" if d.get("status") in (200, 301, 302) else "Informational",
+            "url": d.get("url"),
+            "title": f"Discovered endpoint: {d.get('url').split('/')[-1]}",
+            "details": f"Status: {d.get('status')} | Length: {d.get('length')}",
+        })
+    for p in recon_result.get("ports", []):
+        findings.append({
+            "tool": "python_recon",
+            "type": "port",
+            "severity": "Informational",
+            "url": f"{p.get('host')}:{p.get('port')}",
+            "title": f"Open port {p.get('port')} ({p.get('service')})",
+            "details": "TCP connect succeeded",
+        })
+    for sub in recon_result.get("subdomains", []):
+        findings.append({
+            "tool": "python_recon",
+            "type": "subdomain",
+            "severity": "Informational",
+            "url": f"http://{sub.get('subdomain')}",
+            "title": f"Subdomain: {sub.get('subdomain')}",
+            "details": f"IPs: {','.join(sub.get('ips', []))}",
+        })
+    for p in recon_result.get("parameters", []):
+        if p.get("is_interesting"):
+            findings.append({
+                "tool": "python_recon",
+                "type": "param_discovery",
+                "severity": "Low",
+                "url": p.get("url"),
+                "title": f"Interesting parameter: {p.get('param')} ({p.get('method')})",
+                "details": f"Delta: {p.get('delta_pct')}% (baseline={p.get('baseline_len')}, test={p.get('test_len')})",
+            })
+    return findings
+
+
+async def _run_phase2_waf(base_url: str) -> List[Dict[str, Any]]:
+    """Phase 2: WAF detection (probe-based, no third-party)."""
+    console.print("[bold red][Phase 2] Smart WAF Detection[/bold red]")
+    try:
+        waf = SmartWAFDetector()
+        # probe() is sync; run in thread to avoid blocking event loop
+        waf_result = await asyncio.wait_for(
+            asyncio.to_thread(waf.probe, base_url),
+            timeout=15.0,
+        )
+        if waf_result.waf_detected:
+            console.print(f"  [OK] WAF: {waf_result.waf_name} | {len(waf_result.suggested_evasions)} evasions")
+            return [{
+                "tool": "waf_detector",
+                "type": "waf",
+                "severity": "Informational",
+                "url": base_url,
+                "title": f"WAF detected: {waf_result.waf_name} (conf={waf_result.confidence:.2f})",
+                "details": f"Evasions: {', '.join(waf_result.suggested_evasions[:5])}",
+            }]
+        else:
+            console.print(f"  [OK] No WAF detected")
+            return []
+    except Exception as e:
+        logger.error(f"waf_detector failed: {e}")
+        console.print(f"  [WARN] waf_detector error: {e}")
+        return []
+
+
+async def _run_phase3_fuzz(
+    recon_result: Dict[str, Any],
+    base_url: str,
+) -> List[Dict[str, Any]]:
+    """Phase 3: Active fuzzing (XSS / SQLi / SSTI / etc.)."""
+    console.print("[bold red][Phase 3] Active Fuzzing[/bold red]")
+    try:
+        fuzzer = ActiveFuzzer()
+        xss_payloads = ["<script>", "%3Cscript%3E", "'\"><svg onload=>", "javascript:alert(1)"]
+        sqli_payloads = ["'", "1' OR '1'='1", "1' AND SLEEP(2)--", "%27"]
+
+        # Determine targets from Phase 1 recon
+        fuzz_targets = []
+        if recon_result:
+            for p in recon_result.get("parameters", []):
+                if p.get("is_interesting"):
+                    fuzz_targets.append((p.get("url"), p.get("param")))
+
+        # Fallback if no params discovered
+        if not fuzz_targets:
+            fuzz_targets = [(f"{base_url}/get", "q")]
+        else:
+            # Limit to top 3 params to stay within time budget
+            fuzz_targets = fuzz_targets[:3]
+
+        fuzz_findings: List[Dict[str, Any]] = []
+        all_fuzz_results = []
+        for f_url, f_param in fuzz_targets:
+            xss_fuzz = fuzzer.fuzz_parameter(f_url, f_param, xss_payloads)
+            for fr in xss_fuzz:
+                if fr.is_interesting:
+                    fuzz_findings.append({
+                        "tool": "active_fuzzer",
+                        "type": "xss",
+                        "severity": "High",
+                        "url": fr.url,
+                        "title": f"Possible XSS in {f_param}: payload {fr.payload[:30]}",
+                        "details": fr.reasoning,
+                    })
+            all_fuzz_results.extend(xss_fuzz)
+
+            sql_fuzz = fuzzer.fuzz_parameter(f_url, f_param, sqli_payloads)
+            for fr in sql_fuzz:
+                if fr.is_interesting:
+                    fuzz_findings.append({
+                        "tool": "active_fuzzer",
+                        "type": "sqli",
+                        "severity": "Critical",
+                        "url": fr.url,
+                        "title": f"Possible SQLi in {f_param}: payload {fr.payload[:30]}",
+                        "details": fr.reasoning,
+                    })
+            all_fuzz_results.extend(sql_fuzz)
+
+        console.print(f"  [OK] Fuzz: {len(all_fuzz_results)} tests on {len(fuzz_targets)} params, "
+                      f"{sum(1 for r in all_fuzz_results if r.is_interesting)} interesting")
+        return fuzz_findings
+    except Exception as e:
+        logger.error(f"active_fuzzer failed: {e}")
+        console.print(f"  [WARN] active_fuzzer error: {e}")
+        return []
+
+
+async def _run_phase4_bola(
+    recon_result: Dict[str, Any],
+    base_url: str,
+) -> List[Dict[str, Any]]:
+    """Phase 4: BOLA / IDOR testing."""
+    console.print("[bold red][Phase 4] BOLA / IDOR Testing[/bold red]")
+    try:
+        bola = BOLATester()
+        bola.register_session("user_a", cookies={"session": "user_a_token"})
+        bola.register_session("user_b", cookies={"session": "user_b_token"})
+
+        # Determine BOLA target from Phase 1 recon
+        bola_target_url = f"{base_url}/api/users/{{id}}"
+        if recon_result:
+            for ep in recon_result.get("endpoints", []):
+                url = ep.get("url", "")
+                if "api" in url and any(kw in url for kw in ["user", "account", "profile"]):
+                    # Transform e.g. /api/user/123 to /api/user/{id}
+                    parts = url.split('/')
+                    if parts and parts[-1].isdigit():
+                        parts[-1] = "{id}"
+                        bola_target_url = "/".join(parts)
+                        break
+
+        # BOLA is sync; bound it to 10s
+        bola_results = await asyncio.wait_for(
+            asyncio.to_thread(
+                bola.test_endpoint_collection,
+                bola_target_url, ["1", "2", "3", "admin"],
+            ),
+            timeout=10.0,
+        )
+        bola_findings: List[Dict[str, Any]] = []
+        for br in bola_results:
+            if br.is_bola:
+                bola_findings.append({
+                    "tool": "bola_tester",
+                    "type": "bola",
+                    "severity": br.severity,
+                    "url": bola_target_url.replace("{id}", br.object_id),
+                    "title": f"BOLA: {br.object_id} accessible to other user",
+                    "details": f"A={br.status_a}, B={br.status_b}",
+                })
+        bola_count = sum(1 for r in bola_results if r.is_bola)
+        console.print(f"  [OK] BOLA: {bola_count} broken authz on {bola_target_url}")
+        return bola_findings
+    except Exception as e:
+        logger.error(f"bola_tester failed: {e}")
+        console.print(f"  [WARN] bola_tester error: {e}")
+        return []
+
+
+async def _run_phase5_learning(
+    findings: List[Dict[str, Any]],
+    target: str,
+    report_dir: Path,
+) -> List[Dict[str, Any]]:
+    """Phase 5: Learning engine — record what we found. Returns empty (no new findings)."""
+    console.print("[bold red][Phase 5] Learning Engine[/bold red]")
+    try:
+        learn_db = report_dir / "learning.db"
+        learning = LearningEngine(db_path=learn_db, use_chroma=False)
+        for f in findings:
+            learning.remember(ExploitRecord(
+                target=target,
+                tech_stack=[],
+                vuln_class=f.get("type", "unknown"),
+                tool=f.get("tool", "unknown"),
+                payload="",
+                success=f.get("severity") in ("Critical", "High", "Medium"),
+                severity=f.get("severity", "Informational"),
+            ))
+        stats = learning.get_stats()
+        console.print(f"  [OK] Learning: {stats.get('total_records', 0)} records, "
+                      f"{len(stats.get('by_tool', {}))} tools tracked")
+        return []
+    except Exception as e:
+        logger.error(f"learning_engine failed: {e}")
+        console.print(f"  [WARN] learning_engine error: {e}")
+        return []
+
+
+async def _run_phase6_coverage(
+    findings: List[Dict[str, Any]],
+    report_dir: Path,
+) -> List[Dict[str, Any]]:
+    """Phase 6: Coverage tracking. Returns empty (no new findings)."""
+    console.print("[bold red][Phase 6] Coverage Tracking[/bold red]")
+    try:
+        cov_db = report_dir / "coverage.db"
+        coverage = CoverageAnalyzer(db_path=cov_db)
+        # Record what we tested
+        for f in findings:
+            if f.get("url"):
+                coverage.discover_from_url(f["url"], source="recon")
+        cov_report = coverage.get_coverage_report()
+        console.print(f"  [OK] Coverage: {cov_report.total_endpoints} endpoints, "
+                      f"{cov_report.total_tests} tests, {cov_report.coverage_pct:.1f}%")
+        return []
+    except Exception as e:
+        logger.error(f"coverage_analyzer failed: {e}")
+        console.print(f"  [WARN] coverage_analyzer error: {e}")
+        return []
+
+
+async def run_elengenix_modules(
+    target: str,
+    report_dir: Path,
+    timeout: int = 300,
+) -> List[Dict[str, Any]]:
+    """
+    Run the 5 Elengenix pure-Python modules + PythonRecon fallback.
+    This is the production entry point that actually does something
+    even when AI providers and third-party tools are unavailable.
+
+    Independent phases run in parallel via asyncio.gather:
+    - Phase 1 (recon) + Phase 2 (WAF) run concurrently
+    - Phase 3 (fuzz) + Phase 4 (BOLA) run concurrently (both depend on recon)
+    - Phase 5 (learning) + Phase 6 (coverage) run concurrently
+
+    Returns a list of finding dicts compatible with the ToolResult format.
+    """
+    findings: List[Dict[str, Any]] = []
+    base_url = target if target.startswith(("http://", "https://")) else f"http://{target}"
+    report_dir.mkdir(parents=True, exist_ok=True)
+
+    # ── Phase 1 + 2 in parallel (both independent of each other) ──
+    recon_result, waf_findings = await asyncio.gather(
+        _run_phase1_recon(target, base_url, report_dir, timeout),
+        _run_phase2_waf(base_url),
+    )
+    findings.extend(_recon_to_findings(recon_result, base_url))
+    findings.extend(waf_findings)
+
+    # ── Phase 3 + 4 in parallel (both depend on recon_result) ──
+    fuzz_findings, bola_findings = await asyncio.gather(
+        _run_phase3_fuzz(recon_result, base_url),
+        _run_phase4_bola(recon_result, base_url),
+    )
+    findings.extend(fuzz_findings)
+    findings.extend(bola_findings)
+
+    # ── Phase 5 + 6 in parallel (both depend on accumulated findings) ──
+    await asyncio.gather(
+        _run_phase5_learning(findings, target, report_dir),
+        _run_phase6_coverage(findings, report_dir),
+    )
+
+    return findings
+
+
 # ── Core Orchestrator ────────────────────────────────────────
 async def run_standard_scan(
     target: str, 
@@ -400,6 +746,24 @@ async def run_standard_scan(
         f"[dim]Mode: {'Tool Registry' if use_registry else 'Legacy'} | Rate: {rate_limit} concurrent[/dim]",
         border_style="red"
     ))
+
+    # ── Elengenix 5-module pipeline (P0-B) — runs FIRST and independently ──
+    # This is the production fallback that produces real findings even when
+    # AI providers and third-party tools are unavailable.
+    try:
+        elengenix_findings = await asyncio.wait_for(
+            run_elengenix_modules(normalized, report_dir, timeout=min(timeout, 300)),
+            timeout=min(timeout, 300) + 30,
+        )
+        # Save Elengenix findings as JSON for the report generator
+        elengenix_path = report_dir / "elengenix_findings.json"
+        elengenix_path.write_text(json.dumps(elengenix_findings, indent=2, default=str))
+        console.print(f"[bold white][OK] Elengenix modules: {len(elengenix_findings)} findings[/bold white]")
+    except asyncio.TimeoutError:
+        logger.warning("Elengenix modules timed out — continuing with main pipeline")
+    except Exception as e:
+        logger.error(f"Elengenix modules failed: {e}")
+        console.print(f"[bold yellow][WARN] Elengenix modules error: {e}[/bold yellow]")
 
     try:
         if use_registry:

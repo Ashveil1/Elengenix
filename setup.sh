@@ -25,6 +25,65 @@ success() { echo -e "${GREEN}[OK]${NC} $1"; }
 warning() { echo -e "${YELLOW}[WARN]${NC} $1"; }
 error()   { echo -e "${RED}[FAIL]${NC} $1"; exit 1; }
 
+# --- Smart install detection (idempotent — safe to re-run) ---
+
+is_cmd_available() {
+    command -v "$1" >/dev/null 2>&1
+}
+
+is_python_pkg_installed() {
+    "$VENV_PYTHON" -m pip show "$1" >/dev/null 2>&1
+}
+
+is_system_pkg_installed() {
+    case "$OS" in
+        Linux)
+            if [ -f /etc/debian_version ]; then
+                dpkg -s "$1" >/dev/null 2>&1
+            elif [ -f /etc/arch-release ]; then
+                pacman -Qi "$1" >/dev/null 2>&1
+            elif [ -f /etc/fedora-release ]; then
+                rpm -q "$1" >/dev/null 2>&1
+            else
+                return 1
+            fi
+            ;;
+        Darwin)
+            brew list "$1" >/dev/null 2>&1
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
+# Filter a list of packages: keep only those NOT already installed
+# Usage: filter_missing_python_pkgs pkg1 pkg2 ... → echoes missing ones
+filter_missing_python_pkgs() {
+    for pkg in "$@"; do
+        if is_python_pkg_installed "$pkg"; then
+            info "  [skip] python: $pkg (already installed)"
+        else
+            echo "$pkg"
+        fi
+    done
+}
+
+filter_missing_system_pkgs() {
+    for pkg in "$@"; do
+        if is_system_pkg_installed "$pkg"; then
+            info "  [skip] system: $pkg (already installed)"
+        else
+            echo "$pkg"
+        fi
+    done
+}
+
+# Extract bare package name from requirements.txt line (strips version specifiers)
+extract_pkg_name() {
+    echo "$1" | sed -E 's/[><=!~].*//; s/^[[:space:]]+//; s/[[:space:]]+$//' | grep -v '^#' | grep -v '^$'
+}
+
 run_with_spinner() {
     local msg="$1"
     shift
@@ -86,22 +145,38 @@ if [[ "$OS" == "Linux" ]]; then
     fi
 fi
 
-# 2. System Dependencies (Python only)
+# 2. System Dependencies (Python only) — smart install, skip if already present
 info "STEP 1/4: Installing system dependencies..."
 if [[ "$OS" == "Linux" ]]; then
     if [ -f /etc/debian_version ]; then
         sudo apt-get update -qq || true
-        sudo apt-get install -y python3 python3-pip python3-venv git curl libyaml-dev build-essential
+        MISSING_SYS=$(filter_missing_system_pkgs python3 python3-pip python3-venv git curl libyaml-dev build-essential)
+        if [ -n "$MISSING_SYS" ]; then
+            info "  Installing missing: $MISSING_SYS"
+            sudo apt-get install -y $MISSING_SYS
+        fi
     elif [ -f /etc/arch-release ]; then
-        sudo pacman -Sy --noconfirm python python-pip git curl libyaml base-devel
+        MISSING_SYS=$(filter_missing_system_pkgs python python-pip git curl libyaml base-devel)
+        if [ -n "$MISSING_SYS" ]; then
+            info "  Installing missing: $MISSING_SYS"
+            sudo pacman -Sy --noconfirm $MISSING_SYS
+        fi
     elif [ -f /etc/fedora-release ]; then
-        sudo dnf install -y python3 python3-pip git curl libyaml-devel gcc
+        MISSING_SYS=$(filter_missing_system_pkgs python3 python3-pip git curl libyaml-devel gcc)
+        if [ -n "$MISSING_SYS" ]; then
+            info "  Installing missing: $MISSING_SYS"
+            sudo dnf install -y $MISSING_SYS
+        fi
     fi
 elif [[ "$OS" == "Darwin" ]]; then
     if ! command -v brew >/dev/null 2>&1; then
         error "Homebrew not found. Install it from https://brew.sh/"
     fi
-    brew install python git curl libyaml
+    MISSING_SYS=$(filter_missing_system_pkgs python git curl libyaml)
+    if [ -n "$MISSING_SYS" ]; then
+        info "  Installing missing: $MISSING_SYS"
+        brew install $MISSING_SYS
+    fi
 fi
 success "System dependencies installed."
 
@@ -119,20 +194,66 @@ if [ ! -f "requirements.txt" ]; then
 fi
 if ! "$VENV_PYTHON" -m pip install --upgrade pip setuptools wheel --quiet; then error "Failed to upgrade pip"; fi
 
-info "Installing all Python dependencies..."
-"$VENV_PYTHON" -m pip install --default-timeout=120 -r requirements.txt --quiet || {
-    warning "Some packages failed to install. Retrying with longer timeout..."
-    "$VENV_PYTHON" -m pip install --default-timeout=300 -r requirements.txt --quiet || {
-        warning "Second attempt also failed. Trying individual core packages..."
-        "$VENV_PYTHON" -m pip install --default-timeout=300 --quiet \
-            pyyaml requests python-dotenv rich questionary prompt-toolkit \
-            textual nest-asyncio tenacity openai google-generativeai tiktoken \
-            trafilatura duckduckgo-search googlesearch-python \
-            pytest pytest-asyncio \
-        || error "Failed to install core packages"
-        warning "Some optional packages could not be installed (sentence-transformers, chromadb, etc.)"
+# 3. Smart Python install — skip packages already present in venv
+info "Checking Python dependencies (skipping installed)..."
+# Parse requirements.txt → list of bare package names
+ALL_PY_PKGS=()
+while IFS= read -r line; do
+    pkg=$(extract_pkg_name "$line")
+    [ -n "$pkg" ] && ALL_PY_PKGS+=("$pkg")
+done < requirements.txt
+
+# Build a clean requirements file with ONLY the missing packages (preserves version specifiers)
+MISSING_REQ="_missing_requirements.txt"
+: > "$MISSING_REQ"
+while IFS= read -r line; do
+    pkg=$(extract_pkg_name "$line")
+    if [ -n "$pkg" ] && ! is_python_pkg_installed "$pkg"; then
+        info "  [need] python: $pkg"
+        echo "$line" >> "$MISSING_REQ"
+    elif [ -n "$pkg" ]; then
+        info "  [skip] python: $pkg (already installed)"
+    fi
+done < requirements.txt
+
+if [ -s "$MISSING_REQ" ]; then
+    info "Installing $(grep -cv '^#\|^$' "$MISSING_REQ" 2>/dev/null || echo 0) missing Python packages..."
+    "$VENV_PYTHON" -m pip install --default-timeout=120 --no-cache-dir -r "$MISSING_REQ" --quiet || {
+        warning "Some packages failed to install. Retrying with longer timeout..."
+        "$VENV_PYTHON" -m pip install --default-timeout=300 --no-cache-dir -r "$MISSING_REQ" --quiet || {
+            warning "Second attempt also failed. Trying individual core packages..."
+            # Last resort: install core packages individually
+            CORE_PKGS=(pyyaml requests python-dotenv rich questionary prompt-toolkit
+                textual nest-asyncio tenacity
+                openai google-generativeai anthropic cohere huggingface-hub replicate
+                python-telegram-bot
+                tiktoken trafilatura duckduckgo-search googlesearch-python
+                pytest pytest-asyncio)
+            MISSING_CORE=$(filter_missing_python_pkgs "${CORE_PKGS[@]}")
+            if [ -n "$MISSING_CORE" ]; then
+                "$VENV_PYTHON" -m pip install --default-timeout=300 --no-cache-dir --quiet $MISSING_CORE \
+                    || error "Failed to install core packages"
+            else
+                info "  All core packages already installed."
+            fi
+        }
     }
-}
+    rm -f "$MISSING_REQ"
+else
+    success "All Python dependencies already installed."
+fi
+
+# Try to install heavy packages separately so the script can still complete
+# even if chromadb/sentence-transformers fail (they need rust + compilation)
+HEAVY_PKGS=(chromadb sentence-transformers)
+MISSING_HEAVY=$(filter_missing_python_pkgs "${HEAVY_PKGS[@]}")
+if [ -n "$MISSING_HEAVY" ]; then
+    info "Installing optional heavy packages: $MISSING_HEAVY"
+    "$VENV_PYTHON" -m pip install --default-timeout=300 --no-cache-dir --quiet $MISSING_HEAVY \
+        2>/dev/null || warning "Vector memory packages not installed (optional — run 'pip install chromadb sentence-transformers' manually if needed)"
+else
+    info "  [skip] heavy: chromadb, sentence-transformers (already installed)"
+fi
 
 success "Python environment secured."
 
@@ -162,10 +283,46 @@ fi
 
 # 5. Configuration
 info "STEP 4/4: Finalizing Configuration..."
-if [ -f "wizard.py" ]; then
-    "$VENV_PYTHON" wizard.py || warning "Wizard issues detected."
+if "$VENV_PYTHON" -c "from tools.config_wizard import run_config_wizard" 2>/dev/null; then
+    "$VENV_PYTHON" -c "from tools.config_wizard import run_config_wizard; run_config_wizard()" || warning "Wizard issues detected."
 else
-    warning "wizard.py not found. Skipping configuration wizard."
+    warning "tools/config_wizard not found. Skipping configuration wizard."
+fi
+
+# Post-install verification
+info "Pre-fetching heavy AI models (ChromaDB embedding, ~79MB)..."
+# This avoids a 15-25 minute first-scan delay
+VENV_PYTHON_ABS="$(pwd)/venv/bin/python"
+if "$VENV_PYTHON_ABS" -c "import chromadb" 2>/dev/null; then
+    "$VENV_PYTHON_ABS" -c "
+import chromadb
+try:
+    c = chromadb.PersistentClient(path='data/vector_memory')
+    coll = c.get_or_create_collection('prefetch_setup')
+    coll.add(documents=['setup prefetch'], ids=['s1'])
+    coll.query(query_texts=['prefetch'], n_results=1)
+    try: c.delete_collection('prefetch_setup')
+    except: pass
+    print('  [OK] ChromaDB model cached')
+except Exception as e:
+    print(f'  [WARN] Prefetch failed: {type(e).__name__}: {str(e)[:60]}')
+" 2>&1 | grep -E "OK|WARN" || warning "ChromaDB prefetch skipped"
+else
+    info "  [skip] chromadb not installed — skipping model prefetch"
+fi
+
+info "Verifying installation..."
+VERIFY_OK=true
+for module in yaml rich requests dotenv openai; do
+    if ! "$VENV_PYTHON" -c "import $module" 2>/dev/null; then
+        warning "Module not importable: $module"
+        VERIFY_OK=false
+    fi
+done
+if [ "$VERIFY_OK" = true ]; then
+    success "Core modules verified."
+else
+    warning "Some modules missing — run 'elengenix doctor' for full report"
 fi
 
 echo ""

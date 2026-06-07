@@ -34,6 +34,10 @@ class AnalysisPipeline:
     def __init__(self, agent: Any) -> None:
         self.governance: Governance = agent.governance
         self.payload_mutator: Any = agent.payload_mutator
+        # W3: context-aware smart payload generator (208-payload DB +
+        # grammar fuzzer + mutations). Falls back to None if the agent
+        # didn't construct one, in which case we use the legacy mutator.
+        self.smart_payload_generator: Any = getattr(agent, "smart_payload_generator", None)
         self.logic_analyzer: Any = agent.logic_analyzer
         self.activity_logger: Any = agent.activity_logger
 
@@ -237,20 +241,54 @@ class AnalysisPipeline:
                 base_payload = finding.get("payload") or finding.get("evidence")
                 if not base_payload or not isinstance(base_payload, str):
                     continue
-                muts = self.payload_mutator.mutate(base_payload, max_variants=15)
+                # W3: prefer the context-aware SmartPayloadGenerator when
+                # available. It draws from the 208-payload database,
+                # SQL/XSS/JSON/XML grammar fuzzer, and contextual mutators.
+                # Fall back to the legacy PayloadMutator if it's missing.
+                if self.smart_payload_generator is not None:
+                    try:
+                        from tools.payload_mutation import InjectionContext
+                        ctx = InjectionContext(
+                            category="xss",
+                            sinks=["html", "attr", "url"],
+                            quote_style="no-quote",
+                        )
+                        smart_payloads = self.smart_payload_generator.generate(
+                            ctx, n=20, grammar_n=4
+                        )
+                        # Convert strings -> MutationResult-like dicts so
+                        # the downstream evidence shape stays compatible.
+                        muts = [
+                            {"payload": p, "techniques": ["smart_generator"]}
+                            for p in smart_payloads
+                        ]
+                    except Exception as e:
+                        logger.debug(f"SmartPayloadGenerator failed: {e}, falling back")
+                        legacy = self.payload_mutator.mutate(base_payload, max_variants=15)
+                        muts = [{"payload": m.payload, "techniques": m.techniques} for m in legacy]
+                else:
+                    legacy = self.payload_mutator.mutate(base_payload, max_variants=15)
+                    muts = [{"payload": m.payload, "techniques": m.techniques} for m in legacy]
                 if not muts:
                     continue
                 mission_state.upsert_hypothesis(
                     hyp_id=f"payload_mutation:xss:{mission_state.target}",
                     title="XSS payload mutation candidates",
-                    description="Generated payload variants to test WAF bypass / differential parsing. Not executed automatically.",
+                    description=(
+                        "Generated payload variants to test WAF bypass / differential parsing. "
+                        "Source: SmartPayloadGenerator (208-payload DB + grammar fuzzer) "
+                        "or legacy PayloadMutator. Not executed automatically."
+                    ),
                     confidence=0.4,
                     status="open",
                     tags=["payload", "mutation", "xss"],
                     evidence={
                         "base": base_payload,
-                        "variants": [{"payload": m.payload, "techniques": m.techniques} for m in muts],
+                        "variants": muts,
                         "source_tool": tool_name,
+                        "generator": (
+                            "smart" if self.smart_payload_generator is not None else "legacy"
+                        ),
                     },
                 )
                 break
@@ -371,7 +409,7 @@ class AnalysisPipeline:
                     evidence={"tool": tool_name, "endpoint": endpoint},
                 )
 
-            if len(domains_found) >= 3 and tool_name in ("subfinder", "httpx"):
+            if len(domains_found) >= 3 and tool_name in ("_ext_recon"):
                 recon_gate = self.governance.gate(
                     mission_id=mission_key,
                     target=target or "global",

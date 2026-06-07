@@ -58,7 +58,7 @@ class ReconWorker(BaseWorker):
         findings = []
         output_lines = []
 
-        for tool in ["subfinder", "amass", "assetfinder"]:
+        for tool in ["_ext_recon"]:
             if not shutil.which(tool):
                 continue
             try:

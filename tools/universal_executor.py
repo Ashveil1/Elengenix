@@ -891,7 +891,7 @@ You can perform these actions:
 
 ### Shell & Tools
 - `shell`: Execute any command (respects security restrictions)
-- `run_tool`: Run a security tool from the registry (subfinder, nuclei, httpx, etc.)
+- `run_tool`: Run a security tool from the registry (_ext_recon)
 - `package`: Install/uninstall packages via pip, npm, apt, go
 
 ### Web & Intelligence

@@ -25,6 +25,71 @@ from agents.agent_intent import analyze_intent
 logger = logging.getLogger("elengenix.agent")
 
 
+def _format_preflight_context(findings: List[Dict[str, Any]]) -> str:
+    """Format Elengenix Framework preflight findings as AI context.
+
+    Groups findings by type, shows severity, and gives the AI clear hints
+    about what was already discovered so it can focus on confirmation
+    rather than re-doing recon.
+    """
+    if not findings:
+        return ""
+
+    # Group by type
+    by_type: Dict[str, List[Dict[str, Any]]] = {}
+    for f in findings:
+        ftype = f.get("type", "unknown")
+        by_type.setdefault(ftype, []).append(f)
+
+    # Severity breakdown
+    sev_count: Dict[str, int] = {}
+    for f in findings:
+        sev = f.get("severity", "Informational")
+        sev_count[sev] = sev_count.get(sev, 0) + 1
+
+    lines: List[str] = [
+        "### ELENGENIX FRAMEWORK PREFLIGHT FINDINGS (already discovered)",
+        f"The framework's pure-Python modules + PythonRecon have already gathered this data.",
+        f"Total: {len(findings)} findings across {len(by_type)} categories.",
+        "",
+        "Severity breakdown: " + ", ".join(
+            f"{k}={v}" for k, v in sorted(sev_count.items(), key=lambda x: -x[1])
+        ),
+        "",
+    ]
+
+    # Highlight critical findings
+    crit = [f for f in findings if f.get("severity") in ("Critical", "High")]
+    if crit:
+        lines.append("**HIGH-PRIORITY TARGETS:**")
+        for f in crit[:10]:
+            lines.append(f"  - [{f.get('severity')}] {f.get('type')}: {f.get('title', '?')[:80]}")
+            if f.get("url"):
+                lines.append(f"    URL: {f.get('url')}")
+        lines.append("")
+
+    # Show top by category
+    for ftype, items in sorted(by_type.items(), key=lambda x: -len(x[1])):
+        lines.append(f"**{ftype}** ({len(items)}):")
+        for it in items[:5]:  # max 5 per type
+            url = it.get("url", "")
+            title = it.get("title", "?")[:60]
+            lines.append(f"  - {title}" + (f" → {url}" if url else ""))
+        if len(items) > 5:
+            lines.append(f"  ... +{len(items) - 5} more")
+        lines.append("")
+
+    lines.extend([
+        "**HOW TO USE THIS:**",
+        "- DO NOT re-discover these endpoints/params/ports — they're already in your context",
+        "- FOCUS on vulnerability confirmation: probe interesting params, test access controls, validate findings",
+        "- If a finding is already at a URL, run targeted checks (XSS, SQLi, auth) on THAT URL",
+        "- Use `read_file` to load `reports/preflight_<target>/elengenix_findings.json` for the full list",
+    ])
+
+    return "\n".join(lines)
+
+
 def process_universal(
     user_input: str,
     client: Any,
@@ -37,6 +102,7 @@ def process_universal(
     mode: str = "auto",
     callback: Optional[Callable] = None,
     check_context_overflow: Optional[Callable] = None,
+    preflight_findings: Optional[List[Dict]] = None,
 ) -> str:
     """Universal Agent Mode—Flexible AI-driven security assistant.
 
@@ -226,10 +292,19 @@ Keep it short and conversational. No tools. No emojis."""
     else:
         base_prompt_text = _build_general_prompt(user_input, now_context)
 
+    # ── Inject Elengenix preflight findings as context ──────────────────
+    # This is the framework's own recon data — the AI should use it as
+    # a starting point instead of re-discovering everything.
+    if preflight_findings:
+        preflight_context = _format_preflight_context(preflight_findings)
+        base_prompt_text = base_prompt_text + "\n\n" + preflight_context
+
     # ── Main execution loop ────────────────────────────────────────────
     max_steps = 5 if intent == "research" else 50
     history: List[Dict] = [{"role": "user", "content": user_input}]
     all_findings: List[Dict] = []
+    consecutive_ai_failures = 0  # P2.4: track consecutive AI failures for early exit
+    ai_unavailable_marker = "[ELENGENIX_AI_UNAVAILABLE]"  # marker for main.py to detect
 
     for step in range(max_steps):
         # Build conversation context
@@ -255,8 +330,18 @@ Respond with JSON:
                 AIMessage(role="system", content=step_prompt),
                 AIMessage(role="user", content="What is the next action?"),
             ]).content or ""
+            consecutive_ai_failures = 0  # reset on success
         except Exception as e:
-            logger.error(f"AI decision failed: {e}")
+            consecutive_ai_failures += 1
+            logger.error(f"AI decision failed (consecutive={consecutive_ai_failures}): {e}")
+            if consecutive_ai_failures >= 2:
+                # Two failures in a row = AI is definitely unavailable. Bail early
+                # with a clear marker that main.py can detect.
+                logger.warning("All AI providers failed twice in a row. Exiting early.")
+                if callback:
+                    callback(ai_unavailable_marker)
+                return f"{ai_unavailable_marker} All AI providers failed after {consecutive_ai_failures} consecutive errors. Check API keys in .env or visit https://aistudio.google.com/apikey to fix Gemini quota."
+            # Single failure: break and fall through, but if 0 actions taken, signal AI unavailable
             break
 
         # Parse JSON
@@ -315,7 +400,7 @@ Respond with JSON:
                     continue
 
         # Execute
-        result_obj = executor.execute_action({"type": action_type, "params": params}, callback=callback)
+        result_obj = executor.execute_action({"type": action_type, "params": params})
         result = result_obj.output if result_obj.success else f"{result_obj.error}"
 
 
@@ -361,6 +446,10 @@ Respond with JSON:
         summary = "\n".join(lines)
         _append_history(history, "assistant", summary)
         return summary
+
+    # P2.4: If loop exited with 0 actions, AI is likely unavailable
+    if len(history) <= 1 and not all_findings:
+        return f"{ai_unavailable_marker} All AI providers failed. {len(history)-1} actions taken. Check API keys in .env or visit https://aistudio.google.com/apikey to fix Gemini quota."
 
     return f"Universal session reached {max_steps} steps. History: {len(history)} actions."
 

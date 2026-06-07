@@ -115,12 +115,18 @@ class ElengenixAgent:
         
         #  Chain of Thought Logging
         self.cot_logger = ChainOfThoughtLogger() if enable_cot_logging else None
-        
+
         # Live Activity Display
         self.activity_logger = get_activity_logger()
-        
+
         #  CVSS Calculator
         self.cvss_calc = CVSSCalculator(use_ai=True)
+
+        #  Tech-stack fingerprint cache: target -> {fingerprint, probed_at}
+        #  Populated by _fingerprint_target_for_planning() before each
+        #  attack tree generation, so the planner sees the detected stack
+        #  instead of relying purely on the AI prompt.
+        self._fingerprint_cache: Dict[str, Dict[str, Any]] = {}
         
         #  CVE Database
         self.cve_db = get_cve_database(auto_update=False)
@@ -135,7 +141,63 @@ class ElengenixAgent:
         self.logic_analyzer = BusinessLogicAnalyzer()
 
         #  Payload Mutation Engine (generates candidates only)
+        #  W3: keep the legacy PayloadMutator for backward compat, and add
+        #  a context-aware SmartPayloadGenerator that uses the 208-payload
+        #  database + grammar fuzzer for richer mutation candidates.
         self.payload_mutator = PayloadMutator()
+        try:
+            from tools.payload_mutation import SmartPayloadGenerator
+            self.smart_payload_generator = SmartPayloadGenerator(seed=42)
+        except Exception as e:
+            logger.debug(f"SmartPayloadGenerator unavailable: {e}")
+            self.smart_payload_generator = None
+
+        #  M5: Active Fuzzing Harness — sends real payloads to live targets
+        #  and measures response deltas. This is what makes fuzzing ACTUAL
+        #  (vs just generating candidates).
+        try:
+            from tools.active_fuzzer import ActiveFuzzer
+            self.active_fuzzer = ActiveFuzzer()
+        except Exception as e:
+            logger.debug(f"ActiveFuzzer unavailable: {e}")
+            self.active_fuzzer = None
+
+        #  M6: Coverage Analyzer — tracks every endpoint/param/method tested
+        #  so we can answer "what did we actually test?" honestly.
+        try:
+            from tools.coverage_analyzer import CoverageAnalyzer
+            self.coverage_analyzer = CoverageAnalyzer()
+        except Exception as e:
+            logger.debug(f"CoverageAnalyzer unavailable: {e}")
+            self.coverage_analyzer = None
+
+        #  M7: Cross-Session Learning — remembers what worked on past
+        #  targets and suggests tools/payloads with high success rate
+        #  for the current tech stack.
+        try:
+            from tools.learning_engine import LearningEngine
+            self.learning_engine = LearningEngine(use_chroma=False)
+        except Exception as e:
+            logger.debug(f"LearningEngine unavailable: {e}")
+            self.learning_engine = None
+
+        #  M8: BOLA / IDOR Tester — replays requests with two sessions
+        #  to detect broken object-level authorization.
+        try:
+            from tools.bola_tester import BOLATester
+            self.bola_tester = BOLATester()
+        except Exception as e:
+            logger.debug(f"BOLATester unavailable: {e}")
+            self.bola_tester = None
+
+        #  M9: Smart WAF Detector — probe-based detection that identifies
+        #  Cloudflare / ModSecurity / AWS WAF etc. and suggests evasions.
+        try:
+            from tools.waf_detector import SmartWAFDetector
+            self.waf_detector = SmartWAFDetector()
+        except Exception as e:
+            logger.debug(f"SmartWAFDetector unavailable: {e}")
+            self.waf_detector = None
 
         #  Agent Reflection / Self-Feedback Tracker
         self.reflection_tracker = get_reflection()
@@ -176,6 +238,81 @@ class ElengenixAgent:
                 logger.info(f"Loaded {len(loaded)} messages from persistent memory")
         except Exception as e:
             logger.warning(f"Could not load persistent conversation: {e}")
+
+    def _fingerprint_target_for_planning(
+        self,
+        target: str,
+        max_probe_seconds: int = 8,
+    ) -> Optional[Dict[str, Any]]:
+        """Probe the target with a lightweight HTTP request and return a
+        tech-stack fingerprint dict suitable for planner.generate_attack_tree.
+
+        Uses the ``TargetFingerprinter`` from ``agents.agent_planner``.
+        The result is cached in ``self._fingerprint_cache`` so repeated
+        planning calls don't re-probe.
+
+        Returns ``None`` if probing fails (network down, invalid target).
+        """
+        if not target:
+            return None
+        # Cache hit
+        cached = self._fingerprint_cache.get(target)
+        if cached is not None:
+            return cached
+
+        # Only probe http(s) targets; skip bare hostnames / IP-only inputs
+        probe_url = target
+        if not probe_url.startswith(("http://", "https://")):
+            probe_url = "http://" + probe_url
+
+        try:
+            import requests
+            resp = requests.get(
+                probe_url,
+                timeout=max_probe_seconds,
+                allow_redirects=True,
+                verify=False,  # many bug-bounty hosts have broken certs
+            )
+            headers = {k: v for k, v in resp.headers.items()}
+            cookies: Dict[str, str] = {}
+            for c in resp.cookies:
+                if c.value is not None:
+                    cookies[c.name] = c.value
+            body_sample = (resp.text or "")[:8192]
+        except Exception as e:
+            logger.debug(f"Pre-plan fingerprint probe failed for {target}: {e}")
+            return None
+
+        try:
+            from agents.agent_planner import TargetFingerprinter
+            fp = TargetFingerprinter().fingerprint(
+                headers=headers,
+                body=body_sample,
+                cookies=cookies,
+                url=probe_url,
+            )
+        except Exception as e:
+            logger.warning(f"Fingerprinter failed for {target}: {e}")
+            return None
+
+        # Cache and log
+        self._fingerprint_cache[target] = fp
+        techs = ", ".join(fp.get("technologies", [])) or "none"
+        logger.info(
+            f"[Fingerprint] {target} -> server={fp.get('server')} "
+            f"lang={fp.get('language')} cms={fp.get('cms')} "
+            f"db={fp.get('db')} techs=[{techs}]"
+        )
+        if self.activity_logger:
+            try:
+                self.activity_logger.log_thought(
+                    f"Fingerprint: server={fp.get('server')} "
+                    f"lang={fp.get('language')} cms={fp.get('cms')}",
+                    step=0,
+                )
+            except Exception:
+                pass
+        return fp
 
     def _init_team_aegis_clients(self) -> dict:
         """Initialize per-role AI clients for TeamAegis v2 from config.
@@ -662,10 +799,23 @@ Do NOT attempt to run a scan. Respond naturally in the user's language (English 
         
         #  STRATEGIC PLANNING PHASE
         if self.enable_planning and target:
-            self.current_tree = self.planner.generate_attack_tree(
-                target, 
-                objective=user_input
-            )
+            # ── W2: probe target with a lightweight HTTP request to get a
+            #    tech-stack fingerprint, then pass it to the planner so the
+            #    attack tree is built from the detected stack rather than
+            #    purely from the AI prompt.
+            fingerprint = self._fingerprint_target_for_planning(target)
+            try:
+                self.current_tree = self.planner.generate_attack_tree(
+                    target,
+                    objective=user_input,
+                    fingerprint=fingerprint,
+                )
+            except TypeError:
+                # Backward compat: older planner signatures don't accept fingerprint
+                self.current_tree = self.planner.generate_attack_tree(
+                    target,
+                    objective=user_input,
+                )
             if callback:
                 callback(f"Strategy: {self.current_tree.reasoning[:100]}...")
             logger.info(f"Attack tree generated: {len(self.current_tree.steps)} steps")
@@ -1243,27 +1393,46 @@ Use JSON format: {{"action": "run_shell|ask_user|web_search|submit_findings|save
         
         logger.info(f"Team Aegis scan started: {len(model_names)} models, target={target}")
         
-        # Build team clients
+        # Build team clients using ai_config (single source of truth)
+        from tools.ai_config import parse_active_models, _KNOWN_PROVIDER_PREFIXES
         team_clients = []
-        
+
+        # If model_names is empty, use config.yaml active_models
+        if not model_names:
+            model_names = [f"{p}/{m}" for p, m in parse_active_models()]
+
         for model_str in model_names:
             try:
-                # Parse provider/model
+                # Parse "provider/model" — but NVIDIA models can have '/' in name
+                # Use ai_config's known prefixes to detect Format B
+                provider = None
+                model_name = model_str
                 if "/" in model_str:
-                    provider, model_name = model_str.split("/", 1)
+                    first, rest = model_str.split("/", 1)
+                    if first.lower() in _KNOWN_PROVIDER_PREFIXES:
+                        provider = first.lower()
+                        model_name = rest
+
+                # Create a fresh client — ai_config will fill in base_url/api_key
+                if provider:
+                    new_client = UniversalAIClient(provider=provider, model=model_name)
                 else:
-                    provider = os.environ.get("ACTIVE_AI_PROVIDER", "auto")
-                    model_name = model_str
-                    
-                # Create a fresh client for each model
-                new_client = UniversalAIClient(
-                    provider=provider, 
-                    model=model_name
-                )
+                    # No provider prefix — use active_provider from config.yaml
+                    from tools.ai_config import get_active_provider
+                    new_client = UniversalAIClient(
+                        provider=get_active_provider(),
+                        model=model_name,
+                    )
                 if new_client.is_available():
                     team_clients.append(new_client)
+                    logger.info(f"Team member added: {new_client.provider} / {new_client.model}")
+                else:
+                    logger.warning(
+                        f"Skipped team member {provider or 'active'}/{model_name}: "
+                        f"client not available (no API key?)"
+                    )
             except Exception as e:
-                logger.warning(f"Failed to load team client {model_name}: {e}")
+                logger.warning(f"Failed to load team client {model_str}: {e}")
         
         # Fallback: if we couldn't build enough clients, use what we have
         if len(team_clients) < 2:
@@ -1359,9 +1528,17 @@ Use JSON format: {{"action": "run_shell|ask_user|web_search|submit_findings|save
         user_input: str,
         callback: Optional[Callable] = None,
         target: str = "",
-        mode: str = "auto"
+        mode: str = "auto",
+        preflight_findings: Optional[List[Dict]] = None,
     ) -> str:
-        """Universal mode — delegates to agents/agent_universal.py."""
+        """Universal mode — delegates to agents/agent_universal.py.
+
+        Args:
+            preflight_findings: Optional list of finding dicts from
+                `run_elengenix_modules()`. When provided, these are injected
+                as context so the AI focuses on confirming vulnerabilities
+                rather than re-discovering what the framework already found.
+        """
         from agents.agent_universal import process_universal as _run_universal
 
         if check_context := getattr(self, "_check_context_overflow", None):
@@ -1379,6 +1556,7 @@ Use JSON format: {{"action": "run_shell|ask_user|web_search|submit_findings|save
             mode=mode,
             callback=callback,
             check_context_overflow=check_context,
+            preflight_findings=preflight_findings,
         )
 
     def process_hybrid(
@@ -1558,7 +1736,18 @@ Use JSON format: {{"action": "run_shell|ask_user|web_search|submit_findings|save
 
         # Re-initialize the strategic attack tree
         if self.enable_planning and target:
-            self.current_tree = self.planner.generate_attack_tree(target, objective=objective)
+            # ── W2: also re-fingerprint on resume so a previously-unseen
+            #    target stack is still discovered even when the mission
+            #    ledger is partially populated.
+            fingerprint = self._fingerprint_target_for_planning(target)
+            try:
+                self.current_tree = self.planner.generate_attack_tree(
+                    target, objective=objective, fingerprint=fingerprint
+                )
+            except TypeError:
+                self.current_tree = self.planner.generate_attack_tree(
+                    target, objective=objective
+                )
             # Mark completed steps as completed in tree
             for i, entry in enumerate(ledger_entries):
                 if self.current_tree and i < len(self.current_tree.steps):

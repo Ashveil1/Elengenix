@@ -900,12 +900,44 @@ class HybridAgent:
         class _AgentRef:
             governance = self.governance
             payload_mutator = None
+            smart_payload_generator = None
+            active_fuzzer = None
+            coverage_analyzer = None
+            learning_engine = None
+            bola_tester = None
+            waf_detector = None
             logic_analyzer = None
             activity_logger = None
         ref = _AgentRef()
         try:
-            from tools.payload_mutation import PayloadMutator
+            from tools.payload_mutation import PayloadMutator, SmartPayloadGenerator
             ref.payload_mutator = PayloadMutator()
+            ref.smart_payload_generator = SmartPayloadGenerator(seed=42)
+        except Exception:
+            pass
+        try:
+            from tools.active_fuzzer import ActiveFuzzer
+            ref.active_fuzzer = ActiveFuzzer()
+        except Exception:
+            pass
+        try:
+            from tools.coverage_analyzer import CoverageAnalyzer
+            ref.coverage_analyzer = CoverageAnalyzer()
+        except Exception:
+            pass
+        try:
+            from tools.learning_engine import LearningEngine
+            ref.learning_engine = LearningEngine(use_chroma=False)
+        except Exception:
+            pass
+        try:
+            from tools.bola_tester import BOLATester
+            ref.bola_tester = BOLATester()
+        except Exception:
+            pass
+        try:
+            from tools.waf_detector import SmartWAFDetector
+            ref.waf_detector = SmartWAFDetector()
         except Exception:
             pass
         try:

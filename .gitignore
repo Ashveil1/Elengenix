@@ -42,6 +42,11 @@ Thumbs.db
 data/sessions/
 data/governance_audit.db
 
+# Runtime agent data
+data/cot_logs/
+data/scan_state/
+data/missions/
+
 # Scan artifacts (output files at repo root only)
 /*.txt
 /*.json
@@ -49,3 +54,46 @@ data/governance_audit.db
 # Generated runtime data
 logs/
 response.html
+
+# OpenCode agent state (work logs, todos, context — local only)
+.opencode/
+
+# Crush agent artifacts (database + logs)
+.crush/
+
+# Python test cache
+.pytest_cache/
+.tox/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+
+# Python build artifacts
+*.egg-info/
+build/
+dist/
+*.spec
+
+# Tool/IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Scan outputs at root (output of various tools)
+live_hosts.txt
+subdomains.txt
+*.har
+*.har.json
+response.html
+
+# Backup/temp files
+*.bak
+*.swp
+*.tmp
+.env.save
+.env.bak

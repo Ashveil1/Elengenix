@@ -18,7 +18,7 @@ from file_relationship_mapper import (
     FileRelationshipGraph,
     get_scan_recommendations,
 )
-from tools.tool_registry import registry, ToolResult
+from tools.tool_registry import registry, ToolResult, ToolCategory
 from ui_components import console
 
 logger = logging.getLogger("scan_engine_upgrade")
@@ -92,7 +92,8 @@ class ScanState:
                 "tool_name": r.tool_name,
                 "findings": r.findings,
                 "error_message": r.error_message,
-                "raw_output": r.raw_output if isinstance(r.raw_output, (str, bytes)) else str(r.raw_output),
+                "output": r.output,
+                "execution_time": r.execution_time,
             }
             for name, r in self.results.items()
         }
@@ -139,16 +140,23 @@ class ParallelRunner:
         self.semaphore = asyncio.Semaphore(max_concurrency)
         
     async def run_tool(self, tool_name: str, target: str, report_dir: Path) -> ToolResult:
-        """Run a single tool with semaphore control."""
+        """Run a single tool with semaphore control.
+
+        Note: BaseTool.execute() requires (target, report_dir, semaphore, **kwargs).
+        We pass ``self.semaphore`` (a new semaphore if not set) to satisfy the contract.
+        """
         async with self.semaphore:
             tool = registry.get_tool(tool_name)
             if not tool or not tool.is_available:
                 return ToolResult(
                     success=False,
                     tool_name=tool_name,
-                    error_message="Tool not available"
+                    category=ToolCategory.UTILITY,
+                    error_message="Tool not available",
                 )
-            return await tool.execute(target, report_dir)
+            # Bug fix: BaseTool.execute signature is (target, report_dir, semaphore, **kwargs).
+            # Previous version called with 2 args and crashed with TypeError.
+            return await tool.execute(target, report_dir, self.semaphore)
     
     async def run_in_parallel(
         self,
@@ -195,11 +203,12 @@ class ParallelRunner:
                     results.append(result)
                 except Exception as e:
                     logger.error(f"[ParallelRunner] Tool execution failed: {e}")
-                    # Create a failure result
+                    # Create a failure result. ToolResult requires (success, tool_name, category).
                     results.append(ToolResult(
                         success=False,
                         tool_name="unknown",
-                        error_message=str(e)
+                        category=ToolCategory.UTILITY,
+                        error_message=str(e),
                     ))
         
         return results
@@ -359,8 +368,12 @@ class SmartOrchestrator:
         self.file_graph: Optional[FileRelationshipGraph] = None
         self.state: Optional[ScanState] = None
     
-    def build_file_graph(self, project_root: Path = None) -> FileRelationshipGraph:
+    def build_file_graph(self, project_root: Optional[Path] = None) -> FileRelationshipGraph:
         """Build the file relationship graph."""
+        # Fall back to CWD if caller passes None
+        root: Path = project_root if project_root is not None else Path(".").resolve()
+        self.file_graph = FileRelationshipGraph(root).build()
+        return self.file_graph
         self.file_graph = FileRelationshipGraph(project_root).build()
         return self.file_graph
     
@@ -368,7 +381,7 @@ class SmartOrchestrator:
         self,
         target: str,
         report_dir: Path,
-        tools: List[str] = None,
+        tools: Optional[List[str]] = None,
         rate_limit: int = 5,
         correlate: bool = True,
         use_smart_chain: bool = True
@@ -526,7 +539,7 @@ class SmartOrchestrator:
 def run_smart_scan_sync(
     target: str,
     report_dir: Path,
-    tools: List[str] = None,
+    tools: Optional[List[str]] = None,
     rate_limit: int = 5,
     correlate: bool = True
 ) -> Tuple[ScanState, Optional[FindingCorrelator]]:

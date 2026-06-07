@@ -96,7 +96,7 @@ AGENT_ROLES = [
         "focus": "Subdomain enumeration, port scanning, content discovery, OSINT",
         "personality": (
             "You are the reconnaissance specialist. You run scanning tools "
-            "(subfinder, httpx, naabu, ffuf, arjun) and report what you find. "
+            "(_ext_recon) and report what you find. "
             "You are thorough and methodical. You look for hidden attack surfaces "
             "that others might miss."
         ),

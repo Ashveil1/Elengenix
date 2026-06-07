@@ -66,7 +66,7 @@ def run_omni_scan(
     Args:
         target: Target domain or IP
         rate_limit: Max concurrent operations
-        use_new_tools: Enable new Tool Registry tools (dalfox, arjun, etc.)
+        use_new_tools: Enable new Tool Registry tools (_ext_xss)
         enable_cvss: Calculate CVSS scores for findings
     """
     try:

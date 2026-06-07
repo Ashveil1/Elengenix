@@ -1,9 +1,9 @@
 """
-dependency_manager.py — Elengenix Resilient Tool Installer
-- Prerequisite Verification (Go & Git)
-- Streaming Subprocess Output (Memory efficient)
-- Post-install Verification & PATH Guidance
-- Machine-readable output for CI/CD
+dependency_manager.py — Elengenix Tool Install Request Flow
+- The AI agent calls `request_install()` when it needs a tool the user does not have.
+- The user is shown the request and explicitly approves/rejects.
+- On approval, the install command runs once and we report success/failure.
+- Elengenix does NOT bundle any third-party tool, and does NOT auto-install.
 """
 
 import subprocess
@@ -14,125 +14,137 @@ import sys
 import os
 import time
 from pathlib import Path
-from typing import List
-from ui_components import console
+from typing import List, Optional, Tuple
+from ui_components import console, print_success, print_error, print_warning
 
-# Setup
 logger = logging.getLogger("elengenix.installer")
 
-# Security tool installation commands (Go-based tools use 'go install')
-# All tools listed here must match those checked by tools/doctor.py
-TOOLS = {
-    "subfinder":    ["go", "install", "-v", "github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest"],
-    "nuclei":       ["go", "install", "-v", "github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest"],
-    "httpx":        ["go", "install", "-v", "github.com/projectdiscovery/httpx/cmd/httpx@latest"],
-    "katana":       ["go", "install", "-v", "github.com/projectdiscovery/katana/cmd/katana@latest"],
-    "waybackurls":  ["go", "install", "github.com/tomnomnom/waybackurls@latest"],
-    "gau":          ["go", "install", "github.com/lc/gau/v2/cmd/gau@latest"],
-    "ffuf":         ["go", "install", "github.com/ffuf/ffuf/v2@latest"],
-    "naabu":        ["go", "install", "-v", "github.com/projectdiscovery/naabu/v2/cmd/naabu@latest"],
-}
+# Managers the AI can request. Maps friendly name → command prefix used to check
+# the manager itself is available (e.g. apt, go, pip3).
+SUPPORTED_MANAGERS = ("go", "pip", "pip3", "apt", "cargo", "npm", "gem", "brew")
 
-# ── Helpers ──────────────────────────────────────────────────
-def check_prerequisites() -> bool:
-    """Ensure Go and Git are installed before proceeding."""
-    reqs = {"go": "Go is required to compile tools (https://go.dev/)", "git": "Git is required for cloning tools"}
-    missing = [k for k, v in reqs.items() if not shutil.which(k)]
-    if missing:
-        console.print("[bold red] Missing Prerequisites:[/bold red]")
-        for m in missing: console.print(f"  - {m}: {reqs[m]}")
-        return False
-    return True
 
-def run_with_streaming(cmd: List[str], timeout: int = 600) -> bool:
-    """Run command with streaming output to prevent memory bloat (Ideal for 4GB RAM)."""
+def _manager_available(manager: str) -> bool:
+    """Return True if the package manager binary is on PATH."""
+    if manager in ("pip", "pip3"):
+        return shutil.which(manager) is not None or shutil.which("python3") is not None
+    return shutil.which(manager) is not None
+
+
+def _build_install_cmd(name: str, manager: str, install_cmd: Optional[str]) -> Optional[List[str]]:
+    """Build a list-form command. Returns None if we cannot build it."""
+    if install_cmd:
+        # Caller supplied the full command. Parse defensively (no shell).
+        return install_cmd.split()
+
+    if manager == "go":
+        return ["go", "install", f"github.com/{name}@latest"]
+    if manager in ("pip", "pip3"):
+        return [manager, "install", name]
+    if manager == "apt":
+        return ["sudo", "apt-get", "install", "-y", name]
+    if manager == "cargo":
+        return ["cargo", "install", name]
+    if manager == "npm":
+        return ["npm", "install", "-g", name]
+    if manager == "gem":
+        return ["gem", "install", name]
+    if manager == "brew":
+        return ["brew", "install", name]
+    return None
+
+
+def request_install(
+    name: str,
+    purpose: str,
+    manager: str = "go",
+    install_cmd: Optional[str] = None,
+    timeout: int = 600,
+    auto_yes: bool = False,
+) -> Tuple[bool, str]:
+    """
+    Ask the user for permission to install a tool, then run the install if approved.
+
+    Args:
+        name: The tool name (e.g. "ffuf"). Used in the prompt.
+        purpose: Why the AI wants this tool. Shown to the user.
+        manager: One of SUPPORTED_MANAGERS.
+        install_cmd: Optional full command string (overrides name/manager heuristic).
+        timeout: Max seconds for the install subprocess.
+        auto_yes: If True, skip the prompt (used by tests/automation).
+
+    Returns:
+        (success: bool, message: str)
+    """
+    if manager not in SUPPORTED_MANAGERS:
+        return False, f"Unsupported manager '{manager}'. Supported: {', '.join(SUPPORTED_MANAGERS)}"
+
+    if shutil.which(name):
+        return True, f"{name} is already installed."
+
+    if not _manager_available(manager):
+        return False, (
+            f"Package manager '{manager}' is not available on this system. "
+            f"Install it first, or ask the user to install '{name}' manually."
+        )
+
+    cmd = _build_install_cmd(name, manager, install_cmd)
+    if not cmd:
+        return False, f"Could not build install command for {name} via {manager}"
+
+    # Show the request
+    console.print(f"\n[bold red]Tool Install Request[/bold red]")
+    console.print(f"  Tool:    [bold white]{name}[/bold white]")
+    console.print(f"  Manager: {manager}")
+    console.print(f"  Purpose: {purpose}")
+    console.print(f"  Command: [dim]{' '.join(cmd)}[/dim]")
+
+    if not auto_yes:
+        try:
+            choice = questionary.confirm("Approve installation?", default=False).ask()
+        except (KeyboardInterrupt, EOFError):
+            return False, "User cancelled install"
+        if not choice:
+            return False, "User declined install"
+
+    # Run install with streaming
     try:
         process = subprocess.Popen(
             cmd,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
-            bufsize=1
+            bufsize=1,
         )
-        
-        # Stream output line by line
         for line in process.stdout:
-            # Only log interesting lines or dim them to keep UI clean
             if "installing" in line.lower() or "downloading" in line.lower():
                 console.print(f"    [dim]{line.strip()}[/dim]")
-        
         process.wait(timeout=timeout)
-        return process.returncode == 0
+        if process.returncode == 0 and shutil.which(name):
+            return True, f"{name} installed successfully"
+        return False, f"Install returned non-zero (rc={process.returncode})"
     except subprocess.TimeoutExpired:
-        process.kill()
-        logger.error(f"Installation timed out after {timeout}s")
-        return False
+        return False, f"Install timed out after {timeout}s"
     except Exception as e:
-        logger.error(f"Execution error: {e}")
-        return False
+        return False, f"Install error: {e}"
 
-def verify_and_advise(tool: str) -> bool:
-    """Check if tool is in PATH or provide advice on how to add it."""
-    if shutil.which(tool): return True
 
-    # Check common Go bin locations
-    go_bin = Path(os.environ.get("GOPATH", Path.home() / "go")) / "bin"
-    if (go_bin / tool).exists() or (go_bin / f"{tool}.exe").exists():
-        console.print(f"[yellow]  {tool} installed but not in PATH.[/yellow]")
-        console.print(f"   Action: Add [bold]{go_bin}[/bold] to your system PATH.")
-        return True
-    return False
+def list_installable(tools: List[str]) -> List[Tuple[str, bool]]:
+    """Return [(tool_name, is_installed), ...] for the given list."""
+    return [(t, shutil.which(t) is not None) for t in tools]
 
-# ── Main Logic ───────────────────────────────────────────────
-def check_and_install_dependencies(check_only: bool = False, max_retries: int = 1):
-    if not check_prerequisites():
-        return False
-
-    missing_tools = [t for t in TOOLS if not shutil.which(t)]
-    
-    if not missing_tools:
-        if not check_only: console.print("[bold white] All security tools are present and verified.[/bold white]")
-        return True
-
-    if check_only:
-        console.print(f"[bold red] Missing Tools: {', '.join(missing_tools)}[/bold red]")
-        return False
-
-    console.print(f"[bold grey70]Security Tools Missing: {', '.join(missing_tools)}[/bold grey70]")
-    
-    for tool in missing_tools:
-        # Handle questionary None result (Ctrl+C)
-        try:
-            choice = questionary.confirm(f"Install '{tool}' now?", default=True).ask()
-            if choice is None or not choice:
-                console.print(f"[dim][SKIP] Skipped {tool}[/dim]")
-                continue
-        except KeyboardInterrupt:
-            break
-
-        success = False
-        for attempt in range(max_retries + 1):
-            console.print(f"[*] Installing {tool} (Attempt {attempt+1}/{max_retries+1})...")
-            
-            if run_with_streaming(TOOLS[tool]):
-                if verify_and_advise(tool):
-                    console.print(f"[bold white] {tool} successfully integrated.[/bold white]")
-                    success = True
-                    break
-            
-            if attempt < max_retries:
-                console.print("[dim]Retry in 3s...[/dim]")
-                time.sleep(3)
-
-        if not success:
-            console.print(f"[bold red] Failed to install {tool} automatically.[/bold red]")
-            console.print(f"   Manual command: [dim]{' '.join(TOOLS[tool])}[/dim]")
-
-    return True
 
 if __name__ == "__main__":
-    # Support for CI/CD via --check-only flag
-    if "--check-only" in sys.argv:
-        sys.exit(0 if check_and_install_dependencies(check_only=True) else 1)
+    # Standalone CLI for the user to manually request a tool install.
+    if len(sys.argv) < 2:
+        console.print("[bold]Usage:[/bold] python dependency_manager.py <tool_name> [manager] [purpose]")
+        sys.exit(1)
+    tool_name = sys.argv[1]
+    manager = sys.argv[2] if len(sys.argv) > 2 else "go"
+    purpose = sys.argv[3] if len(sys.argv) > 3 else f"User requested install of {tool_name}"
+    ok, msg = request_install(tool_name, purpose, manager=manager)
+    if ok:
+        print_success(msg)
     else:
-        check_and_install_dependencies()
+        print_error(msg)
+    sys.exit(0 if ok else 1)

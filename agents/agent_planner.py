@@ -1,37 +1,573 @@
-"""agents/agent_planner.py — Strategic planning module extracted from agent_brain.py."""
+"""agents/agent_planner.py — Strategic planning module with semantic tech-stack fingerprinting.
+
+Builds AttackTree based on:
+- The target URL/host
+- Detected technologies (server, framework, language, db, cdn, waf)
+- An attack-vector database mapping tech stacks to vulnerability hypotheses
+
+Backward compatible: StrategicPlanner class and AttackTree/AttackStep/AttackPhase
+public API is preserved. The original AI-prompt-driven strategy is still used
+when an AI client is provided, but is augmented with semantic hypotheses.
+"""
 
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List, Optional
+import re
+from typing import Any, Dict, List, Optional, Tuple
 
 from tools.universal_ai_client import AIClientManager, AIMessage
 from tools.cvss_calculator import CVSSCalculator
 from tools.tool_registry import ToolResult
 from agents.agent_dataclasses import AttackPhase, AttackStep, AttackTree
 from agents.agent_helpers import _extract_json_object
+from typing import Any  # re-export for type hints
 
 logger = logging.getLogger("elengenix.agent")
 
 
+# ---------------------------------------------------------------------------
+# Tech fingerprinting
+# ---------------------------------------------------------------------------
+
+
+# Map of header/server signatures to detected technology names.
+HEADER_FINGERPRINTS: List[Tuple[str, str, str]] = [
+    # (header_name, regex, tech_name)
+    ("server", r"nginx", "nginx"),
+    ("server", r"Apache", "apache"),
+    ("server", r"Microsoft-IIS", "iis"),
+    ("server", r"cloudflare", "cloudflare"),
+    ("server", r"gunicorn", "gunicorn"),
+    ("server", r"werkzeug", "werkzeug"),
+    ("x-powered-by", r"PHP", "php"),
+    ("x-powered-by", r"ASP\.NET", "aspnet"),
+    ("x-powered-by", r"Express", "express"),
+    ("x-powered-by", r"Tomcat", "tomcat"),
+    ("x-aspnet-version", r".+", "aspnet"),
+    ("x-aspnetmvc-version", r".+", "aspnet"),
+    ("x-generator", r"Drupal", "drupal"),
+    ("x-generator", r"WordPress", "wordpress"),
+    ("x-drupal-cache", r".+", "drupal"),
+    ("x-shopify-stage", r".+", "shopify"),
+    ("x-varnish", r".+", "varnish"),
+    ("via", r"varnish", "varnish"),
+    ("cf-ray", r".+", "cloudflare"),
+    ("x-amz-cf-id", r".+", "cloudfront"),
+    ("x-azure-ref", r".+", "azure"),
+    ("x-akamai-transformed", r".+", "akamai"),
+    ("x-sucuri-id", r".+", "sucuri"),
+    ("server-timing", r".+", "perf-hints"),
+]
+
+
+# Body / cookie fingerprints
+BODY_FINGERPRINTS: List[Tuple[str, str]] = [
+    # (regex, tech_name)
+    (r"wp-content|wp-includes", "wordpress"),
+    (r"Drupal[\.\s=]|Drupal\.settings", "drupal"),
+    (r"Magento", "magento"),
+    (r"laravel", "laravel"),
+    (r"/rails/|csrf-token", "rails"),
+    (r"django", "django"),
+    (r"flask", "flask"),
+    (r"express", "express"),
+    (r"jQuery", "jquery"),
+    (r"react|__NEXT_DATA__", "react"),
+    (r"vue", "vue"),
+    (r"angular", "angular"),
+    (r"graphql", "graphql"),
+    (r"swagger|openapi", "openapi"),
+    (r"phpmyadmin", "phpmyadmin"),
+    (r"tomcat", "tomcat"),
+    (r"jenkins", "jenkins"),
+    (r"kibana", "kibana"),
+    (r"grafana", "grafana"),
+]
+
+
+class TargetFingerprinter:
+    """Fingerprint a target based on response headers, body, URL, and cookies.
+
+    Example:
+        fp = TargetFingerprinter()
+        result = fp.fingerprint(headers={"Server": "nginx/1.21", "X-Powered-By": "PHP/8.1"},
+                                 body="<!DOCTYPE html>... Drupal.settings ...",
+                                 cookies={"PHPSESSID": "abc"})
+        # result == {"server": "nginx", "language": "php", "cms": "drupal", "framework": None, "cdn": None,
+        #            "waf": None, "db": None, "technologies": ["nginx", "php", "drupal"]}
+    """
+
+    DEFAULT_RESULT: Dict[str, Any] = {
+        "server": None,
+        "language": None,
+        "framework": None,
+        "cms": None,
+        "cdn": None,
+        "waf": None,
+        "db": None,
+        "technologies": [],
+    }
+
+    SERVER_TO_LANGUAGE: Dict[str, str] = {
+        "php": "php",
+        "aspnet": "aspnet",
+        "iis": "aspnet",
+        "express": "node",
+        "gunicorn": "python",
+        "werkzeug": "python",
+    }
+
+    SERVER_TO_DB: Dict[str, str] = {
+        "php": "mysql",
+        "aspnet": "mssql",
+        "java": "oracle",
+        "python": "postgres",
+        "ruby": "postgres",
+        "rails": "postgres",
+        "node": "mongo",
+        "go": "postgres",
+    }
+
+    CDN_HEADERS: List[str] = ["cf-ray", "x-amz-cf-id", "x-azure-ref", "x-akamai-transformed"]
+    WAF_INDICATORS: List[Tuple[str, Optional[str]]] = [
+        ("server", "cloudflare"),
+        ("server", "sucuri"),
+        ("x-sucuri-id", None),
+    ]
+
+    def fingerprint(
+        self,
+        headers: Optional[Dict[str, str]] = None,
+        body: Optional[str] = None,
+        cookies: Optional[Dict[str, str]] = None,
+        url: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Return a structured fingerprint dict.
+
+        Args:
+            headers: HTTP response headers (case-insensitive lookup).
+            body: response body (substring search).
+            cookies: cookies dict.
+            url: target URL (substring search for hints like .php, .aspx).
+        """
+        result: Dict[str, Any] = {k: v for k, v in self.DEFAULT_RESULT.items()}
+        technologies: List[str] = []
+
+        # Normalize header names to lower
+        norm_headers: Dict[str, str] = {}
+        if headers:
+            for k, v in headers.items():
+                norm_headers[k.lower()] = str(v)
+
+        # Header-based fingerprints
+        for header_name, regex, tech in HEADER_FINGERPRINTS:
+            value = norm_headers.get(header_name.lower())
+            if value is None:
+                continue
+            if re.search(regex, value, re.IGNORECASE):
+                self._record(result, technologies, tech)
+
+        # Body-based fingerprints
+        if body:
+            for regex, tech in BODY_FINGERPRINTS:
+                if re.search(regex, body, re.IGNORECASE):
+                    self._record(result, technologies, tech)
+
+        # URL-based hints
+        if url:
+            lowered = url.lower()
+            if ".php" in lowered:
+                self._record(result, technologies, "php")
+            if ".aspx" in lowered or ".asp" in lowered:
+                self._record(result, technologies, "aspnet")
+            if ".jsp" in lowered:
+                self._record(result, technologies, "java")
+            if ".do" in lowered or ".action" in lowered:
+                self._record(result, technologies, "java")
+            if "wp-" in lowered:
+                self._record(result, technologies, "wordpress")
+
+        # Cookie hints
+        if cookies:
+            for name in cookies.keys():
+                lname = name.lower()
+                if "phpsessid" in lname:
+                    self._record(result, technologies, "php")
+                elif "jsessionid" in lname:
+                    self._record(result, technologies, "java")
+                elif "asp.net_sessionid" in lname or "aspsessionid" in lname:
+                    self._record(result, technologies, "aspnet")
+                elif "_rails" in lname or "_session_id" in lname:
+                    self._record(result, technologies, "rails")
+                elif "connect.sid" in lname:
+                    self._record(result, technologies, "express")
+                elif "csrftoken" in lname:
+                    self._record(result, technologies, "django")
+                elif "sid" in lname and "tomcat" in lname:
+                    self._record(result, technologies, "tomcat")
+
+        # Infer language/db from server (or language)
+        if result["server"] and not result["language"]:
+            result["language"] = self.SERVER_TO_LANGUAGE.get(result["server"])
+        if not result["db"]:
+            # Prefer language -> db, fall back to server -> db
+            if result["language"]:
+                result["db"] = self.SERVER_TO_DB.get(result["language"])
+            if not result["db"] and result["server"]:
+                result["db"] = self.SERVER_TO_DB.get(result["server"])
+
+        # CDN / WAF detection
+        for h in self.CDN_HEADERS:
+            if h in norm_headers:
+                result["cdn"] = norm_headers.get("server", "cdn")
+                if "cdn" not in technologies:
+                    technologies.append("cdn")
+                break
+        for header_name, expected in self.WAF_INDICATORS:
+            value = norm_headers.get(header_name.lower())
+            if value is None:
+                continue
+            if expected is None or expected in value.lower():
+                result["waf"] = value.split("/")[0] if "/" in value else value
+                technologies.append("waf")
+                break
+
+        result["technologies"] = technologies
+        return result
+
+    @staticmethod
+    def _record(result: Dict[str, Any], technologies: List[str], tech: str) -> None:
+        """Record a detected technology in the result and the technologies list."""
+        # CMS slots
+        if tech in ("wordpress", "drupal", "joomla", "magento", "shopify"):
+            result["cms"] = tech
+        # Framework slots
+        elif tech in ("rails", "django", "flask", "express", "laravel", "spring", "tomcat"):
+            result["framework"] = tech
+        # Server slot
+        elif tech in ("nginx", "apache", "iis", "gunicorn", "werkzeug", "cloudflare"):
+            if result["server"] is None or tech == "cloudflare":
+                result["server"] = tech
+        # Language slot
+        elif tech in ("php", "aspnet", "node", "python", "ruby", "java", "go"):
+            result["language"] = tech
+        # DB slot
+        elif tech in ("mysql", "postgres", "mssql", "mongo", "redis", "oracle", "sqlite"):
+            result["db"] = tech
+        # CDN/WAF markers are handled separately
+        if tech not in technologies:
+            technologies.append(tech)
+
+
+# ---------------------------------------------------------------------------
+# Attack vector database
+# ---------------------------------------------------------------------------
+
+
+# Each entry: tech -> list of (vuln_class, hypothesis_text, recommended_tools)
+AttackHypothesis = Tuple[str, str, Tuple[str, ...]]
+
+
+VULN_BY_STACK: Dict[str, List[AttackHypothesis]] = {
+    "php": [
+        ("sqli", "PHP+MySQL combination is the #1 source of SQLi", ("_ext_scanner","_ext_fuzzer","_ext_sqli")),
+        ("lfi", "PHP LFI/RFI is endemic", ("_ext_fuzzer","_ext_scanner")),
+        ("xxe", "PHP libxml_disable_entity_loader default ON pre-8.0 was off", ("_ext_scanner",)),
+        ("rce", "PHP deserialization (unserialize) on session/cache", ("_ext_scanner",)),
+        ("ssrf", "PHP curl/wrappers abused for SSRF", ("_ext_scanner",)),
+        ("ssti", "Twig / Smarty template engines", ("_ext_scanner",)),
+    ],
+    "aspnet": [
+        ("sqli", "ASP.NET+MSSQL: classic SQLi via string concat", ("_ext_scanner","_ext_sqli")),
+        ("xxe", "XmlDocument / DataSet parsing XXE", ("_ext_scanner",)),
+        ("deser", "ViewState deserialization (YSOSerial)", ("_ext_scanner",)),
+        ("auth_bypass", "FormsAuthentication cookie tampering", ("_ext_scanner",)),
+    ],
+    "java": [
+        ("sqli", "Java+Oracle: Hibernate HQL injection", ("_ext_scanner",)),
+        ("xxe", "Java XML parsers are XXE-prone by default", ("_ext_scanner",)),
+        ("deser", "Java deserialization (ysoserial, gadget chains)", ("_ext_scanner",)),
+        ("ssti", "Freemarker / Velocity / Thymeleaf SSTI", ("_ext_scanner",)),
+        ("ssrf", "Java URL/HttpURLConnection SSRF", ("_ext_scanner",)),
+    ],
+    "python": [
+        ("sqli", "Django/Flask SQL via raw SQL or ORM .raw()", ("_ext_scanner",)),
+        ("ssti", "Jinja2 SSTI via render_template_string", ("_ext_scanner",)),
+        ("deser", "Pickle / PyYAML unsafe load", ("_ext_scanner",)),
+        ("ssrf", "requests/urllib SSRF", ("_ext_scanner",)),
+    ],
+    "node": [
+        ("sqli", "Node+Mongo: NoSQL injection ($where/$ne)", ("_ext_scanner",)),
+        ("prototype_pollution", "Express/Node.js proto pollution", ("_ext_scanner",)),
+        ("ssrf", "Node fetch/axios SSRF", ("_ext_scanner",)),
+        ("ssrf_ssr", "Server-side request forgery via puppeteer", ("_ext_scanner",)),
+        ("auth_bypass", "JWT alg=none bypass", ("_ext_scanner",)),
+    ],
+    "ruby": [
+        ("sqli", "Rails ActiveRecord SQLi via .where(params)", ("_ext_scanner",)),
+        ("deser", "YAML.load in older Rails (CVE-2013-0156)", ("_ext_scanner",)),
+        ("ssti", "ERB template injection", ("_ext_scanner",)),
+    ],
+    "go": [
+        ("sqli", "Go database/sql query concatenation", ("_ext_scanner",)),
+        ("ssrf", "Go net/http client SSRF", ("_ext_scanner",)),
+        ("path", "Go path traversal in file servers", ("_ext_scanner",)),
+    ],
+    "nginx": [
+        ("path", "Off-by-slash / alias traversal (CVE-2016-XXXX family)", ("_ext_scanner",)),
+        ("auth_bypass", "Misconfigured location blocks", ("_ext_scanner",)),
+    ],
+    "apache": [
+        ("path", "mod_cgi, .htaccess bypasses", ("_ext_scanner",)),
+        ("rce", "Shellshock on CGI", ("_ext_scanner",)),
+    ],
+    "iis": [
+        ("path", "IIS shortname / tilde enumeration", ("_ext_scanner",)),
+        ("rce", "WebDAV/IIS RCE chains", ("_ext_scanner",)),
+    ],
+    "cloudflare": [
+        ("ssrf", "Cloudflare may obscure origin but not block SSRF", ("_ext_scanner",)),
+        ("origin", "Try Origin IP via DNS history (_ext_recon)", ("_ext_recon","_ext_scanner")),
+    ],
+    "wordpress": [
+        ("sqli", "WordPress plugin SQLi (nextgen, duplicator, etc.)", ("_ext_scanner",)),
+        ("rce", "WordPress plugin RCE (revslider, mailpoet)", ("_ext_scanner",)),
+        ("lfi", "Theme/plugin LFI", ("_ext_scanner",)),
+        ("auth_bypass", "wp-admin brute force", ("_ext_fuzzer","_ext_scanner")),
+    ],
+    "drupal": [
+        ("rce", "Drupalgeddon / Drupalgeddon2 (CVE-2014-3704, CVE-2018-7600)", ("_ext_scanner",)),
+        ("sqli", "Drupal Views SQLi", ("_ext_scanner",)),
+    ],
+    "joomla": [
+        ("rce", "Joomla RCE chains (JCE, com_fields)", ("_ext_scanner",)),
+        ("sqli", "Joomla SQLi via filter parameter", ("_ext_scanner",)),
+    ],
+    "magento": [
+        ("rce", "Magento Shoplift / Proxi (CVE-2022-24086)", ("_ext_scanner",)),
+        ("lfi", "Magento template LFI", ("_ext_scanner",)),
+    ],
+    "laravel": [
+        ("deser", "Laravel APP_KEY deserialization (CVE-2018-15133)", ("_ext_scanner",)),
+        ("sqli", "Eloquent ORM SQLi", ("_ext_scanner",)),
+        ("ssti", "Blade template injection", ("_ext_scanner",)),
+    ],
+    "rails": [
+        ("sqli", "Rails SQLi via .where(params)", ("_ext_scanner",)),
+        ("deser", "YAML.load in older Rails", ("_ext_scanner",)),
+    ],
+    "django": [
+        ("sqli", "Django .extra() SQLi", ("_ext_scanner",)),
+        ("ssrf", "Django HTTP request SSRF", ("_ext_scanner",)),
+        ("ssti", "Django template injection via render()", ("_ext_scanner",)),
+    ],
+    "flask": [
+        ("ssti", "Jinja2 SSTI via render_template_string", ("_ext_scanner",)),
+        ("ssrf", "Flask requests SSRF", ("_ext_scanner",)),
+    ],
+    "express": [
+        ("prototype_pollution", "Express qs / body-parser pollution", ("_ext_scanner",)),
+        ("ssrf", "Node fetch SSRF", ("_ext_scanner",)),
+    ],
+    "tomcat": [
+        ("auth_bypass", "Tomcat manager / host-manager auth bypass", ("_ext_scanner",)),
+        ("rce", "WAR upload RCE", ("_ext_scanner",)),
+    ],
+    "jenkins": [
+        ("rce", "Jenkins Script Console (CVE-2019-1003000)", ("_ext_scanner",)),
+        ("lfi", "Jenkins LFI via /plugin/", ("_ext_scanner",)),
+    ],
+    "graphql": [
+        ("auth_bypass", "GraphQL introspection leaks schema", ("_ext_scanner",)),
+        ("sqli", "GraphQL resolver SQL/NoSQL injection", ("_ext_scanner",)),
+    ],
+    "openapi": [
+        ("auth_bypass", "OpenAPI/Swagger spec leaks internal endpoints", ("_ext_scanner",)),
+    ],
+    "phpmyadmin": [
+        ("rce", "phpMyAdmin RCE chains (CVE-2018-12613, etc.)", ("_ext_scanner",)),
+        ("auth_bypass", "phpMyAdmin brute force", ("_ext_fuzzer",)),
+    ],
+    "kibana": [
+        ("rce", "Kibana prototype pollution / RCE (CVE-2019-7609)", ("_ext_scanner",)),
+    ],
+    "grafana": [
+        ("lfi", "Grafana plugin path traversal (CVE-2021-43798)", ("_ext_scanner",)),
+        ("auth_bypass", "Grafana SSO / OAuth misconfig", ("_ext_scanner",)),
+    ],
+    "jquery": [
+        ("xss", "Old jQuery XSS (CVE-2020-11022, CVE-2020-11023)", ("_ext_scanner",)),
+    ],
+    "react": [
+        ("xss", "React dangerouslySetInnerHTML XSS", ("_ext_scanner",)),
+    ],
+    "vue": [
+        ("xss", "Vue v-html XSS", ("_ext_scanner",)),
+    ],
+    "angular": [
+        ("xss", "AngularJS template injection", ("_ext_scanner",)),
+    ],
+    "magento": [
+        ("rce", "Magento RCE chains", ("_ext_scanner",)),
+    ],
+    "cloudfront": [
+        ("origin", "Try to find origin via Host header rewrite", ("_ext_scanner",)),
+    ],
+    "akamai": [
+        ("origin", "Try to find origin via Host header rewrite", ("_ext_scanner",)),
+    ],
+    "azure": [
+        ("ssrf", "Azure metadata SSRF", ("_ext_scanner",)),
+    ],
+    "varnish": [
+        ("cache_poisoning", "Varnish cache poisoning", ("_ext_scanner",)),
+    ],
+    "shopify": [
+        ("auth_bypass", "Shopify API token leak", ("_ext_scanner",)),
+    ],
+    "perf-hints": [
+        ("info", "Server-Timing header leaks backend timing", ("_ext_scanner",)),
+    ],
+    "waf": [
+        ("waf_bypass", "WAF in place: try encoding / case mutations", ("_ext_scanner",)),
+    ],
+    "cdn": [
+        ("ssrf", "CDN in place: may obscure origin SSRF target", ("_ext_scanner",)),
+    ],
+    "mongo": [
+        ("sqli", "NoSQL injection: $where, $ne, $regex", ("_ext_scanner",)),
+    ],
+    "mysql": [
+        ("sqli", "MySQL classic SQLi via string concat", ("_ext_scanner","_ext_sqli")),
+    ],
+    "mssql": [
+        ("sqli", "MSSQL xp_cmdshell post-exploitation", ("_ext_scanner","_ext_sqli")),
+    ],
+    "postgres": [
+        ("sqli", "Postgres COPY / pg_sleep blind SQLi", ("_ext_scanner","_ext_sqli")),
+    ],
+    "oracle": [
+        ("sqli", "Oracle DBMS_PIPE / UTL_HTTP abuse", ("_ext_scanner","_ext_sqli")),
+    ],
+    "redis": [
+        ("ssrf", "Redis via gopher:// SSRF", ("_ext_scanner",)),
+    ],
+    "sqlite": [
+        ("sqli", "SQLite3 SQLi", ("_ext_scanner",)),
+    ],
+    "mongo": [
+        ("sqli", "Mongo $where injection", ("_ext_scanner",)),
+    ],
+    "info": [
+        ("info", "Information disclosure via Server-Timing", ("_ext_scanner",)),
+    ],
+}
+
+
+# Reverse index: vuln_class -> set of relevant techs
+VULN_CLASS_TECH_HINTS: Dict[str, List[str]] = {
+    "sqli": ["php", "aspnet", "java", "python", "node", "ruby", "go",
+             "mysql", "mssql", "postgres", "oracle", "sqlite", "mongo", "wordpress", "magento"],
+    "lfi": ["php", "java", "wordpress", "magento", "grafana"],
+    "rce": ["php", "aspnet", "java", "ruby", "wordpress", "drupal", "joomla", "magento",
+            "tomcat", "jenkins", "kibana", "phpmyadmin", "apache"],
+    "xxe": ["php", "aspnet", "java"],
+    "ssrf": ["php", "java", "python", "node", "go", "nginx", "cloudflare",
+             "azure", "redis", "django", "flask", "express"],
+    "ssti": ["php", "python", "ruby", "java", "laravel", "django", "flask"],
+    "deser": ["php", "aspnet", "java", "python", "ruby", "laravel", "rails"],
+    "xss": ["jquery", "react", "vue", "angular"],
+    "auth_bypass": ["aspnet", "node", "wordpress", "tomcat", "graphql", "shopify", "phpmyadmin", "grafana"],
+    "prototype_pollution": ["node", "express"],
+    "path": ["nginx", "apache", "iis", "go"],
+    "cache_poisoning": ["varnish"],
+    "waf_bypass": ["waf"],
+    "origin": ["cloudflare", "cloudfront", "akamai"],
+    "info": ["perf-hints"],
+}
+
+
+class AttackVectorDatabase:
+    """Maps tech fingerprints to vuln hypotheses and recommended tools.
+
+    Example:
+        db = AttackVectorDatabase()
+        hyps = db.hypotheses_for(["php", "mysql", "wordpress"])
+        # [("sqli", "PHP+MySQL combination is the #1 source of SQLi", ("_ext_scanner","_ext_fuzzer","_ext_sqli")),
+        #  ("lfi", ...), ...]
+    """
+
+    def __init__(self, db: Optional[Dict[str, List[AttackHypothesis]]] = None) -> None:
+        self.db: Dict[str, List[AttackHypothesis]] = dict(db) if db else dict(VULN_BY_STACK)
+
+    def hypotheses_for(self, technologies: List[str]) -> List[AttackHypothesis]:
+        """Return all hypotheses applicable to any of the given technologies."""
+        out: List[AttackHypothesis] = []
+        seen: set = set()
+        for tech in technologies:
+            for entry in self.db.get(tech, []):
+                key = (entry[0], entry[1])
+                if key not in seen:
+                    seen.add(key)
+                    out.append(entry)
+        return out
+
+    def technologies_for_vuln(self, vuln_class: str) -> List[str]:
+        """Return the list of technologies relevant for a vuln class."""
+        return list(VULN_CLASS_TECH_HINTS.get(vuln_class, []))
+
+    def add(self, tech: str, hypotheses: List[AttackHypothesis]) -> None:
+        self.db[tech] = hypotheses
+
+
+# ---------------------------------------------------------------------------
+# StrategicPlanner (preserved public API)
+# ---------------------------------------------------------------------------
+
+
 class StrategicPlanner:
-    """Generates and manages attack strategies."""
+    """Generates and manages attack strategies.
+
+    Public API preserved for backward compatibility. New methods:
+    - fingerprint_target(): given a httpx-style response, return tech stack
+    - semantic_attack_tree(): generate an attack tree from a tech stack
+      without calling the AI (useful as a deterministic fallback)
+    """
 
     def __init__(self, client: AIClientManager):
         self.client = client
         self.cvss_calc = CVSSCalculator(use_ai=True)
+        self.fingerprinter = TargetFingerprinter()
+        self.vector_db = AttackVectorDatabase()
 
     def generate_attack_tree(
         self,
         target: str,
         objective: str = "discover vulnerabilities",
+        fingerprint: Optional[Dict[str, Any]] = None,
     ) -> AttackTree:
+        """Generate an attack tree.
+
+        If ``fingerprint`` is supplied, the semantic vuln-DB is consulted
+        FIRST to produce a stack-aware strategy. The AI prompt is still
+        used as a secondary signal if available.
+        """
         tree = AttackTree(target=target, objective=objective)
 
+        # 1) Semantic: tech-driven hypotheses (deterministic, no network)
+        if fingerprint is None:
+            fingerprint = self.fingerprinter.fingerprint(url=target)
+        semantic_steps = self.semantic_steps_for(fingerprint, target)
+        for step in semantic_steps:
+            tree.steps.append(step)
+
+        # 2) AI: ask the LLM for additional high-level ideas
         planning_prompt = f"""You are a penetration testing strategist.
 
 TARGET: {target}
 OBJECTIVE: {objective}
+DETECTED TECHNOLOGIES: {', '.join(fingerprint.get('technologies', [])) or 'unknown'}
 
 Generate an attack tree as JSON with this structure:
 {{
@@ -59,21 +595,100 @@ Respond with valid JSON only."""
             plan_data = _extract_json_object(response)
             if plan_data:
                 tree.reasoning = plan_data.get("reasoning", "")
+                ai_steps: List[AttackStep] = []
                 for phase_data in plan_data.get("phases", []):
                     phase = AttackPhase(phase_data.get("phase", "recon"))
                     for tool_name in phase_data.get("tools", []):
-                        tree.steps.append(AttackStep(
+                        ai_steps.append(AttackStep(
                             phase=phase,
                             tool_name=tool_name,
                             target=target,
                             purpose=phase_data.get("purpose", ""),
                         ))
-
+                # Merge: AI steps add value, don't duplicate
+                existing_tools = {s.tool_name for s in tree.steps}
+                for s in ai_steps:
+                    if s.tool_name not in existing_tools:
+                        tree.steps.append(s)
+                        existing_tools.add(s.tool_name)
         except Exception as e:
-            logger.warning(f"AI planning failed: {e}, using default strategy")
+            logger.warning(f"AI planning failed: {e}")
+
+        # 3) Fallback: if no steps at all, use default
+        if not tree.steps:
             tree = self._default_attack_tree(target, objective)
 
         return tree
+
+    def semantic_steps_for(
+        self,
+        fingerprint: Dict[str, Any],
+        target: str,
+    ) -> List[AttackStep]:
+        """Convert a fingerprint into AttackSteps via the vector DB.
+
+        Maps vuln class -> attack phase:
+        - sqli/lfi/rce/xxe/ssrf/ssti/deser/path -> EXPLOITATION
+        - xss -> EXPLOITATION
+        - prototype_pollution/auth_bypass/waf_bypass -> EXPLOITATION
+        - cache_poisoning -> EXPLOITATION
+        - info -> ENUMERATION
+        - origin -> RECONNAISSANCE
+        """
+        technologies = fingerprint.get("technologies", []) or []
+        if not technologies and fingerprint.get("server"):
+            technologies = [fingerprint["server"]]
+        if not technologies and fingerprint.get("language"):
+            technologies = [fingerprint["language"]]
+        if not technologies:
+            # Last resort: treat as generic web
+            technologies = ["nginx"]
+
+        hypotheses = self.vector_db.hypotheses_for(technologies)
+        # Sort by severity
+        severity_order = {
+            "rce": 0, "deser": 1, "sqli": 2, "ssrf": 3, "lfi": 4, "ssti": 5,
+            "xxe": 6, "xss": 7, "auth_bypass": 8, "prototype_pollution": 9,
+            "path": 10, "cache_poisoning": 11, "waf_bypass": 12, "origin": 13, "info": 14,
+        }
+        hypotheses = sorted(
+            hypotheses,
+            key=lambda h: severity_order.get(h[0], 99),
+        )
+
+        phase_for_vuln = {
+            "rce": AttackPhase.EXPLOITATION,
+            "deser": AttackPhase.EXPLOITATION,
+            "sqli": AttackPhase.EXPLOITATION,
+            "ssrf": AttackPhase.EXPLOITATION,
+            "lfi": AttackPhase.EXPLOITATION,
+            "ssti": AttackPhase.EXPLOITATION,
+            "xxe": AttackPhase.EXPLOITATION,
+            "xss": AttackPhase.EXPLOITATION,
+            "auth_bypass": AttackPhase.EXPLOITATION,
+            "prototype_pollution": AttackPhase.EXPLOITATION,
+            "path": AttackPhase.EXPLOITATION,
+            "cache_poisoning": AttackPhase.EXPLOITATION,
+            "waf_bypass": AttackPhase.SCANNING,
+            "origin": AttackPhase.RECONNAISSANCE,
+            "info": AttackPhase.ENUMERATION,
+        }
+
+        steps: List[AttackStep] = []
+        seen_tools: set = set()
+        for vuln_class, hypothesis_text, tools in hypotheses:
+            phase = phase_for_vuln.get(vuln_class, AttackPhase.EXPLOITATION)
+            for tool in tools:
+                if tool in seen_tools:
+                    continue
+                seen_tools.add(tool)
+                steps.append(AttackStep(
+                    phase=phase,
+                    tool_name=tool,
+                    target=target,
+                    purpose=f"[{vuln_class}] {hypothesis_text}",
+                ))
+        return steps
 
     def _default_attack_tree(self, target: str, objective: str) -> AttackTree:
         tree = AttackTree(
@@ -145,3 +760,29 @@ Respond with valid JSON only."""
             ))
         tree.steps.extend(additional_steps)
         return additional_steps
+
+    # ---- new public methods -------------------------------------------
+
+    def fingerprint_target(
+        self,
+        headers: Optional[Dict[str, str]] = None,
+        body: Optional[str] = None,
+        cookies: Optional[Dict[str, str]] = None,
+        url: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Fingerprint a target from response artifacts."""
+        return self.fingerprinter.fingerprint(headers=headers, body=body, cookies=cookies, url=url)
+
+    def semantic_attack_tree(
+        self,
+        target: str,
+        fingerprint: Dict[str, Any],
+    ) -> AttackTree:
+        """Generate an AttackTree purely from a tech fingerprint (no AI)."""
+        tree = AttackTree(
+            target=target,
+            objective="discover vulnerabilities",
+            reasoning=f"Semantic strategy for tech stack: {', '.join(fingerprint.get('technologies', []))}",
+        )
+        tree.steps = self.semantic_steps_for(fingerprint, target)
+        return tree

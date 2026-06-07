@@ -16,6 +16,7 @@ import re
 import importlib.util
 import time
 import json
+import asyncio
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -38,7 +39,9 @@ except ImportError:
     def print_error(*a, **kw): pass
     def print_success(*a, **kw): pass
     def print_info(*a, **kw): pass
-    def show_progress_bar(*a, **kw): pass
+    def show_progress_bar(*a, **kw):  # type: ignore[no-redef]
+        from rich.progress import Progress
+        return Progress(*a, **kw)
 
 # ── Logging Setup ─────────────────────────────────────────────────────────────
 LOG_DIR = Path("data")
@@ -180,6 +183,7 @@ def main():
         "intel", "mission", "pause", "resume", "cli", "tui", "cli-textual", "cli-legacy", "clitest",
         # New unified commands
         "sast", "cloud", "mobile", "soc", "dashboard",
+        "list-tools", "examples", "prefetch",
     ]
 
     parser = argparse.ArgumentParser(description="Elengenix CLI", add_help=False)
@@ -190,12 +194,26 @@ def main():
     parser.add_argument("--version", type=str, default="", help="Target version for PoC generation")
     parser.add_argument("--mode", type=str, default="ask", choices=["strict", "ask", "auto"], help="Governance mode for autonomous operations")
     parser.add_argument("--smart-scan", action="store_true", help="Use intelligent smart scan with file relationship analysis and finding correlation")
+    parser.add_argument("--quiet", "-q", action="store_true", help="Suppress phase-by-phase output; show only summary and report path (P3.2)")
     
     args, _ = parser.parse_known_args()
 
     # Set environment variable for smart scan mode (propagates to watchman/bot)
     if args.smart_scan:
         os.environ["ELENGENIX_SMART_SCAN"] = "1"
+
+    # Set environment variable for quiet mode (P3.2: suppresses phase-by-phase output)
+    if args.quiet:
+        os.environ["ELENGENIX_QUIET"] = "1"
+        # Suppress non-essential console output (errors/warnings still print via stderr logger)
+        from rich.console import Console as _NoOutConsole
+        class _SilentConsole(_NoOutConsole):
+            def print(self, *a, **kw): pass
+        try:
+            import ui_components as _ui
+            _ui.console = _SilentConsole()
+        except Exception:
+            pass
 
     # Welcome wizard on first run (before processing command)
     if args.command == "welcome":
@@ -284,6 +302,18 @@ def main():
     # If no command or target is specified and it's "auto" (default), run the TUI
     if args.command == "auto" and not args.target:
         args.command = "tui"
+
+    # ── D-handlers: short-circuit before auto-detect (D1+D2) ──
+    if args.command == "list-tools":
+        _cmd_list_tools()
+        return
+    if args.command == "examples":
+        _cmd_examples()
+        return
+    # ── F-handler: prefetch — pre-download AI models (F1) ──
+    if args.command == "prefetch":
+        _cmd_prefetch()
+        return
 
     # Auto-detect mode (default) - Smart routing based on target
     # Auto-detect mode — skip for explicit commands
@@ -410,6 +440,40 @@ def main():
                 console.print(f"  Team: [red]{team_size} agents[/red]")
             print()
 
+            # ── Phase 0: Elengenix Framework Pre-flight (runs FIRST, before AI agent) ──
+            console.print("[bold #ffffff]Phase 0: Elengenix Framework Pre-flight[/bold #ffffff]")
+            
+            subdomain_hint = ""  # Initialize so preflight can extend it
+            preflight_findings = []
+            preflight_file = None
+            try:
+                from orchestrator import run_elengenix_modules
+                preflight_dir = Path(f"reports/preflight_{target.replace('/', '_')}_{int(time.time())}")
+                preflight_dir.mkdir(parents=True, exist_ok=True)
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                try:
+                    preflight_findings = loop.run_until_complete(
+                        asyncio.wait_for(run_elengenix_modules(target, preflight_dir, timeout=90), timeout=110)
+                    )
+                finally:
+                    loop.close()
+                if preflight_findings:
+                    preflight_file = preflight_dir / "elengenix_findings.json"
+                    preflight_file.write_text(json.dumps(preflight_findings, indent=2, default=str))
+                    console.print(f"  [OK] Pre-flight: {len(preflight_findings)} findings saved to {preflight_file}")
+                    # Inject preflight findings into the AI prompt as context
+                    finding_summary = "\n".join(
+                        f"  - [{f.get('severity', '?')}] {f.get('type', '?')}: {f.get('title', '?')[:80]}"
+                        for f in preflight_findings[:20]
+                    )
+                    subdomain_hint += f"\nPre-flight Elengenix framework findings ({len(preflight_findings)} total):\n{finding_summary}\n"
+                else:
+                    console.print("  [dim]Pre-flight: 0 findings (target may be down or unreachable)[/dim]")
+            except Exception as e:
+                import traceback
+                console.print(f"  [WARN] Pre-flight failed: {e}")
+
             # Phase 1: AI-driven reconnaissance
             console.print("[bold #ffffff]Phase 1: AI-Driven Reconnaissance[/bold #ffffff]")
 
@@ -520,7 +584,8 @@ def main():
                     f"- If a tool is missing, ask the user with ask_user action\n"
                     f"- Run actual tools, report results honestly. If something fails, try another approach.\n"
                     f"- IMPORTANT: Write temp files to current directory (./subdomains.txt) NOT /tmp\n",
-                    target=target, callback=scan_callback, mode="bug_bounty"
+                    target=target, callback=scan_callback, mode="bug_bounty",
+                    preflight_findings=preflight_findings,
                 )
                 if response:
                     # Strip any Rich tags from AI response before printing
@@ -530,11 +595,92 @@ def main():
                     console.print(f"  {safe_response[:2000]}")
                     report_file = Path(f"reports/scan_{target}_{int(time.time())}.md")
                     report_file.parent.mkdir(parents=True, exist_ok=True)
+                    # Build report with preflight findings section if available
+                    preflight_section = ""
+                    if preflight_findings:
+                        rows = "\n".join(
+                            f"| {f.get('severity', '?')} | {f.get('type', '?')} | {f.get('title', '?')[:80]} |"
+                            for f in preflight_findings
+                        )
+                        preflight_section = (
+                            f"\n## Elengenix Framework Pre-flight Findings ({len(preflight_findings)})\n\n"
+                            f"**Source**: 5 Elengenix pure-Python modules + PythonRecon\n"
+                            f"(No third-party tools required)\n\n"
+                            f"| Severity | Type | Title |\n"
+                            f"|----------|------|-------|\n"
+                            f"{rows}\n\n"
+                            f"Full details: `{preflight_file}`\n"
+                        )
+                    # Detect if AI was useful vs. just "50 steps, 1 action"
+                    ai_unhelpful = (
+                        not response
+                        or "reached 50 steps" in response
+                        or "reached 1 steps" in response
+                        or "All AI providers failed" in safe_response
+                        or "[ELENGENIX_AI_UNAVAILABLE]" in response
+                    )
+                    if "[ELENGENIX_AI_UNAVAILABLE]" in response:
+                        # P2.4: Prominent banner when AI is unavailable
+                        console.print(Panel(
+                            f"[bold yellow]AI PROVIDER UNAVAILABLE[/bold yellow]\n\n"
+                            f"All configured AI providers (gemini/openai/nvidia) failed after consecutive errors.\n"
+                            f"Showing {len(preflight_findings) if preflight_findings else 0} Elengenix preflight findings instead.\n\n"
+                            f"[bold]Fix AI access:[/bold]\n"
+                            f"  1. Check API keys in .env (GEMINI_API_KEY, OPENAI_API_KEY, etc.)\n"
+                            f"  2. Verify provider quota: https://aistudio.google.com/apikey\n"
+                            f"  3. Or reconfigure: python3 main.py configure\n",
+                            border_style="yellow",
+                            title="[bold red]AI Quota / Auth Error[/bold red]",
+                        ))
+                    ai_section_header = "## AI Analysis"
+                    ai_section_body = response
+                    if ai_unhelpful and preflight_findings:
+                        # Generate auto-analysis from preflight findings
+                        ai_section_header = "## AI Analysis (auto-generated from preflight — AI providers unavailable)"
+                        sev_count: dict = {}
+                        type_count: dict = {}
+                        for f in preflight_findings:
+                            sev = f.get("severity", "?")
+                            sev_count[sev] = sev_count.get(sev, 0) + 1
+                            t = f.get("type", "?")
+                            type_count[t] = type_count.get(t, 0) + 1
+                        sev_lines = "\n".join(f"- **{k}**: {v}" for k, v in sorted(sev_count.items(), key=lambda x: -x[1]))
+                        type_lines = "\n".join(f"- {k}: {v}" for k, v in sorted(type_count.items(), key=lambda x: -x[1]))
+                        # Highlight high-priority targets
+                        hi = [f for f in preflight_findings if f.get("severity") in ("High", "Critical")]
+                        hi_lines = "\n".join(
+                            f"- **{f.get('severity')} {f.get('type')}**: {f.get('title', '?')[:80]}\n  URL: `{f.get('url', '?')}`"
+                            for f in hi[:10]
+                        ) or "- (none)"
+                        # Suggest next steps
+                        next_steps = []
+                        if any(f.get("type") == "param_discovery" for f in preflight_findings):
+                            next_steps.append("1. **Test the discovered parameters** for XSS, SQLi, command injection")
+                        if any(f.get("type") == "endpoint" for f in preflight_findings):
+                            next_steps.append("2. **Probe discovered endpoints** for authentication / access control issues")
+                        if any(f.get("type") == "port" for f in preflight_findings):
+                            next_steps.append("3. **Investigate non-standard open ports** for exposed services")
+                        if any(f.get("type") == "waf" for f in preflight_findings):
+                            next_steps.append("4. **Account for the detected WAF** when designing active attacks")
+                        next_steps.append("5. **Re-run with a working AI provider** for deeper analysis")
+                        ai_section_body = (
+                            f"**Note**: All AI providers (gemini/openai/nvidia) returned errors during this scan.\n"
+                            f"Auto-generated summary from {len(preflight_findings)} Elengenix framework findings:\n\n"
+                            f"### Severity breakdown\n{sev_lines}\n\n"
+                            f"### Type breakdown\n{type_lines}\n\n"
+                            f"### High-priority targets ({len(hi)})\n{hi_lines}\n\n"
+                            f"### Recommended next steps\n" + "\n".join(next_steps) + "\n\n"
+                            f"### Fix AI provider access\n- Verify API keys in `.env` (GEMINI_API_KEY, OPENAI_API_KEY, etc.)\n"
+                            f"- Check provider quota at https://aistudio.google.com/apikey\n"
+                            f"- Or configure a different provider via `python3 main.py configure`\n"
+                        )
+                        console.print(f"\n[bold yellow]AI providers unavailable — generated auto-analysis from {len(preflight_findings)} preflight findings[/bold yellow]")
                     report_file.write_text(
                         f"# Scan Report: {target}\n"
                         f"**Date**: {datetime.now(timezone.utc).isoformat()}\n"
-                        f"**Tool**: Elengenix 1.0.0\n\n"
-                        f"## AI Analysis\n\n{response}\n"
+                        f"**Tool**: Elengenix 1.0.0\n"
+                        f"{preflight_section}"
+                        f"\n{ai_section_header}\n\n{ai_section_body}\n"
                     )
                     console.print(f"\nReport saved: {report_file}")
                     send_telegram_notification(f"Scan + AI analysis: {target}")
@@ -1639,6 +1785,176 @@ def main():
         if confirm("Attempt emergency repair (doctor)?", default=True):
             from tools.doctor import check_health
             check_health()
+
+# ── D1: list-tools — show all 98 tools by category ──
+def _cmd_list_tools():
+    """Print the 98-tool catalog grouped by category.
+
+    Tries the live ToolRegistry first (auto-registered base tools).
+    ALWAYS also scans tools/*.py for module names + first-line docstring
+    (covers the 90+ utility modules that aren't BaseTool subclasses).
+    """
+    all_tools = {}
+    try:
+        from tools.tool_registry import registry as _tool_registry
+        all_tools = _tool_registry.list_available_tools() if hasattr(_tool_registry, 'list_available_tools') else {}
+    except Exception as e:
+        console.print(f"[dim]Registry unavailable: {e}[/dim]")
+
+    # ALWAYS scan tools/*.py to find utility modules (not just BaseTool subclasses)
+    import re
+    from pathlib import Path
+    tools_dir = Path(__file__).parent / "tools"
+    # Heuristic category detection (matches docs/TOOL_CATALOG.md grouping)
+    def _guess_cat(name: str) -> str:
+        n = name.lower()
+        if any(x in n for x in ['recon', 'finder', 'subdomain', 'wayback', 'dork', 'github_intel', 'param_miner', 'api_finder', 'api_schema', 'mobile_api']):
+            return 'recon'
+        if any(x in n for x in ['fuzz', 'injection', 'payload', 'mutation', 'race_condition', 'cors', 'ssrf', 'graphql', 'auth_tester', 'bola', 'object_id', 'logic', 'access_control']):
+            return 'fuzz'
+        if any(x in n for x in ['exploit', 'chain', 'template', 'poc', 'harness']):
+            return 'exploit'
+        if any(x in n for x in ['report', 'html', 'pdf', 'bounty', 'cvss', 'cve_database', 'finding_dedup', 'coverage', 'reporter']):
+            return 'reporting'
+        if any(x in n for x in ['ai_', 'agent_', 'llm', 'token_', 'memory_', 'vector_', 'user_', 'context_compressor', 'bounty_predictor']):
+            return 'ai'
+        if any(x in n for x in ['waf', 'evasion', 'dynamic_waf', 'edr_']):
+            return 'waf'
+        if any(x in n for x in ['telegram', 'bot', 'bridge', 'gateway']):
+            return 'telegram'
+        if any(x in n for x in ['governance', 'safe_exec', 'tool_registry', 'doctor', 'config_wizard', 'welcome_wizard', 'profile', 'session', 'history', 'overlay', 'dashboard', 'install', 'progress', 'wordlist', 'analysis_pipeline', 'multi_agent', 'swarm', 'autonomous', 'protocol', 'sast', 'cloud', 'soc', 'mobile', 'mission', 'research', 'vuln_', 'event_loop', 'base_', 'universal_', 'command_suggest', 'memory_persistence', 'skill_registry', 'executor', 'mission_state', 'history_manager', 'base_recon', 'base_scanner']):
+            return 'infra'
+        return 'utils'
+
+    for py_file in tools_dir.glob("*.py"):
+        if py_file.name == "__init__.py":
+            continue
+        if py_file.stem in all_tools:
+            continue  # already in registry
+        try:
+            with open(py_file) as f:
+                content = f.read(500)
+            m = re.search(r'^"""(.+?)"""', content, re.DOTALL)
+            if m:
+                raw = m.group(1).strip()
+                # Strip leading "tools/X.py — " pattern that some docstrings use
+                raw = re.sub(r'^tools/\w+\.py\s*[—\-]\s*', '', raw)
+                desc = raw.split('\n')[0]
+            else:
+                desc = "(no docstring)"
+        except Exception:
+            desc = "(read error)"
+        all_tools[py_file.stem] = {
+            "category": _guess_cat(py_file.stem),
+            "description": desc,
+            "available": True,
+        }
+
+    # Group by category
+    by_cat = {}
+    for name, info in all_tools.items():
+        cat = info.get('category', 'unknown')
+        by_cat.setdefault(cat, []).append((name, info.get('description', '')))
+
+    console.print()
+    console.print(f"[bold red]Elengenix Tool Catalog[/bold red] [dim]({len(all_tools)} tools registered)[/dim]")
+    console.print()
+    for cat in sorted(by_cat.keys()):
+        tools = by_cat[cat]
+        console.print(f"  [bold cyan]{cat.upper()}[/bold cyan] [dim]({len(tools)})[/dim]")
+        for name, desc in sorted(tools):
+            desc_short = desc[:60] + "..." if len(desc) > 60 else desc
+            console.print(f"    [white]{name:30s}[/white] [dim]{desc_short}[/dim]")
+        console.print()
+    if not all_tools:
+        console.print("  [yellow]No tools registered. Run: elengenix doctor[/yellow]")
+    console.print(f"[dim]Full catalog: docs/TOOL_CATALOG.md[/dim]")
+
+
+# ── D2: examples — show common usage patterns ──
+def _cmd_examples():
+    """Print common usage examples."""
+    console.print()
+    console.print("[bold red]Elengenix Common Usage Examples[/bold red]")
+    console.print()
+    examples = [
+        ("[cyan]Quick scan[/cyan]", "elengenix scan example.com"),
+        ("[cyan]Quiet scan (no phase output)[/cyan]", "elengenix scan example.com --quiet"),
+        ("[cyan]Smart scan with correlation[/cyan]", "elengenix scan example.com --smart-scan"),
+        ("[cyan]Full autonomous hunt[/cyan]", "elengenix autonomous example.com"),
+        ("[cyan]WAF detection only[/cyan]", "elengenix waf example.com"),
+        ("[cyan]BOLA / IDOR only[/cyan]", "elengenix bola example.com"),
+        ("[cyan]Generate PoC for finding[/cyan]", "elengenix poc --framework django --version 4.2"),
+        ("[cyan]Generate report from scan[/cyan]", "elengenix report example.com"),
+        ("[cyan]Update CVE database[/cyan]", "elengenix cve-update"),
+        ("[cyan]Health check[/cyan]", "elengenix doctor"),
+        ("[cyan]Configure API keys[/cyan]", "elengenix configure"),
+        ("[cyan]List all 98 tools[/cyan]", "elengenix list-tools"),
+        ("[cyan]Show usage examples[/cyan]", "elengenix examples"),
+        ("[cyan]Resume paused mission[/cyan]", "elengenix resume <mission-id>"),
+        ("[cyan]Show scan history[/cyan]", "elengenix history list"),
+        ("[cyan]Telegram gateway[/cyan]", "elengenix gateway"),
+        ("[cyan]Interactive AI chat[/cyan]", "elengenix cli"),
+    ]
+    for desc, cmd in examples:
+        console.print(f"  {desc}")
+        console.print(f"    [white]{cmd}[/white]")
+        console.print()
+    console.print(f"[dim]Full docs: docs/TOOL_CATALOG.md, README.md[/dim]")
+
+
+# ── F1: prefetch — pre-download AI models so first scan is fast ──
+def _cmd_prefetch():
+    """Pre-download heavy AI models (ChromaDB embedding model, etc.) so
+    the first scan doesn't block on a 79MB download at 100KB/s.
+
+    Safe to re-run — skips if already cached.
+    """
+    import os
+    from pathlib import Path
+    console.print()
+    console.print("[bold red]Pre-fetching AI models...[/bold red]")
+    console.print()
+
+    # 1. ChromaDB embedding model (all-MiniLM-L6-v2, ~79MB)
+    cache_dir = Path.home() / ".cache" / "chroma" / "onnx_models" / "all-MiniLM-L6-v2"
+    onnx_file = cache_dir / "onnx.tar.gz"
+    target_size = 79 * 1024 * 1024  # 79MB
+
+    if onnx_file.exists() and onnx_file.stat().st_size >= target_size * 0.95:
+        console.print(f"  [OK] ChromaDB embedding model: [dim]already cached ({onnx_file.stat().st_size/1024/1024:.1f}MB)[/dim]")
+    else:
+        console.print(f"  ChromaDB embedding model (~79MB)...", end="")
+        try:
+            # Trigger chromadb's lazy download
+            import chromadb
+            client = chromadb.PersistentClient(path="data/vector_memory")
+            # Use a valid collection name (3-63 chars, alphanumeric + _.-)
+            collection = client.get_or_create_collection("prefetch_test")
+            # Quick smoke test (this triggers embedding model download)
+            collection.add(documents=["prefetch test"], ids=["prefetch_1"])
+            collection.query(query_texts=["prefetch"], n_results=1)
+            try:
+                client.delete_collection("prefetch_test")
+            except Exception:
+                pass
+            console.print(f"\r  [OK] ChromaDB embedding model: [green]downloaded[/green]")
+        except Exception as e:
+            console.print(f"\r  [WARN] ChromaDB embedding: [yellow]{type(e).__name__}: {str(e)[:80]}[/yellow]")
+            console.print(f"         Run scan first; model will download on demand")
+
+    # 2. tiktoken (small, ~1MB)
+    try:
+        import importlib
+        tiktoken_mod = importlib.import_module("tiktoken")
+        tiktoken_mod.get_encoding("cl100k_base")
+        console.print(f"  [OK] tiktoken: [dim]already cached[/dim]")
+    except Exception as e:
+        console.print(f"  [WARN] tiktoken: [yellow]{type(e).__name__}[/yellow]")
+
+    console.print()
+    console.print("[green]Pre-fetch complete. First scan will be faster.[/green]")
+    console.print()
 
 if __name__ == "__main__":
     ensure_dependencies()
