@@ -1,0 +1,16 @@
+name: ollama_local
+version: 1.0.0
+author: Elengenix Team
+description: Custom AI provider plugin for local Ollama models (e.g. llama3, codellama, mistral).
+sdk_version: "1.0.0"
+entry_point: __init__.py
+capabilities:
+  - network
+  - ai_api
+dependencies: []
+enabled: true
+tags:
+  - ai
+  - ollama
+  - local
+license: MIT

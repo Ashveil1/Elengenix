@@ -97,3 +97,4 @@ response.html
 *.tmp
 .env.save
 .env.bak
+.aider*

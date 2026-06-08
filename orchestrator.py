@@ -9,8 +9,10 @@ orchestrator.py — Tool Registry Pipeline Orchestrator
 
 import os
 import asyncio
-import re
+import functools
 import json
+import re
+from tools.perf import SmartCache, Timer, cached, FastHTTP
 import logging
 import ipaddress
 from pathlib import Path
@@ -387,28 +389,30 @@ async def _run_phase1_recon(
     Phase 1: Python-based recon (always runs, no AI needed).
     Returns the recon_result dict (or empty dict on failure).
     """
+    from tools.perf import Timer
     console.print("[bold red][Phase 1] Python Reconnaissance[/bold red]")
-    try:
-        recon = PythonRecon(timeout=1.0, max_concurrent=40)
-        # Use quick mode (smaller wordlists) for production scans to keep latency reasonable
-        recon_result = await asyncio.wait_for(
-            asyncio.to_thread(recon.full_recon, target, True),
-            timeout=min(60, timeout - 30),
-        ) if False else recon.full_recon(target, quick=True)
+    with Timer() as timer:
+        try:
+            recon = PythonRecon(timeout=1.0, max_concurrent=40)
+            # Use quick mode (smaller wordlists) for production scans to keep latency reasonable
+            recon_result = await asyncio.wait_for(
+                asyncio.to_thread(recon.full_recon, target, True),
+                timeout=min(60, timeout - 30),
+            ) if False else recon.full_recon(target, quick=True)
 
-        # Save recon report
-        recon_path = report_dir / "python_recon.json"
-        recon_path.write_text(json.dumps(recon_result, indent=2, default=str))
+            # Save recon report
+            recon_path = report_dir / "python_recon.json"
+            recon_path.write_text(json.dumps(recon_result, indent=2, default=str))
 
-        console.print(f"  [OK] Recon: {len(recon_result.get('directories', []))} endpoints, "
-                      f"{len(recon_result.get('ports', []))} ports, "
-                      f"{len(recon_result.get('subdomains', []))} subdomains, "
-                      f"{sum(1 for p in recon_result.get('parameters', []) if p.get('is_interesting'))} interesting params")
-        return recon_result
-    except Exception as e:
-        logger.error(f"python_recon failed: {e}")
-        console.print(f"  [WARN] python_recon error: {e}")
-        return {}
+            console.print(f"  [OK] Recon: {len(recon_result.get('directories', []))} endpoints, "
+                          f"{len(recon_result.get('ports', []))} ports, "
+                          f"{len(recon_result.get('subdomains', []))} subdomains, "
+                          f"{sum(1 for p in recon_result.get('parameters', []) if p.get('is_interesting'))} interesting params")
+            return recon_result
+        except Exception as e:
+            logger.error(f"python_recon failed: {e}")
+            console.print(f"  [WARN] python_recon error: {e}")
+            return {}
 
 
 def _recon_to_findings(recon_result: Dict[str, Any], base_url: str) -> List[Dict[str, Any]]:
@@ -464,12 +468,108 @@ def _recon_to_findings(recon_result: Dict[str, Any], base_url: str) -> List[Dict
                 "title": f"Interesting parameter: {p.get('param')} ({p.get('method')})",
                 "details": f"Delta: {p.get('delta_pct')}% (baseline={p.get('baseline_len')}, test={p.get('test_len')})",
             })
+    # Enrich with vuln_engine CVE detection
+    findings.extend(_check_cves_for_tech(recon_result, base_url))
     return findings
+
+
+_cve_scache = SmartCache(max_size=128, default_ttl=3600)  # Cache CVE results per URL for 1 hour
+_cached_http = FastHTTP(timeout=10.0, max_connections=50, use_cache=True)  # Cached HTTP client for probes
+
+
+def http_get_cached(url: str, timeout: float = 10.0) -> Optional[str]:
+    """Cached HTTP GET using FastHTTP (perf.py SmartCache inside).
+    
+    Uses the module-level _cached_http FastHTTP instance which automatically
+    caches 200 responses for 5 minutes (default _HTTP_CACHE TTL).
+    Returns the response text or None on failure.
+    """
+    try:
+        result = _cached_http.get(url, timeout=timeout)
+        if result and "text" in result:
+            return result["text"]
+        return None
+    except Exception:
+        return None
+
+@cached(cache=_cve_scache, ttl=3600)
+def _check_cves_for_tech_cached(base_url: str, techs: tuple, server: str) -> List[Dict[str, Any]]:
+    """Cached version of CVE checking."""
+    # Rebuild recon_result-like dict for the actual logic
+    try:
+        from tools.vuln_engine import KNOWN_CVES, severity_from_cvss
+    except Exception as e:
+        return []
+    findings = []
+    if not KNOWN_CVES:
+        return findings
+    for cve in KNOWN_CVES:
+        for affected in cve.get("affected", []):
+            tech_name = affected.get("tech", "").lower()
+            version_pattern = affected.get("version_pattern", "")
+            if not tech_name:
+                continue
+            for tech in techs:
+                if tech_name in tech.lower():
+                    if version_pattern and version_pattern != "*":
+                        ver_match = re.search(r'(\d+(?:\.\d+)*)', tech)
+                        if ver_match and version_pattern in tech:
+                            pass  # Vulnerable
+                        else:
+                            continue
+                    findings.append({
+                        "tool": "vuln_engine",
+                        "type": "cve_detection",
+                        "severity": severity_from_cvss(cve.get("cvss", 5.0)),
+                        "cvss": cve.get("cvss", 5.0),
+                        "url": base_url,
+                        "title": f"{cve.get('id', 'CVE')} in {tech}",
+                        "details": (
+                            f"{cve.get('description', '')}\n"
+                            f"Affected: {affected.get('description', '')}\n"
+                            f"CVSS: {cve.get('cvss', 0)} ({cve.get('cvss_vector', '')})\n"
+                            f"Remedation: {cve.get('remediation', 'Update to a patched version')}"
+                        ),
+                        "cve": cve.get("id", ""),
+                        "cwe": cve.get("cwe", []),
+                        "matched_tech": tech,
+                    })
+                    break
+    return findings
+
+
+def _check_cves_for_tech(recon_result: Dict[str, Any], base_url: str) -> List[Dict[str, Any]]:
+    """Use vuln_engine to detect known CVEs based on tech fingerprint.
+
+    Looks at server header, identified techs, and http_probe to match against
+    the KNOWN_CVES database in tools/vuln_engine.py. Returns findings for
+    each detected vulnerable version.
+
+    Args:
+        recon_result: The output from PythonRecon (contains http_probe with tech list)
+        base_url: The base URL being scanned
+
+    Returns:
+        List of finding dicts (one per detected CVE)
+    """
+    # Extract tech info from http_probe and delegate to cached version
+    http = recon_result.get("http_probe", {}) or {}
+    techs = tuple(http.get("tech", []) or [])
+    server = str((http.get("headers", {}) or {}).get("Server", ""))
+    if not techs and not server:
+        return []
+    return _check_cves_for_tech_cached(base_url, techs, server)
 
 
 async def _run_phase2_waf(base_url: str) -> List[Dict[str, Any]]:
     """Phase 2: WAF detection (probe-based, no third-party)."""
     console.print("[bold red][Phase 2] Smart WAF Detection[/bold red]")
+    # Pre-cache the base URL via FastHTTP for faster subsequent probes
+    with Timer() as timer:
+        cached_resp = http_get_cached(base_url, timeout=5.0)
+        if cached_resp is None:
+            logger.debug(f"Phase 2: base URL unreachable via cached HTTP: {base_url}")
+    logger.debug(f"Phase 2: cached HTTP probe for {base_url} took {timer.duration_ms:.1f}ms")
     try:
         waf = SmartWAFDetector()
         # probe() is sync; run in thread to avoid blocking event loop

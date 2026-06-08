@@ -190,7 +190,8 @@ def main():
         "intel", "mission", "pause", "resume", "cli", "tui", "cli-textual", "cli-legacy", "clitest",
         # New unified commands
         "sast", "cloud", "mobile", "soc", "dashboard",
-        "list-tools", "examples", "prefetch",
+        "list-tools", "examples", "prefetch", "scan-report",
+        "marketplace", "plugins",
     ]
 
     parser = argparse.ArgumentParser(description="Elengenix CLI", add_help=False)
@@ -201,6 +202,17 @@ def main():
     parser.add_argument("--version", type=str, default="", help="Target version for PoC generation")
     parser.add_argument("--mode", type=str, default="ask", choices=["strict", "ask", "auto"], help="Governance mode for autonomous operations")
     parser.add_argument("--smart-scan", action="store_true", help="Use intelligent smart scan with file relationship analysis and finding correlation")
+    parser.add_argument("--format", type=str, default=None, help="Output format for scan-report (html, md, sarif, json, txt, all)")
+    parser.add_argument("--output", type=str, default=None, help="Output path for scan-report")
+    parser.add_argument("--subcommand", type=str, default=None, help="Subcommand for marketplace/plugins")
+    parser.add_argument("--query", type=str, default=None, help="Search query for marketplace")
+    parser.add_argument("--verified", action="store_true", help="Show only verified plugins")
+    parser.add_argument("--upgrade", action="store_true", help="Upgrade/force reinstall plugin")
+    parser.add_argument("--check", action="store_true", help="Check for updates without applying")
+    parser.add_argument("--apply", action="store_true", help="Apply update if available")
+    parser.add_argument("--force", action="store_true", help="Force refresh (skip cache)")
+    parser.add_argument("--yes", "-y", action="store_true", help="Auto-yes to prompts")
+    parser.add_argument("--no-auto-report", action="store_false", dest="auto_report", help="Skip auto-generated HTML report after scan")
     parser.add_argument("--quiet", "-q", action="store_true", help="Suppress phase-by-phase output; show only summary and report path (P3.2)")
     
     args, _ = parser.parse_known_args()
@@ -320,6 +332,36 @@ def main():
     # ── F-handler: prefetch — pre-download AI models (F1) ──
     if args.command == "prefetch":
         _cmd_prefetch()
+        return
+
+    # ── New: scan-report — generate Apple-level HTML/MD/SARIF reports from findings JSON ──
+    if args.command == "scan-report":
+        _cmd_scan_report(args)
+        return
+
+    # ── New: marketplace — plugin marketplace (search, install, list) ──
+    if args.command == "marketplace":
+        # Re-parse from sys.argv to handle subcommands naturally
+        # Usage: elengenix marketplace [search|install|uninstall|list] [name] [--query ...]
+        import sys as _sys
+        m_args = _sys.argv[2:]  # skip "main.py marketplace"
+        args.subcommand = m_args[0] if m_args and not m_args[0].startswith("-") else "list"
+        if args.subcommand in ("install", "uninstall") and len(m_args) >= 2:
+            args.name = m_args[1]
+        elif args.subcommand == "search":
+            args.query = " ".join(a for a in m_args[1:] if not a.startswith("-")) or ""
+        _cmd_marketplace(args)
+        return
+
+    # ── New: plugins — manage loaded plugins (list, info, reload) ──
+    if args.command == "plugins":
+        # Re-parse from sys.argv: elengenix plugins [list|info|reload] [name]
+        import sys as _sys
+        p_args = _sys.argv[2:]
+        args.subcommand = p_args[0] if p_args and not p_args[0].startswith("-") else "list"
+        if args.subcommand in ("info", "reload") and len(p_args) >= 2:
+            args.name = p_args[1]
+        _cmd_plugins(args)
         return
 
     # Auto-detect mode (default) - Smart routing based on target
@@ -690,6 +732,40 @@ def main():
                         f"\n{ai_section_header}\n\n{ai_section_body}\n"
                     )
                     console.print(f"\nReport saved: {report_file}")
+                    # Auto-generate HTML report if findings exist
+                    if preflight_findings and preflight_file and getattr(args, 'auto_report', True):
+                        try:
+                            from tools.report_gen import ExecutiveSummary, FindingReport, export_report, ReportFormat
+                            summary = ExecutiveSummary(
+                                target=target,
+                                scan_date=datetime.now(timezone.utc).isoformat(),
+                                duration_seconds=0,
+                                total_findings=len(preflight_findings),
+                                tool_version="1.0.0",
+                                risk_level="Unknown",
+                            )
+                            findings_reports = []
+                            for f in preflight_findings:
+                                findings_reports.append(FindingReport(
+                                    id=f.get("id", str(hash(str(f)))),
+                                    title=f.get("title", "Finding"),
+                                    severity=f.get("severity", "Informational"),
+                                    cvss=float(f.get("cvss", 0)),
+                                    url=f.get("url", target),
+                                    vuln_class=f.get("type", "unknown"),
+                                    description=f.get("details", "")[:500],
+                                    impact=f.get("impact", ""),
+                                    remediation=f.get("remediation", ""),
+                                    evidence=f.get("evidence", ""),
+                                    cwe=f.get("cwe", []),
+                                    cve=f.get("cve"),
+                                ))
+                            html_path = Path(f"reports/scan_{target}_{int(time.time())}.html")
+                            html_path.parent.mkdir(parents=True, exist_ok=True)
+                            export_report(summary, findings_reports, str(html_path), ReportFormat.HTML)
+                            console.print(f"[green][OK] Report:[/green] {html_path}")
+                        except Exception as rpt_err:
+                            logger.debug(f"Auto-report skipped: {rpt_err}")
                     send_telegram_notification(f"Scan + AI analysis: {target}")
             except Exception as e:
                 import traceback, re
@@ -956,18 +1032,82 @@ def main():
             if not target:
                 print_error("Path is required")
                 return
+            all_findings = []
             try:
                 from tools.sast_engine import SASTEngine
                 engine = SASTEngine()
                 results = engine.scan(target)
-                for finding in results.get("findings", []):
-                    sev = finding.get("severity", "info").upper()
-                    color = {"CRITICAL": "red", "HIGH": "red", "MEDIUM": "grey70", "LOW": "dim"}.get(sev, "dim")
-                    console.print(f"[{color}][{sev}][/{color}] {finding.get('message', '')} [{finding.get('file', '')}:{finding.get('line', '')}]")
-                total = len(results.get("findings", []))
-                print_success(f"SAST scan complete — {total} findings")
+                all_findings.extend(results.get("findings", []))
             except Exception as e:
-                print_error(f"SAST error: {e}")
+                print_info(f"SASTEngine skipped: {e}")
+            # Also run multimodal agent code analysis (secret patterns, eval, SQLi, etc.)
+            try:
+                from tools.multimodal_agent import analyze_code, detect_language
+                import os
+                target_path = Path(target)
+                if target_path.is_file():
+                    paths = [target_path]
+                else:
+                    paths = list(target_path.rglob("*.py")) + list(target_path.rglob("*.js")) + \
+                            list(target_path.rglob("*.ts")) + list(target_path.rglob("*.java")) + \
+                            list(target_path.rglob("*.go")) + list(target_path.rglob("*.rb")) + \
+                            list(target_path.rglob("*.php"))
+                for p in paths[:50]:  # Limit to 50 files
+                    try:
+                        content = p.read_text(encoding="utf-8", errors="ignore")
+                        code_findings = analyze_code(str(p), content)
+                        for cf in code_findings:
+                            all_findings.append({
+                                "message": f"[multimodal] {cf.pattern_id}: {cf.message}",
+                                "severity": "HIGH" if cf.severity == "High" else cf.severity.upper(),
+                                "file": str(p),
+                                "line": cf.line or 1,
+                                "snippet": cf.code_snippet[:100] if cf.code_snippet else "",
+                            })
+                    except Exception:
+                        pass
+            except Exception as e:
+                print_info(f"Multimodal analysis skipped: {e}")
+            for finding in all_findings:
+                sev = finding.get("severity", "info").upper()
+                color = {"CRITICAL": "red", "HIGH": "red", "MEDIUM": "grey70", "LOW": "dim"}.get(sev, "dim")
+                msg = finding.get("message", "")
+                f = finding.get("file", "")
+                ln = finding.get("line", "")
+                console.print(f"[{color}][{sev}][/{color}] {msg} [{f}:{ln}]")
+            total = len(all_findings)
+            print_success(f"SAST scan complete — {total} findings (SASTEngine + Multimodal)")
+            if all_findings:
+                html_path = Path(f"reports/sast_{target_path.name}_{int(time.time())}.html")
+                html_path.parent.mkdir(parents=True, exist_ok=True)
+                try:
+                    from tools.report_gen import ExecutiveSummary, FindingReport, export_report, ReportFormat
+                    from datetime import datetime, timezone
+                    summary = ExecutiveSummary(
+                        target=str(target_path),
+                        scan_date=datetime.now(timezone.utc).isoformat(),
+                        duration_seconds=0,
+                        total_findings=len(all_findings),
+                        tool_version="1.0.0",
+                        risk_level="Unknown",
+                    )
+                    reports = []
+                    for f in all_findings:
+                        reports.append(FindingReport(
+                            id=str(hash(str(f))),
+                            title=f.get("message", "Finding")[:100],
+                            severity=f.get("severity", "Informational"),
+                            cvss=0,
+                            url=f.get("file", target),
+                            vuln_class="sast",
+                            description=f.get("snippet", ""),
+                            impact="",
+                            remediation="",
+                        ))
+                    export_report(summary, reports, str(html_path), ReportFormat.HTML)
+                    console.print(f"[green][OK] Report:[/green] {html_path}")
+                except Exception:
+                    pass
 
         elif args.command == "cloud":
             from ui_components import show_section, print_info, print_success, print_error
@@ -1045,8 +1185,8 @@ def main():
                     print_error(f"Dashboard failed to start: {ex}")
 
         elif args.command == "update":
-            console.print("[dim]To update, run:[/dim]")
-            console.print("  [red]git pull && ./setup.sh[/red]")
+            # New: use the Updater class to check for and apply updates
+            _cmd_update(args)
 
         elif args.command == "memory":
             from ui_components import show_section, print_info, create_status_table
@@ -1963,9 +2103,325 @@ def _cmd_prefetch():
     console.print("[green]Pre-fetch complete. First scan will be faster.[/green]")
     console.print()
 
+
+def _cmd_scan_report(args):
+    """Generate Apple-level HTML/MD/SARIF report from findings JSON.
+
+    Usage: elengenix scan-report <findings.json> [--format html|md|sarif|json|txt|all] [--output <path>]
+
+    Example: elengenix scan-report reports/httpbin.org/findings.json --format all
+    """
+    import json
+    from pathlib import Path
+    from datetime import datetime, timezone
+    from tools.report_gen import (
+        FindingReport, ExecutiveSummary, ReportFormat, export_report
+    )
+
+    findings_file = args.target
+    if not findings_file:
+        console.print("[red]Usage:[/red] elengenix scan-report <findings.json> [--format html|md|sarif|json|txt|all]")
+        return
+
+    p = Path(findings_file)
+    if not p.exists():
+        console.print(f"[red]File not found:[/red] {findings_file}")
+        return
+
+    fmt = (getattr(args, "format", None) or "html").lower()
+    out = getattr(args, "output", None) or f"reports/{p.stem}_report"
+
+    console.print()
+    console.print(f"[bold red]Elengenix Report Generator[/bold red]")
+    console.print(f"  Source: [dim]{p}[/dim]")
+    console.print(f"  Format: [cyan]{fmt}[/cyan]")
+    console.print()
+
+    try:
+        data = json.loads(p.read_text())
+    except Exception as e:
+        console.print(f"[red]Failed to parse JSON:[/red] {e}")
+        return
+
+    # Normalize findings
+    findings_raw = data if isinstance(data, list) else data.get("findings", [])
+    if not findings_raw:
+        console.print("[yellow]No findings found in file[/yellow]")
+        return
+
+    findings = []
+    for f in findings_raw:
+        findings.append(FindingReport(
+            id=f.get("id", ""),
+            title=f.get("title", "Untitled"),
+            severity=f.get("severity", "Informational"),
+            cvss=f.get("cvss", f.get("cvss_score", 0.0)),
+            url=f.get("url", f.get("endpoint", "")),
+            vuln_class=f.get("type", f.get("vuln_class", "unknown")),
+            description=f.get("details", f.get("description", "")),
+            impact=f.get("impact", "See details"),
+            remediation=f.get("remediation", "See documentation"),
+            evidence=f.get("evidence", ""),
+            cwe=f.get("cwe", []),
+            cve=f.get("cve"),
+            confidence=f.get("confidence", 0.5),
+        ))
+
+    # Count by severity
+    sev_counts = {"Critical": 0, "High": 0, "Medium": 0, "Low": 0, "Informational": 0}
+    for f in findings:
+        sev_counts[f.severity] = sev_counts.get(f.severity, 0) + 1
+
+    # Risk score = max CVSS
+    risk = max((f.cvss for f in findings), default=0.0)
+
+    target = data.get("target", p.stem) if isinstance(data, dict) else p.stem
+    summary = ExecutiveSummary(
+        target=target,
+        scan_date=datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S'),
+        duration_seconds=data.get("duration_s", 0) if isinstance(data, dict) else 0,
+        total_findings=len(findings),
+        critical=sev_counts["Critical"],
+        high=sev_counts["High"],
+        medium=sev_counts["Medium"],
+        low=sev_counts["Low"],
+        info=sev_counts["Informational"],
+        ai_provider=os.environ.get("ACTIVE_MODELS", "Elengenix"),
+        top_3_findings=sorted(findings, key=lambda x: -x.cvss)[:3],
+        risk_score=risk,
+        business_impact=f"Scan identified {len(findings)} findings with max CVSS {risk:.1f}. Risk level: {sev_counts['Critical']} critical, {sev_counts['High']} high." if findings else "No findings.",
+    )
+
+    # Generate requested formats
+    formats = {
+        "html": ReportFormat.HTML,
+        "md": ReportFormat.MARKDOWN,
+        "markdown": ReportFormat.MARKDOWN,
+        "sarif": ReportFormat.SARIF,
+        "json": ReportFormat.JSON,
+        "txt": ReportFormat.TEXT,
+        "text": ReportFormat.TEXT,
+    }
+
+    if fmt == "all":
+        outputs = []
+        for name, rf in formats.items():
+            path = export_report(summary, findings, f"{out}.{name}", rf)
+            outputs.append(path)
+        console.print(f"[green][OK] Generated {len(outputs)} reports:[/green]")
+        for op in outputs:
+            console.print(f"  [cyan]{op}[/cyan] ({op.stat().st_size:,} bytes)")
+    else:
+        rf = formats.get(fmt)
+        if not rf:
+            console.print(f"[red]Unknown format:[/red] {fmt}. Use: html, md, sarif, json, txt, all")
+            return
+        path = export_report(summary, findings, f"{out}.{fmt}", rf)
+        console.print(f"[green][OK] Report saved:[/green] {path} ({path.stat().st_size:,} bytes)")
+        if rf == ReportFormat.HTML:
+            console.print(f"  [dim]Open in browser: file://{path.absolute()}[/dim]")
+
+    console.print()
+
+
+# ── Marketplace + Update CLI handlers ──────────────────────────────────────
+
+
+def _cmd_marketplace(args) -> None:
+    """Plugin marketplace CLI: search, install, uninstall, list."""
+    from tools.marketplace import Marketplace
+
+    sub = args.subcommand or "list"
+    m = Marketplace()
+
+    if sub == "search":
+        query = args.query or ""
+        results = m.search(query=query, verified_only=args.verified)
+        if not results:
+            console.print(f"[yellow]No plugins found for '{query}'[/yellow]")
+            return
+        console.print(f"\n[red]Marketplace[/red] ({len(results)} plugin(s) for '{query}')\n")
+        for entry in results:
+            verified_mark = "[green]✓[/green] " if entry.verified else "   "
+            console.print(
+                f"  {verified_mark}[bold]{entry.name}[/bold] v{entry.version}  "
+                f"[dim]({entry.downloads} downloads, {entry.stars} stars)[/dim]"
+            )
+            console.print(f"      {entry.description}")
+            if entry.tags:
+                console.print(f"      [dim]Tags: {', '.join(entry.tags)}[/dim]")
+            console.print()
+    elif sub == "install":
+        name = getattr(args, "name", None) or args.target
+        if not name:
+            console.print("[red]Usage: marketplace install <name>[/red]")
+            return
+        ok, msg = m.install(name, upgrade=args.upgrade)
+        if ok:
+            console.print(f"[green][OK] {msg}[/green]")
+        else:
+            console.print(f"[red][FAIL] {msg}[/red]")
+    elif sub == "uninstall":
+        name = getattr(args, "name", None) or args.target
+        if not name:
+            console.print("[red]Usage: marketplace uninstall <name>[/red]")
+            return
+        ok, msg = m.uninstall(name)
+        if ok:
+            console.print(f"[green][OK] {msg}[/green]")
+        else:
+            console.print(f"[red][FAIL] {msg}[/red]")
+    elif sub == "list":
+        installed = m.list_installed()
+        if not installed:
+            console.print("[yellow]No plugins installed[/yellow]")
+            console.print(f"[dim]Install dir: {m.install_dir}[/dim]")
+            console.print(f"[dim]Search: python3 main.py marketplace search <query>[/dim]")
+            return
+        console.print(f"\n[red]Installed plugins[/red] ({len(installed)})\n")
+        for p in installed:
+            console.print(
+                f"  [bold]{p['name']}[/bold] v{p['version']}  "
+                f"[dim]by {p['author']}[/dim]"
+            )
+            console.print(f"      {p['description']}")
+            console.print()
+    else:
+        console.print(f"[red]Unknown marketplace subcommand:[/red] {sub}")
+        console.print("[dim]Use: search, install, uninstall, list[/dim]")
+
+
+def _cmd_update(args) -> None:
+    """Update check / apply CLI."""
+    from tools.updater import Updater
+
+    u = Updater()
+    if args.check:
+        console.print("[dim]Checking for updates...[/dim]")
+        release = u.check_for_updates(use_cache=not args.force)
+        if release is None:
+            console.print(f"[green][OK] Elengenix {u.current_version} is up to date[/green]")
+        else:
+            console.print(f"\n[red]New version available![/red]\n")
+            console.print(f"  Current:  [dim]{u.current_version}[/dim]")
+            console.print(f"  Latest:   [bold]{release.version}[/bold] ({release.tag})")
+            console.print(f"  Released: [dim]{release.published_at[:10] if release.published_at else 'unknown'}[/dim]")
+            console.print(f"  URL:      [cyan]{release.url or u.stats().get('repo', '')}[/cyan]\n")
+    elif args.apply:
+        console.print("[dim]Checking for updates...[/dim]")
+        release = u.check_for_updates(use_cache=False)
+        if release is None:
+            console.print(f"[green][OK] Elengenix {u.current_version} is up to date[/green]")
+            return
+        if not args.yes:
+            response = input(f"Apply update to {release.version}? [y/N]: ").strip().lower()
+            if response not in ("y", "yes"):
+                console.print("[yellow]Update cancelled[/yellow]")
+                return
+        ok, msg = u.apply_update(release)
+        if ok:
+            console.print(f"[green][OK] {msg}[/green]")
+        else:
+            console.print(f"[red][FAIL] {msg}[/red]")
+    else:
+        # Default: just show status
+        release = u.check_for_updates(use_cache=True)
+        if release is None:
+            console.print(f"[green][OK] Elengenix {u.current_version} (up to date)[/green]")
+        else:
+            console.print(f"[yellow]Update available:[/yellow] {release.version} (run with --apply)")
+
+
+def _cmd_plugins(args) -> None:
+    """Plugin management CLI: list, info, reload."""
+    from tools.ecosystem import discover_and_load
+
+    host = discover_and_load()
+
+    if args.subcommand == "list":
+        plugins = host.list_plugins()
+        if not plugins:
+            console.print("[yellow]No plugins loaded[/yellow]")
+            return
+        console.print(f"\n[red]Loaded plugins[/red] ({len(plugins)})\n")
+        for p in plugins:
+            state_color = {
+                "active": "green",
+                "failed": "red",
+                "disabled": "yellow",
+                "loading": "dim",
+                "unloading": "dim",
+                "discovered": "dim",
+            }.get(p.state.value, "white")
+            console.print(
+                f"  [bold]{p.name}[/bold] v{p.manifest.version} "
+                f"[{state_color}][{p.state.value}][/{state_color}] "
+                f"[dim]({p.manifest.author or 'unknown'})[/dim]"
+            )
+            if p.manifest.description:
+                console.print(f"      {p.manifest.description}")
+            console.print(f"      [dim]tools={len(p.registered_tools)} "
+                          f"cmds={len(p.registered_commands)} "
+                          f"ai={len(p.registered_ai_providers)} "
+                          f"hooks={len(p.registered_hooks)}[/dim]")
+            if p.error:
+                console.print(f"      [red]Error: {p.error}[/red]")
+            console.print()
+    elif args.subcommand == "info":
+        name = getattr(args, "name", None) or args.target
+        if not name:
+            console.print("[red]Usage: plugins info <name>[/red]")
+            return
+        p = host.get_plugin(name)
+        if not p:
+            console.print(f"[red]Plugin not found:[/red] {name}")
+            return
+        console.print(f"\n[bold]{p.name}[/bold] v{p.manifest.version}\n")
+        console.print(f"  Author:       {p.manifest.author or 'unknown'}")
+        console.print(f"  Description:  {p.manifest.description or '(none)'}")
+        console.print(f"  State:        {p.state.value}")
+        console.print(f"  Path:         {p.path}")
+        console.print(f"  SDK version:  {p.manifest.sdk_version}")
+        console.print(f"  Capabilities: {[c.value for c in p.manifest.capabilities]}")
+        if p.manifest.tags:
+            console.print(f"  Tags:         {p.manifest.tags}")
+        if p.registered_tools:
+            console.print(f"\n  [bold]Tools ({len(p.registered_tools)}):[/bold]")
+            for t in p.registered_tools:
+                console.print(f"    - {t}")
+        if p.registered_commands:
+            console.print(f"\n  [bold]Commands ({len(p.registered_commands)}):[/bold]")
+            for c in p.registered_commands:
+                console.print(f"    - {c}")
+        if p.registered_ai_providers:
+            console.print(f"\n  [bold]AI Providers ({len(p.registered_ai_providers)}):[/bold]")
+            for a in p.registered_ai_providers:
+                console.print(f"    - {a}")
+        if p.registered_hooks:
+            console.print(f"\n  [bold]Finding Hooks ({len(p.registered_hooks)}):[/bold]")
+            for h in p.registered_hooks:
+                console.print(f"    - {h}")
+    elif args.subcommand == "reload":
+        name = getattr(args, "name", None) or args.target
+        if not name:
+            console.print("[red]Usage: plugins reload <name>[/red]")
+            return
+        result = host.reload(name)
+        if result is None:
+            console.print(f"[red]Plugin not found:[/red] {name}")
+        else:
+            console.print(f"[green][OK] Reloaded: {result.name}[/green]")
+    else:
+        console.print(f"[red]Unknown plugins subcommand:[/red] {args.subcommand}")
+        console.print("[dim]Use: list, info, reload[/dim]")
+
+
 if __name__ == "__main__":
     ensure_dependencies()
     try:
         main()
     except KeyboardInterrupt:
         sys.exit(0)
+
+
+

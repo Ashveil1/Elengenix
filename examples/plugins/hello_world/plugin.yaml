@@ -1,0 +1,13 @@
+name: hello_world
+version: 1.0.0
+author: Elengenix Team
+description: Minimal example plugin — registers a tool, command, and finding hook.
+sdk_version: "1.0.0"
+entry_point: __init__.py
+capabilities: []
+dependencies: []
+enabled: true
+tags:
+  - example
+  - demo
+license: MIT
