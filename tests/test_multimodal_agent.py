@@ -37,7 +37,7 @@ def test_extract_jwt():
 def test_extract_multiple_secrets():
     text = """
     AWS_KEY=AKIAIOSFODNN7EXAMPLE
-    STRIPE_KEY=sk_live_4eC39HqLyjWDarjtT1zdp7dc
+    STRIPE_KEY=sk_test_PLACEHOLDER
     password=SuperSecret123
     """
     f = extract_secrets(text)
