@@ -1,0 +1,24 @@
+{
+  "sqli:SQL Injection in id param:id": {
+    "total_seen": 3,
+    "total_suppressed": 3,
+    "false_positive_rate": 1.0,
+    "avg_confidence": 0.43362,
+    "last_seen": 1780928021.579329,
+    "related_urls": [
+      "https://example.com/page?id=1"
+    ],
+    "related_params": [
+      "id"
+    ]
+  },
+  "unknown:SQLi:": {
+    "total_seen": 1,
+    "total_suppressed": 1,
+    "false_positive_rate": 1.0,
+    "avg_confidence": 0.15,
+    "last_seen": 1781185044.0938823,
+    "related_urls": [],
+    "related_params": []
+  }
+}

@@ -214,6 +214,8 @@ def main():
     parser.add_argument("--yes", "-y", action="store_true", help="Auto-yes to prompts")
     parser.add_argument("--no-auto-report", action="store_false", dest="auto_report", help="Skip auto-generated HTML report after scan")
     parser.add_argument("--quiet", "-q", action="store_true", help="Suppress phase-by-phase output; show only summary and report path (P3.2)")
+    parser.add_argument("--host", type=str, default="0.0.0.0", help="Bind address for API server")
+    parser.add_argument("--port", type=int, default=8443, help="Port for API server")
     
     args, _ = parser.parse_known_args()
 
@@ -1043,7 +1045,6 @@ def main():
             # Also run multimodal agent code analysis (secret patterns, eval, SQLi, etc.)
             try:
                 from tools.multimodal_agent import analyze_code, detect_language
-                import os
                 target_path = Path(target)
                 if target_path.is_file():
                     paths = [target_path]
@@ -1147,7 +1148,30 @@ def main():
             except Exception as e:
                 print_error(f"Mobile API error: {e}")
 
-        elif args.command == "soc":
+        elif args.command == "compliance":
+            """Enterprise compliance assessment (PCI DSS, SOC2, ISO 27001, OWASP)."""
+            from ui_components import show_section, print_info, print_success, print_error
+            show_section("Enterprise Compliance Assessment")
+            target = args.target or console.input("[red]Standard (pci_dss/soc2/iso27001/owasp)[/red]: ").strip() or "pci_dss"
+            try:
+                from tools.compliance_engine import ComplianceEngine
+                engine = ComplianceEngine()
+                # Check if target matches a standard
+                std = engine.get_standard(target)
+                if not std:
+                    print_error(f"Unknown standard: {target}")
+                    print_info(f"Available: {', '.join(s['name'] for s in engine.list_standards())}")
+                    return
+                print_info(f"Assessing against {std.name} {std.version} ({len(std.controls)} controls)")
+                # Generate report with empty findings for overview
+                assessment = engine.assess([], target)
+                path = engine.generate_report(assessment, f"reports/compliance_{target}_{int(time.time())}.html", "html")
+                print_success(f"Compliance report generated: {path}")
+                # Print summary
+                console.print(f"[bold white]  Score:[/bold white] {assessment['compliance_pct']}%")
+                console.print(f"  [green]Passed:[/green] {assessment['passed']}  [red]Failed:[/red] {assessment['failed']}  [dim]Not tested:[/dim] {assessment['not_tested']}")
+            except Exception as e:
+                print_error(f"Compliance error: {e}")
             from ui_components import show_section, print_info, print_success, print_error
             show_section("SOC Analyzer — Security Log Intelligence")
             target = args.target or console.input("[red]Log file or SIEM export (or press Enter for interactive)[/red]: ").strip()
@@ -1163,26 +1187,44 @@ def main():
             except Exception as e:
                 print_error(f"SOC analyzer error: {e}")
 
+        elif args.command == "api":
+            """Enterprise REST API server."""
+            from ui_components import show_section, print_info, print_success
+            show_section("Elengenix Enterprise API Server")
+            host = getattr(args, "host", "0.0.0.0")
+            port = getattr(args, "port", 8443)
+            try:
+                from tools.api_server import run_server
+                print_success(f"Starting API server on {host}:{port}")
+                print_info(f"  Dashboard: http://{host}:{port}/")
+                print_info(f"  API Docs:  http://{host}:{port}/docs")
+                run_server(host=host, port=port)
+            except ImportError as e:
+                from ui_components import print_error
+                print_error(f"API server requires FastAPI: pip install fastapi uvicorn ({e})")
+            except Exception as e:
+                from ui_components import print_error
+                print_error(f"API server error: {e}")
+
         elif args.command == "dashboard":
             from ui_components import show_section, print_info, print_success, print_error
-            show_section("Interactive Security Dashboard")
-            
-            host = "127.0.0.1"
-            port = 8080
-            
+            show_section("Elenginx Security Dashboard")
+            target = args.target
             try:
-                from tools.interactive_dashboard import InteractiveDashboard
-                dash = InteractiveDashboard(host=host, port=port)
-                dash.run()
-            except Exception:
-                # Fallback to simple dashboard if interactive fails
+                from tools.tui_dashboard import run_dashboard, run_minimal
+                print_info("Launching Elenginx Security Dashboard...")
                 try:
-                    from tools.dashboard_server import DashboardServer, DashboardHandler
-                    print_info(f"Fallback: Starting base dashboard on http://{host}:{port}")
-                    server = DashboardServer((host, port), DashboardHandler)
-                    server.serve_forever()
-                except Exception as ex:
-                    print_error(f"Dashboard failed to start: {ex}")
+                    run_dashboard(target)
+                except Exception:
+                    run_minimal()
+            except Exception as e:
+                print_error(f"Dashboard error: {e}")
+                # Fallback to minimal
+                try:
+                    from tools.tui_dashboard import run_minimal
+                    run_minimal()
+                except Exception:
+                    pass
 
         elif args.command == "update":
             # New: use the Updater class to check for and apply updates
@@ -1855,7 +1897,7 @@ def main():
             else:
                 console.print(history_mgr.format_history_list())
 
-        elif args.command in ["quick", "deep", "bounty", "stealth", "api", "web"]:
+        elif args.command in ["quick", "deep", "bounty", "stealth", "web"]:
             """Profile shortcuts - one-command execution."""
             from tools.profile_manager import ProfileManager
             from ui_components import print_success, print_error
@@ -1887,7 +1929,33 @@ def main():
             main()
             return
 
-        # Record successful command in history
+        # ── Command Registry fallback: Dispatch unknown commands ──
+        else:
+            # Auto-import command modules so their @command decorators register
+            try:
+                import commands.system
+            except Exception:
+                pass
+            try:
+                import commands.worldclass
+            except Exception:
+                pass
+            from commands.registry import CommandRegistry
+            _cmd_reg = CommandRegistry()
+            _cmd_def = _cmd_reg.get(args.command)
+            if _cmd_def:
+                from ui_components import console as _console
+                import asyncio as _asyncio
+                try:
+                    loop = _asyncio.new_event_loop()
+                    _asyncio.set_event_loop(loop)
+                    exit_code = loop.run_until_complete(_cmd_reg.dispatch(args.command, args))
+                    loop.close()
+                except Exception as e:
+                    _console.print(f"[red][FAIL] {args.command}: {e}[/red]")
+                return
+            console.print(f"[FAIL] Unknown command: {args.command}")
+            return
         if args.command and args.command != "auto":
             history.record_command(
                 command=args.command,

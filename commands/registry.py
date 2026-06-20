@@ -1,0 +1,216 @@
+"""
+commands/registry.py — Elengenix Command Registry
+==================================================
+Centralized command dispatch system. Replaces the 1754-line elif chain
+in main.py with a clean, extensible registry pattern.
+
+Design: Apple-level precision. World-class architecture.
+
+Author: Elengenix Core Team
+"""
+
+from __future__ import annotations
+
+import functools
+import logging
+from typing import Callable, Dict, Any, Optional, List
+from dataclasses import dataclass, field
+
+logger = logging.getLogger("elengenix.commands")
+
+# ---------------------------------------------------------------------------
+# Command Definition
+# ---------------------------------------------------------------------------
+
+@dataclass
+class CommandDef:
+    """Definition of a registered CLI command.
+
+    Attributes:
+        name: Command name (e.g. 'scan', 'recon', 'plugins')
+        aliases: Alternative names (e.g. ['bb'] for 'bounty')
+        handler: The async function to execute
+        help_text: Short description for --help
+        category: Group for help display (scanning, recon, management, etc.)
+        requires_target: Whether this command needs a target argument
+        requires_auth: Whether API keys are needed
+        examples: Usage example strings
+    """
+    name: str
+    handler: Callable
+    help_text: str = ""
+    category: str = "general"
+    aliases: List[str] = field(default_factory=list)
+    requires_target: bool = False
+    requires_auth: bool = False
+    examples: List[str] = field(default_factory=list)
+
+
+# ---------------------------------------------------------------------------
+# Command Registry
+# ---------------------------------------------------------------------------
+
+class CommandRegistry:
+    """Singleton registry for all CLI commands.
+
+    Usage:
+        registry = CommandRegistry()
+
+        @registry.register(
+            name="scan", category="scanning",
+            help_text="Run a full security scan",
+            aliases=["s"]
+        )
+        async def cmd_scan(args):
+            ...
+
+        # Dispatch
+        await registry.dispatch("scan", args)
+    """
+
+    _instance: Optional[CommandRegistry] = None
+
+    def __init__(self):
+        if not hasattr(self, "_commands"):
+            self._commands: Dict[str, CommandDef] = {}
+            self._aliases: Dict[str, str] = {}
+
+    def __new__(cls) -> CommandRegistry:
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+        return cls._instance
+
+    def register(
+        self,
+        name: str,
+        *,
+        category: str = "general",
+        help_text: str = "",
+        aliases: Optional[List[str]] = None,
+        requires_target: bool = False,
+        requires_auth: bool = False,
+        examples: Optional[List[str]] = None,
+    ) -> Callable:
+        """Decorator to register a command handler.
+
+        Args:
+            name: Primary command name
+            category: Command category for help display
+            help_text: Short description
+            aliases: Alternative command names
+            requires_target: Whether a target is required
+            requires_auth: Whether API keys are needed
+            examples: Usage example strings
+        """
+        def decorator(handler: Callable) -> Callable:
+            cmd = CommandDef(
+                name=name,
+                handler=handler,
+                help_text=help_text,
+                category=category,
+                aliases=aliases or [],
+                requires_target=requires_target,
+                requires_auth=requires_auth,
+                examples=examples or [],
+            )
+            self._commands[name] = cmd
+            for alias in (aliases or []):
+                self._aliases[alias] = name
+            logger.debug(f"Registered command: {name} (category={category})")
+            return handler
+        return decorator
+
+    def get(self, name: str) -> Optional[CommandDef]:
+        """Get a command definition by name or alias."""
+        if name in self._commands:
+            return self._commands[name]
+        if name in self._aliases:
+            return self._commands[self._aliases[name]]
+        return None
+
+    def list_all(self, category: Optional[str] = None) -> List[CommandDef]:
+        """List all registered commands, optionally filtered by category."""
+        cmds = list(self._commands.values())
+        if category:
+            cmds = [c for c in cmds if c.category == category]
+        return sorted(cmds, key=lambda c: c.name)
+
+    def categories(self) -> List[str]:
+        """List all unique categories."""
+        cats = sorted(set(c.category for c in self._commands.values()))
+        return cats
+
+    async def dispatch(self, name: str, args: Any) -> int:
+        """Dispatch a command by name.
+
+        Args:
+            name: Command name or alias
+            args: Parsed argparse namespace
+
+        Returns:
+            Exit code (0 = success, 1 = error)
+        """
+        cmd = self.get(name)
+        if cmd is None:
+            from ui_components import print_error
+            print_error(f"Unknown command: {name}")
+            self._suggest(name)
+            return 1
+
+        try:
+            if cmd.requires_target and not getattr(args, "target", None):
+                from ui_components import print_error
+                print_error(f"Command '{name}' requires a target. Use: elengenix {name} <target>")
+                return 1
+
+            result = cmd.handler(args)
+            if hasattr(result, "__await__"):
+                return await result or 0
+            return result or 0
+        except Exception as e:
+            logger.exception(f"Command '{name}' failed: {e}")
+            from ui_components import print_error
+            print_error(f"[FAIL] {name}: {e}")
+            return 1
+
+    def _suggest(self, partial: str) -> None:
+        """Suggest similar commands via fuzzy matching."""
+        from difflib import get_close_matches
+        all_names = list(self._commands.keys()) + list(self._aliases.keys())
+        matches = get_close_matches(partial, all_names, n=3, cutoff=0.5)
+        if matches:
+            from ui_components import console
+            console.print(f"  [dim]Did you mean: {', '.join(matches)}?[/dim]")
+
+
+# ---------------------------------------------------------------------------
+# Decorator Sugar
+# ---------------------------------------------------------------------------
+
+def command(
+    name: str,
+    *,
+    category: str = "general",
+    help_text: str = "",
+    aliases: Optional[List[str]] = None,
+    requires_target: bool = False,
+    requires_auth: bool = False,
+    examples: Optional[List[str]] = None,
+) -> Callable:
+    """Decorator sugar: register a command on the global registry.
+
+    Usage:
+        @command("scan", category="scanning", help_text="Run a scan")
+        async def cmd_scan(args):
+            ...
+    """
+    registry = CommandRegistry()
+    return registry.register(
+        name=name,
+        category=category,
+        help_text=help_text,
+        aliases=aliases,
+        requires_target=requires_target,
+        requires_auth=requires_auth,
+        examples=examples,
+    )
