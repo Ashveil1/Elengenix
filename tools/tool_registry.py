@@ -555,19 +555,28 @@ class NucleiTool(BaseTool):
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def auto_discover_tools() -> List[str]:
-    """Auto-discover and import all tool modules in tools/ directory."""
+    """Auto-discover and import all tool modules in tools/ directory.
+
+    Scans every *.py file (except tool_registry.py and __pycache__) and
+    attempts to import it.  Modules that use the ``@register_tool``
+    decorator will self-register on import.
+    """
     tools_dir = Path(__file__).parent
     discovered = []
-    
-    for file in tools_dir.glob("*_integration.py"):
-        module_name = f"tools.{file.stem}"
+    skip = {"tool_registry", "__init__", "__pycache__"}
+
+    for file in sorted(tools_dir.glob("*.py")):
+        stem = file.stem
+        if stem in skip or file.is_dir():
+            continue
+
+        module_name = f"tools.{stem}"
         try:
             __import__(module_name)
             discovered.append(module_name)
-            logger.info(f"Auto-discovered: {module_name}")
         except Exception as e:
-            logger.warning(f"Failed to import {module_name}: {e}")
-    
+            logger.debug(f"Skipped {stem}: {e}")
+
     return discovered
 
 
