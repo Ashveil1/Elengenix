@@ -41,12 +41,6 @@ from textual.widgets import Static
 from textual import work
 
 from ui_components import console as shared_console
-from .animations import (
-    AnimatedCounter,
-    AnimatedProgress,
-    Easing,
-    PARTICLE_FRAME_INTERVAL,
-)
 from .themes import ThemeManager, get_theme
 from .visualizations import (
     FindingTimeline,

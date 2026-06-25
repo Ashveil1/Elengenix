@@ -24,9 +24,12 @@ from typing import Dict, List, Optional, Tuple
 from rich.style import Style
 from rich.text import Text
 
-from textual.reactive import reactive
-
-from .animations import Easing
+# Minimal Easing class (was in deleted tui/animations.py)
+class Easing:
+    LINEAR = "linear"
+    EASE_IN = "ease_in"
+    EASE_OUT = "ease_out"
+    EASE_IN_OUT = "ease_in_out"
 
 logger = logging.getLogger("elengenix.tui.themes")
 

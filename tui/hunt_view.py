@@ -315,3 +315,135 @@ def show_hunt_results(target: str, report: Any, theme_name: str = "DEFAULT"):
         theme_name=theme_name,
     )
     console.print(layout)
+
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# LAUNCHER (merged from launcher.py)
+# ═══════════════════════════════════════════════════════════════════════════
+
+def render_banner(theme_name="DEFAULT"):
+    """Render Elengenix ASCII art banner with theme colors."""
+    theme = get_theme(theme_name)
+    primary = theme.get("primary", "#ff2222")
+    text = theme.get("text", "#ffffff")
+
+    banner = Text()
+    banner.append("\n")
+    banner.append("ELENGENIX", style=f"bold {primary}")
+    banner.append("  ", style=text)
+    banner.append("// ", style=f"dim {text}")
+    banner.append("WORLD-CLASS CYBERSECURITY FRAMEWORK", style=f"bold {text}")
+    banner.append("\n")
+    return banner
+
+
+def render_status_panel(target="", theme_name="DEFAULT"):
+    """Render a status panel with target, mode, and theme."""
+    theme = get_theme(theme_name)
+    primary = theme.get("primary", "#ff2222")
+    text = theme.get("text", "#ffffff")
+    muted = theme.get("muted", "#888888")
+
+    table = Table.grid(padding=(0, 2))
+    table.add_column(style=f"bold {primary}", justify="right")
+    table.add_column(style=text)
+
+    table.add_row("TARGET", target or "[dim]not set[/dim]")
+    table.add_row("MODE", "[bold red]HUNT[/bold red]")
+    table.add_row("THEME", theme_name)
+    table.add_row("STATUS", f"[bold {primary}]READY[/bold {primary}]")
+
+    return Panel(
+        table,
+        title=f"[{primary}]STATUS[/{primary}]",
+        border_style=primary,
+        box=box.HEAVY,
+    )
+
+
+def render_command_panel(theme_name="DEFAULT"):
+    """Render available commands panel."""
+    theme = get_theme(theme_name)
+    primary = theme.get("primary", "#ff2222")
+    text = theme.get("text", "#ffffff")
+    muted = theme.get("muted", "#888888")
+
+    table = Table.grid(padding=(0, 1))
+    table.add_column(style=f"bold {primary}")
+    table.add_column(style=text)
+
+    commands = [
+        ("hunt <target>", "Run full vulnerability scan"),
+        ("launch", "Show this TUI dashboard"),
+        ("report", "View saved reports"),
+        ("--theme X", "cyberpunk, matrix, synthwave, stealth"),
+    ]
+    for cmd, desc in commands:
+        table.add_row(f"[{primary}]{cmd}[/{primary}]", f"[{muted}]{desc}[/{muted}]")
+
+    return Panel(
+        table,
+        title=f"[{primary}]COMMANDS[/{primary}]",
+        border_style=primary,
+        box=box.HEAVY,
+    )
+
+
+def render_launcher_layout(theme_name="DEFAULT", target="", risk=0):
+    """Build complete themed launcher layout (banner + dashboard + sidebar)."""
+    theme = get_theme(theme_name)
+    primary = theme.get("primary", "#ff2222")
+    muted = theme.get("muted", "#888888")
+
+    layout = Layout()
+    layout.split_column(
+        Layout(name="banner", size=3),
+        Layout(name="body"),
+        Layout(name="footer", size=3),
+    )
+    layout["body"].split_row(
+        Layout(name="dashboard", ratio=2),
+        Layout(name="sidebar", ratio=1),
+    )
+    layout["sidebar"].split_column(
+        Layout(name="status", ratio=1),
+        Layout(name="commands", ratio=1),
+    )
+
+    layout["banner"].update(Align.center(render_banner(theme_name), vertical="middle"))
+    layout["dashboard"].update(build_static_renderable(
+        theme_name=theme_name, risk=risk, target=target or "demo",
+    ))
+    layout["status"].update(render_status_panel(target, theme_name))
+    layout["commands"].update(render_command_panel(theme_name))
+
+    footer = Text()
+    footer.append("  [", style=muted)
+    footer.append("ELENGENIX", style=f"bold {primary}")
+    footer.append("] ", style=muted)
+    footer.append("Theme: ", style=muted)
+    footer.append(theme_name, style=f"bold {primary}")
+    footer.append("  -  ", style=primary)
+    footer.append("Mode: ", style=muted)
+    footer.append("HUNT", style=f"bold {primary}")
+    layout["footer"].update(Align.center(footer, vertical="middle"))
+
+    return layout
+
+
+def run_launcher(target="", theme_name="DEFAULT"):
+    """Render themed launcher dashboard to console."""
+    console = Console()
+    console.clear()
+    console.print(render_banner(theme_name))
+
+    mission = MissionBriefing(target=target or "no target set",
+                             scan_status="READY",
+                             ai_status="READY")
+    console.print(build_welcome_renderable(mission=mission))
+    console.print(render_launcher_layout(theme_name, target, risk=42))
+
+    console.print("\n[bold cyan]Available themes:[/bold cyan] " +
+                  ", ".join(f"[cyan]{t}[/cyan]" for t in THEMES.keys()))
+    console.print("[dim]Run 'elengenix hunt <target>' to scan[/dim]")
