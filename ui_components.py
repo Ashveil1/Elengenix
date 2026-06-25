@@ -74,7 +74,6 @@ STYLES = {
     "warning":    Style(color="#888888", bold=True),
     "info":       Style(color="#ffffff", dim=True),
     "command":    Style(color="#ffffff", bgcolor="#ffffff"),
-    "info":   Style(color="#ffffff", bold=True),
     "high":       Style(color="#ffffff", bold=True),
     "medium":     Style(color="#888888", bold=True),
     "low":        Style(color="#81C784", bold=True),

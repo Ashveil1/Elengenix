@@ -189,7 +189,7 @@ def main():
         "bounty", "stealth", "api", "web", "profile", "history", "programs",
         "intel", "mission", "pause", "resume", "cli", "tui", "cli-textual", "cli-legacy", "clitest",
         # New unified commands
-        "sast", "cloud", "mobile", "soc", "dashboard",
+        "sast", "cloud", "mobile", "soc", "dashboard", "compliance",
         "list-tools", "examples", "prefetch", "scan-report",
         "marketplace", "plugins",
     ]
@@ -1172,6 +1172,9 @@ def main():
                 console.print(f"  [green]Passed:[/green] {assessment['passed']}  [red]Failed:[/red] {assessment['failed']}  [dim]Not tested:[/dim] {assessment['not_tested']}")
             except Exception as e:
                 print_error(f"Compliance error: {e}")
+
+        elif args.command == "soc":
+            """SOC Analyzer — Security Log Intelligence."""
             from ui_components import show_section, print_info, print_success, print_error
             show_section("SOC Analyzer — Security Log Intelligence")
             target = args.target or console.input("[red]Log file or SIEM export (or press Enter for interactive)[/red]: ").strip()
@@ -1252,16 +1255,25 @@ def main():
                 
                 console.print(table)
                 
-                # Memory management menu
-                console.print("\n[dim]Options:[/dim]")
-                console.print("  1. Search memories")
-                console.print("  2. List all targets")
-                console.print("  3. Clear target memory")
-                console.print("  4. Back")
+                # Memory management menu with questionary
+                try:
+                    import questionary
+                    mem_choice = questionary.select(
+                        "Select action:",
+                        choices=[
+                            "Search memories",
+                            "List all targets",
+                            "Clear target memory",
+                            "Back",
+                        ],
+                    ).ask()
+                except Exception:
+                    # Fallback to numbered menu
+                    from ui_components import prompt_choice
+                    idx = prompt_choice(["Search memories", "List all targets", "Clear target memory", "Back"])
+                    mem_choice = ["Search memories", "List all targets", "Clear target memory", "Back"][idx]
                 
-                mem_choice = console.input("\n[red]Select[/red] [dim](1-4)[/dim]: ")
-                
-                if mem_choice == "1":
+                if mem_choice == "Search memories":
                     query = console.input("[red]Search query[/red]: ")
                     target = console.input("[dim]Target filter (optional)[/dim]: ")
                     if query:
@@ -1277,7 +1289,7 @@ def main():
                         else:
                             print_info("No matching memories found")
                             
-                elif mem_choice == "2":
+                elif mem_choice == "List all targets":
                     targets = vm.get_all_targets()
                     if targets:
                         console.print(f"\n[red]Known Targets ({len(targets)}):[/red]\n")
@@ -1288,7 +1300,7 @@ def main():
                     else:
                         print_info("No targets in memory")
                         
-                elif mem_choice == "3":
+                elif mem_choice == "Clear target memory":
                     target = console.input("[red]Target to clear[/red]: ")
                     if target:
                         from ui_components import confirm
@@ -1503,11 +1515,27 @@ def main():
             
             engine = EDREvasionEngine()
             
-            action = console.input(
-                "[red]Select action[/red] [list/generate/plan]: "
-            ).strip().lower()
+            # Action selection with questionary
+            try:
+                import questionary
+                action = questionary.select(
+                    "Select action:",
+                    choices=[
+                        "List techniques",
+                        "Generate payload",
+                        "Plan attack",
+                        "Back",
+                    ],
+                ).ask()
+            except Exception:
+                # Fallback to text input
+                action = console.input(
+                    "[red]Select action[/red] [list/generate/plan]: "
+                ).strip().lower()
+                action_map = {"list": "List techniques", "generate": "Generate payload", "plan": "Plan attack"}
+                action = action_map.get(action, "Back")
             
-            if action == "list":
+            if action == "List techniques":
                 category = console.input("[red]Filter by category[/red] [amsi/process/memory/sandbox/signature/all]: ").strip()
                 if category == "all":
                     category = None
@@ -1518,7 +1546,7 @@ def main():
                     risk_marker = "[H]" if t.detection_risk == "high" else "[M]" if t.detection_risk == "medium" else "[L]"
                     console.print(f"  {risk_marker} [{t.difficulty}] {t.name} ({t.category}) - {t.platform}")
                     
-            elif action == "generate":
+            elif action == "Generate payload":
                 tech_name = console.input("[red]Technique name[/red]: ").strip()
                 if not tech_name:
                     print_error("Technique name required")
@@ -1532,24 +1560,21 @@ def main():
                 console.print(format_edr_report(result))
                 
                 # Save to file
-                save = console.input("[red]Save payload to file?[/red] (y/N): ").strip().lower()
-                if save in ("y", "yes"):
+                from ui_components import confirm
+                if confirm("Save payload to file?", default=False):
                     timestamp = int(time.time())
                     out_path = Path(f"reports/evasion_{tech_name.replace(' ', '_').lower()}_{timestamp}.txt")
                     out_path.parent.mkdir(exist_ok=True)
                     out_path.write_text(result["generated_code"], encoding="utf-8")
                     print_success(f"Saved to: {out_path}")
                     
-            elif action == "plan":
+            elif action == "Plan attack":
                 target_edr = console.input("[red]Target EDR[/red] (e.g., crowdstrike/sentinelone/defender): ").strip()
                 objectives = console.input("[red]Objectives[/red] [persistence,privilege,escalation,evasion]: ").strip()
                 obj_list = [o.strip() for o in objectives.split(",") if o.strip()]
                 
                 plan = engine.generate_red_team_plan(target_edr=target_edr or None, objectives=obj_list or None)
                 console.print(format_edr_report(plan))
-                
-            else:
-                print_info("Available actions: list, generate, plan")
 
         elif args.command == "report":
             from ui_components import show_section, print_info, print_success, print_error
