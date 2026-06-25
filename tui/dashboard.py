@@ -196,6 +196,53 @@ class ThreatDashboard(Container):
             yield Static(id="stats-panel")
             yield Static(id="topology-panel")
 
+    def set_layout(self, layout_name: str) -> None:
+        """Change the dashboard layout configuration.
+        
+        Available layouts:
+        - "default": Standard 2-row layout
+        - "compact": Single column, vertical stack
+        - "wide": Full-width panels
+        - "focus": Enlarged findings panel
+        
+        Args:
+            layout_name: Name of the layout to apply.
+        """
+        layouts = {
+            "default": {
+                "top": ["gauge", "threatmap", "scans"],
+                "bottom": ["findings", "stats", "topology"],
+            },
+            "compact": {
+                "top": ["gauge", "findings"],
+                "bottom": ["scans", "stats"],
+            },
+            "wide": {
+                "top": ["gauge", "scans"],
+                "bottom": ["findings", "topology"],
+            },
+            "focus": {
+                "top": ["gauge", "threatmap"],
+                "bottom": ["findings", "findings"],
+            },
+        }
+        
+        if layout_name not in layouts:
+            logger.warning(f"Unknown layout: {layout_name}")
+            return
+        
+        self._current_layout = layout_name
+        self._refresh_all()
+        logger.info(f"Dashboard layout changed to: {layout_name}")
+
+    def get_layout(self) -> str:
+        """Get the current layout name.
+        
+        Returns:
+            Current layout name.
+        """
+        return getattr(self, "_current_layout", "default")
+
     def on_mount(self) -> None:
         """Start the simulation timer and prime the panels."""
         self._seed_demo_data()

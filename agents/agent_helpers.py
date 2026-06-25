@@ -113,3 +113,32 @@ def _extract_target_from_text(text: str) -> str:
     if "." not in t and t.isalnum() and len(t) >= 3:
         t = f"{t}.com"
     return t
+
+
+def _safe_operation(
+    operation_name: str,
+    func: Any,
+    *args: Any,
+    default: Any = None,
+    log_level: str = "warning",
+    **kwargs: Any,
+) -> Any:
+    """Execute a function with consistent error handling.
+
+    Args:
+        operation_name: Description of the operation for logging.
+        func: Function to execute.
+        *args: Positional arguments to pass to func.
+        default: Value to return on failure.
+        log_level: Logging level ('debug', 'info', 'warning', 'error').
+        **kwargs: Keyword arguments to pass to func.
+
+    Returns:
+        Result of func() or default on failure.
+    """
+    try:
+        return func(*args, **kwargs)
+    except Exception as e:
+        log_func = getattr(logger, log_level, logger.warning)
+        log_func(f"{operation_name} failed: {e}")
+        return default

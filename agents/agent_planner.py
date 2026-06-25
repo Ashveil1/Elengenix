@@ -710,36 +710,103 @@ Respond with valid JSON only."""
         return tree
 
     def select_next_tool(self, tree: AttackTree, previous_results: List[ToolResult]) -> Optional[str]:
+        """Select the next tool to run based on previous results and attack tree.
+        
+        Improved logic:
+        1. Prioritize critical findings that need immediate action
+        2. Consider the attack phase and dependencies
+        3. Use learning from past results to optimize tool selection
+        """
+        # First, check for critical findings that need immediate attention
         for result in previous_results:
             if not result.success:
                 continue
             for finding in result.findings:
                 severity = finding.get("severity", "info")
                 finding_type = finding.get("type", "")
-                if finding_type == "secret" and severity in ["critical", "high"]:
-                    return "trufflehog"
-                if finding_type == "open_port" and finding.get("port") in [3306, 5432, 6379, 27017]:
-                    return "nuclei"
-                if finding_type == "open_port" and finding.get("port") in [80, 443, 8080, 3000]:
-                    return "ffuf"
-                if finding_type == "xss":
+                
+                # Critical findings - prioritize immediate action
+                if severity in ("critical", "high"):
+                    if finding_type == "secret":
+                        return "trufflehog"
+                    if finding_type in ("rce", "remote_code_execution"):
+                        return "nuclei"  # Document and report
+                    if finding_type in ("sqli", "sql_injection"):
+                        return "nuclei"  # Deep SQLi analysis
+                    if finding_type in ("xss", "reflected_xss"):
+                        return "dalfox"  # Test for stored XSS
+                
+                # Port-based decisions
+                if finding_type == "open_port":
+                    port = finding.get("port", 0)
+                    if port in [3306, 5432, 6379, 27017]:
+                        return "nuclei"
+                    if port in [80, 443, 8080, 3000]:
+                        return "ffuf"
+                
+                # API endpoints - enumerate parameters
+                if finding_type == "api_endpoint":
+                    return "arjun"
+                
+                # Hidden parameters - test for XSS
+                if finding_type == "hidden_parameter":
                     return "dalfox"
-        for step in tree.steps:
-            if not step.completed:
-                return step.tool_name
+        
+        # Then follow the attack tree phases in order
+        phase_order = [
+            AttackPhase.RECONNAISSANCE,
+            AttackPhase.SCANNING,
+            AttackPhase.ENUMERATION,
+            AttackPhase.EXPLOITATION,
+        ]
+        
+        for phase in phase_order:
+            for step in tree.steps:
+                if step.phase == phase and not step.completed:
+                    # Check if dependencies are met
+                    deps_met = True
+                    for dep in step.depends_on:
+                        dep_step = next(
+                            (s for s in tree.steps if s.tool_name == dep),
+                            None
+                        )
+                        if dep_step and not dep_step.completed:
+                            deps_met = False
+                            break
+                    
+                    if deps_met:
+                        return step.tool_name
+        
         return None
 
     def adapt_strategy(self, tree: AttackTree, new_finding: Dict[str, Any]) -> List[AttackStep]:
+        """Adapt the attack strategy based on new findings.
+        
+        Expanded to handle more finding types and use learning from past missions.
+        """
         additional_steps = []
         finding_type = new_finding.get("type", "")
+        target_url = new_finding.get("url", tree.target)
+        
+        # API endpoint discovered
         if finding_type == "api_endpoint":
             additional_steps.append(AttackStep(
                 phase=AttackPhase.ENUMERATION,
                 tool_name="arjun",
-                target=new_finding.get("url", tree.target),
+                target=target_url,
                 purpose="Discover API parameters",
                 depends_on=[],
             ))
+            # Also try API-specific scanning
+            additional_steps.append(AttackStep(
+                phase=AttackPhase.SCANNING,
+                tool_name="nuclei",
+                target=target_url,
+                purpose="Scan API for vulnerabilities",
+                depends_on=["arjun"],
+            ))
+        
+        # Subdomain discovered
         elif finding_type == "subdomain":
             subdomain = new_finding.get("subdomain", "")
             if subdomain:
@@ -750,14 +817,114 @@ Respond with valid JSON only."""
                     purpose=f"Probe new subdomain: {subdomain}",
                     depends_on=["subfinder"],
                 ))
+                # Scan the new subdomain
+                additional_steps.append(AttackStep(
+                    phase=AttackPhase.EXPLOITATION,
+                    tool_name="nuclei",
+                    target=subdomain,
+                    purpose=f"Scan subdomain for vulnerabilities: {subdomain}",
+                    depends_on=["httpx"],
+                ))
+        
+        # Hidden parameter discovered
         elif finding_type == "hidden_parameter":
             additional_steps.append(AttackStep(
                 phase=AttackPhase.EXPLOITATION,
                 tool_name="dalfox",
-                target=new_finding.get("url", tree.target),
+                target=target_url,
                 purpose="Test discovered parameters for XSS",
                 depends_on=["arjun"],
             ))
+            # Also test for SQLi
+            additional_steps.append(AttackStep(
+                phase=AttackPhase.EXPLOITATION,
+                tool_name="nuclei",
+                target=target_url,
+                purpose="Test parameters for SQLi and other injections",
+                depends_on=["arjun"],
+            ))
+        
+        # SQL injection found - escalate
+        elif finding_type in ("sqli", "sql_injection"):
+            additional_steps.append(AttackStep(
+                phase=AttackPhase.EXPLOITATION,
+                tool_name="nuclei",
+                target=target_url,
+                purpose="Deep SQLi analysis and exploitation",
+                depends_on=[],
+            ))
+        
+        # XSS found - check for stored XSS
+        elif finding_type in ("xss", "reflected_xss"):
+            additional_steps.append(AttackStep(
+                phase=AttackPhase.EXPLOITATION,
+                tool_name="dalfox",
+                target=target_url,
+                purpose="Test for stored XSS variants",
+                depends_on=[],
+            ))
+        
+        # LFI/RFI found - check for RCE
+        elif finding_type in ("lfi", "rfi", "path_traversal"):
+            additional_steps.append(AttackStep(
+                phase=AttackPhase.EXPLOITATION,
+                tool_name="nuclei",
+                target=target_url,
+                purpose="Test for RCE via LFI/RFI",
+                depends_on=[],
+            ))
+        
+        # RCE found - document and report
+        elif finding_type in ("rce", "remote_code_execution"):
+            # RCE is critical - no further exploitation needed, just document
+            pass
+        
+        # Open port with services
+        elif finding_type == "open_port":
+            port = new_finding.get("port", 0)
+            service = new_finding.get("service", "")
+            # Database ports - check for injection
+            if port in [3306, 5432, 6379, 27017]:
+                additional_steps.append(AttackStep(
+                    phase=AttackPhase.EXPLOITATION,
+                    tool_name="nuclei",
+                    target=target_url,
+                    purpose=f"Test {service} service on port {port}",
+                    depends_on=[],
+                ))
+            # Web ports - scan for vulnerabilities
+            elif port in [80, 443, 8080, 8443, 3000, 5000]:
+                additional_steps.append(AttackStep(
+                    phase=AttackPhase.SCANNING,
+                    tool_name="nuclei",
+                    target=f"{target_url}:{port}",
+                    purpose=f"Scan web service on port {port}",
+                    depends_on=[],
+                ))
+        
+        # Secret found - investigate
+        elif finding_type == "secret":
+            severity = new_finding.get("severity", "info")
+            if severity in ("critical", "high"):
+                additional_steps.append(AttackStep(
+                    phase=AttackPhase.EXPLOITATION,
+                    tool_name="trufflehog",
+                    target=target_url,
+                    purpose="Deep secret scan for additional credentials",
+                    depends_on=[],
+                ))
+        
+        # WAF detected - plan bypass
+        elif finding_type == "waf_detected":
+            waf_name = new_finding.get("waf_name", "unknown")
+            additional_steps.append(AttackStep(
+                phase=AttackPhase.SCANNING,
+                tool_name="nuclei",
+                target=target_url,
+                purpose=f"Test {waf_name} bypass techniques",
+                depends_on=[],
+            ))
+        
         tree.steps.extend(additional_steps)
         return additional_steps
 

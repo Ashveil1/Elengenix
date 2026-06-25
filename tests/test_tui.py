@@ -150,6 +150,142 @@ def test_render_banner():
         assert banner is not None
 
 
+# ═══════════════════════════════════════════════════════════════════════════
+# EXPORT MODULE
+# ═══════════════════════════════════════════════════════════════════════════
+
+def test_export_to_html():
+    """Export to HTML should create a valid HTML file."""
+    from tui.export import export_to_html, collect_dashboard_data
+    import tempfile
+    import os
+    
+    # Create test data
+    test_data = {
+        "target": "test.example.com",
+        "risk_score": 75,
+        "risk_level": "high",
+        "total_findings": 3,
+        "critical": 1,
+        "high": 1,
+        "medium": 1,
+        "low": 0,
+        "info": 0,
+        "findings": [
+            {"title": "SQL Injection", "severity": "critical", "location": "/api/users"},
+            {"title": "XSS Vulnerability", "severity": "high", "location": "/search"},
+            {"title": "Open Redirect", "severity": "medium", "location": "/redirect"},
+        ],
+    }
+    
+    with tempfile.NamedTemporaryFile(suffix='.html', delete=False) as f:
+        output_path = f.name
+    
+    try:
+        result = export_to_html(test_data, output_path)
+        assert os.path.exists(result)
+        content = open(result).read()
+        assert "ELENGENIX" in content
+        assert "test.example.com" in content
+        assert "SQL Injection" in content
+    finally:
+        os.unlink(output_path)
+
+
+def test_export_to_json():
+    """Export to JSON should create a valid JSON file."""
+    from tui.export import export_to_json
+    import tempfile
+    import os
+    import json
+    
+    test_data = {
+        "target": "test.example.com",
+        "risk_score": 50,
+        "findings": [],
+    }
+    
+    with tempfile.NamedTemporaryFile(suffix='.json', delete=False) as f:
+        output_path = f.name
+    
+    try:
+        result = export_to_json(test_data, output_path)
+        assert os.path.exists(result)
+        data = json.load(open(result))
+        assert data["target"] == "test.example.com"
+        assert data["risk_score"] == 50
+    finally:
+        os.unlink(output_path)
+
+
+def test_export_to_markdown():
+    """Export to Markdown should create a valid Markdown file."""
+    from tui.export import export_to_markdown
+    import tempfile
+    import os
+    
+    test_data = {
+        "target": "test.example.com",
+        "risk_score": 60,
+        "total_findings": 2,
+        "critical": 0,
+        "high": 1,
+        "medium": 1,
+        "low": 0,
+        "info": 0,
+        "findings": [
+            {"title": "XSS", "severity": "high", "location": "/search"},
+            {"title": "Info Leak", "severity": "medium", "location": "/api"},
+        ],
+    }
+    
+    with tempfile.NamedTemporaryFile(suffix='.md', delete=False) as f:
+        output_path = f.name
+    
+    try:
+        result = export_to_markdown(test_data, output_path)
+        assert os.path.exists(result)
+        content = open(result).read()
+        assert "test.example.com" in content
+        assert "XSS" in content
+    finally:
+        os.unlink(output_path)
+
+
+def test_collect_dashboard_data():
+    """collect_dashboard_data should aggregate findings correctly."""
+    from tui.export import collect_dashboard_data
+    
+    class MockFinding:
+        def __init__(self, title, severity, location=""):
+            self.title = title
+            self.severity = severity
+            self.location = location
+            self.description = ""
+            self.timestamp = "2024-01-01T00:00:00"
+    
+    findings = [
+        MockFinding("Critical Vuln", "Critical"),
+        MockFinding("High Vuln", "High"),
+        MockFinding("Medium Vuln", "Medium"),
+        MockFinding("Low Vuln", "Low"),
+    ]
+    
+    data = collect_dashboard_data(
+        target="example.com",
+        findings=findings,
+        risk_score=85,
+    )
+    
+    assert data["target"] == "example.com"
+    assert data["risk_score"] == 85
+    assert data["total_findings"] == 4
+    assert data["critical"] == 1
+    assert data["high"] == 1
+    assert data["medium"] == 1
+    assert data["low"] == 1
+
+
 if __name__ == "__main__":
     import pytest
     sys.exit(pytest.main([__file__, "-v"]))

@@ -243,3 +243,363 @@ def test_tool_registry_chain():
     from tools.tool_registry import BaseTool
     for tool in chain:
         assert isinstance(tool, BaseTool)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Tool Registry - New Wrappers
+# ═══════════════════════════════════════════════════════════════════════════
+
+def test_tool_registry_waf_detector_registered():
+    """WAF detector should be registered in the tool registry."""
+    from tools.tool_registry import registry
+    tool = registry.get_tool("waf_detector")
+    assert tool is not None
+    assert tool.is_available  # Pure Python, always available
+
+
+def test_tool_registry_active_fuzzer_registered():
+    """Active fuzzer should be registered in the tool registry."""
+    from tools.tool_registry import registry
+    tool = registry.get_tool("active_fuzzer")
+    assert tool is not None
+    assert tool.is_available  # Pure Python, always available
+
+
+def test_tool_registry_python_recon_registered():
+    """Python recon should be registered in the tool registry."""
+    from tools.tool_registry import registry
+    tool = registry.get_tool("python_recon")
+    assert tool is not None
+    assert tool.is_available  # Pure Python, always available
+
+
+def test_tool_registry_tool_count():
+    """Registry should have at least 6 tools (3 Go + 3 Python)."""
+    from tools.tool_registry import registry
+    tools = registry.list_available_tools()
+    assert len(tools) >= 6
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# New Scanning Modules
+# ═══════════════════════════════════════════════════════════════════════════
+
+def test_ssrf_scanner_registered():
+    """SSRF scanner should be registered in the tool registry."""
+    from tools.tool_registry import registry
+    tool = registry.get_tool("ssrf_scanner")
+    assert tool is not None
+    assert tool.is_available  # Pure Python, always available
+
+
+def test_ssti_scanner_registered():
+    """SSTI scanner should be registered in the tool registry."""
+    from tools.tool_registry import registry
+    tool = registry.get_tool("ssti_scanner")
+    assert tool is not None
+    assert tool.is_available  # Pure Python, always available
+
+
+def test_xxe_scanner_registered():
+    """XXE scanner should be registered in the tool registry."""
+    from tools.tool_registry import registry
+    tool = registry.get_tool("xxe_scanner")
+    assert tool is not None
+    assert tool.is_available  # Pure Python, always available
+
+
+def test_deserialization_scanner_registered():
+    """Deserialization scanner should be registered in the tool registry."""
+    from tools.tool_registry import registry
+    tool = registry.get_tool("deserialization_scanner")
+    assert tool is not None
+    assert tool.is_available  # Pure Python, always available
+
+
+def test_ssrf_scanner_instantiation():
+    """SSRF scanner should instantiate correctly."""
+    from tools.ssrf_scanner import SSRFScanner
+    scanner = SSRFScanner()
+    assert scanner.timeout > 0
+
+
+def test_ssti_scanner_instantiation():
+    """SSTI scanner should instantiate correctly."""
+    from tools.ssti_scanner import SSTIScanner
+    scanner = SSTIScanner()
+    assert scanner.timeout > 0
+
+
+def test_xxe_scanner_instantiation():
+    """XXE scanner should instantiate correctly."""
+    from tools.xxe_scanner import XXEScanner
+    scanner = XXEScanner()
+    assert scanner.timeout > 0
+
+
+def test_deserialization_scanner_instantiation():
+    """Deserialization scanner should instantiate correctly."""
+    from tools.deserialization_scanner import DeserializationScanner
+    scanner = DeserializationScanner()
+    assert scanner.timeout > 0
+
+
+def test_tool_registry_scanner_count():
+    """Registry should have at least 10 tools (including new scanners)."""
+    from tools.tool_registry import registry
+    tools = registry.list_available_tools()
+    assert len(tools) >= 10
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# GraphQL Scanner
+# ═══════════════════════════════════════════════════════════════════════════
+
+def test_graphql_scanner_registered():
+    """GraphQL scanner should be registered in the tool registry."""
+    from tools.tool_registry import registry
+    tool = registry.get_tool("graphql_scanner")
+    assert tool is not None
+    assert tool.is_available  # Pure Python, always available
+
+
+def test_graphql_scanner_instantiation():
+    """GraphQL scanner should instantiate correctly."""
+    from tools.graphql_scanner import GraphQLScanner
+    scanner = GraphQLScanner()
+    assert scanner.timeout > 0
+
+
+def test_graphql_endpoints_list():
+    """GraphQL endpoints list should be populated."""
+    from tools.graphql_scanner import GRAPHQL_ENDPOINTS
+    assert len(GRAPHQL_ENDPOINTS) > 0
+    assert "/graphql" in GRAPHQL_ENDPOINTS
+
+
+def test_introspection_query():
+    """Introspection query should be valid GraphQL."""
+    from tools.graphql_scanner import INTROSPECTION_QUERY
+    assert "IntrospectionQuery" in INTROSPECTION_QUERY
+    assert "__schema" in INTROSPECTION_QUERY
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Race Condition Tester
+# ═══════════════════════════════════════════════════════════════════════════
+
+def test_race_condition_tester_registered():
+    """Race condition tester should be registered in the tool registry."""
+    from tools.tool_registry import registry
+    tool = registry.get_tool("race_condition_tester")
+    assert tool is not None
+    assert tool.is_available  # Pure Python, always available
+
+
+def test_race_condition_tester_instantiation():
+    """Race condition tester should instantiate correctly."""
+    from tools.race_condition_tester import RaceConditionTester
+    tester = RaceConditionTester()
+    assert tester.timeout > 0
+    assert tester.max_workers > 0
+
+
+def test_race_condition_result_dataclass():
+    """RaceConditionResult dataclass should work correctly."""
+    from tools.race_condition_tester import RaceConditionResult
+    result = RaceConditionResult(
+        test_type="test",
+        endpoint="http://test.com",
+        vulnerable=True,
+        evidence="test evidence",
+    )
+    assert result.vulnerable is True
+    assert result.test_type == "test"
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# API Schema Diff
+# ═══════════════════════════════════════════════════════════════════════════
+
+def test_api_schema_diff_registered():
+    """API schema diff should be registered in the tool registry."""
+    from tools.tool_registry import registry
+    tool = registry.get_tool("api_schema_diff")
+    assert tool is not None
+    assert tool.is_available  # Pure Python, always available
+
+
+def test_api_schema_diff_instantiation():
+    """API schema diff should instantiate correctly."""
+    from tools.api_schema_diff import APISchemaDiffer
+    differ = APISchemaDiffer()
+    assert differ is not None
+
+
+def test_api_schema_diff_compare():
+    """API schema diff should compare schemas correctly."""
+    from tools.api_schema_diff import APISchemaDiffer
+    
+    schema1 = {
+        "openapi": "3.0.0",
+        "paths": {
+            "/users": {
+                "get": {"summary": "Get users"},
+                "post": {"summary": "Create user"},
+            }
+        }
+    }
+    
+    schema2 = {
+        "openapi": "3.0.0",
+        "paths": {
+            "/users": {
+                "get": {"summary": "Get users"},
+            },
+            "/posts": {
+                "get": {"summary": "Get posts"},
+            }
+        }
+    }
+    
+    differ = APISchemaDiffer()
+    result = differ.compare_schemas(schema1, schema2, "v1", "v2")
+    
+    assert result.has_changes
+    assert len(result.removed_endpoints) == 1  # POST /users removed
+    assert len(result.added_endpoints) == 1  # GET /posts added
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Supply Chain Analyzer
+# ═══════════════════════════════════════════════════════════════════════════
+
+def test_supply_chain_analyzer_registered():
+    """Supply chain analyzer should be registered in the tool registry."""
+    from tools.tool_registry import registry
+    tool = registry.get_tool("supply_chain_analyzer")
+    assert tool is not None
+    assert tool.is_available  # Pure Python, always available
+
+
+def test_supply_chain_analyzer_instantiation():
+    """Supply chain analyzer should instantiate correctly."""
+    from tools.supply_chain_analyzer import SupplyChainAnalyzer
+    analyzer = SupplyChainAnalyzer()
+    assert analyzer is not None
+
+
+def test_supply_chain_analyzer_package_list():
+    """Supply chain analyzer should analyze package lists correctly."""
+    from tools.supply_chain_analyzer import SupplyChainAnalyzer
+    
+    packages = [
+        {"name": "requests", "version": "2.28.0"},
+        {"name": "flask", "version": "2.0.0"},
+    ]
+    
+    analyzer = SupplyChainAnalyzer()
+    result = analyzer.analyze_package_list(packages, "pypi")
+    
+    assert result.total_dependencies == 2
+    assert len(result.dependencies) == 2
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Business Logic Analyzer
+# ═══════════════════════════════════════════════════════════════════════════
+
+def test_logic_flaw_engine_registered():
+    """Logic flaw engine should be registered in the tool registry."""
+    from tools.tool_registry import registry
+    tool = registry.get_tool("logic_flaw_engine")
+    assert tool is not None
+    assert tool.is_available  # Pure Python, always available
+
+
+def test_logic_flaw_engine_instantiation():
+    """Logic flaw engine should instantiate correctly."""
+    from tools.logic_flaw_engine import LogicFlawEngine
+    engine = LogicFlawEngine()
+    assert engine.timeout > 0
+
+
+def test_logic_flaw_result_dataclass():
+    """LogicFlawResult dataclass should work correctly."""
+    from tools.logic_flaw_engine import LogicFlaw, LogicFlawResult
+    
+    flaw = LogicFlaw(
+        flaw_type="test",
+        endpoint="http://test.com",
+        description="Test flaw",
+    )
+    
+    result = LogicFlawResult(
+        target="http://test.com",
+        flaws=[flaw],
+    )
+    
+    assert result.is_vulnerable
+    assert len(result.flaws) == 1
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# CORS Checker
+# ═══════════════════════════════════════════════════════════════════════════
+
+def test_cors_checker_registered():
+    """CORS checker should be registered in the tool registry."""
+    from tools.tool_registry import registry
+    tool = registry.get_tool("cors_checker")
+    assert tool is not None
+    assert tool.is_available  # Pure Python, always available
+
+
+def test_cors_checker_instantiation():
+    """CORS checker should instantiate correctly."""
+    from tools.cors_checker import CORSChecker
+    checker = CORSChecker()
+    assert checker.timeout > 0
+
+
+def test_cors_result_dataclass():
+    """CORSResult dataclass should work correctly."""
+    from tools.cors_checker import CORSResult
+    result = CORSResult(
+        test_type="test",
+        origin="https://evil.com",
+        vulnerable=True,
+    )
+    assert result.vulnerable is True
+    assert result.origin == "https://evil.com"
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# JWT Tester
+# ═══════════════════════════════════════════════════════════════════════════
+
+def test_jwt_tester_registered():
+    """JWT tester should be registered in the tool registry."""
+    from tools.tool_registry import registry
+    tool = registry.get_tool("jwt_tester")
+    assert tool is not None
+    assert tool.is_available  # Pure Python, always available
+
+
+def test_jwt_tester_instantiation():
+    """JWT tester should instantiate correctly."""
+    from tools.jwt_tester import JWTTester
+    tester = JWTTester()
+    assert tester.timeout > 0
+
+
+def test_jwt_result_dataclass():
+    """JWTResult dataclass should work correctly."""
+    from tools.jwt_tester import JWTResult
+    result = JWTResult(
+        test_type="test",
+        vulnerable=True,
+        evidence="test evidence",
+    )
+    assert result.vulnerable is True
+    assert result.test_type == "test"

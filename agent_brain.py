@@ -16,21 +16,57 @@ from pathlib import Path
 from collections import Counter
 from typing import Optional, Callable, Dict, Any, List
 
+# Core imports (always needed)
 from tools.universal_ai_client import AIClientManager, AIMessage
 from tools.tool_registry import registry, ToolResult
 from tools.cvss_calculator import CVSSCalculator
-from tools.vector_memory import remember, recall, get_context_for_ai
-from tools.memory_persistence import save_message as _sqlite_save_message, load_conversation as _sqlite_load_conversation, clear_session as _sqlite_clear_session, get_context_status as _get_context_status
-from tools.cve_database import get_cve_database
-from tools.mission_state import MissionState, GraphNode, GraphEdge
 from tools.governance import Governance, GateDecision
-from tools.logic_analyzer import BusinessLogicAnalyzer
-from tools.payload_mutation import PayloadMutator
-from tools.agent_reflection import get_reflection
 from live_display import get_activity_logger, display_in_chat_mode
 from bot_utils import send_telegram_notification
-from scan_engine_upgrade import SmartOrchestrator
-from agents.hybrid_agent import HybridAgent
+
+# Lazy imports (deferred until needed)
+_vector_memory = None
+_memory_persistence = None
+_cve_database = None
+_mission_state = None
+_logic_analyzer = None
+_payload_mutation = None
+_agent_reflection = None
+_smart_orchestrator = None
+_hybrid_agent = None
+
+
+def _get_vector_memory():
+    global _vector_memory
+    if _vector_memory is None:
+        from tools import vector_memory
+        _vector_memory = vector_memory
+    return _vector_memory
+
+
+def _get_memory_persistence():
+    global _memory_persistence
+    if _memory_persistence is None:
+        from tools import memory_persistence
+        _memory_persistence = memory_persistence
+    return _memory_persistence
+
+
+def _get_cve_database():
+    global _cve_database
+    if _cve_database is None:
+        from tools import cve_database
+        _cve_database = cve_database
+    return _cve_database
+
+
+def _get_mission_state():
+    global _mission_state
+    if _mission_state is None:
+        from tools import mission_state
+        _mission_state = mission_state
+    return _mission_state
+
 
 logger = logging.getLogger("elengenix.agent")
 
@@ -38,6 +74,7 @@ logger = logging.getLogger("elengenix.agent")
 from agents.agent_helpers import (
     _get_now_context,
     _extract_target_from_text,
+    _safe_operation,
 )
 from agents.agent_dataclasses import AttackTree
 from agents.agent_planner import StrategicPlanner
@@ -49,6 +86,8 @@ from agents.agent_executor import (
     handle_ask_user,
 )
 from agents.agent_intent import analyze_intent as _analyze_intent
+from agents.agent_conversation import ConversationManager
+from agents.agent_modes import ModeProcessor
 
 
 class ElengenixAgent:
@@ -96,9 +135,22 @@ class ElengenixAgent:
         self.max_history_turns = max_history_turns
         self.verbose_thoughts = verbose_thoughts
         
-        #  In-session conversation history (ordered user/assistant pairs)
-        #  Each entry is a dict: {"role": "user"|"assistant", "content": str}
-        self.conversation_history: List[Dict[str, str]] = []
+        #  Conversation Manager (handles history, persistence, summarization)
+        self.conversation_manager = ConversationManager(
+            client=self.client,
+            max_history_turns=max_history_turns,
+            history_limit=history_limit,
+        )
+        # Backward compatibility: expose conversation_history directly
+        self.conversation_history = self.conversation_manager.conversation_history
+        
+        #  Mode Processor (handles universal, hybrid, team modes)
+        self.mode_processor = ModeProcessor(
+            client=self.client,
+            governance=None,  # Set after governance is initialized
+            cvss_calc=None,   # Set after cvss_calc is initialized
+            cve_db=None,      # Set after cve_db is initialized
+        )
         
         #  Absolute Path Resolution for Prompts
         self.base_dir = Path(__file__).parent.absolute()
@@ -129,7 +181,7 @@ class ElengenixAgent:
         self._fingerprint_cache: Dict[str, Dict[str, Any]] = {}
         
         #  CVE Database
-        self.cve_db = get_cve_database(auto_update=False)
+        self.cve_db = _get_cve_database().get_cve_database(auto_update=False)
         
         #  System Prompt Enhancement with CVE context
         self._enhance_prompt_with_cve_context()
@@ -137,20 +189,12 @@ class ElengenixAgent:
         #  Governance (HITL for high-risk steps)
         self.governance = Governance(require_approval_high_risk=True)
 
-        #  Business Logic / AuthZ Analyzer
-        self.logic_analyzer = BusinessLogicAnalyzer()
+        #  Business Logic / AuthZ Analyzer (lazy)
+        self._logic_analyzer = None
 
-        #  Payload Mutation Engine (generates candidates only)
-        #  W3: keep the legacy PayloadMutator for backward compat, and add
-        #  a context-aware SmartPayloadGenerator that uses the 208-payload
-        #  database + grammar fuzzer for richer mutation candidates.
-        self.payload_mutator = PayloadMutator()
-        try:
-            from tools.payload_mutation import SmartPayloadGenerator
-            self.smart_payload_generator = SmartPayloadGenerator(seed=42)
-        except Exception as e:
-            logger.debug(f"SmartPayloadGenerator unavailable: {e}")
-            self.smart_payload_generator = None
+        #  Payload Mutation Engine (lazy)
+        self._payload_mutator = None
+        self.smart_payload_generator = None
 
         #  M5: Active Fuzzing Harness — sends real payloads to live targets
         #  and measures response deltas. This is what makes fuzzing ACTUAL
@@ -202,8 +246,8 @@ class ElengenixAgent:
         #  Agent Reflection / Self-Feedback Tracker
         self.reflection_tracker = get_reflection()
 
-        #  Smart Orchestrator (Upgraded Scan Engine)
-        self.smart_orchestrator = SmartOrchestrator(max_concurrency=5)
+        #  Smart Orchestrator (Upgraded Scan Engine) - lazy import
+        self._smart_orchestrator = None
 
         #  Analysis Pipeline (13+ post-finding analyzers)
         try:
@@ -224,20 +268,37 @@ class ElengenixAgent:
             logger.warning("Skill registry not available")
             self.skill_registry = None
 
-        # Load persistent conversation from SQLite (cross-session memory)
-        self._load_persistent_conversation()
+        #  Wire up mode processor with initialized dependencies
+        self.mode_processor.governance = self.governance
+        self.mode_processor.cvss_calc = self.cvss_calc
+        self.mode_processor.cve_db = self.cve_db
 
-    def _load_persistent_conversation(self) -> None:
-        """Restore previous session conversation from SQLite."""
-        try:
-            if hasattr(self, "client") and hasattr(self.client, "active_client"):
-                getattr(self.client.active_client, "model", "")
-            loaded = _sqlite_load_conversation("default")
-            if loaded:
-                self.conversation_history = loaded
-                logger.info(f"Loaded {len(loaded)} messages from persistent memory")
-        except Exception as e:
-            logger.warning(f"Could not load persistent conversation: {e}")
+        # Load persistent conversation from SQLite (cross-session memory)
+        self.conversation_manager.load_persistent_conversation()
+
+    @property
+    def logic_analyzer(self):
+        """Lazy-initialize BusinessLogicAnalyzer on first access."""
+        if self._logic_analyzer is None:
+            from tools.logic_analyzer import BusinessLogicAnalyzer
+            self._logic_analyzer = BusinessLogicAnalyzer()
+        return self._logic_analyzer
+
+    @property
+    def payload_mutator(self):
+        """Lazy-initialize PayloadMutator on first access."""
+        if self._payload_mutator is None:
+            from tools.payload_mutation import PayloadMutator
+            self._payload_mutator = PayloadMutator()
+        return self._payload_mutator
+
+    @property
+    def smart_orchestrator(self):
+        """Lazy-initialize SmartOrchestrator on first access."""
+        if self._smart_orchestrator is None:
+            from scan_engine_upgrade import SmartOrchestrator
+            self._smart_orchestrator = SmartOrchestrator(max_concurrency=5)
+        return self._smart_orchestrator
 
     def _fingerprint_target_for_planning(
         self,
@@ -512,31 +573,13 @@ class ElengenixAgent:
 
     def _append_history(self, role: str, content: str) -> None:
         """Append a message to the in-session conversation history and persist to SQLite."""
-        self.conversation_history.append({"role": role, "content": content})
-        max_messages = self.max_history_turns * 2
-        if len(self.conversation_history) > max_messages:
-            self.conversation_history = self.conversation_history[-max_messages:]
-
-        self._save_to_persistent_memory(role, content)
-
-        if len(self.conversation_history) % 8 == 0:
-            self._persist_recent_conversation()
+        self.conversation_manager.append_history(role, content)
+        # Sync the backward-compatible reference
+        self.conversation_history = self.conversation_manager.conversation_history
     
     def _persist_recent_conversation(self) -> None:
         """Save recent conversation turns to vector memory for long-term recall."""
-        from tools.vector_memory import persist_conversation_turns
-        
-        # Get current target from current tree or default
-        target = self.current_tree.target if self.current_tree else "universal"
-        
-        count = persist_conversation_turns(
-            conversation_history=self.conversation_history,
-            target=target,
-            batch_size=4
-        )
-        
-        if count > 0:
-            logger.debug(f"Persisted {count} conversation turns to vector memory")
+        self.conversation_manager._persist_recent_conversation()
     
     def _check_for_negative_feedback(self, current_input: str) -> None:
         """
@@ -585,19 +628,15 @@ class ElengenixAgent:
         Returns:
             List of AIMessage objects ordered: system, [history...], user.
         """
-        messages = [AIMessage(role="system", content=system_prompt)]
-        for turn in self.conversation_history:
-            messages.append(AIMessage(role=turn["role"], content=turn["content"]))
-        messages.append(AIMessage(role="user", content=user_input))
-        return messages
+        return self.conversation_manager.build_chat_messages(system_prompt, user_input)
 
     def clear_conversation_history(self) -> None:
         """
         Clear the in-session conversation history.
         Call this when the user runs /clear to start fresh.
         """
-        self.conversation_history = []
-        logger.info("[OK] Conversation history cleared.")
+        self.conversation_manager.clear()
+        self.conversation_history = self.conversation_manager.conversation_history
 
     def _enhance_prompt_with_cve_context(self):
         """Enhance system prompt with CVE database capabilities."""
@@ -1229,19 +1268,18 @@ Use JSON format: {{"action": "run_shell|ask_user|web_search|submit_findings|save
                         report_dir
                     )
 
-                try:
-                    mission_state.add_ledger_entry(
-                        entry_id=f"tool:{step}:{tool_name}",
-                        kind="tool_execution",
-                        tool=tool_name,
-                        action={"tool": tool_name, "purpose": purpose, "target": target or user_input},
-                        result={"success": result.success, "findings_count": len(result.findings), "error": result.error_message},
-                    )
-                except Exception as e:
-                    logger.warning(f"MissionState ledger write failed: {e}")
+                _safe_operation(
+                    "MissionState ledger write",
+                    mission_state.add_ledger_entry,
+                    entry_id=f"tool:{step}:{tool_name}",
+                    kind="tool_execution",
+                    tool=tool_name,
+                    action={"tool": tool_name, "purpose": purpose, "target": target or user_input},
+                    result={"success": result.success, "findings_count": len(result.findings), "error": result.error_message},
+                )
                 
                 #  Log result
-                "success" if result.success else "error"
+                status = "success" if result.success else "error"
                 self.activity_logger.log_result(f"{tool_name}: {len(result.findings)} findings", result.success, step=step)
                 if result.success:
                     display_in_chat_mode(f"{tool_name}: {len(result.findings)} findings", "result")
@@ -1253,40 +1291,44 @@ Use JSON format: {{"action": "run_shell|ask_user|web_search|submit_findings|save
 
                 # Update mission graph/facts from findings
                 for i, finding in enumerate(result.findings):
-                    try:
-                        ftype = finding.get("type", "unknown")
-                        furl = finding.get("url", "") or finding.get("subdomain", "") or finding.get("host", "")
-                        node_id = furl or f"finding:{tool_name}:{step}:{i}"
-                        mission_state.upsert_node(
-                            GraphNode(
-                                node_id=node_id,
-                                node_type="finding",
-                                props={
-                                    "type": ftype,
-                                    "severity": finding.get("severity"),
-                                    "tool": tool_name,
-                                    "raw": finding,
-                                },
-                            )
-                        )
-                        mission_state.upsert_edge(
-                            GraphEdge(
-                                edge_id=f"edge:{mission_state.target}:{node_id}:{tool_name}:{step}:{i}",
-                                src_id=mission_state.target,
-                                dst_id=node_id,
-                                edge_type="has_finding",
-                                props={"tool": tool_name},
-                            )
-                        )
-                        mission_state.add_fact(
-                            fact_id=f"fact:{tool_name}:{step}:{i}",
-                            category="finding",
-                            statement=f"{tool_name} reported {ftype} at {furl or 'unknown'} (severity={finding.get('severity','unknown')})",
-                            confidence=0.6,
-                            evidence={"tool": tool_name, "finding": finding},
-                        )
-                    except Exception as e:
-                        logger.warning(f"MissionState update from finding failed: {e}")
+                    ftype = finding.get("type", "unknown")
+                    furl = finding.get("url", "") or finding.get("subdomain", "") or finding.get("host", "")
+                    node_id = furl or f"finding:{tool_name}:{step}:{i}"
+                    
+                    _safe_operation(
+                        "MissionState upsert_node",
+                        mission_state.upsert_node,
+                        GraphNode(
+                            node_id=node_id,
+                            node_type="finding",
+                            props={
+                                "type": ftype,
+                                "severity": finding.get("severity"),
+                                "tool": tool_name,
+                                "raw": finding,
+                            },
+                        ),
+                    )
+                    _safe_operation(
+                        "MissionState upsert_edge",
+                        mission_state.upsert_edge,
+                        GraphEdge(
+                            edge_id=f"edge:{mission_state.target}:{node_id}:{tool_name}:{step}:{i}",
+                            src_id=mission_state.target,
+                            dst_id=node_id,
+                            edge_type="has_finding",
+                            props={"tool": tool_name},
+                        ),
+                    )
+                    _safe_operation(
+                        "MissionState add_fact",
+                        mission_state.add_fact,
+                        fact_id=f"fact:{tool_name}:{step}:{i}",
+                        category="finding",
+                        statement=f"{tool_name} reported {ftype} at {furl or 'unknown'} (severity={finding.get('severity','unknown')})",
+                        confidence=0.6,
+                        evidence={"tool": tool_name, "finding": finding},
+                    )
 
                 # ── ANALYSIS PIPELINE (13 analyzers) ─────────────────────
                 if self.analysis_pipeline:
@@ -1539,23 +1581,16 @@ Use JSON format: {{"action": "run_shell|ask_user|web_search|submit_findings|save
                 as context so the AI focuses on confirming vulnerabilities
                 rather than re-discovering what the framework already found.
         """
-        from agents.agent_universal import process_universal as _run_universal
-
         if check_context := getattr(self, "_check_context_overflow", None):
             check_context()
 
-        return _run_universal(
+        return self.mode_processor.process_universal(
             user_input=user_input,
-            client=self.client,
             conversation_history=self.conversation_history,
             base_prompt=self.base_prompt,
-            governance=self.governance,
-            reflection_tracker=self.reflection_tracker,
-            skill_registry=self.skill_registry,
+            callback=callback,
             target=target,
             mode=mode,
-            callback=callback,
-            check_context_overflow=check_context,
             preflight_findings=preflight_findings,
         )
 
@@ -1574,10 +1609,6 @@ Use JSON format: {{"action": "run_shell|ask_user|web_search|submit_findings|save
         Specialist (AI 2) executes actions in a loop with full shell freedom.
         Results feed into 13 analyzers, CVSS, MissionState, and VectorMemory.
         """
-        import traceback
-
-        logger.info(f"Hybrid mode started: target={target}, intent={user_input[:100]}")
-
         # 1. Classify intent (reuse existing AI classifier)
         try:
             intent = self._analyze_intent(user_input)
@@ -1603,81 +1634,13 @@ Use JSON format: {{"action": "run_shell|ask_user|web_search|submit_findings|save
         if not target:
             return "No target specified. Use 'hunt <target>' or provide a domain/IP."
 
-        # Normalize
-        target = re.sub(r"^https?://", "", target.rstrip("/"))
-
-        # 4. Initialize HybridAgent with Elengenix infrastructure
-        ta = self._team_aegis_clients
-        hybrid = HybridAgent(
-            client=self.client,
-            governance=self.governance,
-            target=target,
-            max_steps=50,
-            strategist_interval=5,
-            enable_analysis=True,
-            enable_memory=True,
+        return self.mode_processor.process_hybrid(
+            user_input=user_input,
             callback=callback,
-            # TeamAegis v2 clients (None = fall back to self.client)
-            strategist_client=ta.get("strategist_client"),
-            specialist_client=ta.get("specialist_client"),
-            critic_client=ta.get("critic_client"),
-            strategist_label=ta.get("strategist_label", "Strategist AI"),
-            specialist_label=ta.get("specialist_label", "Specialist AI"),
-            critic_label=ta.get("critic_label", "Critic AI"),
-        )
-
-        # Wire up shared infrastructure
-        hybrid.mission_state = MissionState(
-            mission_id=f"hybrid:{target}:{int(time.time())}",
             target=target,
-            objective=user_input,
+            mode=mode,
+            team_aegis_clients=self._team_aegis_clients,
         )
-        hybrid.mission_key = hybrid.mission_state.mission_id
-        hybrid.cvss_calc = self.cvss_calc
-        hybrid.cve_db = self.cve_db
-
-        # Remember mission start
-        if target and self.enable_memory:
-            remember(
-                f"Hybrid mission: {user_input[:120]}",
-                target,
-                "mission_start",
-                session_type="hybrid",
-            )
-
-        # 5. Run the hybrid loop
-        self._activity_log("Hybrid hunt starting", callback)
-        try:
-            result = hybrid.run(user_input)
-        except KeyboardInterrupt:
-            logger.info("Hybrid mission interrupted by user")
-            result = hybrid._finalize_mission() + "\n\n*Mission interrupted by user.*"
-        except Exception as e:
-            logger.error(f"Hybrid mode failed: {e}\n{traceback.format_exc()}")
-            return f"Hybrid mode error: {e}"
-
-        # 6. Save report
-        if result and target:
-            safe_name = re.sub(r"[^a-zA-Z0-9.-]", "_", target)[:40]
-            report_path = (
-                Path("reports") / f"hybrid_{safe_name}_{int(time.time())}.md"
-            )
-            report_path.parent.mkdir(parents=True, exist_ok=True)
-            report_path.write_text(result, encoding="utf-8")
-
-            remember(
-                f"Hybrid completed for {target}. Findings: {len(hybrid.all_findings)}",
-                target,
-                "mission_complete",
-                session_type="hybrid",
-            )
-
-            if callback:
-                callback(f"Report saved: {report_path}")
-
-        if callback:
-            callback("Hybrid hunt complete")
-        return result or "Hybrid mission completed."
 
     def _activity_log(self, msg: str, callback: Optional[Callable] = None):
         """Log activity and optionally notify callback."""
