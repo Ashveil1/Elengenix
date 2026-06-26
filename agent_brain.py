@@ -68,6 +68,14 @@ def _get_mission_state():
     return _mission_state
 
 
+def _get_agent_reflection():
+    global _agent_reflection
+    if _agent_reflection is None:
+        from tools import agent_reflection
+        _agent_reflection = agent_reflection
+    return _agent_reflection
+
+
 logger = logging.getLogger("elengenix.agent")
 
 # ── Re-export shared helpers from agents/ modules ──────────────────────
@@ -244,7 +252,7 @@ class ElengenixAgent:
             self.waf_detector = None
 
         #  Agent Reflection / Self-Feedback Tracker
-        self.reflection_tracker = get_reflection()
+        self.reflection_tracker = _get_agent_reflection().get_reflection()
 
         #  Smart Orchestrator (Upgraded Scan Engine) - lazy import
         self._smart_orchestrator = None
