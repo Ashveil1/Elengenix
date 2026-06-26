@@ -342,16 +342,16 @@ def test_strategic_planner_legacy_default_tree_method():
     p = _make_planner()
     tree = p._default_attack_tree("http://example.com", "test")
     assert len(tree.steps) >= 6
-    assert any(s.tool_name == "subfinder" for s in tree.steps)
-    assert any(s.tool_name == "nuclei" for s in tree.steps)
+    assert any(s.tool_name == "dns_lookup" for s in tree.steps)
+    assert any(s.tool_name == "vuln_scan" for s in tree.steps)
 
 
 def test_strategic_planner_select_next_tool_preserved():
     p = _make_planner()
     tree = p._default_attack_tree("http://example.com", "test")
-    # Mark subfinder as completed to get to httpx
+    # Mark dns_lookup as completed to get to http_probe
     for s in tree.steps:
-        if s.tool_name == "subfinder":
+        if s.tool_name == "dns_lookup":
             s.completed = True
     nxt = p.select_next_tool(tree, [])
     assert nxt is not None
@@ -363,7 +363,7 @@ def test_strategic_planner_adapt_strategy_preserved():
     before = len(tree.steps)
     p.adapt_strategy(tree, {"type": "api_endpoint", "url": "http://example.com/api"})
     assert len(tree.steps) > before
-    assert any(s.tool_name == "arjun" for s in tree.steps)
+    assert any(s.tool_name == "param_discovery" for s in tree.steps)
 
 
 def test_vuln_by_stack_db_size_is_substantial():

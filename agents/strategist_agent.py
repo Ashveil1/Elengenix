@@ -71,27 +71,13 @@ class ReconWorker(BaseWorker):
                 })
         except Exception as e:
             output_lines.append(f"DNS lookup failed: {e}")
-                result = subprocess.run(
-                    cmd_map[tool],
-                    shell=False,
-                    capture_output=True,
-                    text=True,
-                    timeout=self.timeout_seconds,
-                )
-                lines = [l.strip() for l in result.stdout.splitlines() if l.strip()]
-                output_lines.extend(lines)
-                if lines:
-                    findings.append({
-                        "type": "subdomains_discovered",
-                        "severity": "info",
-                        "title": f"[{tool}] {len(lines)} subdomains",
-                        "description": f"Discovered via {tool}: {', '.join(lines[:10])}",
-                        "target": target,
-                        "evidence": "\n".join(lines),
-                    })
-                break  # use first available tool
-            except Exception as exc:
-                self.logger.debug(f"[{tool}] failed: {exc}")
+
+        return WorkerResult(
+            success=len(findings) > 0,
+            worker_name=self.name,
+            output="\n".join(output_lines),
+            findings=findings,
+        )
 
         return WorkerResult(
             success=bool(findings),
