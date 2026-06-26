@@ -65,6 +65,8 @@ def load_allowed_domains(scope_file: str = "scope.txt") -> Set[str]:
 ALLOWED_DOMAINS = load_allowed_domains()
 
 def normalize_target(target: str) -> str:
+    if not target:
+        return ""
     target = target.strip().lower()
     if target.startswith(("http://", "https://")):
         parsed = urlparse(target)
@@ -74,6 +76,8 @@ def normalize_target(target: str) -> str:
     return target.rstrip(".")
 
 def is_valid_target(target: str) -> bool:
+    if not target:
+        return False
     try:
         ip = ipaddress.ip_address(target)
         return not (ip.is_private or ip.is_loopback)
@@ -83,6 +87,8 @@ def is_valid_target(target: str) -> bool:
     return all(re.match(r"^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?$", l) for l in target.split("."))
 
 def is_in_scope(target: str) -> bool:
+    if not target:
+        return False
     normalized = normalize_target(target)
     if not is_valid_target(normalized): return False
     if not ALLOWED_DOMAINS: return True 
