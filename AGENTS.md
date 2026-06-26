@@ -2,9 +2,9 @@
 
 ## Overview
 
-Elengenix is a Python-based CLI framework for autonomous security research, bug bounty hunting, and penetration testing. It wraps Go security tools (Subfinder, Nuclei, Httpx, etc.) behind an AI agent that plans attack trees, executes tools, scores findings with CVSS, and generates reports.
+Elengenix is a Python-based CLI framework for autonomous security research, bug bounty hunting, and penetration testing. It's a pure Python AI agent that plans attack trees, executes built-in scanners, scores findings with CVSS, and generates reports.
 
-**Python 3.12+ required** (currently 3.12.3). Go 1.20+ for Go tool compilation.
+**Python 3.10+ required** (currently 3.12.3). No external Go tools required.
 
 ---
 
@@ -12,7 +12,7 @@ Elengenix is a Python-based CLI framework for autonomous security research, bug 
 
 ### Install
 ```bash
-./setup.sh                          # Linux/Ubuntu (installs Go tools + Python deps)
+./setup.sh                          # Linux/Ubuntu (installs Python deps)
 pip install -r requirements.txt     # Python deps only
 ```
 
@@ -29,7 +29,7 @@ python3 main.py configure           # API key / provider setup wizard
 ```bash
 python3 -m pytest tests/ -v                                # All tests (some timeout on network)
 python3 -m pytest tests/test_security.py -v                # Specific file
-python3 -m pytest tests/test_tui.py tests/test_security.py tests/test_waf_detector.py tests/test_core_modules.py -v  # Stable suite
+python3 -m pytest tests/test_tui.py tests/test_security.py tests/test_core_modules.py tests/test_new_scanners.py tests/test_critical_modules.py -v  # Stable suite
 ```
 
 **Warning**: `test_orchestrator_modules.py` and `test_hunt_engine.py` (`test_hunt_engine_live_httpbin`) hit live network endpoints and will timeout without internet. This is expected — they are integration tests, not failures.
@@ -44,9 +44,9 @@ git pull && ./setup.sh
 ## Code Organization
 
 ```
-main.py                  # CLI entry point — argparse command router (2520 lines)
+main.py                  # CLI entry point — argparse command router (2200+ lines)
 ├── agent.py             # Bridge: imports & configures ElengenixAgent
-├── agent_brain.py       # ElengenixAgent — core AI reasoning engine (1847 lines)
+├── agent_brain.py       # ElengenixAgent — core AI reasoning engine (1800+ lines)
 ├── agents/              # Agent subsystem modules (18 files)
 │   ├── agent_planner.py     # StrategicPlanner, TargetFingerprinter
 │   ├── agent_executor.py    # Tool execution (registry, subprocess, shell)
@@ -66,16 +66,20 @@ main.py                  # CLI entry point — argparse command router (2520 lin
 ├── orchestrator.py      # Pipeline orchestrator — scope management, tool chains
 ├── cli.py               # Interactive CLI mode (AI Partner)
 ├── ui_components.py     # Centralized Rich UI — shared Console, colors, markers
-├── commands/            # CLI command modules (worldclass, registry, system)
+├── commands/            # CLI command modules (scan, worldclass, registry, system)
 ├── tui/                 # Textual-based TUI (themes, dashboard, visualizations)
-│   ├── themes.py            # 5 themes: DEFAULT, CYBERPUNK, MATRIX, STEALTH, SYNTHWAVE
+│   ├── themes.py            # 9 themes: DEFAULT, CYBERPUNK, MATRIX, STEALTH, SYNTHWAVE, OCEAN, FOREST, SUNSET, ARCTIC
 │   ├── dashboard.py         # ThreatDashboard Textual widget
 │   ├── visualizations.py    # RiskGauge, SeverityChart, VulnerabilityHeatmap, etc.
 │   ├── welcome.py           # WelcomeScreen, ascii_logo, MissionBriefing
 │   ├── hunt_view.py         # Hunt result dashboard, launcher layout
+│   ├── findings_display.py  # Sortable, filterable findings display
+│   ├── scan_progress.py     # Real-time scan progress with phases
+│   ├── keyboard_shortcuts.py # Keyboard shortcuts system
+│   ├── main_menu.py         # Interactive main menu system
 │   └── export.py            # HTML/JSON/Markdown export capabilities
 ├── tools/               # 120+ modular security tool modules
-│   ├── tool_registry.py     # BaseTool ABC, ToolRegistry, 18 registered tools
+│   ├── tool_registry.py     # BaseTool ABC, ToolRegistry, 17 registered tools
 │   ├── governance.py        # Risk classification (DESTRUCTIVE/PRIVILEGED/SAFE)
 │   ├── universal_ai_client.py # OpenAI-compatible HTTP API client
 │   ├── vector_memory.py     # ChromaDB semantic recall
@@ -99,9 +103,9 @@ main.py                  # CLI entry point — argparse command router (2520 lin
 ├── prompts/             # AI system prompts (system_prompt.txt)
 ├── knowledge/           # Methodology documentation (loaded by knowledge_loader)
 ├── data/                # Runtime data: logs, CoT logs, CVE cache, vector DB
-├── tests/               # 39 test files (pytest)
+├── tests/               # 42+ test files (pytest)
+├── commands/scan.py     # Extracted scan command handler
 ├── scan_engine_upgrade.py # SmartOrchestrator for upgraded scan engine
-├── dependency_manager.py  # Go tool installer
 ├── live_display.py      # Live activity display for chat mode
 ├── config.yaml.example  # Template config (secrets go in .env, NEVER here)
 └── ...
@@ -151,9 +155,10 @@ User input → _analyze_intent() → [casual|research|scan|security_chat]
 3. Shell-capable executor path in `_execute_tool()` — all raw shell commands must pass through `tools.governance.Governance` before `tools.safe_exec.execute_safely()`
 
 ### Tool Registry Auto-Discovery
-`tools/tool_registry.py` auto-discovers all `*.py` files in `tools/` on import. Modules using `@register_tool(ToolMetadata(...))` decorator self-register. Currently 18 tools registered:
-- **Go binaries**: subfinder, httpx, nuclei, arjun, dynamic_waf_mutator, trufflehog
+`tools/tool_registry.py` auto-discovers all `*.py` files in `tools/` on import. Modules using `@register_tool(ToolMetadata(...))` decorator self-register. Currently 17 tools registered:
 - **Python scanners**: waf_detector, active_fuzzer, python_recon, ssrf_scanner, ssti_scanner, xxe_scanner, deserialization_scanner, graphql_scanner, race_condition_tester, api_schema_diff, supply_chain_analyzer, logic_flaw_engine, cors_checker, jwt_tester
+- **API testing**: arjun, dynamic_waf_mutator
+- **Secret detection**: trufflehog
 
 Most modules are standalone and used directly by agent_brain.py, not through the registry.
 
@@ -225,22 +230,24 @@ Most modules are standalone and used directly by agent_brain.py, not through the
 
 ## Testing Strategy
 
-Tests live in `tests/` (39 test files). Focus areas:
+Tests live in `tests/` (42+ test files). Focus areas:
 - **Governance enforcement** (`test_security.py`, `test_integration.py`): destructive/privileged shell commands blocked correctly
 - **Tool modules** (`test_waf_detector.py`, `test_active_fuzzer.py`, `test_hunt_engine.py`, etc.)
 - **TUI rendering** (`test_tui.py`): themes, visualizations, dashboard, welcome, hunt_view
 - **Core modules** (`test_core_modules.py`): CVSS, governance, mission state, CVE DB, vector memory, tool registry
 - **Agent council** (`test_agent_council.py`): multi-agent deliberation
 - **Semantic planning** (`test_semantic_planner.py`): attack tree generation
+- **New scanners** (`test_new_scanners.py`): SSRF, SSTI, XXE, Deserialization, GraphQL, Race Condition, API Schema Diff, CORS, JWT
+- **Critical modules** (`test_critical_modules.py`): Comprehensive tests for all critical modules
 
 Use `_lightweight_agent()` pattern in `test_security.py` to create test instances without full initialization overhead.
 
 **Stable test command** (no network required):
 ```bash
-python3 -m pytest tests/test_tui.py tests/test_security.py tests/test_waf_detector.py tests/test_semantic_planner.py tests/test_active_fuzzer.py tests/test_agent_council.py tests/test_core_modules.py -v
+python3 -m pytest tests/test_tui.py tests/test_security.py tests/test_core_modules.py tests/test_new_scanners.py tests/test_critical_modules.py -v
 ```
 
-**Note**: Stable suite has 186 tests.
+**Note**: Stable suite has 160+ tests.
 
 ---
 
