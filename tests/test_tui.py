@@ -518,6 +518,55 @@ def test_render_shortcuts_help_standalone():
     assert panel is not None
 
 
+# ═══════════════════════════════════════════════════════════════════════════
+# MAIN MENU
+# ═══════════════════════════════════════════════════════════════════════════
+
+def test_main_menu_render():
+    """render_main_menu should render correctly."""
+    from tui.main_menu import render_main_menu
+    panel = render_main_menu()
+    assert panel is not None
+
+
+def test_scan_menu_render():
+    """render_scan_menu should render correctly."""
+    from tui.main_menu import render_scan_menu
+    panel = render_scan_menu()
+    assert panel is not None
+
+
+def test_tools_menu_render():
+    """render_tools_menu should render correctly."""
+    from tui.main_menu import render_tools_menu
+    panel = render_tools_menu()
+    assert panel is not None
+
+
+def test_settings_menu_render():
+    """render_settings_menu should render correctly."""
+    from tui.main_menu import render_settings_menu
+    panel = render_settings_menu()
+    assert panel is not None
+
+
+def test_main_menu_items():
+    """Main menu should have all items."""
+    from tui.main_menu import MENU_ITEMS
+    assert len(MENU_ITEMS) >= 7
+    assert "scan" in MENU_ITEMS
+    assert "tools" in MENU_ITEMS
+    assert "settings" in MENU_ITEMS
+
+
+def test_tool_categories():
+    """Tool categories should be defined."""
+    from tui.main_menu import TOOL_CATEGORIES
+    assert len(TOOL_CATEGORIES) >= 4
+    assert "Reconnaissance" in TOOL_CATEGORIES
+    assert "Vulnerability Scanning" in TOOL_CATEGORIES
+
+
 if __name__ == "__main__":
     import pytest
     sys.exit(pytest.main([__file__, "-v"]))
