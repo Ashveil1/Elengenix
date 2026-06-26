@@ -106,7 +106,6 @@ TYPOSQUATTING_PATTERNS = [
     (r"pandass", "pandas"),
     (r"scipyy", "scipy"),
     (r"matplotlibt", "matplotlib"),
-    (r"beautifulsoup4", "beautifulsoup4"),
     (r"jquery$", "jquery"),
     (r"lodashd", "lodash"),
     (r"expresss", "express"),
@@ -430,7 +429,7 @@ class SupplyChainAnalyzer:
                         )
                         result.dependencies.append(dep)
         except Exception as e:
-            logger.debug(f"Failed to parse {file_path}: {e}")
+            logger.debug(f"Failed to parse {gemfile}: {e}")
     
     def _analyze_java(self, dir_path: Path, result: SupplyChainResult) -> None:
         """Analyze Java dependencies."""
@@ -462,7 +461,7 @@ class SupplyChainAnalyzer:
                 )
                 result.dependencies.append(dep)
         except Exception as e:
-            logger.debug(f"Failed to parse {file_path}: {e}")
+            logger.debug(f"Failed to parse {pom_xml}: {e}")
     
     def _check_known_malicious(self, result: SupplyChainResult, ecosystem: str) -> None:
         """Check for known malicious packages."""

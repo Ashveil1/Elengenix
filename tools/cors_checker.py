@@ -71,7 +71,7 @@ CORS_MISCONFIGURATIONS = {
         "severity": "High",
         "description": "Null origin accepted (potential bypass via sandboxed iframe)",
     },
-    "http反射": {
+    "http_reflect": {
         "pattern": r"http://",
         "severity": "Medium",
         "description": "HTTP origin reflected (not HTTPS)",

@@ -60,8 +60,6 @@ def get_system_status() -> Dict[str, Any]:
     Returns:
         Dictionary containing system status info.
     """
-    import psutil
-    
     status = {
         "cpu_percent": 0.0,
         "memory_percent": 0.0,
@@ -72,11 +70,15 @@ def get_system_status() -> Dict[str, Any]:
     }
     
     try:
+        import psutil
         status["cpu_percent"] = psutil.cpu_percent(interval=0.1)
         mem = psutil.virtual_memory()
         status["memory_percent"] = mem.percent
         disk = psutil.disk_usage("/")
         status["disk_percent"] = disk.percent
+    except ImportError:
+        # psutil not installed, skip system stats
+        pass
     except Exception:
         pass
     
