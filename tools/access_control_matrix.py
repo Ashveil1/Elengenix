@@ -89,7 +89,17 @@ class AccessControlMatrixTester:
                 url = ep if ep.startswith("http") else urljoin(self.base_url, ep.lstrip("/"))
 
                 if dry_run:
-                    cells.append(MatrixCell(method=m, url=url, status_a=-1, status_b=-1, len_a=0, len_b=0, signal="dry_run"))
+                    cells.append(
+                        MatrixCell(
+                            method=m,
+                            url=url,
+                            status_a=-1,
+                            status_b=-1,
+                            len_a=0,
+                            len_b=0,
+                            signal="dry_run",
+                        )
+                    )
                     continue
 
                 try:
@@ -107,7 +117,17 @@ class AccessControlMatrixTester:
                         if ratio < 0.6:
                             signal = "suspect"
 
-                    cells.append(MatrixCell(method=m, url=url, status_a=sa, status_b=sb, len_a=la, len_b=lb, signal=signal))
+                    cells.append(
+                        MatrixCell(
+                            method=m,
+                            url=url,
+                            status_a=sa,
+                            status_b=sb,
+                            len_a=la,
+                            len_b=lb,
+                            signal=signal,
+                        )
+                    )
 
                     if signal in ("mismatch", "suspect"):
                         findings.append(
@@ -126,7 +146,17 @@ class AccessControlMatrixTester:
                         )
 
                 except Exception as e:
-                    cells.append(MatrixCell(method=m, url=url, status_a=0, status_b=0, len_a=0, len_b=0, signal="error"))
+                    cells.append(
+                        MatrixCell(
+                            method=m,
+                            url=url,
+                            status_a=0,
+                            status_b=0,
+                            len_a=0,
+                            len_b=0,
+                            signal="error",
+                        )
+                    )
                     notes.append(f"Request failed for {url}: {e}")
 
         return ACMResult(success=True, cells=cells, findings=findings, notes=notes)
@@ -136,7 +166,9 @@ def format_acm_result(res: ACMResult, max_rows: int = 30) -> str:
     lines: List[str] = []
     lines.append(f"Matrix cells: {len(res.cells)} | Findings: {len(res.findings)}")
     for c in res.cells[:max_rows]:
-        lines.append(f"- {c.method} {c.url} :: A={c.status_a}({c.len_a}) B={c.status_b}({c.len_b}) [{c.signal}]")
+        lines.append(
+            f"- {c.method} {c.url} :: A={c.status_a}({c.len_a}) B={c.status_b}({c.len_b}) [{c.signal}]"
+        )
     if len(res.cells) > max_rows:
         lines.append(f"... ({len(res.cells) - max_rows} more)")
     return "\n".join(lines)

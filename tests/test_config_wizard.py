@@ -1,13 +1,14 @@
-"""tests/test_config_wizard.py — Comprehensive tests for ConfigWizard class configuration management.
-"""
+"""tests/test_config_wizard.py — Comprehensive tests for ConfigWizard class configuration management."""
 
 import os
 import shutil
 import tempfile
-import pytest
-import yaml
 from pathlib import Path
 from unittest.mock import MagicMock, patch
+
+import pytest
+import yaml
+
 from tools.config_wizard import ConfigWizard
 
 
@@ -20,12 +21,12 @@ class TestConfigWizardYaml:
         self.test_dir = Path(tempfile.mkdtemp())
         self.env_file = self.test_dir / ".env"
         self.config_file = self.test_dir / "config.yaml"
-        
+
         # Instantiate ConfigWizard pointing to this temporary directory
         self.wizard = ConfigWizard(config_dir=self.test_dir)
-        
+
         yield
-        
+
         # Clean up temporary directory
         shutil.rmtree(self.test_dir)
 
@@ -40,7 +41,7 @@ class TestConfigWizardYaml:
         example_data = {
             "team_aegis": {
                 "enabled": False,
-                "strategist": {"provider": "gemini", "model": "gemini-1.5-flash"}
+                "strategist": {"provider": "gemini", "model": "gemini-1.5-flash"},
             }
         }
         example_file = self.test_dir / "config.yaml.example"
@@ -64,11 +65,11 @@ class TestConfigWizardYaml:
             "agent": {"max_steps": 10},
             "team_aegis": {
                 "enabled": True,
-                "strategist": {"provider": "gemini", "model": "gemini-2.0-flash"}
-            }
+                "strategist": {"provider": "gemini", "model": "gemini-2.0-flash"},
+            },
         }
         self.wizard._save_yaml_config(test_data)
-        
+
         # Load and verify
         loaded = self.wizard._load_yaml_config()
         assert loaded["agent"]["max_steps"] == 10
@@ -80,11 +81,11 @@ class TestConfigWizardYaml:
         final_team = [
             {"provider": "gemini", "model": "gemini-2.0-flash", "rpm": "40"},
             {"provider": "anthropic", "model": "claude-3-5-haiku-20241022", "rpm": "30"},
-            {"provider": "openai", "model": "gpt-4o-mini", "rpm": "20"}
+            {"provider": "openai", "model": "gpt-4o-mini", "rpm": "20"},
         ]
-        
+
         self.wizard._save_team_to_yaml(final_team)
-        
+
         # Load and verify
         loaded = self.wizard._load_yaml_config()
         assert loaded["team_aegis"]["enabled"] is True
@@ -101,12 +102,12 @@ class TestConfigWizardRoleSetup:
     def setup_temp_dir(self):
         self.test_dir = Path(tempfile.mkdtemp())
         self.wizard = ConfigWizard(config_dir=self.test_dir)
-        
+
         # Backup original env
         self.original_env = dict(os.environ)
-        
+
         yield
-        
+
         # Clean up
         shutil.rmtree(self.test_dir)
         os.environ.clear()
@@ -116,15 +117,13 @@ class TestConfigWizardRoleSetup:
     def test_configure_team_role_gemini_provider_and_model(self, mock_input):
         """Test interactive role configuration simulation for Gemini provider."""
         # index 2 = Gemini (Google), index 2 = gemini-3.1-pro
-        mock_input.side_effect = ["2", "2"] 
-        
+        mock_input.side_effect = ["2", "2"]
+
         config = {}
         self.wizard._configure_team_role(
-            role_key="strategist",
-            role_name="Strategist AI",
-            config=config
+            role_key="strategist", role_name="Strategist AI", config=config
         )
-            
+
         # Verify YAML configuration saved
         assert config["team_aegis"]["strategist"]["provider"] == "gemini"
         assert config["team_aegis"]["strategist"]["model"] == "gemini-3.1-pro"
@@ -137,14 +136,10 @@ class TestConfigWizardRoleSetup:
         """Test interactive role configuration using a custom model name identifier."""
         # index 3 = OpenAI (GPT-4), Custom Model index (7), custom model identifier
         mock_input.side_effect = ["3", "7", "gpt-custom-model"]
-        
+
         config = {}
-        self.wizard._configure_team_role(
-            role_key="critic",
-            role_name="Critic AI",
-            config=config
-        )
-            
+        self.wizard._configure_team_role(role_key="critic", role_name="Critic AI", config=config)
+
         assert config["team_aegis"]["critic"]["provider"] == "openai"
         assert config["team_aegis"]["critic"]["model"] == "gpt-custom-model"
         assert "openai/gpt-custom-model" in os.environ.get("ACTIVE_MODELS", "")
@@ -154,14 +149,12 @@ class TestConfigWizardRoleSetup:
         """Test that selecting cancel (0) terminates interactive flow immediately."""
         # Provider selection = 0 (Cancel)
         mock_input.side_effect = ["0"]
-        
+
         config = {}
         self.wizard._configure_team_role(
-            role_key="specialist",
-            role_name="Specialist AI",
-            config=config
+            role_key="specialist", role_name="Specialist AI", config=config
         )
-            
+
         # config should remain empty
         assert len(config) == 0
 
@@ -180,11 +173,11 @@ class TestConfigWizardEnvSync:
         """Test save_env_var updates existing entries and restricts .env permissions."""
         self.wizard._save_env_var("TEST_KEY_ONE", "value_one")
         assert self.wizard.env_file.exists()
-        
+
         # Verify content
         content = self.wizard.env_file.read_text()
         assert "TEST_KEY_ONE=value_one" in content
-        
+
         # Verify permissions (0o600 -> owner read/write only)
         mode = self.wizard.env_file.stat().st_mode
         assert (mode & 0o777) == 0o600
@@ -193,10 +186,10 @@ class TestConfigWizardEnvSync:
         """Test remove_env_var deletes the key from both file and current os.environ session."""
         os.environ["TEST_REMOVE_KEY"] = "temp"
         self.wizard._save_env_var("TEST_REMOVE_KEY", "temp")
-        
+
         # Perform removal
         self.wizard._remove_env_var("TEST_REMOVE_KEY")
-        
+
         assert "TEST_REMOVE_KEY" not in os.environ
         content = self.wizard.env_file.read_text()
         assert "TEST_REMOVE_KEY" not in content

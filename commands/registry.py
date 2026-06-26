@@ -13,14 +13,15 @@ from __future__ import annotations
 
 import functools
 import logging
-from typing import Callable, Dict, Any, Optional, List
 from dataclasses import dataclass, field
+from typing import Any, Callable, Dict, List, Optional
 
 logger = logging.getLogger("elengenix.commands")
 
 # ---------------------------------------------------------------------------
 # Command Definition
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class CommandDef:
@@ -36,6 +37,7 @@ class CommandDef:
         requires_auth: Whether API keys are needed
         examples: Usage example strings
     """
+
     name: str
     handler: Callable
     help_text: str = ""
@@ -49,6 +51,7 @@ class CommandDef:
 # ---------------------------------------------------------------------------
 # Command Registry
 # ---------------------------------------------------------------------------
+
 
 class CommandRegistry:
     """Singleton registry for all CLI commands.
@@ -102,6 +105,7 @@ class CommandRegistry:
             requires_auth: Whether API keys are needed
             examples: Usage example strings
         """
+
         def decorator(handler: Callable) -> Callable:
             cmd = CommandDef(
                 name=name,
@@ -114,10 +118,11 @@ class CommandRegistry:
                 examples=examples or [],
             )
             self._commands[name] = cmd
-            for alias in (aliases or []):
+            for alias in aliases or []:
                 self._aliases[alias] = name
             logger.debug(f"Registered command: {name} (category={category})")
             return handler
+
         return decorator
 
     def get(self, name: str) -> Optional[CommandDef]:
@@ -153,6 +158,7 @@ class CommandRegistry:
         cmd = self.get(name)
         if cmd is None:
             from ui_components import print_error
+
             print_error(f"Unknown command: {name}")
             self._suggest(name)
             return 1
@@ -160,6 +166,7 @@ class CommandRegistry:
         try:
             if cmd.requires_target and not getattr(args, "target", None):
                 from ui_components import print_error
+
                 print_error(f"Command '{name}' requires a target. Use: elengenix {name} <target>")
                 return 1
 
@@ -170,22 +177,26 @@ class CommandRegistry:
         except Exception as e:
             logger.exception(f"Command '{name}' failed: {e}")
             from ui_components import print_error
+
             print_error(f"[FAIL] {name}: {e}")
             return 1
 
     def _suggest(self, partial: str) -> None:
         """Suggest similar commands via fuzzy matching."""
         from difflib import get_close_matches
+
         all_names = list(self._commands.keys()) + list(self._aliases.keys())
         matches = get_close_matches(partial, all_names, n=3, cutoff=0.5)
         if matches:
             from ui_components import console
+
             console.print(f"  [dim]Did you mean: {', '.join(matches)}?[/dim]")
 
 
 # ---------------------------------------------------------------------------
 # Decorator Sugar
 # ---------------------------------------------------------------------------
+
 
 def command(
     name: str,

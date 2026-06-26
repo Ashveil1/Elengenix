@@ -1,7 +1,7 @@
 """Integration tests for action types in UniversalExecutor."""
 
-from tools.universal_executor import UniversalExecutor
 from tools.governance import Governance
+from tools.universal_executor import UniversalExecutor
 
 
 def test_run_tool_unknown_tool():

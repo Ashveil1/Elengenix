@@ -7,6 +7,7 @@ Registers commands that expose the flagship engines:
     - supply-chain  : SBOM + CVE + typosquatting + dep-confusion analyzer
     - hypothesis    : AI-driven attack hypothesis generation
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -15,37 +16,43 @@ import sys
 import time
 from pathlib import Path
 
-from commands.registry import command, CommandRegistry
+from commands.registry import CommandRegistry, command
 
 
 def _console():
     from ui_components import console
+
     return console
 
 
 def _show_section(title: str) -> None:
     from ui_components import show_section
+
     show_section(title)
 
 
 def _print(msg: str) -> None:
     from ui_components import print_info
+
     print_info(msg)
 
 
 def _ok(msg: str) -> None:
     from ui_components import print_success
+
     print_success(msg)
 
 
 def _err(msg: str) -> None:
     from ui_components import print_error
+
     print_error(msg)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
 # LAUNCH COMMAND — TUI dashboard
 # ═══════════════════════════════════════════════════════════════════════════
+
 
 @command(
     name="launch",
@@ -82,6 +89,7 @@ async def cmd_launch(args) -> int:
 # ═══════════════════════════════════════════════════════════════════════════
 # HUNT COMMAND — main scanner
 # ═══════════════════════════════════════════════════════════════════════════
+
 
 @command(
     name="hunt",
@@ -136,11 +144,14 @@ async def cmd_hunt(args) -> int:
     _ok(f"Report saved: {out_dir}")
 
     # Show top LIVE findings (exclude static candidates + informational)
-    live_critical = [f for f in report.findings
-                     if f.severity in ("Critical", "High")
-                     and "CANDIDATE" not in f.title.upper()
-                     and "not tested" not in f.title.lower()
-                     and (f.url or f.details)]
+    live_critical = [
+        f
+        for f in report.findings
+        if f.severity in ("Critical", "High")
+        and "CANDIDATE" not in f.title.upper()
+        and "not tested" not in f.title.lower()
+        and (f.url or f.details)
+    ]
     if live_critical:
         c.print()
         c.print("  [bold]HIGHLIGHTED LIVE FINDINGS[/bold]")
@@ -150,8 +161,7 @@ async def cmd_hunt(args) -> int:
             if f.details:
                 c.print(f"      {f.details[:120]}")
     elif not report.findings or all(
-        "CANDIDATE" in f.title.upper() or f.severity == "Informational"
-        for f in report.findings
+        "CANDIDATE" in f.title.upper() or f.severity == "Informational" for f in report.findings
     ):
         # Be honest when no real vulnerabilities were found
         c.print()
@@ -171,6 +181,7 @@ async def cmd_hunt(args) -> int:
         if theme and theme != "DEFAULT":
             theme = theme.upper()
         from tui.hunt_view import show_hunt_results
+
         c.print()
         c.print(f"  [bold]Rendering TUI dashboard (theme: {theme})...[/bold]")
         c.print()

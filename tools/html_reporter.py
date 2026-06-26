@@ -17,10 +17,10 @@ from typing import Dict, List
 def _badge(severity: str) -> str:
     colors = {
         "CRITICAL": "danger",
-        "HIGH":     "warning",
-        "MEDIUM":   "primary",
-        "LOW":      "success",
-        "INFO":     "secondary",
+        "HIGH": "warning",
+        "MEDIUM": "primary",
+        "LOW": "success",
+        "INFO": "secondary",
     }
     return colors.get(severity.upper(), "secondary")
 
@@ -30,18 +30,18 @@ def generate_html_report(
     findings: List[Dict],
     output_path: str,
 ) -> str:
-    now      = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    total    = len(findings)
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    total = len(findings)
     critical = sum(1 for f in findings if f.get("severity", "").upper() == "CRITICAL")
-    high     = sum(1 for f in findings if f.get("severity", "").upper() == "HIGH")
-    medium   = sum(1 for f in findings if f.get("severity", "").upper() == "MEDIUM")
+    high = sum(1 for f in findings if f.get("severity", "").upper() == "HIGH")
+    medium = sum(1 for f in findings if f.get("severity", "").upper() == "MEDIUM")
 
     rows = ""
     for f in findings:
-        sev  = html.escape(str(f.get("severity", "INFO")))
-        name = html.escape(str(f.get("name",     "–")))
-        url  = html.escape(str(f.get("url",      "–")))
-        det  = html.escape(str(f.get("details",  "–"))[:150])
+        sev = html.escape(str(f.get("severity", "INFO")))
+        name = html.escape(str(f.get("name", "–")))
+        url = html.escape(str(f.get("url", "–")))
+        det = html.escape(str(f.get("details", "–"))[:150])
         rows += f"""
             <tr>
               <td>{name}</td>

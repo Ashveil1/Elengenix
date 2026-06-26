@@ -6,16 +6,18 @@ dependency_manager.py — Elengenix Tool Install Request Flow
 - Elengenix does NOT bundle any third-party tool, and does NOT auto-install.
 """
 
-import subprocess
-import shutil
-import questionary
 import logging
-import sys
 import os
+import shutil
+import subprocess
+import sys
 import time
 from pathlib import Path
 from typing import List, Optional, Tuple
-from ui_components import console, print_success, print_error, print_warning
+
+import questionary
+
+from ui_components import console, print_error, print_success, print_warning
 
 logger = logging.getLogger("elengenix.installer")
 
@@ -137,7 +139,9 @@ def list_installable(tools: List[str]) -> List[Tuple[str, bool]]:
 if __name__ == "__main__":
     # Standalone CLI for the user to manually request a tool install.
     if len(sys.argv) < 2:
-        console.print("[bold]Usage:[/bold] python dependency_manager.py <tool_name> [manager] [purpose]")
+        console.print(
+            "[bold]Usage:[/bold] python dependency_manager.py <tool_name> [manager] [purpose]"
+        )
         sys.exit(1)
     tool_name = sys.argv[1]
     manager = sys.argv[2] if len(sys.argv) > 2 else "go"

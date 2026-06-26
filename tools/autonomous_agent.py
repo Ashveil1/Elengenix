@@ -36,7 +36,7 @@ from typing import Any, Dict, List, Optional
 from urllib.parse import urlparse
 
 try:
-    from tools.user_memory import save_target_learning, get_target_summary
+    from tools.user_memory import get_target_summary, save_target_learning
 except Exception:
     save_target_learning = None
     get_target_summary = None
@@ -45,6 +45,7 @@ logger = logging.getLogger("elengenix.autonomous")
 
 from live_display import display_in_chat_mode
 from ui_components import console as _ui_console
+
 
 def _display(msg, level="info"):
     """Route output through activity logger and UI components."""
@@ -57,6 +58,7 @@ def _display(msg, level="info"):
 # ──────────────────────────────────────────────────────────
 # Data classes
 # ──────────────────────────────────────────────────────────
+
 
 @dataclass
 class AgentAction:
@@ -71,7 +73,7 @@ class AgentState:
     root_target: str
     goal: str
     findings: List[Dict[str, Any]] = field(default_factory=list)
-    assets: Dict[str, Any] = field(default_factory=dict)   # subdomains, endpoints, tech
+    assets: Dict[str, Any] = field(default_factory=dict)  # subdomains, endpoints, tech
     action_history: List[str] = field(default_factory=list)
     iteration: int = 0
 
@@ -94,6 +96,7 @@ class ScanResult:
 # AutonomousDecision (kept for backward compat)
 # ──────────────────────────────────────────────────────────
 
+
 @dataclass
 class AutonomousDecision:
     decision_type: str
@@ -108,6 +111,7 @@ class AutonomousDecision:
 # Helper
 # ──────────────────────────────────────────────────────────
 
+
 def _to_domain(target: str) -> str:
     """Strip URL to bare hostname."""
     parsed = urlparse(target if "://" in target else f"https://{target}")
@@ -119,6 +123,7 @@ def _ai_call(ai_client, system: str, user: str, temperature: float = 0.3) -> str
     """Wrapper around AIClientManager.chat()."""
     try:
         from tools.universal_ai_client import AIMessage
+
         messages = [
             AIMessage(role="system", content=system),
             AIMessage(role="user", content=user),
@@ -163,11 +168,13 @@ def _build_headers(state: AgentState, extra: dict = None) -> dict:
 # Action executors
 # ──────────────────────────────────────────────────────────
 
+
 def _exec_recon(action: AgentAction, state: AgentState) -> List[Dict]:
     """Run SmartReconEngine on a domain."""
     findings = []
     try:
         from tools.smart_recon import SmartReconEngine
+
         domain = _to_domain(action.target)
         engine = SmartReconEngine(target_domain=domain)
         result = engine.run_full_recon()
@@ -181,18 +188,22 @@ def _exec_recon(action: AgentAction, state: AgentState) -> List[Dict]:
                 state.assets[t].append(node.value)
 
         for f in result.findings:
-            findings.append({
-                "type": f.get("type", "info"),
-                "severity": f.get("severity", "info"),
-                "title": f.get("title", "Recon Finding"),
-                "target": f.get("target", domain),
-                "description": f.get("description", ""),
-                "source": "recon",
-            })
+            findings.append(
+                {
+                    "type": f.get("type", "info"),
+                    "severity": f.get("severity", "info"),
+                    "title": f.get("title", "Recon Finding"),
+                    "target": f.get("target", domain),
+                    "description": f.get("description", ""),
+                    "source": "recon",
+                }
+            )
 
-        _display(f"  [recon] {result.stats.get('domains',0)} domains, "
-              f"{result.stats.get('endpoints',0)} endpoints, "
-              f"{len(result.findings)} findings")
+        _display(
+            f"  [recon] {result.stats.get('domains',0)} domains, "
+            f"{result.stats.get('endpoints',0)} endpoints, "
+            f"{len(result.findings)} findings"
+        )
     except Exception as e:
         logger.warning(f"Recon error: {e}")
         _display(f"  [recon] error: {e}")
@@ -202,45 +213,54 @@ def _exec_recon(action: AgentAction, state: AgentState) -> List[Dict]:
 def _exec_http_probe(action: AgentAction, state: AgentState) -> List[Dict]:
     """Probe a URL for headers, status, tech stack."""
     import requests
+
     findings = []
     url = action.target
     if "://" not in url:
         url = f"https://{url}"
     try:
-        r = requests.get(url, timeout=15, allow_redirects=True,
-                         headers=_build_headers(state),
-                         verify=False)
+        r = requests.get(
+            url, timeout=15, allow_redirects=True, headers=_build_headers(state), verify=False
+        )
         headers = dict(r.headers)
 
         # Security header audit
         missing = []
-        for h in ["Strict-Transport-Security", "X-Frame-Options",
-                  "Content-Security-Policy", "X-Content-Type-Options",
-                  "Referrer-Policy"]:
+        for h in [
+            "Strict-Transport-Security",
+            "X-Frame-Options",
+            "Content-Security-Policy",
+            "X-Content-Type-Options",
+            "Referrer-Policy",
+        ]:
             if h.lower() not in {k.lower() for k in headers}:
                 missing.append(h)
 
         if missing:
-            findings.append({
-                "type": "missing_security_headers",
-                "severity": "low",
-                "title": f"Missing security headers on {url}",
-                "target": url,
-                "description": f"Missing: {', '.join(missing)}",
-                "source": "http_probe",
-            })
+            findings.append(
+                {
+                    "type": "missing_security_headers",
+                    "severity": "low",
+                    "title": f"Missing security headers on {url}",
+                    "target": url,
+                    "description": f"Missing: {', '.join(missing)}",
+                    "source": "http_probe",
+                }
+            )
 
         # Server fingerprint
         server = headers.get("Server", "") or headers.get("X-Powered-By", "")
         if server:
-            findings.append({
-                "type": "server_fingerprint",
-                "severity": "info",
-                "title": f"Server: {server}",
-                "target": url,
-                "description": f"Server header reveals: {server}",
-                "source": "http_probe",
-            })
+            findings.append(
+                {
+                    "type": "server_fingerprint",
+                    "severity": "info",
+                    "title": f"Server: {server}",
+                    "target": url,
+                    "description": f"Server header reveals: {server}",
+                    "source": "http_probe",
+                }
+            )
 
         # Store endpoint
         state.assets.setdefault("live_endpoints", [])
@@ -257,6 +277,7 @@ def _exec_http_probe(action: AgentAction, state: AgentState) -> List[Dict]:
 def _exec_waf_detect(action: AgentAction, state: AgentState) -> List[Dict]:
     """Basic WAF detection via response analysis using centralized signatures."""
     import requests
+
     findings = []
     url = action.target
     if "://" not in url:
@@ -265,38 +286,40 @@ def _exec_waf_detect(action: AgentAction, state: AgentState) -> List[Dict]:
     try:
         from tools.waf_signatures import detect_waf_from_response
 
-        r_clean = requests.get(url, timeout=10, verify=False,
-                               headers=_build_headers(state))
+        r_clean = requests.get(url, timeout=10, verify=False, headers=_build_headers(state))
         r_attack = requests.get(
             url + "?q=<script>alert(1)</script>&id=1 OR 1=1--",
-            timeout=10, verify=False,
+            timeout=10,
+            verify=False,
             headers=_build_headers(state, {"User-Agent": "sqlmap/1.0"}),
         )
 
-        waf_found, confidence = detect_waf_from_response(
-            dict(r_clean.headers), r_clean.text[:2000]
-        )
+        waf_found, confidence = detect_waf_from_response(dict(r_clean.headers), r_clean.text[:2000])
 
         blocked = r_attack.status_code in (403, 406, 429, 503)
 
         if waf_found:
-            findings.append({
-                "type": "waf_detected",
-                "severity": "info",
-                "title": f"WAF Detected: {waf_found}",
-                "target": url,
-                "description": f"{waf_found} WAF detected (confidence: {confidence:.0%}). Attack probe blocked={blocked}",
-                "source": "waf_detect",
-            })
+            findings.append(
+                {
+                    "type": "waf_detected",
+                    "severity": "info",
+                    "title": f"WAF Detected: {waf_found}",
+                    "target": url,
+                    "description": f"{waf_found} WAF detected (confidence: {confidence:.0%}). Attack probe blocked={blocked}",
+                    "source": "waf_detect",
+                }
+            )
         elif not blocked:
-            findings.append({
-                "type": "no_waf",
-                "severity": "medium",
-                "title": "No WAF detected — attack probe not blocked",
-                "target": url,
-                "description": "Malicious payload not filtered. May lack WAF protection.",
-                "source": "waf_detect",
-            })
+            findings.append(
+                {
+                    "type": "no_waf",
+                    "severity": "medium",
+                    "title": "No WAF detected — attack probe not blocked",
+                    "target": url,
+                    "description": "Malicious payload not filtered. May lack WAF protection.",
+                    "source": "waf_detect",
+                }
+            )
 
         _display(f"  [waf_detect] {url} → WAF={waf_found}, blocked={blocked}")
     except Exception as e:
@@ -308,14 +331,15 @@ def _exec_waf_detect(action: AgentAction, state: AgentState) -> List[Dict]:
 def _exec_endpoint_fuzz(action: AgentAction, state: AgentState, ai_client=None) -> List[Dict]:
     """Discover common endpoints via smart wordlist with AI augmentation."""
     import requests
+
     findings = []
     base = action.target.rstrip("/")
     if "://" not in base:
         base = f"https://{base}"
 
     # Use smart wordlist manager
-    from tools.wordlist_manager import WordlistManager, WordlistConfig
-    
+    from tools.wordlist_manager import WordlistConfig, WordlistManager
+
     wm = WordlistManager()
     config = WordlistConfig(
         category=action.params.get("wordlist_category", "default"),
@@ -326,20 +350,22 @@ def _exec_endpoint_fuzz(action: AgentAction, state: AgentState, ai_client=None) 
         ai_budget=action.params.get("ai_budget", 5),
         prioritize_bounty=action.params.get("prioritize_bounty", True),
     )
-    
+
     wordlist = wm.get_smart_wordlist(config, state, ai_client)
-    
+
     if not wordlist:
         logger.warning("No wordlist generated, using fallback")
         wordlist = ["/api", "/admin", "/login", "/.env", "/config"]
-    
+
     _display(f"  [endpoint_fuzz] Loaded {len(wordlist)} paths (AI calls: {wm.ai_calls_made})")
 
     interesting = []
     for path in wordlist:
         try:
             r = requests.get(
-                base + path, timeout=8, allow_redirects=False,
+                base + path,
+                timeout=8,
+                allow_redirects=False,
                 headers=_build_headers(state),
                 verify=False,
             )
@@ -353,14 +379,16 @@ def _exec_endpoint_fuzz(action: AgentAction, state: AgentState, ai_client=None) 
         sev = "info"
         if any(x in path for x in ["admin", ".env", "backup", "actuator", "debug"]):
             sev = "medium" if status in (200, 201) else "low"
-        findings.append({
-            "type": "endpoint_found",
-            "severity": sev,
-            "title": f"Endpoint: {path} [{status}]",
-            "target": base + path,
-            "description": f"Status {status}, size {size} bytes",
-            "source": "endpoint_fuzz",
-        })
+        findings.append(
+            {
+                "type": "endpoint_found",
+                "severity": sev,
+                "title": f"Endpoint: {path} [{status}]",
+                "target": base + path,
+                "description": f"Status {status}, size {size} bytes",
+                "source": "endpoint_fuzz",
+            }
+        )
         state.assets.setdefault("discovered_paths", [])
         if path not in state.assets["discovered_paths"]:
             state.assets["discovered_paths"].append(path)
@@ -372,37 +400,46 @@ def _exec_endpoint_fuzz(action: AgentAction, state: AgentState, ai_client=None) 
 def _exec_bola_probe(action: AgentAction, state: AgentState) -> List[Dict]:
     """Unauthenticated BOLA surface probe — check common object endpoints."""
     import requests
+
     findings = []
     base = action.target.rstrip("/")
     if "://" not in base:
         base = f"https://{base}"
 
     object_paths = [
-        "/api/users/1", "/api/users/2",
-        "/api/orders/1", "/api/orders/2",
-        "/api/accounts/1", "/api/accounts/2",
-        "/api/v1/users/1", "/api/v1/orders/1",
+        "/api/users/1",
+        "/api/users/2",
+        "/api/orders/1",
+        "/api/orders/2",
+        "/api/accounts/1",
+        "/api/accounts/2",
+        "/api/v1/users/1",
+        "/api/v1/orders/1",
     ]
 
     for path in object_paths:
         try:
             r = requests.get(
-                base + path, timeout=8, allow_redirects=False,
+                base + path,
+                timeout=8,
+                allow_redirects=False,
                 headers=_build_headers(state),
                 verify=False,
             )
             if r.status_code == 200 and len(r.content) > 20:
-                findings.append({
-                    "type": "bola_surface",
-                    "severity": "medium",
-                    "title": f"Object endpoint accessible without auth: {path}",
-                    "target": base + path,
-                    "description": (
-                        f"Returned HTTP 200 with {len(r.content)} bytes unauthenticated. "
-                        "Likely BOLA/IDOR surface — requires authenticated differential test."
-                    ),
-                    "source": "bola_probe",
-                })
+                findings.append(
+                    {
+                        "type": "bola_surface",
+                        "severity": "medium",
+                        "title": f"Object endpoint accessible without auth: {path}",
+                        "target": base + path,
+                        "description": (
+                            f"Returned HTTP 200 with {len(r.content)} bytes unauthenticated. "
+                            "Likely BOLA/IDOR surface — requires authenticated differential test."
+                        ),
+                        "source": "bola_probe",
+                    }
+                )
             time.sleep(0.25)
         except Exception:
             pass
@@ -414,6 +451,7 @@ def _exec_bola_probe(action: AgentAction, state: AgentState) -> List[Dict]:
 def _exec_header_audit(action: AgentAction, state: AgentState) -> List[Dict]:
     """Full security header + CORS audit."""
     import requests
+
     findings = []
     url = action.target
     if "://" not in url:
@@ -421,34 +459,44 @@ def _exec_header_audit(action: AgentAction, state: AgentState) -> List[Dict]:
 
     try:
         r = requests.options(
-            url, timeout=10, verify=False,
-            headers=_build_headers(state, {
-                "Origin": "https://evil.com",
-                "Access-Control-Request-Method": "GET",
-            }),
+            url,
+            timeout=10,
+            verify=False,
+            headers=_build_headers(
+                state,
+                {
+                    "Origin": "https://evil.com",
+                    "Access-Control-Request-Method": "GET",
+                },
+            ),
         )
         acao = r.headers.get("Access-Control-Allow-Origin", "")
         acac = r.headers.get("Access-Control-Allow-Credentials", "false")
 
         if acao == "*":
-            findings.append({
-                "type": "cors_wildcard",
-                "severity": "medium",
-                "title": "CORS wildcard origin allowed",
-                "target": url,
-                "description": "Access-Control-Allow-Origin: * — any origin can read responses.",
-                "source": "header_audit",
-            })
+            findings.append(
+                {
+                    "type": "cors_wildcard",
+                    "severity": "medium",
+                    "title": "CORS wildcard origin allowed",
+                    "target": url,
+                    "description": "Access-Control-Allow-Origin: * — any origin can read responses.",
+                    "source": "header_audit",
+                }
+            )
         elif acao == "https://evil.com":
             sev = "high" if acac.lower() == "true" else "medium"
-            findings.append({
-                "type": "cors_reflection",
-                "severity": sev,
-                "title": "CORS reflects arbitrary origin" + (" with credentials" if sev == "high" else ""),
-                "target": url,
-                "description": f"Origin reflected back: {acao}, credentials={acac}",
-                "source": "header_audit",
-            })
+            findings.append(
+                {
+                    "type": "cors_reflection",
+                    "severity": sev,
+                    "title": "CORS reflects arbitrary origin"
+                    + (" with credentials" if sev == "high" else ""),
+                    "target": url,
+                    "description": f"Origin reflected back: {acao}, credentials={acac}",
+                    "source": "header_audit",
+                }
+            )
 
         _display(f"  [header_audit] {url} → ACAO={acao or 'none'}, creds={acac}")
     except Exception as e:
@@ -460,46 +508,53 @@ def _exec_header_audit(action: AgentAction, state: AgentState) -> List[Dict]:
 def _exec_osint_research(action: AgentAction, state: AgentState) -> List[Dict]:
     """Gather external OSINT about the target using Tavily."""
     from tools.research_tool import research_target
+
     findings = []
     target = action.target
     _display(f"  [osint] researching: {target}")
-    
+
     results = research_target(target, num_results=3, summarize=True)
     for res in results:
         if res.get("text"):
-            findings.append({
-                "title": f"OSINT: {res.get('url')}",
-                "description": res.get("text")[:500] + "...",
-                "severity": "info",
-                "source": "osint",
-                "url": res.get("url")
-            })
+            findings.append(
+                {
+                    "title": f"OSINT: {res.get('url')}",
+                    "description": res.get("text")[:500] + "...",
+                    "severity": "info",
+                    "source": "osint",
+                    "url": res.get("url"),
+                }
+            )
     return findings
 
 
 def _exec_vuln_intel(action: AgentAction, state: AgentState) -> List[Dict]:
     """Gather vulnerability and exploit intelligence using VulnCheck."""
     from tools.vulncheck_tool import get_target_intel
+
     findings = []
     target = action.target
     _display(f"  [vuln_intel] checking intelligence for: {target}")
-    
+
     intel = get_target_intel(target)
     for exp in intel.get("exploits", []):
-        findings.append({
-            "title": f"Known Exploit: {exp.get('cve', 'N/A')}",
-            "description": f"Found known exploit in VulnCheck: {exp.get('description', 'No description')}",
-            "severity": "high",
-            "source": "vuln_intel",
-            "cve": exp.get("cve")
-        })
+        findings.append(
+            {
+                "title": f"Known Exploit: {exp.get('cve', 'N/A')}",
+                "description": f"Found known exploit in VulnCheck: {exp.get('description', 'No description')}",
+                "severity": "high",
+                "source": "vuln_intel",
+                "cve": exp.get("cve"),
+            }
+        )
     return findings
 
 
 def _exec_wayback_recon(action: AgentAction, state: AgentState) -> List[Dict]:
     """Fetch historical URLs from Wayback Machine & OTX."""
-    from tools.wayback_tool import gather_historical_intel
     from urllib.parse import urlparse
+
+    from tools.wayback_tool import gather_historical_intel
 
     findings = []
     target = action.target
@@ -518,40 +573,47 @@ def _exec_wayback_recon(action: AgentAction, state: AgentState) -> List[Dict]:
 
     # High-interest URLs become findings
     for url in intel.get("high_interest", [])[:15]:
-        findings.append({
-            "title": f"Archived endpoint: {url}",
-            "description": f"High-interest historical URL found via Wayback/OTX.",
-            "severity": "info",
-            "source": "wayback",
-            "url": url,
-            "target": target,
-        })
+        findings.append(
+            {
+                "title": f"Archived endpoint: {url}",
+                "description": f"High-interest historical URL found via Wayback/OTX.",
+                "severity": "info",
+                "source": "wayback",
+                "url": url,
+                "target": target,
+            }
+        )
 
     # Summary finding
     if intel["total_urls"] > 0:
-        findings.append({
-            "title": f"Wayback Intelligence Summary for {target}",
-            "description": (
-                f"Total archived URLs: {intel['total_urls']} "
-                f"(high: {len(intel['high_interest'])}, "
-                f"medium: {len(intel['medium_interest'])})\n"
-                f"Unique paths: {len(intel['unique_paths'])}\n"
-                f"Unique params: {', '.join(intel['unique_params'][:20])}"
-            ),
-            "severity": "info",
-            "source": "wayback",
-            "target": target,
-        })
+        findings.append(
+            {
+                "title": f"Wayback Intelligence Summary for {target}",
+                "description": (
+                    f"Total archived URLs: {intel['total_urls']} "
+                    f"(high: {len(intel['high_interest'])}, "
+                    f"medium: {len(intel['medium_interest'])})\n"
+                    f"Unique paths: {len(intel['unique_paths'])}\n"
+                    f"Unique params: {', '.join(intel['unique_params'][:20])}"
+                ),
+                "severity": "info",
+                "source": "wayback",
+                "target": target,
+            }
+        )
 
-    _display(f"  [wayback_recon] {intel['total_urls']} archived URLs, "
-          f"{len(intel['high_interest'])} high-interest")
+    _display(
+        f"  [wayback_recon] {intel['total_urls']} archived URLs, "
+        f"{len(intel['high_interest'])} high-interest"
+    )
     return findings
 
 
 def _exec_github_dork(action: AgentAction, state: AgentState) -> List[Dict]:
     """Hunt for leaked credentials and code on GitHub."""
-    from tools.github_intel import hunt_leaks
     from urllib.parse import urlparse
+
+    from tools.github_intel import hunt_leaks
 
     findings = []
     target = action.target
@@ -571,50 +633,52 @@ def _exec_github_dork(action: AgentAction, state: AgentState) -> List[Dict]:
         elif cat in ("config_files", "docker", "api_endpoints"):
             sev = "medium"
 
-        findings.append({
-            "title": f"GitHub Leak ({cat}): {leak['file']}",
-            "description": (
-                f"Found in repo: {leak['repo']}\n"
-                f"Path: {leak['path']}\n"
-                f"URL: {leak['url']}"
-            ),
-            "severity": sev,
-            "source": "github_dork",
-            "url": leak["url"],
-            "target": target,
-        })
+        findings.append(
+            {
+                "title": f"GitHub Leak ({cat}): {leak['file']}",
+                "description": (
+                    f"Found in repo: {leak['repo']}\n"
+                    f"Path: {leak['path']}\n"
+                    f"URL: {leak['url']}"
+                ),
+                "severity": sev,
+                "source": "github_dork",
+                "url": leak["url"],
+                "target": target,
+            }
+        )
 
-    _display(f"  [github_dork] {intel['total_findings']} leaks found "
-          f"(critical: {intel['critical_count']}, high: {intel['high_count']})")
+    _display(
+        f"  [github_dork] {intel['total_findings']} leaks found "
+        f"(critical: {intel['critical_count']}, high: {intel['high_count']})"
+    )
     return findings
 
 
-def _exec_threat_model(action: AgentAction, state: AgentState,
-                       ai_client=None) -> List[Dict]:
+def _exec_threat_model(action: AgentAction, state: AgentState, ai_client=None) -> List[Dict]:
     """AI generates a strategic attack plan based on all gathered intel."""
     findings = []
 
     # Build context from everything gathered so far
-    context = json.dumps({
-        "target": state.root_target,
-        "goal": state.goal,
-        "iteration": state.iteration,
-        "total_findings": len(state.findings),
-        "findings_by_severity": {
-            sev: len([f for f in state.findings if f.get("severity") == sev])
-            for sev in ["critical", "high", "medium", "low", "info"]
+    context = json.dumps(
+        {
+            "target": state.root_target,
+            "goal": state.goal,
+            "iteration": state.iteration,
+            "total_findings": len(state.findings),
+            "findings_by_severity": {
+                sev: len([f for f in state.findings if f.get("severity") == sev])
+                for sev in ["critical", "high", "medium", "low", "info"]
+            },
+            "assets": {k: (v[:10] if isinstance(v, list) else v) for k, v in state.assets.items()},
+            "actions_taken": state.action_history,
+            "recent_findings": [
+                {"title": f.get("title"), "severity": f.get("severity"), "source": f.get("source")}
+                for f in state.findings[-30:]
+            ],
         },
-        "assets": {
-            k: (v[:10] if isinstance(v, list) else v)
-            for k, v in state.assets.items()
-        },
-        "actions_taken": state.action_history,
-        "recent_findings": [
-            {"title": f.get("title"), "severity": f.get("severity"),
-             "source": f.get("source")}
-            for f in state.findings[-30:]
-        ],
-    }, indent=2)
+        indent=2,
+    )
 
     if ai_client:
         content = _ai_call(
@@ -658,21 +722,23 @@ Return JSON:
                 if t not in state.assets["ai_pivots"]:
                     state.assets["ai_pivots"].append(t)
 
-        findings.append({
-            "title": f"Threat Model for {state.root_target}",
-            "description": (
-                f"Attack plan ({len(plan)} steps):\n"
-                + "\n".join(
-                    f"  {s.get('priority', '?')}. [{s.get('attack_type')}] {s.get('target')} — {s.get('reasoning')}"
-                    for s in plan[:8]
-                )
-                + f"\n\nKey weaknesses: {', '.join(weaknesses[:5])}"
-                + f"\nRisk: {assessment}"
-            ),
-            "severity": "info",
-            "source": "threat_model",
-            "target": state.root_target,
-        })
+        findings.append(
+            {
+                "title": f"Threat Model for {state.root_target}",
+                "description": (
+                    f"Attack plan ({len(plan)} steps):\n"
+                    + "\n".join(
+                        f"  {s.get('priority', '?')}. [{s.get('attack_type')}] {s.get('target')} — {s.get('reasoning')}"
+                        for s in plan[:8]
+                    )
+                    + f"\n\nKey weaknesses: {', '.join(weaknesses[:5])}"
+                    + f"\nRisk: {assessment}"
+                ),
+                "severity": "info",
+                "source": "threat_model",
+                "target": state.root_target,
+            }
+        )
 
         _display(f"  [threat_model] Generated {len(plan)}-step attack plan")
         if weaknesses:
@@ -686,6 +752,7 @@ Return JSON:
 def _exec_js_recon(action: AgentAction, state: AgentState) -> List[Dict]:
     """Analyze JavaScript files for secrets, API keys, and hidden endpoints."""
     from tools.js_analyzer import analyze_js
+
     findings = []
     target = action.target
     _display(f"  [js_recon] Analyzing JS files for: {target}")
@@ -696,9 +763,13 @@ def _exec_js_recon(action: AgentAction, state: AgentState) -> List[Dict]:
         # Try common JS paths
         base = target.rstrip("/")
         common_js = [
-            f"{base}/main.js", f"{base}/app.js", f"{base}/bundle.js",
-            f"{base}/vendor.js", f"{base}/chunk.js",
-            f"{base}/static/js/main.js", f"{base}/assets/js/app.js",
+            f"{base}/main.js",
+            f"{base}/app.js",
+            f"{base}/bundle.js",
+            f"{base}/vendor.js",
+            f"{base}/chunk.js",
+            f"{base}/static/js/main.js",
+            f"{base}/assets/js/app.js",
             f"{base}/dist/bundle.js",
         ]
         js_urls = common_js
@@ -719,17 +790,18 @@ def _exec_js_recon(action: AgentAction, state: AgentState) -> List[Dict]:
                         else:
                             sev = "medium" if sev == "medium" else "info"
 
-                        findings.append({
-                            "title": f"JS Secret: {category}",
-                            "description": (
-                                f"Found in: {js_url}\n"
-                                f"Match: {match['match'][:100]}"
-                            ),
-                            "severity": sev,
-                            "source": "js_recon",
-                            "url": js_url,
-                            "target": target,
-                        })
+                        findings.append(
+                            {
+                                "title": f"JS Secret: {category}",
+                                "description": (
+                                    f"Found in: {js_url}\n" f"Match: {match['match'][:100]}"
+                                ),
+                                "severity": sev,
+                                "source": "js_recon",
+                                "url": js_url,
+                                "target": target,
+                            }
+                        )
 
                         # Store API endpoints in state for injection testing
                         if category == "API Endpoint":
@@ -738,14 +810,17 @@ def _exec_js_recon(action: AgentAction, state: AgentState) -> List[Dict]:
         except Exception:
             continue
 
-    _display(f"  [js_recon] Analyzed {analyzed_count} JS files, "
-          f"found {len(findings)} secrets/endpoints")
+    _display(
+        f"  [js_recon] Analyzed {analyzed_count} JS files, "
+        f"found {len(findings)} secrets/endpoints"
+    )
     return findings
 
 
 def _exec_param_mine(action: AgentAction, state: AgentState) -> List[Dict]:
     """Discover hidden parameters in target endpoints."""
     from tools.param_miner import mine_parameters
+
     findings = []
     target = action.target
     _display(f"  [param_mine] Mining hidden parameters: {target}")
@@ -757,21 +832,23 @@ def _exec_param_mine(action: AgentAction, state: AgentState) -> List[Dict]:
         results = mine_parameters(target, extra_params=extra_params)
         for r in results:
             sev = "high" if r.get("reflected") else "medium"
-            findings.append({
-                "title": f"Hidden Parameter: ?{r['param']}=",
-                "description": (
-                    f"Discovered hidden parameter '{r['param']}' on {target}\n"
-                    f"Status: {r['status']} (baseline: {r['base_status']})\n"
-                    f"Length delta: {r['length_delta']} bytes\n"
-                    f"Reflected: {'YES — possible XSS' if r['reflected'] else 'No'}"
-                ),
-                "severity": sev,
-                "source": "param_mine",
-                "param": r["param"],
-                "reflected": r.get("reflected", False),
-                "url": r["url"],
-                "target": target,
-            })
+            findings.append(
+                {
+                    "title": f"Hidden Parameter: ?{r['param']}=",
+                    "description": (
+                        f"Discovered hidden parameter '{r['param']}' on {target}\n"
+                        f"Status: {r['status']} (baseline: {r['base_status']})\n"
+                        f"Length delta: {r['length_delta']} bytes\n"
+                        f"Reflected: {'YES — possible XSS' if r['reflected'] else 'No'}"
+                    ),
+                    "severity": sev,
+                    "source": "param_mine",
+                    "param": r["param"],
+                    "reflected": r.get("reflected", False),
+                    "url": r["url"],
+                    "target": target,
+                }
+            )
 
             # Store discovered params for injection testing
             state.assets.setdefault("discovered_params", [])
@@ -788,6 +865,7 @@ def _exec_param_mine(action: AgentAction, state: AgentState) -> List[Dict]:
 def _exec_cors_scan(action: AgentAction, state: AgentState) -> List[Dict]:
     """Deep CORS misconfiguration testing."""
     from tools.cors_checker import check_cors
+
     findings = []
     target = action.target
     _display(f"  [cors_scan] Testing CORS: {target}")
@@ -797,18 +875,20 @@ def _exec_cors_scan(action: AgentAction, state: AgentState) -> List[Dict]:
 
         for issue in result.get("issues", []):
             sev = issue["severity"].lower()
-            findings.append({
-                "title": f"CORS Misconfiguration ({issue['severity']})",
-                "description": (
-                    f"Origin tested: {issue['origin']}\n"
-                    f"Reason: {issue['reason']}\n"
-                    f"Headers: {issue.get('headers', {})}"
-                ),
-                "severity": sev,
-                "source": "cors_scan",
-                "url": target,
-                "target": target,
-            })
+            findings.append(
+                {
+                    "title": f"CORS Misconfiguration ({issue['severity']})",
+                    "description": (
+                        f"Origin tested: {issue['origin']}\n"
+                        f"Reason: {issue['reason']}\n"
+                        f"Headers: {issue.get('headers', {})}"
+                    ),
+                    "severity": sev,
+                    "source": "cors_scan",
+                    "url": target,
+                    "target": target,
+                }
+            )
     except Exception as e:
         logger.warning(f"CORS scan error: {e}")
         _display(f"  [cors_scan] error: {e}")
@@ -820,15 +900,15 @@ def _exec_cors_scan(action: AgentAction, state: AgentState) -> List[Dict]:
 def _exec_injection_test(action: AgentAction, state: AgentState) -> List[Dict]:
     """Test endpoints for XSS, SQLi, SSTI, LFI, Open Redirect."""
     from tools.injection_tester import run_all_injection_tests
+
     findings = []
     target = action.target
     _display(f"  [injection_test] Testing injections: {target}")
 
     # Collect parameters to test from state
-    params_to_test = list(set(
-        state.assets.get("discovered_params", []) +
-        state.assets.get("wayback_params", [])[:10]
-    ))
+    params_to_test = list(
+        set(state.assets.get("discovered_params", []) + state.assets.get("wayback_params", [])[:10])
+    )
 
     try:
         results = run_all_injection_tests(
@@ -839,8 +919,7 @@ def _exec_injection_test(action: AgentAction, state: AgentState) -> List[Dict]:
 
         # Also test high-interest wayback URLs
         for wb_url in state.assets.get("wayback_paths", [])[:5]:
-            if "?" in wb_url or any(kw in wb_url for kw in
-                                     ["/api/", "file=", "id=", "page="]):
+            if "?" in wb_url or any(kw in wb_url for kw in ["/api/", "file=", "id=", "page="]):
                 base = target.rstrip("/")
                 full_url = f"{base}{wb_url}" if wb_url.startswith("/") else wb_url
                 try:
@@ -860,6 +939,7 @@ def _exec_injection_test(action: AgentAction, state: AgentState) -> List[Dict]:
 def _exec_subdomain_takeover(action: AgentAction, state: AgentState) -> List[Dict]:
     """Check discovered subdomains for takeover vulnerabilities."""
     from tools.subdomain_takeover import check_subdomains
+
     findings = []
     _display(f"  [subdomain_takeover] Checking for takeover opportunities...")
 
@@ -869,6 +949,7 @@ def _exec_subdomain_takeover(action: AgentAction, state: AgentState) -> List[Dic
     if not subdomains:
         # Try to extract from root target
         from urllib.parse import urlparse
+
         target = action.target
         if "://" in target:
             target = urlparse(target).hostname or target
@@ -881,14 +962,17 @@ def _exec_subdomain_takeover(action: AgentAction, state: AgentState) -> List[Dic
         logger.warning(f"Subdomain takeover error: {e}")
         _display(f"  [subdomain_takeover] error: {e}")
 
-    _display(f"  [subdomain_takeover] Checked {len(subdomains)} subdomains, "
-          f"found {len(findings)} takeover opportunities")
+    _display(
+        f"  [subdomain_takeover] Checked {len(subdomains)} subdomains, "
+        f"found {len(findings)} takeover opportunities"
+    )
     return findings
 
 
 def _exec_waf_bypass(action: AgentAction, state: AgentState) -> List[Dict]:
     """Adaptive WAF bypass testing using mutation engine."""
     from tools.waf_evasion import WAFEvasionEngine
+
     findings = []
     target = action.target
     _display(f"  [waf_bypass] Testing WAF bypass: {target}")
@@ -903,9 +987,9 @@ def _exec_waf_bypass(action: AgentAction, state: AgentState) -> List[Dict]:
 
             # Test bypass with common payloads
             test_payloads = [
-                '<script>alert(1)</script>',
+                "<script>alert(1)</script>",
                 "' OR 1=1--",
-                '{{7*7}}',
+                "{{7*7}}",
             ]
 
             for base_payload in test_payloads:
@@ -918,22 +1002,24 @@ def _exec_waf_bypass(action: AgentAction, state: AgentState) -> List[Dict]:
 
                 best = engine.get_best_bypass(results)
                 if best and not best.blocked:
-                    findings.append({
-                        "title": f"WAF Bypass Found ({waf_type})",
-                        "description": (
-                            f"Successfully bypassed {waf_type} WAF.\n"
-                            f"Original payload: {base_payload}\n"
-                            f"Bypass payload: {best.payload[:150]}\n"
-                            f"Techniques: {', '.join(best.techniques)}\n"
-                            f"Status: {best.status_code}"
-                        ),
-                        "severity": "high",
-                        "source": "waf_bypass",
-                        "waf_type": waf_type,
-                        "techniques": best.techniques,
-                        "url": target,
-                        "target": target,
-                    })
+                    findings.append(
+                        {
+                            "title": f"WAF Bypass Found ({waf_type})",
+                            "description": (
+                                f"Successfully bypassed {waf_type} WAF.\n"
+                                f"Original payload: {base_payload}\n"
+                                f"Bypass payload: {best.payload[:150]}\n"
+                                f"Techniques: {', '.join(best.techniques)}\n"
+                                f"Status: {best.status_code}"
+                            ),
+                            "severity": "high",
+                            "source": "waf_bypass",
+                            "waf_type": waf_type,
+                            "techniques": best.techniques,
+                            "url": target,
+                            "target": target,
+                        }
+                    )
 
             # Store learned strategies in state
             strategies = engine.export_learned_strategies()
@@ -942,13 +1028,15 @@ def _exec_waf_bypass(action: AgentAction, state: AgentState) -> List[Dict]:
 
         else:
             _display("  [waf_bypass] No WAF detected, skipping bypass testing")
-            findings.append({
-                "title": "No WAF Detected",
-                "description": f"No WAF detected on {target}. Direct testing possible.",
-                "severity": "info",
-                "source": "waf_bypass",
-                "target": target,
-            })
+            findings.append(
+                {
+                    "title": "No WAF Detected",
+                    "description": f"No WAF detected on {target}. Direct testing possible.",
+                    "severity": "info",
+                    "source": "waf_bypass",
+                    "target": target,
+                }
+            )
 
     except Exception as e:
         logger.warning(f"WAF bypass error: {e}")
@@ -985,16 +1073,18 @@ def _exec_request_auth(action: AgentAction, state: AgentState) -> List[Dict]:
 
     if not user_input or user_input.lower() == "skip":
         print("  [AUTH] Skipped — continuing unauthenticated scan")
-        findings.append({
-            "title": "Authentication Barrier Detected (Skipped)",
-            "description": (
-                f"Target {target} requires authentication but user chose to skip.\n"
-                f"Findings behind login may be missed."
-            ),
-            "severity": "info",
-            "source": "request_auth",
-            "target": target,
-        })
+        findings.append(
+            {
+                "title": "Authentication Barrier Detected (Skipped)",
+                "description": (
+                    f"Target {target} requires authentication but user chose to skip.\n"
+                    f"Findings behind login may be missed."
+                ),
+                "severity": "info",
+                "source": "request_auth",
+                "target": target,
+            }
+        )
         return findings
 
     # Detect credential type and build headers
@@ -1015,29 +1105,31 @@ def _exec_request_auth(action: AgentAction, state: AgentState) -> List[Dict]:
     print(f"  [AUTH] {cred_type} saved! All future requests will be authenticated.")
     print(f"  [AUTH] Resuming scan...\n")
 
-    findings.append({
-        "title": f"Authentication Acquired ({cred_type})",
-        "description": (
-            f"User provided {cred_type} for {target}.\n"
-            f"All subsequent tools (injection_test, bola_probe, param_mine, etc.) "
-            f"will automatically include these credentials in HTTP headers."
-        ),
-        "severity": "info",
-        "source": "request_auth",
-        "target": target,
-    })
+    findings.append(
+        {
+            "title": f"Authentication Acquired ({cred_type})",
+            "description": (
+                f"User provided {cred_type} for {target}.\n"
+                f"All subsequent tools (injection_test, bola_probe, param_mine, etc.) "
+                f"will automatically include these credentials in HTTP headers."
+            ),
+            "severity": "info",
+            "source": "request_auth",
+            "target": target,
+        }
+    )
 
     return findings
 
 
-def _exec_create_custom_tool(action: AgentAction, state: AgentState,
-                             ai_client=None) -> List[Dict]:
+def _exec_create_custom_tool(action: AgentAction, state: AgentState, ai_client=None) -> List[Dict]:
     """
     AI writes a custom Python exploit script on-the-fly, executes it,
     and collects findings. If the script fails, AI will self-heal (debug
     and retry) up to 2 times.
     """
     from tools.ai_tool_creator import AIToolCreator
+
     findings = []
     target = action.target
     purpose = action.params.get("purpose", "Custom security test")
@@ -1056,7 +1148,8 @@ def _exec_create_custom_tool(action: AgentAction, state: AgentState,
             "discovered_endpoints": state.assets.get("api_endpoints", [])[:10],
             "discovered_params": state.assets.get("discovered_params", [])[:10],
             "known_vulns": [
-                f.get("title") for f in state.findings[-10:]
+                f.get("title")
+                for f in state.findings[-10:]
                 if f.get("severity") in ("high", "critical")
             ],
             "auth_available": state.assets.get("authenticated", False),
@@ -1090,34 +1183,39 @@ def _exec_create_custom_tool(action: AgentAction, state: AgentState,
                 result = creator.execute_tool(tool_spec.name, **kwargs)
 
                 if result.success:
-                    _display(f"  [create_custom_tool] {tool_spec.name} executed OK "
-                          f"({result.execution_time:.1f}s)")
+                    _display(
+                        f"  [create_custom_tool] {tool_spec.name} executed OK "
+                        f"({result.execution_time:.1f}s)"
+                    )
                     findings.extend(result.findings)
                     break
                 else:
                     if attempt < max_retries:
                         _display(f"  [create_custom_tool] Error: {result.error}")
-                        _display(f"  [create_custom_tool] Self-healing attempt "
-                              f"{attempt + 1}/{max_retries}...")
-                        # AI fixes its own code
-                        creator.improve_tool(
-                            tool_spec.name,
-                            feedback=f"Error: {result.error}"
+                        _display(
+                            f"  [create_custom_tool] Self-healing attempt "
+                            f"{attempt + 1}/{max_retries}..."
                         )
+                        # AI fixes its own code
+                        creator.improve_tool(tool_spec.name, feedback=f"Error: {result.error}")
                     else:
-                        _display(f"  [create_custom_tool] {tool_spec.name} failed "
-                              f"after {max_retries} retries: {result.error}")
-                        findings.append({
-                            "title": f"Custom Tool Failed: {tool_spec.name}",
-                            "description": (
-                                f"AI-created tool '{tool_spec.name}' failed: "
-                                f"{result.error}\n"
-                                f"Purpose: {tool_spec.purpose}"
-                            ),
-                            "severity": "info",
-                            "source": "create_custom_tool",
-                            "target": target,
-                        })
+                        _display(
+                            f"  [create_custom_tool] {tool_spec.name} failed "
+                            f"after {max_retries} retries: {result.error}"
+                        )
+                        findings.append(
+                            {
+                                "title": f"Custom Tool Failed: {tool_spec.name}",
+                                "description": (
+                                    f"AI-created tool '{tool_spec.name}' failed: "
+                                    f"{result.error}\n"
+                                    f"Purpose: {tool_spec.purpose}"
+                                ),
+                                "severity": "info",
+                                "source": "create_custom_tool",
+                                "target": target,
+                            }
+                        )
 
     except Exception as e:
         logger.warning(f"create_custom_tool error: {e}")
@@ -1130,6 +1228,7 @@ def _exec_create_custom_tool(action: AgentAction, state: AgentState,
 def _exec_vuln_scan(action: AgentAction, state: AgentState) -> List[Dict]:
     """Run Python-based vulnerability scanner."""
     import requests
+
     findings = []
     target = action.target
     if "://" not in target:
@@ -1150,23 +1249,25 @@ def _exec_vuln_scan(action: AgentAction, state: AgentState) -> List[Dict]:
             ("/.htaccess", "HTACCESS file exposed"),
             ("/web.config", "IIS config exposed"),
         ]
-        
+
         for path, description in test_paths:
             try:
                 url = f"{target.rstrip('/')}{path}"
                 response = requests.get(url, timeout=5, verify=False)
-                
+
                 if response.status_code == 200 and len(response.text) > 100:
-                    findings.append({
-                        "title": f"Information Disclosure: {description}",
-                        "description": f"Found accessible {path} at {url}",
-                        "severity": "medium",
-                        "source": "vuln_scan",
-                        "target": url,
-                    })
+                    findings.append(
+                        {
+                            "title": f"Information Disclosure: {description}",
+                            "description": f"Found accessible {path} at {url}",
+                            "severity": "medium",
+                            "source": "vuln_scan",
+                            "target": url,
+                        }
+                    )
             except Exception:
                 continue
-        
+
         _display(f"  [vuln_scan] Found {len(findings)} potential issues")
     except Exception as e:
         logger.warning(f"vuln_scan error: {e}")
@@ -1177,6 +1278,7 @@ def _exec_vuln_scan(action: AgentAction, state: AgentState) -> List[Dict]:
 def _exec_xss_hunt(action: AgentAction, state: AgentState) -> List[Dict]:
     """Run Python-based XSS hunting."""
     import requests
+
     findings = []
     target = action.target
     if "://" not in target:
@@ -1192,30 +1294,32 @@ def _exec_xss_hunt(action: AgentAction, state: AgentState) -> List[Dict]:
     xss_payloads = [
         "<script>alert(1)</script>",
         "'-alert(1)-'",
-        "\"><img src=x onerror=alert(1)>",
+        '"><img src=x onerror=alert(1)>',
         "javascript:alert(1)",
     ]
-    
+
     try:
         for param in all_params[:5]:  # Test first 5 params
             for payload in xss_payloads:
                 try:
                     url = f"{target}?{param}={payload}"
                     response = requests.get(url, timeout=5, verify=False)
-                    
+
                     if payload in response.text:
-                        findings.append({
-                            "title": f"XSS Found: Reflected XSS in {param}",
-                            "description": f"URL: {url}\nParam: {param}\nPayload: {payload}",
-                            "severity": "high",
-                            "source": "xss_hunt",
-                            "target": url,
-                            "param": param,
-                        })
+                        findings.append(
+                            {
+                                "title": f"XSS Found: Reflected XSS in {param}",
+                                "description": f"URL: {url}\nParam: {param}\nPayload: {payload}",
+                                "severity": "high",
+                                "source": "xss_hunt",
+                                "target": url,
+                                "param": param,
+                            }
+                        )
                         break  # Found XSS in this param, move to next
                 except Exception:
                     continue
-        
+
         _display(f"  [xss_hunt] Found {len(findings)} XSS vulnerabilities")
     except Exception as e:
         logger.warning(f"xss_hunt error: {e}")
@@ -1249,12 +1353,20 @@ def _exec_zap_active_scan(action: AgentAction, state: AgentState) -> List[Dict]:
         except Exception:
             # Try to start ZAP daemon
             import subprocess
+
             zap_path = Path("tools/external/zap/zap.sh")
             if zap_path.exists():
                 subprocess.Popen(
-                    [str(zap_path), "-daemon", "-port", "8080",
-                     "-config", f"api.key={zap_api_key}"],
-                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                    [
+                        str(zap_path),
+                        "-daemon",
+                        "-port",
+                        "8080",
+                        "-config",
+                        f"api.key={zap_api_key}",
+                    ],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
                 )
                 _display("  [zap_active_scan] Starting ZAP daemon...")
                 time.sleep(15)  # Wait for daemon to initialize
@@ -1291,23 +1403,24 @@ def _exec_zap_active_scan(action: AgentAction, state: AgentState) -> List[Dict]:
         # Collect alerts
         alerts = zap.core.alerts(baseurl=target, start=0, count=100)
         for alert in alerts:
-            sev_map = {"Informational": "info", "Low": "low",
-                       "Medium": "medium", "High": "high"}
+            sev_map = {"Informational": "info", "Low": "low", "Medium": "medium", "High": "high"}
             sev = sev_map.get(alert.get("risk", ""), "info")
-            findings.append({
-                "title": f"ZAP: {alert.get('alert', 'Unknown')}",
-                "description": (
-                    f"Risk: {alert.get('risk')}\n"
-                    f"URL: {alert.get('url', target)}\n"
-                    f"Param: {alert.get('param', 'N/A')}\n"
-                    f"Evidence: {alert.get('evidence', 'N/A')[:200]}\n"
-                    f"Solution: {alert.get('solution', 'N/A')[:200]}"
-                ),
-                "severity": sev,
-                "source": "zap_active_scan",
-                "target": alert.get("url", target),
-                "cwe": alert.get("cweid"),
-            })
+            findings.append(
+                {
+                    "title": f"ZAP: {alert.get('alert', 'Unknown')}",
+                    "description": (
+                        f"Risk: {alert.get('risk')}\n"
+                        f"URL: {alert.get('url', target)}\n"
+                        f"Param: {alert.get('param', 'N/A')}\n"
+                        f"Evidence: {alert.get('evidence', 'N/A')[:200]}\n"
+                        f"Solution: {alert.get('solution', 'N/A')[:200]}"
+                    ),
+                    "severity": sev,
+                    "source": "zap_active_scan",
+                    "target": alert.get("url", target),
+                    "cwe": alert.get("cweid"),
+                }
+            )
 
         _display(f"  [zap_active_scan] Found {len(findings)} vulnerabilities")
 
@@ -1318,8 +1431,9 @@ def _exec_zap_active_scan(action: AgentAction, state: AgentState) -> List[Dict]:
     return findings
 
 
-def _exec_analyze_findings(new_findings: List[Dict], action: AgentAction,
-                           state: AgentState, ai_client) -> str:
+def _exec_analyze_findings(
+    new_findings: List[Dict], action: AgentAction, state: AgentState, ai_client
+) -> str:
     """
     After each action, ask AI to analyze the new findings and update state:
     - Upgrade severities
@@ -1332,8 +1446,7 @@ def _exec_analyze_findings(new_findings: List[Dict], action: AgentAction,
 
     findings_text = json.dumps(new_findings[:10], indent=2)
     assets_text = json.dumps(
-        {k: v[:5] if isinstance(v, list) else v for k, v in state.assets.items()},
-        indent=2
+        {k: v[:5] if isinstance(v, list) else v for k, v in state.assets.items()}, indent=2
     )
 
     content = _ai_call(
@@ -1388,7 +1501,9 @@ Analyze and respond in JSON:
     return insight
 
 
-def _ai_reflect_on_action(action: AgentAction, state: AgentState, ai_client) -> tuple[bool, str, str]:
+def _ai_reflect_on_action(
+    action: AgentAction, state: AgentState, ai_client
+) -> tuple[bool, str, str]:
     """AI evaluates the potential impact of an action before executing it."""
     if not ai_client or action.name in ("threat_model", "analyze"):
         return True, "Safe analysis step", "low"
@@ -1412,12 +1527,12 @@ Reply ONLY in JSON format:
 }}""",
         temperature=0.1,
     )
-    
+
     data = _parse_json(content)
     decision = data.get("decision", "approve").lower()
     reflection = data.get("reflection", "No reflection provided")
     risk = data.get("risk_level", "unknown")
-    
+
     return (decision == "approve"), reflection, risk
 
 
@@ -1425,22 +1540,31 @@ Reply ONLY in JSON format:
 # AI decision engine
 # ──────────────────────────────────────────────────────────
 
+
 def _ai_decide_next(ai_client, state: AgentState) -> AgentAction:
     """Ask AI what the next action should be."""
 
-    context = json.dumps({
-        "root_target": state.root_target,
-        "goal": state.goal,
-        "iteration": state.iteration,
-        "assets_discovered": {k: v[:10] if isinstance(v, list) else v
-                              for k, v in state.assets.items()},
-        "findings_summary": [
-            {"title": f.get("title"), "severity": f.get("severity"),
-             "type": f.get("type"), "target": f.get("target")}
-            for f in state.findings[-20:]
-        ],
-        "actions_taken": state.action_history[-10:],
-    }, indent=2)
+    context = json.dumps(
+        {
+            "root_target": state.root_target,
+            "goal": state.goal,
+            "iteration": state.iteration,
+            "assets_discovered": {
+                k: v[:10] if isinstance(v, list) else v for k, v in state.assets.items()
+            },
+            "findings_summary": [
+                {
+                    "title": f.get("title"),
+                    "severity": f.get("severity"),
+                    "type": f.get("type"),
+                    "target": f.get("target"),
+                }
+                for f in state.findings[-20:]
+            ],
+            "actions_taken": state.action_history[-10:],
+        },
+        indent=2,
+    )
 
     available_actions = """
 Available actions (Phase 1 — Intelligence Gathering):
@@ -1487,18 +1611,34 @@ Available actions (Strategic):
     if not ai_client:
         # Fallback sequence when no AI available
         taken = set(a.split(":")[0] for a in state.action_history)
-        for action_name in ["wayback_recon", "recon", "osint_research",
-                            "github_dork", "vuln_intel", "js_recon",
-                            "threat_model",
-                            "http_probe", "waf_detect",
-                            "endpoint_fuzz", "param_mine", "cors_scan",
-                            "header_audit", "subdomain_takeover",
-                            "request_auth", "auth_test",
-                            "injection_test", "bola_probe", "waf_bypass",
-                            "vuln_scan", "xss_hunt",
-                            "ssrf_scan", "graphql_introspect", "race_condition",
-                            "create_custom_tool",
-                            "done"]:
+        for action_name in [
+            "wayback_recon",
+            "recon",
+            "osint_research",
+            "github_dork",
+            "vuln_intel",
+            "js_recon",
+            "threat_model",
+            "http_probe",
+            "waf_detect",
+            "endpoint_fuzz",
+            "param_mine",
+            "cors_scan",
+            "header_audit",
+            "subdomain_takeover",
+            "request_auth",
+            "auth_test",
+            "injection_test",
+            "bola_probe",
+            "waf_bypass",
+            "vuln_scan",
+            "xss_hunt",
+            "ssrf_scan",
+            "graphql_introspect",
+            "race_condition",
+            "create_custom_tool",
+            "done",
+        ]:
             if action_name not in taken or action_name == "done":
                 t = state.root_target
                 return AgentAction(
@@ -1550,13 +1690,13 @@ Choose the BEST next action. Return JSON only:
     if action_name != "done" and "://" not in target:
         target = f"https://{target}"
 
-    return AgentAction(name=action_name, target=target,
-                       params=params, reasoning=reasoning)
+    return AgentAction(name=action_name, target=target, params=params, reasoning=reasoning)
 
 
 # ──────────────────────────────────────────────────────────
 # Main AutonomousAgent
 # ──────────────────────────────────────────────────────────
+
 
 class AutonomousAgent:
     """
@@ -1568,11 +1708,13 @@ class AutonomousAgent:
 
     def __init__(self, governance_mode: str = "ask", ai_client=None):
         import threading as _threading
+
         self.governance_mode = governance_mode
         self.abort_event = _threading.Event()
         if ai_client is None:
             try:
                 from tools.universal_ai_client import AIClientManager
+
                 self.ai_client = AIClientManager()
             except Exception:
                 self.ai_client = None
@@ -1581,13 +1723,16 @@ class AutonomousAgent:
 
         try:
             from tools.ai_tool_creator import AIToolCreator
+
             self.tool_creator = AIToolCreator(governance_mode=governance_mode)
         except Exception:
             self.tool_creator = None
 
         self.decision_history: List[AgentAction] = []
-        logger.info(f"AutonomousAgent initialized (mode: {governance_mode}, "
-                    f"ai={'yes' if self.ai_client else 'fallback'})")
+        logger.info(
+            f"AutonomousAgent initialized (mode: {governance_mode}, "
+            f"ai={'yes' if self.ai_client else 'fallback'})"
+        )
 
     def run_autonomous_scan(self, target: str, goal: str = None) -> ScanResult:
         start_time = datetime.now(timezone.utc)
@@ -1607,6 +1752,7 @@ class AutonomousAgent:
         # Init mission state
         try:
             from tools.mission_state import MissionState
+
             mission = MissionState(
                 mission_id=f"auto_{int(time.time())}",
                 target=target,
@@ -1630,10 +1776,12 @@ class AutonomousAgent:
                 for f in state.findings:
                     s = f.get("severity", "info").lower()
                     sev_counts[s] = sev_counts.get(s, 0) + 1
-                _display(f"\n[Iteration {state.iteration}/{self.MAX_ITERATIONS}] "
-                      f"⏱ {elapsed}s | "
-                      f"🔴{sev_counts['critical']} 🟠{sev_counts['high']} "
-                      f"🟡{sev_counts['medium']} 🟢{sev_counts['low'] + sev_counts['info']}")
+                _display(
+                    f"\n[Iteration {state.iteration}/{self.MAX_ITERATIONS}] "
+                    f"⏱ {elapsed}s | "
+                    f"🔴{sev_counts['critical']} 🟠{sev_counts['high']} "
+                    f"🟡{sev_counts['medium']} 🟢{sev_counts['low'] + sev_counts['info']}"
+                )
 
                 # AI decides next action
                 action = _ai_decide_next(self.ai_client, state)
@@ -1649,19 +1797,24 @@ class AutonomousAgent:
                     break
 
                 # ── AI Self-Reflection ───────────────────────────────
-                if self.governance_mode != "auto" and action.name not in ("threat_model", "analyze"):
+                if self.governance_mode != "auto" and action.name not in (
+                    "threat_model",
+                    "analyze",
+                ):
                     _display(f"  [Reflection] AI is evaluating the consequences of this action...")
                     is_safe, reflection, risk = _ai_reflect_on_action(action, state, self.ai_client)
                     _display(f"  [Reflection] Risk: {risk.upper()} | {reflection}")
-                    
+
                     if not is_safe:
                         _display(f"  [Reflection] ❌ Action self-rejected by AI. Skipping...")
-                        state.findings.append({
-                            "title": f"AI Self-Rejected: {action.name}",
-                            "description": f"AI decided not to execute {action.name} due to high risk or low value.\nReflection: {reflection}",
-                            "severity": "info",
-                            "source": "reflection"
-                        })
+                        state.findings.append(
+                            {
+                                "title": f"AI Self-Rejected: {action.name}",
+                                "description": f"AI decided not to execute {action.name} due to high risk or low value.\nReflection: {reflection}",
+                                "severity": "info",
+                                "source": "reflection",
+                            }
+                        )
                         continue
                     _display(f"  [Reflection] ✅ Action approved. Executing...")
                 # ────────────────────────────────────────────────────────
@@ -1708,8 +1861,10 @@ class AutonomousAgent:
         report_path = self._generate_report(target, state.findings, predictions)
 
         summary = self._build_summary(target, state, duration)
-        _display(f"\n[Complete] {duration}s | {len(state.findings)} findings | "
-              f"{state.iteration} iterations")
+        _display(
+            f"\n[Complete] {duration}s | {len(state.findings)} findings | "
+            f"{state.iteration} iterations"
+        )
 
         # ── Auto-export JSON ────────────────────────────────────
         self._export_json(target, state, predictions, duration)
@@ -1727,8 +1882,7 @@ class AutonomousAgent:
             summary=summary,
         )
 
-    def _export_json(self, target: str, state: AgentState,
-                     predictions: List[Dict], duration: int):
+    def _export_json(self, target: str, state: AgentState, predictions: List[Dict], duration: int):
         """Auto-save scan results to data/scans/ as JSON."""
         try:
             scans_dir = Path("data/scans")
@@ -1743,44 +1897,40 @@ class AutonomousAgent:
                 "total_findings": len(state.findings),
                 "findings": state.findings,
                 "bounty_predictions": predictions,
-                "assets": {
-                    k: v for k, v in state.assets.items()
-                    if not k.startswith("auth")
-                },
+                "assets": {k: v for k, v in state.assets.items() if not k.startswith("auth")},
                 "action_history": state.action_history,
             }
-            out_path.write_text(json.dumps(payload, indent=2, default=str),
-                                encoding="utf-8")
+            out_path.write_text(json.dumps(payload, indent=2, default=str), encoding="utf-8")
             _display(f"[Export] Saved to {out_path}")
         except Exception as e:
             logger.warning(f"JSON export failed: {e}")
 
     def _execute_action(self, action: AgentAction, state: AgentState) -> List[Dict]:
         dispatch = {
-            "recon":              _exec_recon,
-            "http_probe":         _exec_http_probe,
-            "waf_detect":         _exec_waf_detect,
-            "endpoint_fuzz":      _exec_endpoint_fuzz,
-            "bola_probe":         _exec_bola_probe,
-            "header_audit":       _exec_header_audit,
-            "osint_research":     _exec_osint_research,
-            "vuln_intel":         _exec_vuln_intel,
-            "wayback_recon":      _exec_wayback_recon,
-            "github_dork":        _exec_github_dork,
-            "js_recon":           _exec_js_recon,
-            "param_mine":         _exec_param_mine,
-            "cors_scan":          _exec_cors_scan,
-            "injection_test":     _exec_injection_test,
+            "recon": _exec_recon,
+            "http_probe": _exec_http_probe,
+            "waf_detect": _exec_waf_detect,
+            "endpoint_fuzz": _exec_endpoint_fuzz,
+            "bola_probe": _exec_bola_probe,
+            "header_audit": _exec_header_audit,
+            "osint_research": _exec_osint_research,
+            "vuln_intel": _exec_vuln_intel,
+            "wayback_recon": _exec_wayback_recon,
+            "github_dork": _exec_github_dork,
+            "js_recon": _exec_js_recon,
+            "param_mine": _exec_param_mine,
+            "cors_scan": _exec_cors_scan,
+            "injection_test": _exec_injection_test,
             "subdomain_takeover": _exec_subdomain_takeover,
-            "waf_bypass":         _exec_waf_bypass,
-            "request_auth":       _exec_request_auth,
-            "vuln_scan":        _exec_vuln_scan,
-            "xss_hunt":           _exec_xss_hunt,
-            "zap_active_scan":    _exec_zap_active_scan,
-            "ssrf_scan":          _exec_ssrf_scan_ex,
+            "waf_bypass": _exec_waf_bypass,
+            "request_auth": _exec_request_auth,
+            "vuln_scan": _exec_vuln_scan,
+            "xss_hunt": _exec_xss_hunt,
+            "zap_active_scan": _exec_zap_active_scan,
+            "ssrf_scan": _exec_ssrf_scan_ex,
             "graphql_introspect": _exec_graphql_ex,
-            "race_condition":     _exec_race_condition_ex,
-            "auth_test":          _exec_auth_test_ex,
+            "race_condition": _exec_race_condition_ex,
+            "auth_test": _exec_auth_test_ex,
         }
 
         # Actions that need ai_client, handle separately
@@ -1794,9 +1944,7 @@ class AutonomousAgent:
 
         if action.name == "create_custom_tool":
             try:
-                return _exec_create_custom_tool(
-                    action, state, ai_client=self.ai_client
-                )
+                return _exec_create_custom_tool(action, state, ai_client=self.ai_client)
             except Exception as e:
                 logger.warning(f"create_custom_tool failed: {e}")
                 _display(f"  [!] create_custom_tool error: {e}")
@@ -1804,9 +1952,7 @@ class AutonomousAgent:
 
         if action.name == "endpoint_fuzz":
             try:
-                return _exec_endpoint_fuzz(
-                    action, state, ai_client=self.ai_client
-                )
+                return _exec_endpoint_fuzz(action, state, ai_client=self.ai_client)
             except Exception as e:
                 logger.warning(f"endpoint_fuzz failed: {e}")
                 _display(f"  [!] endpoint_fuzz error: {e}")
@@ -1824,26 +1970,31 @@ class AutonomousAgent:
     def _predict_bounties(self, findings: List[Dict]) -> List[Dict]:
         try:
             from tools.bounty_predictor import BountyPredictor
+
             predictor = BountyPredictor()
             out = []
             for f in findings:
                 try:
                     p = predictor.predict(f)
-                    out.append({
-                        "finding_title": f.get("title"),
-                        "bounty_score": p.bounty_score,
-                        "payout_range": p.payout_range,
-                    })
+                    out.append(
+                        {
+                            "finding_title": f.get("title"),
+                            "bounty_score": p.bounty_score,
+                            "payout_range": p.payout_range,
+                        }
+                    )
                 except Exception:
                     pass
             return out
         except Exception:
             return []
 
-    def _generate_report(self, target: str, findings: List[Dict],
-                         predictions: List[Dict]) -> Optional[Path]:
+    def _generate_report(
+        self, target: str, findings: List[Dict], predictions: List[Dict]
+    ) -> Optional[Path]:
         try:
             from tools.pdf_report_generator import PDFReportGenerator, ReportMetadata
+
             meta = ReportMetadata(
                 title=f"Autonomous Security Assessment — {target}",
                 target=target,
@@ -1884,7 +2035,7 @@ class AutonomousAgent:
     def run_team_scan(self, target: str, goal: str = None) -> ScanResult:
         """
         TEAM AEGIS MODE for Autonomous Agent.
-        
+
         When multiple AI models are available (ACTIVE_MODELS env),
         runs a collaborative multi-agent scan using Team Aegis.
         The team discusses strategy and uses autonomous agent's
@@ -1892,33 +2043,33 @@ class AutonomousAgent:
         """
         import os
         from datetime import datetime, timezone
-        
+
         active_models_str = os.environ.get("ACTIVE_MODELS", "")
         active_models = [m.strip() for m in active_models_str.split(",") if m.strip()]
-        
+
         if len(active_models) < 2:
             # Not enough models for team mode — fall back to single agent
             _display("[Team Aegis] Not enough models selected. Using single-agent mode.")
             return self.run_autonomous_scan(target, goal=goal)
-        
+
         start_time = datetime.now(timezone.utc)
         goal = goal or "Find high-value security vulnerabilities for bug bounty"
-        
+
         _display(f"\n{'='*60}")
         _display(f" TEAM AEGIS — Autonomous Collaborative Scan")
         _display(f" Target: {target}")
         _display(f" Goal: {goal}")
         _display(f" Models: {', '.join(active_models)}")
         _display(f"{'='*60}\n")
-        
+
         # Build team clients
         try:
-            from tools.universal_ai_client import UniversalAIClient
             from tools.multi_agent import TeamAegis, TeamMessage
+            from tools.universal_ai_client import UniversalAIClient
             from tools.universal_executor import get_universal_executor
-            
+
             team_clients = []
-            
+
             for model_str in active_models:
                 try:
                     if "/" in model_str:
@@ -1926,70 +2077,70 @@ class AutonomousAgent:
                     else:
                         provider = os.environ.get("ACTIVE_AI_PROVIDER", "auto")
                         model_name = model_str
-                        
-                    new_client = UniversalAIClient(
-                        provider=provider,
-                        model=model_name
-                    )
+
+                    new_client = UniversalAIClient(provider=provider, model=model_name)
                     if new_client.is_available():
                         team_clients.append(new_client)
                 except Exception as e:
                     logger.warning(f"Failed to load team client {model_name}: {e}")
-                    
 
             if len(team_clients) < 2:
                 _display("[Team Aegis] Could not form a team. Falling back to single agent.")
                 return self.run_autonomous_scan(target, goal=goal)
-            
+
             # Create executor for tool operations
             executor = get_universal_executor()
-            
+
             # Create Team Aegis with live output
             def live_callback(msg):
                 _display(msg)
-            
+
             team = TeamAegis(
                 clients=team_clients[:3],
                 target=target,
                 callback=live_callback,
                 max_rounds=30,
             )
-            
+
             # Add mission briefing
-            team.discussion.append(TeamMessage(
-                round=0,
-                agent_id=-1,
-                agent_role="Operator",
-                model_name="human",
-                content=f"Mission briefing: {goal}\nTarget: {target}\n"
-                        f"Available actions: recon, http_probe, waf_detect, vuln_scan, "
-                        f"endpoint_fuzz, bola_probe, header_audit, xss_hunt, cors_scan, "
-                        f"injection_test, subdomain_takeover, param_mine, js_recon, "
-                        f"wayback_recon, threat_model, create_custom_tool",
-                msg_type="discussion"
-            ))
-            
+            team.discussion.append(
+                TeamMessage(
+                    round=0,
+                    agent_id=-1,
+                    agent_role="Operator",
+                    model_name="human",
+                    content=f"Mission briefing: {goal}\nTarget: {target}\n"
+                    f"Available actions: recon, http_probe, waf_detect, vuln_scan, "
+                    f"endpoint_fuzz, bola_probe, header_audit, xss_hunt, cors_scan, "
+                    f"injection_test, subdomain_takeover, param_mine, js_recon, "
+                    f"wayback_recon, threat_model, create_custom_tool",
+                    msg_type="discussion",
+                )
+            )
+
             # Run the team engagement
             report = team.run_full_engagement(executor=executor)
-            
+
             end_time = datetime.now(timezone.utc)
             duration = (end_time - start_time).seconds
-            
+
             # Convert team findings to our format
             findings = []
             for f in team.findings:
-                findings.append({
-                    "title": f.description[:100],
-                    "description": f.description,
-                    "severity": f.severity,
-                    "source": f"team_aegis/{f.source_agent}",
-                    "evidence": f.evidence,
-                })
-            
+                findings.append(
+                    {
+                        "title": f.description[:100],
+                        "description": f.description,
+                        "severity": f.severity,
+                        "source": f"team_aegis/{f.source_agent}",
+                        "evidence": f.evidence,
+                    }
+                )
+
             # Generate predictions and report
             predictions = self._predict_bounties(findings)
             report_path = self._generate_report(target, findings, predictions)
-            
+
             # Build state for summary
             state = AgentState(
                 root_target=target,
@@ -2004,13 +2155,15 @@ class AutonomousAgent:
                 f"Findings: {len(findings)} | Actions: {len(team.tasks)}\n\n"
                 f"{report}"
             )
-            
+
             # Export JSON
             self._export_json(target, state, predictions, duration)
-            
-            _display(f"\n[Team Aegis] Complete: {duration}s | {len(findings)} findings | "
-                  f"{team.round} rounds")
-            
+
+            _display(
+                f"\n[Team Aegis] Complete: {duration}s | {len(findings)} findings | "
+                f"{team.round} rounds"
+            )
+
             return ScanResult(
                 target=target,
                 start_time=start_time,
@@ -2023,7 +2176,7 @@ class AutonomousAgent:
                 success=True,
                 summary=summary,
             )
-            
+
         except Exception as e:
             logger.error(f"Team Aegis failed: {e}")
             _display(f"[Team Aegis] Error: {e}. Falling back to single agent.")
@@ -2034,11 +2187,13 @@ class AutonomousAgent:
 # New action executors (SSRF, GraphQL, Race Condition, Auth)
 # ──────────────────────────────────────────────────────────
 
+
 def _exec_ssrf_scan_ex(action: AgentAction, state: AgentState) -> List[Dict]:
     """Execute SSRF scan on the target."""
     findings = []
     try:
         from tools.ssrf_scanner import SSRFScanner
+
         engine = SSRFScanner(base_url=action.target)
         results = engine.scan(url=action.target, headers=_build_headers(state))
         findings.extend(results)
@@ -2054,6 +2209,7 @@ def _exec_graphql_ex(action: AgentAction, state: AgentState) -> List[Dict]:
     findings = []
     try:
         from tools.graphql_scanner import scan_graphql
+
         results = scan_graphql(action.target, headers=_build_headers(state))
         findings.extend(results)
         _display(f"  [graphql_introspect] {action.target} → {len(findings)} findings")
@@ -2068,6 +2224,7 @@ def _exec_race_condition_ex(action: AgentAction, state: AgentState) -> List[Dict
     findings = []
     try:
         from tools.race_condition_tester import scan_race_conditions
+
         results = scan_race_conditions(action.target, headers=_build_headers(state))
         findings.extend(results)
         _display(f"  [race_condition] {action.target} → {len(findings)} findings")
@@ -2082,10 +2239,10 @@ def _exec_auth_test_ex(action: AgentAction, state: AgentState) -> List[Dict]:
     findings = []
     try:
         from tools.auth_tester import run_auth_tests
+
         auth_headers = state.assets.get("auth_headers", {})
-        token = (
-            auth_headers.get("Authorization", "").replace("Bearer ", "")
-            or auth_headers.get("Cookie", "")
+        token = auth_headers.get("Authorization", "").replace("Bearer ", "") or auth_headers.get(
+            "Cookie", ""
         )
         results = run_auth_tests(
             target=action.target,

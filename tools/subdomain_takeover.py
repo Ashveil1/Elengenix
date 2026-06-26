@@ -14,9 +14,10 @@ Technique:
 import logging
 import re
 import socket
-import requests
 from typing import Dict, List, Optional, Tuple
 from urllib.parse import urlparse
+
+import requests
 
 logger = logging.getLogger("elengenix.subdomain_takeover")
 
@@ -160,13 +161,14 @@ TAKEOVER_SIGNATURES = {
 # Core Functions
 # ─────────────────────────────────────────────────
 
+
 def resolve_cname(domain: str) -> Optional[str]:
     """Resolve the CNAME record for a domain using DNS."""
     try:
         import subprocess
+
         result = subprocess.run(
-            ["dig", "+short", "CNAME", domain],
-            capture_output=True, text=True, timeout=5
+            ["dig", "+short", "CNAME", domain], capture_output=True, text=True, timeout=5
         )
         cname = result.stdout.strip().rstrip(".")
         if cname:

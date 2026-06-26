@@ -78,7 +78,10 @@ class WorkflowFuzzer:
                 title="Coupon / Discount Abuse Probe (Safe)",
                 description="Look for coupon validation inconsistencies and repeated apply/remove flows (GET-only probe by default).",
                 risk="medium",
-                assumptions=["You will replace paths with real endpoints", "GET endpoints exist for viewing cart/quote"],
+                assumptions=[
+                    "You will replace paths with real endpoints",
+                    "GET endpoints exist for viewing cart/quote",
+                ],
                 steps=[
                     WorkflowStep("view_cart", "GET", "/cart"),
                     WorkflowStep("view_checkout_quote", "GET", "/checkout/quote"),
@@ -189,7 +192,11 @@ class WorkflowFuzzer:
                             "note": "Potential workflow edge-case causing server error.",
                         }
                     )
-                if "coupon" in path.lower() and r.status_code == 200 and "error" not in body.lower():
+                if (
+                    "coupon" in path.lower()
+                    and r.status_code == 200
+                    and "error" not in body.lower()
+                ):
                     # weak heuristic
                     anomalies.append(
                         {
@@ -211,7 +218,9 @@ class WorkflowFuzzer:
                     }
                 )
 
-        return WorkflowResult(success=True, observations=observations, anomalies=anomalies, notes=notes)
+        return WorkflowResult(
+            success=True, observations=observations, anomalies=anomalies, notes=notes
+        )
 
 
 def format_workflow_plans(plans: List[WorkflowPlan]) -> str:

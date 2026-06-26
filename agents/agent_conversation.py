@@ -79,6 +79,7 @@ class ConversationManager:
 
         try:
             from tools.token_counter import count_tokens
+
             model_name = ""
             if hasattr(self, "client") and hasattr(self.client, "active_client"):
                 model_name = getattr(self.client.active_client, "model", "")
@@ -119,10 +120,9 @@ class ConversationManager:
         if len(self.conversation_history) <= 10:
             return
 
-        old_turns = self.conversation_history[:len(self.conversation_history) // 2]
+        old_turns = self.conversation_history[: len(self.conversation_history) // 2]
         conversation_text = "\n".join(
-            f"{t['role'].capitalize()}: {t['content'][:200]}"
-            for t in old_turns
+            f"{t['role'].capitalize()}: {t['content'][:200]}" for t in old_turns
         )
 
         try:
@@ -132,14 +132,16 @@ class ConversationManager:
 
 Provide a brief summary (2-3 sentences):"""
 
-            response = self.client.chat([
-                AIMessage(role="system", content="You are a conversation summarizer."),
-                AIMessage(role="user", content=summary_prompt),
-            ])
+            response = self.client.chat(
+                [
+                    AIMessage(role="system", content="You are a conversation summarizer."),
+                    AIMessage(role="user", content=summary_prompt),
+                ]
+            )
 
             summary = response.content or "Previous conversation context."
 
-            self.conversation_history = self.conversation_history[len(old_turns):]
+            self.conversation_history = self.conversation_history[len(old_turns) :]
             self.conversation_history.insert(
                 0,
                 {"role": "system", "content": f"Previous context: {summary}"},
@@ -149,9 +151,7 @@ Provide a brief summary (2-3 sentences):"""
         except Exception as e:
             logger.error(f"Failed to summarize old conversation: {e}")
 
-    def build_chat_messages(
-        self, system_prompt: str, user_input: str
-    ) -> List[AIMessage]:
+    def build_chat_messages(self, system_prompt: str, user_input: str) -> List[AIMessage]:
         """Build the full message list to send to the AI.
 
         Args:

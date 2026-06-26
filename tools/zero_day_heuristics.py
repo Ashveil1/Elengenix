@@ -42,6 +42,7 @@ Conventions
 
 Version: 1.0.0
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -70,8 +71,6 @@ except ImportError:  # pragma: no cover - optional runtime dep
 
 import requests
 
-from ui_components import console, print_info, print_success, print_warning, print_error
-
 from tools.vuln_engine import (
     ExploitMaturity,
     VulnClass,
@@ -79,6 +78,7 @@ from tools.vuln_engine import (
     calculate_cvss,
     severity_from_cvss,
 )
+from ui_components import console, print_error, print_info, print_success, print_warning
 
 logger = logging.getLogger("elengenix.zero_day_heuristics")
 
@@ -178,17 +178,17 @@ def _default_vector_for(vuln_class: VulnClass) -> str:
     """
     mapping: Dict[VulnClass, str] = {
         VulnClass.PROTOTYPE_POLLUTION: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:H/A:H",
-        VulnClass.DESERIALIZATION:     "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:H/A:H",
-        VulnClass.RACE_CONDITION:      "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:N/I:H/A:H",
-        VulnClass.TEMPLATE_INJECTION:  "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:H/A:H",
-        VulnClass.GRAPHQL:             "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:N/A:N",
-        VulnClass.JWT:                 "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N",
-        VulnClass.HTTP_SMUGGLING:      "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:C/C:H/I:H/A:H",
-        VulnClass.BROKEN_ACCESS:       "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:N",
-        VulnClass.SENSITIVE_DATA:      "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N",
-        VulnClass.CRYPTO:              "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:H/I:H/A:N",
-        VulnClass.API_ABUSE:           "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:L/A:N",
-        VulnClass.ZERO_DAY:            "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:H/A:H",
+        VulnClass.DESERIALIZATION: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:H/A:H",
+        VulnClass.RACE_CONDITION: "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:N/I:H/A:H",
+        VulnClass.TEMPLATE_INJECTION: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:H/A:H",
+        VulnClass.GRAPHQL: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:N/A:N",
+        VulnClass.JWT: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N",
+        VulnClass.HTTP_SMUGGLING: "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:C/C:H/I:H/A:H",
+        VulnClass.BROKEN_ACCESS: "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:N",
+        VulnClass.SENSITIVE_DATA: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N",
+        VulnClass.CRYPTO: "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:H/I:H/A:N",
+        VulnClass.API_ABUSE: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:L/A:N",
+        VulnClass.ZERO_DAY: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:H/A:H",
     }
     return mapping.get(vuln_class, "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:L/A:N")
 
@@ -270,16 +270,26 @@ class HTTPClient:
         """
         if aiohttp is not None:
             return await self._async_aiohttp(
-                method, url, headers=headers, params=params,
-                json_body=json_body, data=data, timeout=timeout,
+                method,
+                url,
+                headers=headers,
+                params=params,
+                json_body=json_body,
+                data=data,
+                timeout=timeout,
                 allow_redirects=allow_redirects,
             )
         return await asyncio.get_running_loop().run_in_executor(
             self._executor,
             lambda: self._sync_to_dict(
                 self.request(
-                    method, url, headers=headers, params=params,
-                    json_body=json_body, data=data, timeout=timeout,
+                    method,
+                    url,
+                    headers=headers,
+                    params=params,
+                    json_body=json_body,
+                    data=data,
+                    timeout=timeout,
                     allow_redirects=allow_redirects,
                 ),
             ),
@@ -355,9 +365,7 @@ def _entropy(data: str) -> float:
         return 0.0
     counts = collections.Counter(data)
     total = len(data)
-    return -sum(
-        (c / total) * math.log2(c / total) for c in counts.values() if c
-    )
+    return -sum((c / total) * math.log2(c / total) for c in counts.values() if c)
 
 
 def _shannon(data: bytes) -> float:
@@ -366,9 +374,7 @@ def _shannon(data: bytes) -> float:
         return 0.0
     counts = collections.Counter(data)
     total = len(data)
-    return -sum(
-        (c / total) * math.log2(c / total) for c in counts.values() if c
-    )
+    return -sum((c / total) * math.log2(c / total) for c in counts.values() if c)
 
 
 def _short_hash(*parts: str) -> str:
@@ -389,13 +395,23 @@ def _short_hash(*parts: str) -> str:
 # in the target's technology stack, a prototype pollution becomes much more
 # dangerous (turns into RCE / XSS).
 PROTO_POLLUTION_GADGETS = [
-    "lodash.merge", "lodash.defaultsdeep", "_.merge",
-    "jQuery.extend", "$.extend",
-    "deep-extend", "merge-deep", "lodash._.merge",
-    "Object.assign", "JSON.parse(JSON.stringify(...))",
-    "Vue.set", "React.createElement",
-    "ejs", "pug", "handlebars",
-    "express.bodyParser", "express.urlencoded({extended:true})",
+    "lodash.merge",
+    "lodash.defaultsdeep",
+    "_.merge",
+    "jQuery.extend",
+    "$.extend",
+    "deep-extend",
+    "merge-deep",
+    "lodash._.merge",
+    "Object.assign",
+    "JSON.parse(JSON.stringify(...))",
+    "Vue.set",
+    "React.createElement",
+    "ejs",
+    "pug",
+    "handlebars",
+    "express.bodyParser",
+    "express.urlencoded({extended:true})",
 ]
 
 PROTO_PROBE_PAYLOADS = [
@@ -414,12 +430,35 @@ PROTO_PROBE_PAYLOADS = [
 # Field names that, when accepted and reflected back, suggest an object
 # pollution / mass-assignment sink.
 DANGEROUS_FIELDS = [
-    "isAdmin", "is_admin", "admin", "role", "group", "groups",
-    "balance", "credit", "credits", "wallet", "amount",
-    "userId", "user_id", "uid", "ownerId", "owner_id",
-    "verified", "isVerified", "is_verified", "approved",
-    "password", "passwd", "token", "apiKey", "api_key",
-    "permissions", "privileges", "accessLevel", "access_level",
+    "isAdmin",
+    "is_admin",
+    "admin",
+    "role",
+    "group",
+    "groups",
+    "balance",
+    "credit",
+    "credits",
+    "wallet",
+    "amount",
+    "userId",
+    "user_id",
+    "uid",
+    "ownerId",
+    "owner_id",
+    "verified",
+    "isVerified",
+    "is_verified",
+    "approved",
+    "password",
+    "passwd",
+    "token",
+    "apiKey",
+    "api_key",
+    "permissions",
+    "privileges",
+    "accessLevel",
+    "access_level",
 ]
 
 
@@ -454,7 +493,9 @@ class PrototypePollutionDetector:
     def __init__(self, http: Optional[HTTPClient] = None):
         self.http = http or HTTPClient()
 
-    async def detect(self, target: str, *, context: Optional[Dict[str, Any]] = None) -> List[Finding]:
+    async def detect(
+        self, target: str, *, context: Optional[Dict[str, Any]] = None
+    ) -> List[Finding]:
         """Run prototype pollution probes against ``target``.
 
         Args:
@@ -473,7 +514,10 @@ class PrototypePollutionDetector:
         for url in paths:
             for payload in PROTO_PROBE_PAYLOADS:
                 resp = await self.http.async_request(
-                    "POST", url, headers=headers, json_body=payload,
+                    "POST",
+                    url,
+                    headers=headers,
+                    json_body=payload,
                 )
                 if resp is None:
                     continue
@@ -483,7 +527,10 @@ class PrototypePollutionDetector:
 
             # Gadget stack-trace pass (even on error 500)
             error_resp = await self.http.async_request(
-                "POST", url, headers=headers, json_body={"__proto__": {"x": "y" * 64}},
+                "POST",
+                url,
+                headers=headers,
+                json_body={"__proto__": {"x": "y" * 64}},
             )
             if error_resp is not None and self._has_stack_signal(error_resp):
                 findings.append(self._build_stack_finding(url, error_resp))
@@ -619,23 +666,23 @@ class PrototypePollutionDetector:
 
 MASS_ASSIGN_FIELDS = [
     # (field, attacker value, expected echo, severity)
-    ("isAdmin", True,         "true",      SeverityLevel.CRITICAL),
-    ("is_admin", True,        "true",      SeverityLevel.CRITICAL),
-    ("admin", True,           "true",      SeverityLevel.CRITICAL),
-    ("role", "admin",         "admin",     SeverityLevel.CRITICAL),
-    ("group", "admins",       "admins",    SeverityLevel.HIGH),
-    ("balance", 999999,       "999999",    SeverityLevel.HIGH),
-    ("credits", 999999,       "999999",    SeverityLevel.HIGH),
-    ("wallet", 999999,        "999999",    SeverityLevel.HIGH),
-    ("verified", True,        "true",      SeverityLevel.MEDIUM),
-    ("isVerified", True,      "true",      SeverityLevel.MEDIUM),
-    ("approved", True,        "true",      SeverityLevel.MEDIUM),
-    ("userId", 1,             '"1"',       SeverityLevel.HIGH),
-    ("user_id", 1,            '"1"',       SeverityLevel.HIGH),
-    ("uid", 1,                '"1"',       SeverityLevel.HIGH),
-    ("ownerId", 1,            '"1"',       SeverityLevel.HIGH),
-    ("accessLevel", "root",   "root",      SeverityLevel.HIGH),
-    ("permissions", "[\"*\"]", "*",         SeverityLevel.HIGH),
+    ("isAdmin", True, "true", SeverityLevel.CRITICAL),
+    ("is_admin", True, "true", SeverityLevel.CRITICAL),
+    ("admin", True, "true", SeverityLevel.CRITICAL),
+    ("role", "admin", "admin", SeverityLevel.CRITICAL),
+    ("group", "admins", "admins", SeverityLevel.HIGH),
+    ("balance", 999999, "999999", SeverityLevel.HIGH),
+    ("credits", 999999, "999999", SeverityLevel.HIGH),
+    ("wallet", 999999, "999999", SeverityLevel.HIGH),
+    ("verified", True, "true", SeverityLevel.MEDIUM),
+    ("isVerified", True, "true", SeverityLevel.MEDIUM),
+    ("approved", True, "true", SeverityLevel.MEDIUM),
+    ("userId", 1, '"1"', SeverityLevel.HIGH),
+    ("user_id", 1, '"1"', SeverityLevel.HIGH),
+    ("uid", 1, '"1"', SeverityLevel.HIGH),
+    ("ownerId", 1, '"1"', SeverityLevel.HIGH),
+    ("accessLevel", "root", "root", SeverityLevel.HIGH),
+    ("permissions", '["*"]', "*", SeverityLevel.HIGH),
 ]
 
 
@@ -681,7 +728,10 @@ class MassAssignmentDetector:
         findings: List[Finding] = []
 
         baseline_resp = await self.http.async_request(
-            method, target, headers=headers, json_body=baseline,
+            method,
+            target,
+            headers=headers,
+            json_body=baseline,
         )
         if baseline_resp is None:
             return findings
@@ -693,7 +743,10 @@ class MassAssignmentDetector:
             poisoned = dict(baseline)
             poisoned[field] = value
             resp = await self.http.async_request(
-                method, target, headers=headers, json_body=poisoned,
+                method,
+                target,
+                headers=headers,
+                json_body=poisoned,
             )
             if resp is None:
                 continue
@@ -708,62 +761,66 @@ class MassAssignmentDetector:
             status_changed = resp.get("status") != baseline_status
 
             if echoed and value not in baseline:
-                findings.append(Finding(
-                    detector=self.name,
-                    title=f"Mass assignment: server echoed injected field '{field}'",
-                    severity=severity,
-                    vuln_class=VulnClass.BROKEN_ACCESS,
-                    url=target,
-                    method=method,
-                    parameter=field,
-                    payload=json.dumps({field: value}),
-                    evidence=f"Injected value '{expected_echo}' appears in response.",
-                    description=(
-                        f"Server reflected the injected field '{field}' = "
-                        f"{value!r} back to the client, indicating that the "
-                        "endpoint binds arbitrary user input to internal "
-                        "domain fields. This is a classic mass-assignment "
-                        "vulnerability (OWASP API1:2023)."
-                    ),
-                    remediation=(
-                        "Apply an explicit allowlist of writable fields. "
-                        "Never bind request payloads directly to ORM models."
-                    ),
-                    cwe=["CWE-915", "CWE-639"],
-                    references=[
-                        "https://owasp.org/API-Security/editions/2023/en/0xa1-broken-object-level-authorization/",
-                        "https://cheatsheetseries.owasp.org/cheatsheets/Mass_Assignment_Cheat_Sheet.html",
-                    ],
-                    confidence=0.85,
-                    metadata={
-                        "field": field,
-                        "value": value,
-                        "status_changed": status_changed,
-                    },
-                ))
+                findings.append(
+                    Finding(
+                        detector=self.name,
+                        title=f"Mass assignment: server echoed injected field '{field}'",
+                        severity=severity,
+                        vuln_class=VulnClass.BROKEN_ACCESS,
+                        url=target,
+                        method=method,
+                        parameter=field,
+                        payload=json.dumps({field: value}),
+                        evidence=f"Injected value '{expected_echo}' appears in response.",
+                        description=(
+                            f"Server reflected the injected field '{field}' = "
+                            f"{value!r} back to the client, indicating that the "
+                            "endpoint binds arbitrary user input to internal "
+                            "domain fields. This is a classic mass-assignment "
+                            "vulnerability (OWASP API1:2023)."
+                        ),
+                        remediation=(
+                            "Apply an explicit allowlist of writable fields. "
+                            "Never bind request payloads directly to ORM models."
+                        ),
+                        cwe=["CWE-915", "CWE-639"],
+                        references=[
+                            "https://owasp.org/API-Security/editions/2023/en/0xa1-broken-object-level-authorization/",
+                            "https://cheatsheetseries.owasp.org/cheatsheets/Mass_Assignment_Cheat_Sheet.html",
+                        ],
+                        confidence=0.85,
+                        metadata={
+                            "field": field,
+                            "value": value,
+                            "status_changed": status_changed,
+                        },
+                    )
+                )
             elif grew_significantly and field in DANGEROUS_FIELDS:
-                findings.append(Finding(
-                    detector=self.name,
-                    title=f"Mass assignment: response grew after injecting '{field}'",
-                    severity=SeverityLevel.MEDIUM,
-                    vuln_class=VulnClass.BROKEN_ACCESS,
-                    url=target,
-                    method=method,
-                    parameter=field,
-                    payload=json.dumps({field: value}),
-                    evidence=(
-                        f"Baseline len={baseline_len}, poisoned len="
-                        f"{resp.get('length')}, delta={len_delta}."
-                    ),
-                    description=(
-                        "Server response grew notably when an unexpected "
-                        "field was added to the request payload, suggesting "
-                        "that the field was accepted and possibly persisted."
-                    ),
-                    remediation="Strip unknown keys before persistence.",
-                    confidence=0.5,
-                    metadata={"len_delta": len_delta, "field": field},
-                ))
+                findings.append(
+                    Finding(
+                        detector=self.name,
+                        title=f"Mass assignment: response grew after injecting '{field}'",
+                        severity=SeverityLevel.MEDIUM,
+                        vuln_class=VulnClass.BROKEN_ACCESS,
+                        url=target,
+                        method=method,
+                        parameter=field,
+                        payload=json.dumps({field: value}),
+                        evidence=(
+                            f"Baseline len={baseline_len}, poisoned len="
+                            f"{resp.get('length')}, delta={len_delta}."
+                        ),
+                        description=(
+                            "Server response grew notably when an unexpected "
+                            "field was added to the request payload, suggesting "
+                            "that the field was accepted and possibly persisted."
+                        ),
+                        remediation="Strip unknown keys before persistence.",
+                        confidence=0.5,
+                        metadata={"len_delta": len_delta, "field": field},
+                    )
+                )
         return findings
 
 
@@ -777,7 +834,7 @@ class MassAssignmentDetector:
 # accepted and is now reflecting.
 DESER_SIGNATURES = {
     "java": {
-        "magic_hex": "ACED0005",          # Java ObjectInputStream
+        "magic_hex": "ACED0005",  # Java ObjectInputStream
         "regex": [
             r"\b(?:java\.io\.|java\.rmi\.|org\.springframework\.|com\.fasterxml\.jackson\.|java\.util\.|java\.lang\.Process)\b",
             r"\b(?:ObjectInputStream|readObject|writeObject|XMLDecoder)\b",
@@ -786,7 +843,7 @@ DESER_SIGNATURES = {
         "content_types": ["application/x-java-serialized-object"],
     },
     "python": {
-        "magic_b64_prefixes": ["gAS"],    # pickle protocol 2/4
+        "magic_b64_prefixes": ["gAS"],  # pickle protocol 2/4
         "regex": [
             r"\b__reduce__\b",
             r"\b__class__\b\s*:\s*['\"]",
@@ -798,9 +855,9 @@ DESER_SIGNATURES = {
     "php": {
         "regex": [
             r'\bO:\d+:"[A-Za-z\\\_]+":\d+:\{',  # O:8:"stdClass":...
-            r'\ba:\d+:\{',                       # PHP array shorthand
-            r'\bs:\d+:"[^"]+";',                 # PHP string shorthand
-            r'\b__PHP_Incomplete_Class\b',
+            r"\ba:\d+:\{",  # PHP array shorthand
+            r'\bs:\d+:"[^"]+";',  # PHP string shorthand
+            r"\b__PHP_Incomplete_Class\b",
         ],
     },
     "node": {
@@ -813,8 +870,8 @@ DESER_SIGNATURES = {
     "dotnet": {
         "regex": [
             r'__VIEWSTATE[\'"]?\s*[,=:]\s*[\'"]?[A-Za-z0-9+/=]{50,}',
-            r'\bSystem\.Web\.UI\.ObjectStateFormatter\b',
-            r'\bLosFormatter\b',
+            r"\bSystem\.Web\.UI\.ObjectStateFormatter\b",
+            r"\bLosFormatter\b",
         ],
     },
 }
@@ -848,7 +905,9 @@ class InsecureDeserializationDetector:
     def __init__(self, http: Optional[HTTPClient] = None):
         self.http = http or HTTPClient()
 
-    async def detect(self, target: str, *, context: Optional[Dict[str, Any]] = None) -> List[Finding]:
+    async def detect(
+        self, target: str, *, context: Optional[Dict[str, Any]] = None
+    ) -> List[Finding]:
         """Run deserialization probes.
 
         Args:
@@ -872,16 +931,19 @@ class InsecureDeserializationDetector:
 
         # Pass 2 — send a harmless probe per language and inspect the response.
         probes: List[Tuple[str, str, str]] = [
-            ("java",   method, HARMLESS_PROBE_PAYLOADS["java_hex"]),
+            ("java", method, HARMLESS_PROBE_PAYLOADS["java_hex"]),
             ("python", method, HARMLESS_PROBE_PAYLOADS["python_b64"]),
-            ("php",    method, HARMLESS_PROBE_PAYLOADS["php_serial"]),
-            ("node",   method, HARMLESS_PROBE_PAYLOADS["node_buffer"]),
+            ("php", method, HARMLESS_PROBE_PAYLOADS["php_serial"]),
+            ("node", method, HARMLESS_PROBE_PAYLOADS["node_buffer"]),
         ]
         for lang, m, payload in probes:
             probe_headers = dict(headers)
             probe_headers["Content-Type"] = "application/octet-stream"
             resp = await self.http.async_request(
-                m, target, headers=probe_headers, data=payload,
+                m,
+                target,
+                headers=probe_headers,
+                data=payload,
             )
             if resp is None:
                 continue
@@ -907,31 +969,43 @@ class InsecureDeserializationDetector:
             # Magic byte detection
             magic = sig.get("magic_hex")
             if magic and magic in head_hex:
-                findings.append(self._finding(
-                    lang, target, resp,
-                    f"Magic bytes {magic} present in response body.",
-                    severity=SeverityLevel.HIGH,
-                ))
+                findings.append(
+                    self._finding(
+                        lang,
+                        target,
+                        resp,
+                        f"Magic bytes {magic} present in response body.",
+                        severity=SeverityLevel.HIGH,
+                    )
+                )
             # Base64 magic detection — check both the re-encoded body and the
             # raw response text (since servers often return the pickle as a
             # base64 string directly).
             head_b64 = b64[:64]
             for prefix in sig.get("magic_b64_prefixes", []):
                 if prefix in head_b64 or prefix in text[:64]:
-                    findings.append(self._finding(
-                        lang, target, resp,
-                        f"Base64 prefix {prefix!r} found in response (suggests pickle).",
-                        severity=SeverityLevel.HIGH,
-                    ))
+                    findings.append(
+                        self._finding(
+                            lang,
+                            target,
+                            resp,
+                            f"Base64 prefix {prefix!r} found in response (suggests pickle).",
+                            severity=SeverityLevel.HIGH,
+                        )
+                    )
             # Regex pattern detection
             for pattern in sig.get("regex", []):
                 m = re.search(pattern, text, re.IGNORECASE)
                 if m:
-                    findings.append(self._finding(
-                        lang, target, resp,
-                        f"Pattern '{pattern}' matched: {m.group(0)[:80]!r}",
-                        severity=SeverityLevel.HIGH if hint == lang else SeverityLevel.MEDIUM,
-                    ))
+                    findings.append(
+                        self._finding(
+                            lang,
+                            target,
+                            resp,
+                            f"Pattern '{pattern}' matched: {m.group(0)[:80]!r}",
+                            severity=SeverityLevel.HIGH if hint == lang else SeverityLevel.MEDIUM,
+                        )
+                    )
         return findings
 
     def _finding(
@@ -943,7 +1017,8 @@ class InsecureDeserializationDetector:
         severity: SeverityLevel,
     ) -> Finding:
         vuln_class = (
-            VulnClass.DESERIALIZATION if language in ("java", "python", "php", "node")
+            VulnClass.DESERIALIZATION
+            if language in ("java", "python", "php", "node")
             else VulnClass.CRYPTO
         )
         cwe = {
@@ -1065,7 +1140,9 @@ class HTTPSmugglingDetector:
     def __init__(self, timeout: float = 5.0):
         self.timeout = timeout
 
-    async def detect(self, target: str, *, context: Optional[Dict[str, Any]] = None) -> List[Finding]:
+    async def detect(
+        self, target: str, *, context: Optional[Dict[str, Any]] = None
+    ) -> List[Finding]:
         """Run raw-socket smuggling probes.
 
         Args:
@@ -1076,6 +1153,7 @@ class HTTPSmugglingDetector:
             Findings list.
         """
         from urllib.parse import urlparse
+
         parsed = urlparse(target)
         host = parsed.hostname or ""
         port = parsed.port or (443 if parsed.scheme == "https" else 80)
@@ -1125,7 +1203,8 @@ class HTTPSmugglingDetector:
                     break
                 try:
                     chunk = await asyncio.wait_for(
-                        reader.read(4096), timeout=remaining,
+                        reader.read(4096),
+                        timeout=remaining,
                     )
                 except asyncio.TimeoutError:
                     break
@@ -1148,11 +1227,7 @@ class HTTPSmugglingDetector:
         # Split into HTTP messages (very rough — enough for heuristic).
         # Only split on a *response* status line at the start of a line, not
         # on incidental "Server: ...HTTP/x.y" headers.
-        return [
-            m.strip()
-            for m in re.split(r"(?=(?:^|\r\n)HTTP/\d\.\d \d{3} )", data)
-            if m.strip()
-        ]
+        return [m.strip() for m in re.split(r"(?=(?:^|\r\n)HTTP/\d\.\d \d{3} )", data) if m.strip()]
 
     def _analyze(
         self,
@@ -1266,11 +1341,16 @@ class RaceConditionDetector:
 
         async def _one() -> Optional[Dict[str, Any]]:
             return await self.http.async_request(
-                method, target, headers=headers, json_body=body if isinstance(body, dict) else None,
+                method,
+                target,
+                headers=headers,
+                json_body=body if isinstance(body, dict) else None,
                 data=body if not isinstance(body, dict) else None,
             )
 
-        results = await asyncio.gather(*[_one() for _ in range(concurrency)], return_exceptions=False)
+        results = await asyncio.gather(
+            *[_one() for _ in range(concurrency)], return_exceptions=False
+        )
         results = [r for r in results if r is not None]
         return self._analyze(target, method, concurrency, results)
 
@@ -1294,97 +1374,107 @@ class RaceConditionDetector:
         timing_spread = max(timings) - min(timings)
 
         if unique_statuses > 1:
-            findings.append(Finding(
-                detector=self.name,
-                title=f"Race condition: status code diverged across {n} concurrent requests",
-                severity=SeverityLevel.HIGH,
-                vuln_class=VulnClass.RACE_CONDITION,
-                url=target,
-                method=method,
-                evidence=f"status distribution: {dict(statuses)}",
-                description=(
-                    f"{unique_statuses} different status codes observed across "
-                    f"{n} concurrent requests. The endpoint exhibits "
-                    "non-deterministic behaviour under concurrency."
-                ),
-                remediation=(
-                    "Wrap critical sections in locks / atomic transactions. "
-                    "Use SELECT ... FOR UPDATE, optimistic concurrency "
-                    "control, or compare-and-swap primitives."
-                ),
-                cwe=["CWE-362"],
-                references=["https://owasp.org/www-community/vulnerabilities/TOCTOU_Race_Condition"],
-                confidence=0.85,
-                metadata={"status_distribution": dict(statuses)},
-            ))
+            findings.append(
+                Finding(
+                    detector=self.name,
+                    title=f"Race condition: status code diverged across {n} concurrent requests",
+                    severity=SeverityLevel.HIGH,
+                    vuln_class=VulnClass.RACE_CONDITION,
+                    url=target,
+                    method=method,
+                    evidence=f"status distribution: {dict(statuses)}",
+                    description=(
+                        f"{unique_statuses} different status codes observed across "
+                        f"{n} concurrent requests. The endpoint exhibits "
+                        "non-deterministic behaviour under concurrency."
+                    ),
+                    remediation=(
+                        "Wrap critical sections in locks / atomic transactions. "
+                        "Use SELECT ... FOR UPDATE, optimistic concurrency "
+                        "control, or compare-and-swap primitives."
+                    ),
+                    cwe=["CWE-362"],
+                    references=[
+                        "https://owasp.org/www-community/vulnerabilities/TOCTOU_Race_Condition"
+                    ],
+                    confidence=0.85,
+                    metadata={"status_distribution": dict(statuses)},
+                )
+            )
 
         if length_spread > 0 and max(lengths) > 0:
             rel = length_spread / max(lengths)
             if rel > 0.30:
-                findings.append(Finding(
+                findings.append(
+                    Finding(
+                        detector=self.name,
+                        title="Race condition: response body diverged across concurrent requests",
+                        severity=SeverityLevel.MEDIUM,
+                        vuln_class=VulnClass.RACE_CONDITION,
+                        url=target,
+                        method=method,
+                        evidence=(
+                            f"length range {min(lengths)}..{max(lengths)} "
+                            f"(spread={length_spread}, rel={rel:.2%})"
+                        ),
+                        description=(
+                            "Response bodies varied in length by more than 30% "
+                            "across parallel requests. Possible TOCTOU or "
+                            "non-atomic state mutation."
+                        ),
+                        remediation="Use atomic state transitions; lock per-resource.",
+                        cwe=["CWE-362"],
+                        confidence=0.6,
+                        metadata={"length_spread": length_spread},
+                    )
+                )
+
+        if timing_spread > 500:
+            findings.append(
+                Finding(
                     detector=self.name,
-                    title="Race condition: response body diverged across concurrent requests",
-                    severity=SeverityLevel.MEDIUM,
+                    title="Race condition: large timing spread under load",
+                    severity=SeverityLevel.LOW,
                     vuln_class=VulnClass.RACE_CONDITION,
                     url=target,
                     method=method,
-                    evidence=(
-                        f"length range {min(lengths)}..{max(lengths)} "
-                        f"(spread={length_spread}, rel={rel:.2%})"
-                    ),
+                    evidence=f"timing spread = {timing_spread:.0f} ms (min={min(timings):.0f}, max={max(timings):.0f})",
                     description=(
-                        "Response bodies varied in length by more than 30% "
-                        "across parallel requests. Possible TOCTOU or "
-                        "non-atomic state mutation."
+                        "Timing varied by more than 500 ms across parallel "
+                        "requests. May indicate lock contention or a race window."
                     ),
-                    remediation="Use atomic state transitions; lock per-resource.",
+                    remediation="Audit locking strategy; consider async-safe primitives.",
                     cwe=["CWE-362"],
-                    confidence=0.6,
-                    metadata={"length_spread": length_spread},
-                ))
-
-        if timing_spread > 500:
-            findings.append(Finding(
-                detector=self.name,
-                title="Race condition: large timing spread under load",
-                severity=SeverityLevel.LOW,
-                vuln_class=VulnClass.RACE_CONDITION,
-                url=target,
-                method=method,
-                evidence=f"timing spread = {timing_spread:.0f} ms (min={min(timings):.0f}, max={max(timings):.0f})",
-                description=(
-                    "Timing varied by more than 500 ms across parallel "
-                    "requests. May indicate lock contention or a race window."
-                ),
-                remediation="Audit locking strategy; consider async-safe primitives.",
-                cwe=["CWE-362"],
-                confidence=0.4,
-                metadata={"timing_spread_ms": timing_spread},
-            ))
+                    confidence=0.4,
+                    metadata={"timing_spread_ms": timing_spread},
+                )
+            )
 
         # Field-level race: scan response bodies for fields that should be
         # monotonic (balance, credits, attempts, retry_count).
         if bodies:
             field_race = self._field_race(bodies)
             if field_race:
-                findings.append(Finding(
-                    detector=self.name,
-                    title=f"Race condition: state field '{field_race}' changed inconsistently",
-                    severity=SeverityLevel.HIGH,
-                    vuln_class=VulnClass.RACE_CONDITION,
-                    url=target,
-                    method=method,
-                    evidence=f"Field '{field_race}' values: {field_race}",
-                    description=(
-                        "A state field (e.g. balance) is expected to move in "
-                        "one direction per request. The parallel responses "
-                        "show non-monotonic values, classic TOCTOU."
-                    ),
-                    remediation="Wrap state mutations in compare-and-swap or row locks.",
-                    cwe=["CWE-362"],
-                    confidence=0.85,
-                    metadata={"field": field_race},
-                ))
+                findings.append(
+                    Finding(
+                        detector=self.name,
+                        title=f"Race condition: state field '{field_race}' changed inconsistently",
+                        severity=SeverityLevel.HIGH,
+                        vuln_class=VulnClass.RACE_CONDITION,
+                        url=target,
+                        method=method,
+                        evidence=f"Field '{field_race}' values: {field_race}",
+                        description=(
+                            "A state field (e.g. balance) is expected to move in "
+                            "one direction per request. The parallel responses "
+                            "show non-monotonic values, classic TOCTOU."
+                        ),
+                        remediation="Wrap state mutations in compare-and-swap or row locks.",
+                        cwe=["CWE-362"],
+                        confidence=0.85,
+                        metadata={"field": field_race},
+                    )
+                )
         return findings
 
     @staticmethod
@@ -1453,7 +1543,9 @@ class SSTIDetector:
     def __init__(self, http: Optional[HTTPClient] = None):
         self.http = http or HTTPClient()
 
-    async def detect(self, target: str, *, context: Optional[Dict[str, Any]] = None) -> List[Finding]:
+    async def detect(
+        self, target: str, *, context: Optional[Dict[str, Any]] = None
+    ) -> List[Finding]:
         """Run SSTI probes.
 
         Args:
@@ -1488,7 +1580,9 @@ class SSTIDetector:
             if resp is None:
                 continue
             text = resp.get("text") or ""
-            findings.extend(self._analyze(target, param, payload, expected, baseline_text, text, resp))
+            findings.extend(
+                self._analyze(target, param, payload, expected, baseline_text, text, resp)
+            )
         return findings
 
     def _analyze(
@@ -1510,55 +1604,59 @@ class SSTIDetector:
                 if re.search(err, text, re.IGNORECASE):
                     sev = SeverityLevel.CRITICAL
                     break
-            out.append(Finding(
-                detector=self.name,
-                title=f"SSTI: payload {payload!r} reflected as {expected!r}",
-                severity=sev,
-                vuln_class=VulnClass.TEMPLATE_INJECTION,
-                url=target,
-                method=resp.get("_method", "GET"),
-                parameter=param,
-                payload=payload,
-                evidence=f"Expected {expected!r} present in response.",
-                description=(
-                    f"Template engine evaluated the probe {payload!r} and "
-                    f"produced {expected!r}. The endpoint is vulnerable to "
-                    "Server-Side Template Injection."
-                ),
-                remediation=(
-                    "Never pass user input to template engines. Use sandboxed "
-                    "engines (e.g. Jinja2 SandboxedEnvironment) or strict "
-                    "context-aware escaping."
-                ),
-                cwe=["CWE-94", "CWE-1336"],
-                references=[
-                    "https://portswigger.net/research/server-side-template-injection",
-                    "https://owasp.org/www-community/attacks/Server_Side_Template_Injection",
-                ],
-                confidence=0.95,
-                metadata={"engine_hint": _infer_engine(payload, text)},
-            ))
+            out.append(
+                Finding(
+                    detector=self.name,
+                    title=f"SSTI: payload {payload!r} reflected as {expected!r}",
+                    severity=sev,
+                    vuln_class=VulnClass.TEMPLATE_INJECTION,
+                    url=target,
+                    method=resp.get("_method", "GET"),
+                    parameter=param,
+                    payload=payload,
+                    evidence=f"Expected {expected!r} present in response.",
+                    description=(
+                        f"Template engine evaluated the probe {payload!r} and "
+                        f"produced {expected!r}. The endpoint is vulnerable to "
+                        "Server-Side Template Injection."
+                    ),
+                    remediation=(
+                        "Never pass user input to template engines. Use sandboxed "
+                        "engines (e.g. Jinja2 SandboxedEnvironment) or strict "
+                        "context-aware escaping."
+                    ),
+                    cwe=["CWE-94", "CWE-1336"],
+                    references=[
+                        "https://portswigger.net/research/server-side-template-injection",
+                        "https://owasp.org/www-community/attacks/Server_Side_Template_Injection",
+                    ],
+                    confidence=0.95,
+                    metadata={"engine_hint": _infer_engine(payload, text)},
+                )
+            )
 
         for err in SSTI_ERROR_SIGNATURES:
             if re.search(err, text, re.IGNORECASE):
-                out.append(Finding(
-                    detector=self.name,
-                    title=f"SSTI: template engine stack trace ({err})",
-                    severity=SeverityLevel.HIGH,
-                    vuln_class=VulnClass.TEMPLATE_INJECTION,
-                    url=target,
-                    parameter=param,
-                    payload=payload,
-                    evidence=re.search(err, text, re.IGNORECASE).group(0),  # type: ignore[union-attr]
-                    description=(
-                        "Server returned a template engine error, exposing "
-                        "the engine family. This is strong corroboration of "
-                        "an SSTI surface."
-                    ),
-                    remediation="Disable template debug errors in production.",
-                    cwe=["CWE-94", "CWE-209"],
-                    confidence=0.7,
-                ))
+                out.append(
+                    Finding(
+                        detector=self.name,
+                        title=f"SSTI: template engine stack trace ({err})",
+                        severity=SeverityLevel.HIGH,
+                        vuln_class=VulnClass.TEMPLATE_INJECTION,
+                        url=target,
+                        parameter=param,
+                        payload=payload,
+                        evidence=re.search(err, text, re.IGNORECASE).group(0),  # type: ignore[union-attr]
+                        description=(
+                            "Server returned a template engine error, exposing "
+                            "the engine family. This is strong corroboration of "
+                            "an SSTI surface."
+                        ),
+                        remediation="Disable template debug errors in production.",
+                        cwe=["CWE-94", "CWE-209"],
+                        confidence=0.7,
+                    )
+                )
                 break
         return out
 
@@ -1631,21 +1729,46 @@ class GraphQLIntrospectionDetector:
     name = "graphql_introspection"
 
     GRAPHQL_PATHS = [
-        "/graphql", "/v1/graphql", "/v2/graphql", "/api/graphql",
-        "/query", "/gql", "/graphiql", "/graphql/console",
+        "/graphql",
+        "/v1/graphql",
+        "/v2/graphql",
+        "/api/graphql",
+        "/query",
+        "/gql",
+        "/graphiql",
+        "/graphql/console",
     ]
 
     SENSITIVE_KEYWORDS = [
-        "password", "secret", "token", "credential",
-        "ssn", "credit", "card", "cvv", "pin", "passport",
-        "salary", "private", "admin", "role", "permission",
-        "audit", "log", "debug", "internal", "user_id", "apikey",
+        "password",
+        "secret",
+        "token",
+        "credential",
+        "ssn",
+        "credit",
+        "card",
+        "cvv",
+        "pin",
+        "passport",
+        "salary",
+        "private",
+        "admin",
+        "role",
+        "permission",
+        "audit",
+        "log",
+        "debug",
+        "internal",
+        "user_id",
+        "apikey",
     ]
 
     def __init__(self, http: Optional[HTTPClient] = None):
         self.http = http or HTTPClient()
 
-    async def detect(self, target: str, *, context: Optional[Dict[str, Any]] = None) -> List[Finding]:
+    async def detect(
+        self, target: str, *, context: Optional[Dict[str, Any]] = None
+    ) -> List[Finding]:
         """Run GraphQL discovery + introspection.
 
         Args:
@@ -1668,20 +1791,22 @@ class GraphQLIntrospectionDetector:
 
         schema = await self._introspect(endpoint, headers=headers)
         if not schema:
-            findings.append(Finding(
-                detector=self.name,
-                title="GraphQL endpoint reachable but introspection disabled",
-                severity=SeverityLevel.INFO,
-                vuln_class=VulnClass.GRAPHQL,
-                url=endpoint,
-                description=(
-                    "A GraphQL endpoint is reachable but the introspection "
-                    "query returned no schema. This is the secure default; "
-                    "still verify that production queries are authZ'd."
-                ),
-                remediation="Keep introspection disabled in production.",
-                confidence=0.8,
-            ))
+            findings.append(
+                Finding(
+                    detector=self.name,
+                    title="GraphQL endpoint reachable but introspection disabled",
+                    severity=SeverityLevel.INFO,
+                    vuln_class=VulnClass.GRAPHQL,
+                    url=endpoint,
+                    description=(
+                        "A GraphQL endpoint is reachable but the introspection "
+                        "query returned no schema. This is the secure default; "
+                        "still verify that production queries are authZ'd."
+                    ),
+                    remediation="Keep introspection disabled in production.",
+                    confidence=0.8,
+                )
+            )
         else:
             findings.extend(self._analyze_schema(endpoint, schema))
 
@@ -1698,50 +1823,65 @@ class GraphQLIntrospectionDetector:
         # Subscription / mutation probe
         for probe_name, query, severity in (
             ("subscription", GRAPHQL_SUBSCRIPTION_PROBE, SeverityLevel.LOW),
-            ("mutation",     GRAPHQL_MUTATION_PROBE,    SeverityLevel.INFO),
+            ("mutation", GRAPHQL_MUTATION_PROBE, SeverityLevel.INFO),
         ):
             resp = await self.http.async_request(
-                "POST", endpoint, headers=headers, json_body={"query": query},
+                "POST",
+                endpoint,
+                headers=headers,
+                json_body={"query": query},
             )
             if resp is None:
                 continue
             text = (resp.get("text") or "").lower()
             if "__typename" in text and "errors" not in text:
-                findings.append(Finding(
-                    detector=self.name,
-                    title=f"GraphQL {probe_name} type exposed",
-                    severity=severity,
-                    vuln_class=VulnClass.GRAPHQL,
-                    url=endpoint,
-                    evidence=text[:200],
-                    description=(
-                        f"GraphQL endpoint responds to {probe_name} __typename "
-                        "queries, confirming the type is exposed."
-                    ),
-                    remediation=f"Restrict {probe_name} access via authZ.",
-                    confidence=0.7,
-                ))
+                findings.append(
+                    Finding(
+                        detector=self.name,
+                        title=f"GraphQL {probe_name} type exposed",
+                        severity=severity,
+                        vuln_class=VulnClass.GRAPHQL,
+                        url=endpoint,
+                        evidence=text[:200],
+                        description=(
+                            f"GraphQL endpoint responds to {probe_name} __typename "
+                            "queries, confirming the type is exposed."
+                        ),
+                        remediation=f"Restrict {probe_name} access via authZ.",
+                        confidence=0.7,
+                    )
+                )
         return findings
 
     async def _discover_endpoint(self, base_url: str, *, headers: Dict[str, str]) -> Optional[str]:
         for path in self.GRAPHQL_PATHS:
             url = base_url.rstrip("/") + path
             resp = await self.http.async_request(
-                "POST", url, headers=headers, json_body={"query": "{__typename}"},
+                "POST",
+                url,
+                headers=headers,
+                json_body={"query": "{__typename}"},
             )
             if resp is None:
                 continue
-            text = (resp.get("text") or "")
+            text = resp.get("text") or ""
             status = resp.get("status", 0)
             if status == 200 and "__typename" in text:
                 return url
-            if status in (400, 405) and "json" in (resp.get("headers") or {}).get("Content-Type", ""):
+            if status in (400, 405) and "json" in (resp.get("headers") or {}).get(
+                "Content-Type", ""
+            ):
                 return url
         return None
 
-    async def _introspect(self, endpoint: str, *, headers: Dict[str, str]) -> Optional[Dict[str, Any]]:
+    async def _introspect(
+        self, endpoint: str, *, headers: Dict[str, str]
+    ) -> Optional[Dict[str, Any]]:
         resp = await self.http.async_request(
-            "POST", endpoint, headers=headers, json_body={"query": GRAPHQL_INTROSPECTION_QUERY},
+            "POST",
+            endpoint,
+            headers=headers,
+            json_body={"query": GRAPHQL_INTROSPECTION_QUERY},
         )
         if resp is None or resp.get("status") != 200:
             return None
@@ -1757,25 +1897,27 @@ class GraphQLIntrospectionDetector:
         mutation = schema.get("mutationType")
         subscription = schema.get("subscriptionType")
 
-        out.append(Finding(
-            detector=self.name,
-            title="GraphQL introspection enabled — full schema exposed",
-            severity=SeverityLevel.HIGH,
-            vuln_class=VulnClass.GRAPHQL,
-            url=endpoint,
-            evidence=(
-                f"types={len(types)}, has_mutation={bool(mutation)}, "
-                f"has_subscription={bool(subscription)}"
-            ),
-            description=(
-                "GraphQL introspection is enabled, exposing the entire schema. "
-                "This allows an attacker to enumerate every query, mutation, "
-                "and field — a major information disclosure."
-            ),
-            remediation="Disable introspection in production.",
-            cwe=["CWE-200"],
-            confidence=0.95,
-        ))
+        out.append(
+            Finding(
+                detector=self.name,
+                title="GraphQL introspection enabled — full schema exposed",
+                severity=SeverityLevel.HIGH,
+                vuln_class=VulnClass.GRAPHQL,
+                url=endpoint,
+                evidence=(
+                    f"types={len(types)}, has_mutation={bool(mutation)}, "
+                    f"has_subscription={bool(subscription)}"
+                ),
+                description=(
+                    "GraphQL introspection is enabled, exposing the entire schema. "
+                    "This allows an attacker to enumerate every query, mutation, "
+                    "and field — a major information disclosure."
+                ),
+                remediation="Disable introspection in production.",
+                cwe=["CWE-200"],
+                confidence=0.95,
+            )
+        )
 
         deprecated: List[str] = []
         sensitive_hits: List[Tuple[str, str, str]] = []  # (type, field, keyword)
@@ -1793,41 +1935,48 @@ class GraphQLIntrospectionDetector:
 
         if sensitive_hits:
             sample = ", ".join(f"{t}.{f}" for t, f, _ in sensitive_hits[:5])
-            out.append(Finding(
-                detector=self.name,
-                title=f"Sensitive fields exposed via introspection ({len(sensitive_hits)})",
-                severity=SeverityLevel.HIGH,
-                vuln_class=VulnClass.SENSITIVE_DATA,
-                url=endpoint,
-                evidence=sample,
-                description=(
-                    "Schema exposes fields whose names suggest sensitive data "
-                    "(passwords, tokens, roles, etc.)."
-                ),
-                remediation="Rename or remove sensitive fields; ensure authZ.",
-                cwe=["CWE-200", "CWE-359"],
-                confidence=0.8,
-                metadata={"sensitive_count": len(sensitive_hits)},
-            ))
+            out.append(
+                Finding(
+                    detector=self.name,
+                    title=f"Sensitive fields exposed via introspection ({len(sensitive_hits)})",
+                    severity=SeverityLevel.HIGH,
+                    vuln_class=VulnClass.SENSITIVE_DATA,
+                    url=endpoint,
+                    evidence=sample,
+                    description=(
+                        "Schema exposes fields whose names suggest sensitive data "
+                        "(passwords, tokens, roles, etc.)."
+                    ),
+                    remediation="Rename or remove sensitive fields; ensure authZ.",
+                    cwe=["CWE-200", "CWE-359"],
+                    confidence=0.8,
+                    metadata={"sensitive_count": len(sensitive_hits)},
+                )
+            )
 
         if deprecated:
-            out.append(Finding(
-                detector=self.name,
-                title=f"{len(deprecated)} deprecated fields still queryable",
-                severity=SeverityLevel.LOW,
-                vuln_class=VulnClass.GRAPHQL,
-                url=endpoint,
-                evidence=", ".join(deprecated[:5]),
-                description="Deprecated fields remain accessible via the schema.",
-                remediation="Remove deprecated fields.",
-                confidence=0.9,
-                metadata={"count": len(deprecated)},
-            ))
+            out.append(
+                Finding(
+                    detector=self.name,
+                    title=f"{len(deprecated)} deprecated fields still queryable",
+                    severity=SeverityLevel.LOW,
+                    vuln_class=VulnClass.GRAPHQL,
+                    url=endpoint,
+                    evidence=", ".join(deprecated[:5]),
+                    description="Deprecated fields remain accessible via the schema.",
+                    remediation="Remove deprecated fields.",
+                    confidence=0.9,
+                    metadata={"count": len(deprecated)},
+                )
+            )
         return out
 
     async def _test_batching(self, endpoint: str, *, headers: Dict[str, str]) -> Optional[Finding]:
         resp = await self.http.async_request(
-            "POST", endpoint, headers=headers, json_body=GRAPHQL_BATCH_PROBE,
+            "POST",
+            endpoint,
+            headers=headers,
+            json_body=GRAPHQL_BATCH_PROBE,
         )
         if resp is None or resp.get("status") != 200:
             return None
@@ -1857,7 +2006,10 @@ class GraphQLIntrospectionDetector:
     async def _test_depth(self, endpoint: str, *, headers: Dict[str, str]) -> Optional[Finding]:
         depth_query = "query { " + " ".join(["__typename"] * 20) + " }"
         resp = await self.http.async_request(
-            "POST", endpoint, headers=headers, json_body={"query": depth_query},
+            "POST",
+            endpoint,
+            headers=headers,
+            json_body={"query": depth_query},
         )
         if resp is None:
             return None
@@ -1960,15 +2112,15 @@ class JWTAlgorithmDetector:
         attacks["kid_path_traversal"] = _make_jwt(
             {"alg": "HS256", "kid": "../../../dev/null", "typ": "JWT"},
             base_payload,
-            _b64url(b"")  # signature will fail HMAC verify if checked
+            _b64url(b""),  # signature will fail HMAC verify if checked
         )
         attacks["kid_sql_injection"] = _make_jwt(
-            {"alg": "HS256", "kid": "1' OR '1'='1", "typ": "JWT"},
-            base_payload,
-            _b64url(b"")
+            {"alg": "HS256", "kid": "1' OR '1'='1", "typ": "JWT"}, base_payload, _b64url(b"")
         )
         attacks["kid_blank"] = _make_jwt(
-            {"alg": "HS256", "kid": "", "typ": "JWT"}, base_payload, _b64url(b""),
+            {"alg": "HS256", "kid": "", "typ": "JWT"},
+            base_payload,
+            _b64url(b""),
         )
         # 3. jku / x5u confusion — the server fetches the key from URL.
         attacks["jku_attack"] = _make_jwt(
@@ -1979,7 +2131,7 @@ class JWTAlgorithmDetector:
                 "typ": "JWT",
             },
             base_payload,
-            _b64url(b"")
+            _b64url(b""),
         )
         attacks["x5u_attack"] = _make_jwt(
             {
@@ -1988,14 +2140,16 @@ class JWTAlgorithmDetector:
                 "typ": "JWT",
             },
             base_payload,
-            _b64url(b"")
+            _b64url(b""),
         )
         # 4. HS256-with-RSA-public-key (algorithm confusion classic)
         # We don't know the key, so we just generate a random HMAC signature.
         # The token is forged so callers can compare responses.
         fake_sig = _b64url(hashlib.sha256(b"elengenix-rs256-hs256-confusion").digest())
         attacks["hs256_confusion"] = _make_jwt(
-            {"alg": "HS256", "typ": "JWT"}, base_payload, fake_sig,
+            {"alg": "HS256", "typ": "JWT"},
+            base_payload,
+            fake_sig,
         )
         return attacks
 
@@ -2022,32 +2176,34 @@ class JWTAlgorithmDetector:
                 if "kid" in name
                 else SeverityLevel.MEDIUM
             )
-            findings.append(Finding(
-                detector=self.name,
-                title=f"JWT forgery CANDIDATE (not tested): {name}",
-                severity=sev,
-                vuln_class=VulnClass.JWT,
-                payload=forged[:80] + "...",
-                evidence=forged,
-                description=(
-                    f"Forged JWT with attack pattern '{name}'. This is a "
-                    f"STATIC CANDIDATE — server has NOT been tested. Use "
-                    f"`detect_on_endpoint()` or run live scan to confirm "
-                    f"whether the verifier accepts this token."
-                ),
-                remediation=(
-                    "Reject alg=none. Pin the expected algorithm. Never use "
-                    "the public key as an HMAC secret. Validate kid, jku, "
-                    "x5u against an allowlist."
-                ),
-                cwe=["CWE-347", "CWE-287"],
-                references=[
-                    "https://portswigger.net/web-security/jwt/algorithm-confusion",
-                    "https://auth0.com/blog/critical-vulnerabilities-in-json-web-token-libraries/",
-                ],
-                confidence=0.0,  # Static-only — 0 confidence until server is tested.
-                metadata={"attack": name, "tested": False, "static": True},
-            ))
+            findings.append(
+                Finding(
+                    detector=self.name,
+                    title=f"JWT forgery CANDIDATE (not tested): {name}",
+                    severity=sev,
+                    vuln_class=VulnClass.JWT,
+                    payload=forged[:80] + "...",
+                    evidence=forged,
+                    description=(
+                        f"Forged JWT with attack pattern '{name}'. This is a "
+                        f"STATIC CANDIDATE — server has NOT been tested. Use "
+                        f"`detect_on_endpoint()` or run live scan to confirm "
+                        f"whether the verifier accepts this token."
+                    ),
+                    remediation=(
+                        "Reject alg=none. Pin the expected algorithm. Never use "
+                        "the public key as an HMAC secret. Validate kid, jku, "
+                        "x5u against an allowlist."
+                    ),
+                    cwe=["CWE-347", "CWE-287"],
+                    references=[
+                        "https://portswigger.net/web-security/jwt/algorithm-confusion",
+                        "https://auth0.com/blog/critical-vulnerabilities-in-json-web-token-libraries/",
+                    ],
+                    confidence=0.0,  # Static-only — 0 confidence until server is tested.
+                    metadata={"attack": name, "tested": False, "static": True},
+                )
+            )
         return findings
 
     async def detect_on_endpoint(
@@ -2076,7 +2232,9 @@ class JWTAlgorithmDetector:
 
         # Establish baseline
         baseline = await self.http.async_request(
-            "GET", endpoint, headers=base_headers,
+            "GET",
+            endpoint,
+            headers=base_headers,
         )
         baseline_status = (baseline or {}).get("status", 0)
 
@@ -2091,28 +2249,30 @@ class JWTAlgorithmDetector:
             # Acceptance = response differs from baseline and is 2xx.
             accepted = 200 <= status < 300 and status != baseline_status
             if accepted:
-                findings.append(Finding(
-                    detector=self.name,
-                    title=f"JWT algorithm confusion accepted: {name}",
-                    severity=SeverityLevel.CRITICAL,
-                    vuln_class=VulnClass.JWT,
-                    url=endpoint,
-                    payload=forged,
-                    evidence=f"Server returned {status} (baseline {baseline_status}).",
-                    description=(
-                        "The verification endpoint accepted a forged JWT, "
-                        "demonstrating an algorithm-confusion vulnerability. "
-                        "Authentication is bypassed."
-                    ),
-                    remediation=(
-                        "Reject unexpected alg values. Pin algorithms. Use "
-                        "modern JWT libraries that enforce strict matching."
-                    ),
-                    cwe=["CWE-347", "CWE-287"],
-                    references=["https://portswigger.net/web-security/jwt"],
-                    confidence=0.95,
-                    metadata={"attack": name, "status": status, "baseline": baseline_status},
-                ))
+                findings.append(
+                    Finding(
+                        detector=self.name,
+                        title=f"JWT algorithm confusion accepted: {name}",
+                        severity=SeverityLevel.CRITICAL,
+                        vuln_class=VulnClass.JWT,
+                        url=endpoint,
+                        payload=forged,
+                        evidence=f"Server returned {status} (baseline {baseline_status}).",
+                        description=(
+                            "The verification endpoint accepted a forged JWT, "
+                            "demonstrating an algorithm-confusion vulnerability. "
+                            "Authentication is bypassed."
+                        ),
+                        remediation=(
+                            "Reject unexpected alg values. Pin algorithms. Use "
+                            "modern JWT libraries that enforce strict matching."
+                        ),
+                        cwe=["CWE-347", "CWE-287"],
+                        references=["https://portswigger.net/web-security/jwt"],
+                        confidence=0.95,
+                        metadata={"attack": name, "status": status, "baseline": baseline_status},
+                    )
+                )
         return findings
 
 
@@ -2212,24 +2372,26 @@ class SmartAnomalyDetector:
             snapshot = ResponseSnapshot.from_response(resp)
             anomaly = self._outlier(snapshot, stats)
             if anomaly is not None:
-                findings.append(Finding(
-                    detector=self.name,
-                    title=f"Anomalous response to probe {probe}",
-                    severity=SeverityLevel.MEDIUM,
-                    vuln_class=VulnClass.ZERO_DAY,
-                    url=target,
-                    method=method,
-                    payload=json.dumps(probe),
-                    evidence=anomaly,
-                    description=(
-                        "Response to a fuzz probe is a statistical outlier "
-                        "from the baseline. Could indicate WAF / error page "
-                        "differences that lead to 0-day hypotheses."
-                    ),
-                    remediation="Investigate the parameter; potential input-validation gap.",
-                    confidence=0.5,
-                    metadata={"probe": probe, "snapshot": snapshot.__dict__},
-                ))
+                findings.append(
+                    Finding(
+                        detector=self.name,
+                        title=f"Anomalous response to probe {probe}",
+                        severity=SeverityLevel.MEDIUM,
+                        vuln_class=VulnClass.ZERO_DAY,
+                        url=target,
+                        method=method,
+                        payload=json.dumps(probe),
+                        evidence=anomaly,
+                        description=(
+                            "Response to a fuzz probe is a statistical outlier "
+                            "from the baseline. Could indicate WAF / error page "
+                            "differences that lead to 0-day hypotheses."
+                        ),
+                        remediation="Investigate the parameter; potential input-validation gap.",
+                        confidence=0.5,
+                        metadata={"probe": probe, "snapshot": snapshot.__dict__},
+                    )
+                )
         return findings
 
     @staticmethod
@@ -2253,34 +2415,38 @@ class SmartAnomalyDetector:
         """
         keysets = {tuple(sorted(s.headers.keys())) for s in baselines}
         if len(keysets) > 1:
-            return [Finding(
-                detector="smart_anomaly",
-                title="Non-deterministic response headers across baseline",
-                severity=SeverityLevel.LOW,
-                vuln_class=VulnClass.ZERO_DAY,
-                url=target,
-                evidence=f"{len(keysets)} distinct header sets observed.",
-                description="Header set varies between identical baseline requests.",
-                remediation="Audit reverse proxy configuration; pin header order.",
-                confidence=0.6,
-            )]
+            return [
+                Finding(
+                    detector="smart_anomaly",
+                    title="Non-deterministic response headers across baseline",
+                    severity=SeverityLevel.LOW,
+                    vuln_class=VulnClass.ZERO_DAY,
+                    url=target,
+                    evidence=f"{len(keysets)} distinct header sets observed.",
+                    description="Header set varies between identical baseline requests.",
+                    remediation="Audit reverse proxy configuration; pin header order.",
+                    confidence=0.6,
+                )
+            ]
         return []
 
     @staticmethod
     def _timing_anomaly(target: str, baselines: List[ResponseSnapshot]) -> List[Finding]:
         timings = [b.elapsed_ms for b in baselines]
         if max(timings) - min(timings) > 1000:
-            return [Finding(
-                detector="smart_anomaly",
-                title="Large timing variation across baseline requests",
-                severity=SeverityLevel.LOW,
-                vuln_class=VulnClass.ZERO_DAY,
-                url=target,
-                evidence=f"timing spread = {max(timings) - min(timings):.0f} ms",
-                description="Identical baseline requests show > 1 s timing variation.",
-                remediation="Profile server latency under load.",
-                confidence=0.4,
-            )]
+            return [
+                Finding(
+                    detector="smart_anomaly",
+                    title="Large timing variation across baseline requests",
+                    severity=SeverityLevel.LOW,
+                    vuln_class=VulnClass.ZERO_DAY,
+                    url=target,
+                    evidence=f"timing spread = {max(timings) - min(timings):.0f} ms",
+                    description="Identical baseline requests show > 1 s timing variation.",
+                    remediation="Profile server latency under load.",
+                    confidence=0.4,
+                )
+            ]
         return []
 
     def _outlier(
@@ -2318,9 +2484,12 @@ class SmartAnomalyDetector:
                 msgs.append(f"status z={z:.1f} (mean={mean:.0f}, value={snapshot.status})")
         # Entropy spike
         ent = _entropy(snapshot.text)
-        baseline_ent = statistics.mean(_entropy(b.text) for b in [
-            ResponseSnapshot(status=200, length=0, elapsed_ms=0, headers={}, text="x" * 200)
-        ])
+        baseline_ent = statistics.mean(
+            _entropy(b.text)
+            for b in [
+                ResponseSnapshot(status=200, length=0, elapsed_ms=0, headers={}, text="x" * 200)
+            ]
+        )
         if ent > 6.5 and abs(ent - baseline_ent) > 1.5:
             msgs.append(f"entropy={ent:.2f}")
         if not msgs:
@@ -2372,18 +2541,29 @@ class FindingGraph:
     def add_endpoint(self, url: str, method: str = "GET") -> str:
         """Register an endpoint node. Returns the node id."""
         node_id = f"ep:{method}:{url}"
-        self.nodes.setdefault(node_id, FindingNode(
-            node_id=node_id, kind="endpoint", label=url, metadata={"method": method},
-        ))
+        self.nodes.setdefault(
+            node_id,
+            FindingNode(
+                node_id=node_id,
+                kind="endpoint",
+                label=url,
+                metadata={"method": method},
+            ),
+        )
         return node_id
 
     def add_parameter(self, endpoint_id: str, name: str) -> str:
         """Register a parameter under an endpoint node."""
         param_id = f"param:{endpoint_id}:{name}"
-        self.nodes.setdefault(param_id, FindingNode(
-            node_id=param_id, kind="parameter", label=name,
-            metadata={"endpoint": endpoint_id},
-        ))
+        self.nodes.setdefault(
+            param_id,
+            FindingNode(
+                node_id=param_id,
+                kind="parameter",
+                label=name,
+                metadata={"endpoint": endpoint_id},
+            ),
+        )
         self._ensure_edge(endpoint_id, param_id, "has_parameter")
         return param_id
 
@@ -2392,7 +2572,9 @@ class FindingGraph:
         self._finding_counter += 1
         fid = f"finding:{self._finding_counter:04d}:{_short_hash(finding.title, finding.url)}"
         node = FindingNode(
-            node_id=fid, kind="finding", label=finding.title,
+            node_id=fid,
+            kind="finding",
+            label=finding.title,
             metadata={
                 "vuln_class": finding.vuln_class.value,
                 "severity": finding.severity.value,
@@ -2465,10 +2647,20 @@ class FindingGraph:
 
         # Privilege escalation keyword set (lowercased substrings).
         priv_keys = (
-            "admin", "priv_esc", "privilege", "rce",
-            "mass assignment", "auth missing", "idor",
-            "broken access", "deserialization", "template injection",
-            "smuggling", "ssti", "race condition", "prototype",
+            "admin",
+            "priv_esc",
+            "privilege",
+            "rce",
+            "mass assignment",
+            "auth missing",
+            "idor",
+            "broken access",
+            "deserialization",
+            "template injection",
+            "smuggling",
+            "ssti",
+            "race condition",
+            "prototype",
         )
         for key, fids in group_key.items():
             if len(fids) < 2:
@@ -2490,11 +2682,15 @@ class FindingGraph:
                 for chain in self._cartesian(fids_sorted, chain_len):
                     labels = [self.nodes[c].label.lower() for c in chain if c in self.nodes]
                     if any(k in l for l in labels for k in priv_keys):
-                        chains.append({
-                            "chain": chain,
-                            "score": self.chain_score(chain),
-                            "summary": " -> ".join(self.nodes[c].label for c in chain if c in self.nodes),
-                        })
+                        chains.append(
+                            {
+                                "chain": chain,
+                                "score": self.chain_score(chain),
+                                "summary": " -> ".join(
+                                    self.nodes[c].label for c in chain if c in self.nodes
+                                ),
+                            }
+                        )
         # Deduplicate chains (same set of node ids)
         seen: set = set()
         unique: List[Dict[str, Any]] = []
@@ -2519,7 +2715,7 @@ class FindingGraph:
                 yield [it]
             return
         for i, it in enumerate(items):
-            for sub in FindingGraph._cartesian(items[i + 1:], n - 1):
+            for sub in FindingGraph._cartesian(items[i + 1 :], n - 1):
                 yield [it] + sub
 
     # ── Internals ──────────────────────────────────────────────────────────
@@ -2637,8 +2833,9 @@ class ZeroDayEngine:
             (Critical first, Info last).
         """
         findings: List[Finding] = []
-        console.print(f"[bold #ffffff]{ZeroDayEngine.__name__}[/bold #ffffff] "
-                      f"starting scan on {target}")
+        console.print(
+            f"[bold #ffffff]{ZeroDayEngine.__name__}[/bold #ffffff] " f"starting scan on {target}"
+        )
 
         # ── Detectors that need an HTTP client ────────────────────────────
         net_tasks: List[Awaitable[List[Finding]]] = []
@@ -2702,11 +2899,23 @@ class ZeroDayEngine:
         candidates: List[str] = []
         # Common auth-ish paths to probe
         paths = [
-            "/", "/api", "/api/v1", "/api/v1/auth", "/api/v2/auth",
-            "/auth", "/login", "/token", "/api/token", "/oauth/token",
-            "/.well-known/openid-configuration", "/jwks.json",
-            "/api/user", "/api/me", "/api/users/me",
-            "/graphql", "/api/graphql",
+            "/",
+            "/api",
+            "/api/v1",
+            "/api/v1/auth",
+            "/api/v2/auth",
+            "/auth",
+            "/login",
+            "/token",
+            "/api/token",
+            "/oauth/token",
+            "/.well-known/openid-configuration",
+            "/jwks.json",
+            "/api/user",
+            "/api/me",
+            "/api/users/me",
+            "/graphql",
+            "/api/graphql",
         ]
         for p in paths:
             url = target.rstrip("/") + p
@@ -2732,13 +2941,16 @@ class ZeroDayEngine:
     def _looks_like_jwt(text: str) -> bool:
         """Heuristic: does this string contain a JWT-looking pattern?"""
         import re
+
         if not text:
             return False
         # JWT: three base64url segments separated by dots
-        return bool(re.search(
-            r"eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+",
-            text,
-        ))
+        return bool(
+            re.search(
+                r"eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+",
+                text,
+            )
+        )
 
     async def _run_prototype(self, target: str) -> List[Finding]:
         if "prototype" not in self._detectors:
@@ -2764,7 +2976,8 @@ class ZeroDayEngine:
         if "race" not in self._detectors:
             return []
         return await self._detectors["race"].detect(
-            target, concurrency=self.config.race_concurrency,
+            target,
+            concurrency=self.config.race_concurrency,
         )
 
     async def _run_ssti(self, target: str) -> List[Finding]:
@@ -2785,7 +2998,8 @@ class ZeroDayEngine:
             return []
         detector = SmartAnomalyDetector(http=self.http)
         return await detector.detect(
-            target, baseline_count=self.config.anomaly_baseline,
+            target,
+            baseline_count=self.config.anomaly_baseline,
         )
 
     # ── Utilities ──────────────────────────────────────────────────────────
@@ -2794,10 +3008,10 @@ class ZeroDayEngine:
     def _severity_rank(f: Finding) -> int:
         return {
             SeverityLevel.CRITICAL: 5,
-            SeverityLevel.HIGH:     4,
-            SeverityLevel.MEDIUM:   3,
-            SeverityLevel.LOW:      2,
-            SeverityLevel.INFO:     1,
+            SeverityLevel.HIGH: 4,
+            SeverityLevel.MEDIUM: 3,
+            SeverityLevel.LOW: 2,
+            SeverityLevel.INFO: 1,
         }.get(f.severity, 0)
 
     @staticmethod
@@ -2806,8 +3020,12 @@ class ZeroDayEngine:
         out: List[Finding] = []
         for f in findings:
             key = _short_hash(
-                f.detector, f.vuln_class.value, f.url, f.method,
-                f.parameter, f.title.lower(),
+                f.detector,
+                f.vuln_class.value,
+                f.url,
+                f.method,
+                f.parameter,
+                f.title.lower(),
             )
             if key in seen:
                 continue
@@ -2873,5 +3091,6 @@ __all__ = [
 
 if __name__ == "__main__":  # pragma: no cover - manual smoke
     import sys
+
     target = sys.argv[1] if len(sys.argv) > 1 else "http://127.0.0.1:8080"
     asyncio.run(run_zero_day_scan(target))

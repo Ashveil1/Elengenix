@@ -31,6 +31,7 @@ SUMMARIZED_TURN_CHARS = 150
 @dataclass
 class CompressionResult:
     """Result of context compression."""
+
     original_turns: int
     compressed_turns: int
     original_tokens: int
@@ -71,19 +72,57 @@ class ContextCompressor:
     def estimate_tokens(self, text: str) -> int:
         """Estimate token count for a string."""
         from tools.token_counter import count_tokens
+
         return count_tokens(text)
 
     def is_security_relevant(self, content: str) -> bool:
         """Check if content contains security-relevant information."""
         security_keywords = {
-            "vulnerability", "vuln", "exploit", "cve", "xss", "sqli",
-            "injection", "bypass", "rce", "reverse shell", "payload",
-            "findings", "finding", "discovered", "detected", "flag",
-            "subdomain", "endpoint", "api", "auth", "token", "credential",
-            "scan", "nuclei", "subfinder", "httpx", "ffuf", "nmap",
-            "critical", "high", "medium", "low", "severity", "cvss",
-            "authentication", "authorization", "bypass", "idor", "bola",
-            "ssrf", "csrf", "idor", "lfi", "rfi", "xxe",
+            "vulnerability",
+            "vuln",
+            "exploit",
+            "cve",
+            "xss",
+            "sqli",
+            "injection",
+            "bypass",
+            "rce",
+            "reverse shell",
+            "payload",
+            "findings",
+            "finding",
+            "discovered",
+            "detected",
+            "flag",
+            "subdomain",
+            "endpoint",
+            "api",
+            "auth",
+            "token",
+            "credential",
+            "scan",
+            "nuclei",
+            "subfinder",
+            "httpx",
+            "ffuf",
+            "nmap",
+            "critical",
+            "high",
+            "medium",
+            "low",
+            "severity",
+            "cvss",
+            "authentication",
+            "authorization",
+            "bypass",
+            "idor",
+            "bola",
+            "ssrf",
+            "csrf",
+            "idor",
+            "lfi",
+            "rfi",
+            "xxe",
         }
         content_lower = content.lower()
         return any(kw in content_lower for kw in security_keywords)
@@ -101,20 +140,20 @@ class ContextCompressor:
         """
         if len(content) <= max_chars:
             return content
-        
+
         # If security-relevant, keep more
         if self.is_security_relevant(content):
             max_chars = max_chars * 2
-        
+
         # Simple summarization: keep first N chars + "..."
         # In production, this could use LLM summarization
         summary = content[:max_chars]
-        
+
         # Try to end at a word boundary
         last_space = summary.rfind(" ")
         if last_space > max_chars * 0.7:
             summary = summary[:last_space]
-        
+
         return summary + "..."
 
     def compress(
@@ -134,7 +173,7 @@ class ContextCompressor:
         """
         if target_tokens is None:
             target_tokens = self.max_tokens
-        
+
         original_turns = len(conversation_history)
         if original_turns == 0:
             return CompressionResult(
@@ -145,13 +184,11 @@ class ContextCompressor:
                 compression_ratio=1.0,
                 summary="No conversation to compress.",
             )
-        
+
         # Calculate original tokens
-        original_text = " ".join(
-            turn.get("content", "") for turn in conversation_history
-        )
+        original_text = " ".join(turn.get("content", "") for turn in conversation_history)
         original_tokens = self.estimate_tokens(original_text)
-        
+
         if original_tokens <= target_tokens:
             # No compression needed
             return CompressionResult(
@@ -162,46 +199,48 @@ class ContextCompressor:
                 compression_ratio=1.0,
                 summary="No compression needed.",
             )
-        
+
         # Compression strategy
         compressed_history = []
-        
+
         # Calculate how many turns to keep full
         recent_to_keep = self.recent_turns_full
-        
+
         # If aggressive, keep fewer recent turns
         if self.aggressive:
             recent_to_keep = max(2, recent_to_keep // 2)
-        
+
         # Split into older and recent
-        older_turns = conversation_history[:-recent_to_keep] if len(conversation_history) > recent_to_keep else []
+        older_turns = (
+            conversation_history[:-recent_to_keep]
+            if len(conversation_history) > recent_to_keep
+            else []
+        )
         recent_turns = conversation_history[-recent_to_keep:]
-        
+
         # Compress older turns
         for turn in older_turns:
             role = turn.get("role", "unknown")
             content = turn.get("content", "")
-            
+
             # Security-relevant content gets less compression
             if self.is_security_relevant(content):
                 max_chars = RECENT_TURN_CHARS
             else:
                 max_chars = SUMMARIZED_TURN_CHARS
-            
+
             compressed_content = self.summarize_turn(content, max_chars)
             compressed_history.append({"role": role, "content": compressed_content})
-        
+
         # Keep recent turns in full
         compressed_history.extend(recent_turns)
-        
+
         # Calculate compressed tokens
-        compressed_text = " ".join(
-            turn.get("content", "") for turn in compressed_history
-        )
+        compressed_text = " ".join(turn.get("content", "") for turn in compressed_history)
         compressed_tokens = self.estimate_tokens(compressed_text)
-        
+
         compression_ratio = original_tokens / max(compressed_tokens, 1)
-        
+
         return CompressionResult(
             original_turns=original_turns,
             compressed_turns=len(compressed_history),
@@ -231,25 +270,33 @@ class ContextCompressor:
             Compressed conversation history list.
         """
         result = self.compress(conversation_history, target_tokens)
-        
+
         if result.compression_ratio <= 1.0:
             return conversation_history
-        
+
         # Rebuild compressed history
         recent_to_keep = self.recent_turns_full
         if self.aggressive:
             recent_to_keep = max(2, recent_to_keep // 2)
-        
-        older_turns = conversation_history[:-recent_to_keep] if len(conversation_history) > recent_to_keep else []
+
+        older_turns = (
+            conversation_history[:-recent_to_keep]
+            if len(conversation_history) > recent_to_keep
+            else []
+        )
         recent_turns = conversation_history[-recent_to_keep:]
-        
+
         compressed_history = []
         for turn in older_turns:
             role = turn.get("role", "unknown")
             content = turn.get("content", "")
-            max_chars = RECENT_TURN_CHARS if self.is_security_relevant(content) else SUMMARIZED_TURN_CHARS
-            compressed_history.append({"role": role, "content": self.summarize_turn(content, max_chars)})
-        
+            max_chars = (
+                RECENT_TURN_CHARS if self.is_security_relevant(content) else SUMMARIZED_TURN_CHARS
+            )
+            compressed_history.append(
+                {"role": role, "content": self.summarize_turn(content, max_chars)}
+            )
+
         compressed_history.extend(recent_turns)
         return compressed_history
 

@@ -28,6 +28,7 @@ logger = logging.getLogger("elengenix.graphql_scanner")
 @dataclass
 class GraphQLResult:
     """Result of a single GraphQL test."""
+
     url: str
     test_type: str
     query: str
@@ -41,6 +42,7 @@ class GraphQLResult:
 @dataclass
 class GraphQLScanResult:
     """Full GraphQL scan results."""
+
     target: str
     results: List[GraphQLResult] = field(default_factory=list)
     schema_introspected: bool = False
@@ -105,57 +107,57 @@ GRAPHQL_ENDPOINTS = [
 
 class GraphQLScanner:
     """GraphQL vulnerability scanner.
-    
+
     Tests GraphQL endpoints for common vulnerabilities including
     introspection disclosure, field suggestion, and batch query abuse.
-    
+
     Example:
         scanner = GraphQLScanner()
         result = scanner.scan("https://example.com/graphql")
         if result.is_vulnerable:
             print("GraphQL vulnerabilities found!")
     """
-    
+
     def __init__(
         self,
         timeout: float = 10.0,
         verify_ssl: bool = False,
     ):
         """Initialize the GraphQL scanner.
-        
+
         Args:
             timeout: Request timeout in seconds.
             verify_ssl: Whether to verify SSL certificates.
         """
         self.timeout = timeout
         self.verify_ssl = verify_ssl
-    
+
     def scan(
         self,
         target_url: str,
         headers: Optional[Dict[str, str]] = None,
     ) -> GraphQLScanResult:
         """Scan a GraphQL endpoint for vulnerabilities.
-        
+
         Args:
             target_url: The GraphQL endpoint URL.
             headers: Additional headers to send.
-            
+
         Returns:
             GraphQLScanResult with all test results.
         """
         import requests
-        
+
         start_time = time.time()
         result = GraphQLScanResult(target=target_url)
-        
+
         default_headers = {
             "Content-Type": "application/json",
             "User-Agent": "Elengenix-GraphQL-Scanner/1.0",
         }
         if headers:
             default_headers.update(headers)
-        
+
         # Test 1: Introspection query
         result.total_tests += 1
         try:
@@ -166,13 +168,13 @@ class GraphQLScanner:
                 timeout=self.timeout,
                 verify=self.verify_ssl,
             )
-            
+
             if response.status_code == 200:
                 data = response.json()
                 if "data" in data and "__schema" in data.get("data", {}):
                     schema = data["data"]["__schema"]
                     result.schema_introspected = True
-                    
+
                     # Extract schema info
                     schema_info = {
                         "query_type": schema.get("queryType", {}).get("name"),
@@ -180,7 +182,7 @@ class GraphQLScanner:
                         "types": len(schema.get("types", [])),
                         "directives": len(schema.get("directives", [])),
                     }
-                    
+
                     graphql_result = GraphQLResult(
                         url=target_url,
                         test_type="introspection",
@@ -193,10 +195,10 @@ class GraphQLScanner:
                     )
                     result.results.append(graphql_result)
                     logger.info(f"Introspection enabled: {schema_info['types']} types")
-        
+
         except Exception as e:
             logger.debug(f"Introspection test failed: {e}")
-        
+
         # Test 2: Field suggestion
         result.total_tests += 1
         try:
@@ -208,7 +210,7 @@ class GraphQLScanner:
                 timeout=self.timeout,
                 verify=self.verify_ssl,
             )
-            
+
             if response.status_code == 200:
                 data = response.json()
                 if "errors" in data:
@@ -226,10 +228,10 @@ class GraphQLScanner:
                         )
                         result.results.append(graphql_result)
                         logger.info("Field suggestion enabled")
-        
+
         except Exception as e:
             logger.debug(f"Field suggestion test failed: {e}")
-        
+
         # Test 3: Batch query abuse
         result.total_tests += 1
         try:
@@ -245,7 +247,7 @@ class GraphQLScanner:
                 timeout=self.timeout,
                 verify=self.verify_ssl,
             )
-            
+
             if response.status_code == 200:
                 data = response.json()
                 if isinstance(data, list) and len(data) == 3:
@@ -260,14 +262,14 @@ class GraphQLScanner:
                     )
                     result.results.append(graphql_result)
                     logger.info("Batch queries accepted")
-        
+
         except Exception as e:
             logger.debug(f"Batch query test failed: {e}")
-        
+
         # Test 4: Depth limit bypass
         result.total_tests += 1
         try:
-            deep_query = '{"query": "query { ' + 'a { ' * 20 + '__typename ' + '} ' * 20 + '}"}'
+            deep_query = '{"query": "query { ' + "a { " * 20 + "__typename " + "} " * 20 + '}"}'
             response = requests.post(
                 target_url,
                 json={"query": "query { " + "a { " * 20 + "__typename " + "} " * 20 + "}"},
@@ -275,7 +277,7 @@ class GraphQLScanner:
                 timeout=self.timeout,
                 verify=self.verify_ssl,
             )
-            
+
             if response.status_code == 200:
                 data = response.json()
                 if "data" in data:
@@ -290,41 +292,42 @@ class GraphQLScanner:
                     )
                     result.results.append(graphql_result)
                     logger.info("No depth limit enforced")
-        
+
         except Exception as e:
             logger.debug(f"Depth limit test failed: {e}")
-        
+
         result.duration = time.time() - start_time
         return result
-    
+
     def discover_endpoint(
         self,
         base_url: str,
         headers: Optional[Dict[str, str]] = None,
     ) -> Optional[str]:
         """Discover GraphQL endpoint from base URL.
-        
+
         Args:
             base_url: Base URL to test.
             headers: Additional headers to send.
-            
+
         Returns:
             Discovered GraphQL endpoint URL, or None if not found.
         """
-        import requests
         from urllib.parse import urljoin
-        
+
+        import requests
+
         default_headers = {
             "Content-Type": "application/json",
             "User-Agent": "Elengenix-GraphQL-Scanner/1.0",
         }
         if headers:
             default_headers.update(headers)
-        
+
         # Test introspection query against common endpoints
         for endpoint in GRAPHQL_ENDPOINTS:
             url = urljoin(base_url.rstrip("/") + "/", endpoint.lstrip("/"))
-            
+
             try:
                 response = requests.post(
                     url,
@@ -333,41 +336,41 @@ class GraphQLScanner:
                     timeout=self.timeout,
                     verify=self.verify_ssl,
                 )
-                
+
                 if response.status_code == 200:
                     data = response.json()
                     if "data" in data and "__typename" in str(data.get("data", {})):
                         logger.info(f"GraphQL endpoint discovered: {url}")
                         return url
-            
+
             except Exception:
                 continue
-        
+
         return None
-    
+
     def enumerate_schema(
         self,
         endpoint: str,
         headers: Optional[Dict[str, str]] = None,
     ) -> Dict[str, Any]:
         """Enumerate GraphQL schema via introspection.
-        
+
         Args:
             endpoint: GraphQL endpoint URL.
             headers: Additional headers to send.
-            
+
         Returns:
             Dictionary containing schema information.
         """
         import requests
-        
+
         default_headers = {
             "Content-Type": "application/json",
             "User-Agent": "Elengenix-GraphQL-Scanner/1.0",
         }
         if headers:
             default_headers.update(headers)
-        
+
         try:
             response = requests.post(
                 endpoint,
@@ -376,13 +379,13 @@ class GraphQLScanner:
                 timeout=self.timeout,
                 verify=self.verify_ssl,
             )
-            
+
             if response.status_code == 200:
                 data = response.json()
                 if "data" in data and "__schema" in data.get("data", {}):
                     return data["data"]["__schema"]
-        
+
         except Exception as e:
             logger.debug(f"Schema enumeration failed: {e}")
-        
+
         return {}

@@ -5,11 +5,12 @@ Version: 1.0.0
 """
 
 import logging
-from typing import Optional, Dict, Any
+from typing import Any, Dict, Optional
 
 logger = logging.getLogger("elengenix.agent")
 
 _agent_instance = None
+
 
 def get_agent(config: Optional[Dict[str, Any]] = None) -> Any:
     """
@@ -29,7 +30,9 @@ def get_agent(config: Optional[Dict[str, Any]] = None) -> Any:
         from agent_brain import ElengenixAgent
     except ImportError as e:
         logger.error("Failed to import agent_brain: %s", e)
-        raise ImportError("agent_brain.py is missing or corrupted. Please check your installation.") from e
+        raise ImportError(
+            "agent_brain.py is missing or corrupted. Please check your installation."
+        ) from e
 
     try:
         if config:
@@ -42,6 +45,7 @@ def get_agent(config: Optional[Dict[str, Any]] = None) -> Any:
     except Exception as e:
         logger.error("Agent initialization failed: %s", e)
         raise RuntimeError(f"Failed to start Elengenix Agent: {str(e)}") from e
+
 
 if __name__ == "__main__":
     # Internal Test Block

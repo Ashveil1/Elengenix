@@ -4,7 +4,9 @@ Design tokens, themes, animations, and reusable style primitives.
 Inspired by Apple Human Interface Guidelines + Linear + Raycast aesthetics.
 Version: 1.0.0
 """
+
 from __future__ import annotations
+
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Dict, List, Optional, Tuple
@@ -13,13 +15,15 @@ from typing import Dict, List, Optional, Tuple
 # 1. DESIGN TOKENS — Colors, Spacing, Typography
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 class Severity(Enum):
     """Vulnerability severity levels with associated colors."""
+
     CRITICAL = ("#ff3b30", "●")  # Apple red
-    HIGH     = ("#ff9500", "●")  # Apple orange
-    MEDIUM   = ("#ffcc00", "●")  # Apple yellow
-    LOW      = ("#34c759", "●")  # Apple green
-    INFO     = ("#5ac8fa", "●")  # Apple blue
+    HIGH = ("#ff9500", "●")  # Apple orange
+    MEDIUM = ("#ffcc00", "●")  # Apple yellow
+    LOW = ("#34c759", "●")  # Apple green
+    INFO = ("#5ac8fa", "●")  # Apple blue
 
     def __init__(self, color: str, glyph: str):
         self.color = color
@@ -28,11 +32,11 @@ class Severity(Enum):
 
 # ── Spacing scale (4px base) ─────────────────────────────────────────────
 SPACING = {
-    "xs":  1,
-    "sm":  2,
-    "md":  4,
-    "lg":  8,
-    "xl":  12,
+    "xs": 1,
+    "sm": 2,
+    "md": 4,
+    "lg": 8,
+    "xl": 12,
     "2xl": 16,
     "3xl": 24,
     "4xl": 32,
@@ -41,30 +45,30 @@ SPACING = {
 # ── Border radius scale ─────────────────────────────────────────────────
 RADIUS = {
     "none": 0,
-    "sm":   2,
-    "md":   4,
-    "lg":   8,
-    "xl":   12,
-    "2xl":  16,
+    "sm": 2,
+    "md": 4,
+    "lg": 8,
+    "xl": 12,
+    "2xl": 16,
     "full": 9999,
 }
 
 # ── Animation durations (ms) ─────────────────────────────────────────────
 DURATION = {
     "instant": 50,
-    "fast":    150,
-    "normal":  250,
-    "slow":    400,
-    "slower":  600,
+    "fast": 150,
+    "normal": 250,
+    "slow": 400,
+    "slower": 600,
 }
 
 # ── Easing curves (cubic-bezier) ─────────────────────────────────────────
 EASING = {
-    "linear":    "linear",
-    "easeIn":    "cubic-bezier(0.4, 0, 1, 1)",
-    "easeOut":   "cubic-bezier(0, 0, 0.2, 1)",
+    "linear": "linear",
+    "easeIn": "cubic-bezier(0.4, 0, 1, 1)",
+    "easeOut": "cubic-bezier(0, 0, 0.2, 1)",
     "easeInOut": "cubic-bezier(0.4, 0, 0.2, 1)",
-    "spring":    "cubic-bezier(0.34, 1.56, 0.64, 1)",  # iOS spring
+    "spring": "cubic-bezier(0.34, 1.56, 0.64, 1)",  # iOS spring
 }
 
 
@@ -72,41 +76,43 @@ EASING = {
 # 2. THEMES — Dark, Light, High Contrast, Custom
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 @dataclass(frozen=True)
 class Theme:
     """A complete color theme. Apple-inspired palette."""
+
     name: str
     is_dark: bool
 
     # Surfaces (backgrounds, in elevation order)
-    bg_base:    str  # Main background
-    bg_mantle:  str  # Slightly elevated
-    bg_crust:   str  # Header/footer
+    bg_base: str  # Main background
+    bg_mantle: str  # Slightly elevated
+    bg_crust: str  # Header/footer
     bg_surface: str  # Cards
     bg_overlay: str  # Modals (with alpha)
 
     # Text
-    text_primary:   str
+    text_primary: str
     text_secondary: str
-    text_muted:     str
-    text_dim:       str
+    text_muted: str
+    text_dim: str
 
     # Borders
-    border_subtle:  str
+    border_subtle: str
     border_default: str
-    border_strong:  str
+    border_strong: str
 
     # Accent
-    accent:       str  # Primary action
+    accent: str  # Primary action
     accent_hover: str
-    success:      str
-    warning:      str
-    danger:       str
-    info:         str
+    success: str
+    warning: str
+    danger: str
+    info: str
 
     # Effects
-    shadow:       str  # Box shadow color
-    glow:         str  # Focus glow
+    shadow: str  # Box shadow color
+    glow: str  # Focus glow
 
 
 # ── DARK: "Midnight" — primary theme ────────────────────────────────────
@@ -214,14 +220,14 @@ HIGH_CONTRAST = Theme(
 )
 
 THEMES: Dict[str, Theme] = {
-    "dark":          DARK,
-    "midnight":      DARK,
-    "light":         LIGHT,
-    "aurora":        LIGHT,
-    "hunt":          HUNT,
-    "blood-moon":    HUNT,
+    "dark": DARK,
+    "midnight": DARK,
+    "light": LIGHT,
+    "aurora": LIGHT,
+    "hunt": HUNT,
+    "blood-moon": HUNT,
     "high-contrast": HIGH_CONTRAST,
-    "solar":         HIGH_CONTRAST,
+    "solar": HIGH_CONTRAST,
 }
 
 
@@ -229,9 +235,11 @@ THEMES: Dict[str, Theme] = {
 # 3. TYPOGRAPHY — Font scales inspired by Apple SF Pro
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 @dataclass(frozen=True)
 class TypeStyle:
     """Typography token."""
+
     family: str
     size: int
     weight: str
@@ -239,19 +247,20 @@ class TypeStyle:
     letter_spacing: float = 0.0
     uppercase: bool = False
 
-LARGE_TITLE  = TypeStyle("SF Pro Display", 34, "bold",   1.2, -0.5)
-TITLE_1      = TypeStyle("SF Pro Display", 28, "bold",   1.25, -0.3)
-TITLE_2      = TypeStyle("SF Pro Display", 22, "bold",   1.3, -0.2)
-TITLE_3      = TypeStyle("SF Pro Text",    20, "semibold", 1.35)
-HEADLINE     = TypeStyle("SF Pro Text",    17, "semibold", 1.4)
-BODY         = TypeStyle("SF Pro Text",    14, "normal",  1.5)
-BODY_EMPHASIS= TypeStyle("SF Pro Text",    14, "semibold", 1.5)
-CALLOUT      = TypeStyle("SF Pro Text",    13, "normal",  1.45)
-SUBHEADLINE  = TypeStyle("SF Pro Text",    12, "normal",  1.4)
-FOOTNOTE     = TypeStyle("SF Pro Text",    11, "normal",  1.4, 0.2)
-CAPTION_1    = TypeStyle("SF Pro Text",    11, "normal",  1.3, 0.2)
-CAPTION_2    = TypeStyle("SF Pro Text",    10, "normal",  1.3, 0.3)
-MONO         = TypeStyle("SF Mono",        13, "normal",  1.4)
+
+LARGE_TITLE = TypeStyle("SF Pro Display", 34, "bold", 1.2, -0.5)
+TITLE_1 = TypeStyle("SF Pro Display", 28, "bold", 1.25, -0.3)
+TITLE_2 = TypeStyle("SF Pro Display", 22, "bold", 1.3, -0.2)
+TITLE_3 = TypeStyle("SF Pro Text", 20, "semibold", 1.35)
+HEADLINE = TypeStyle("SF Pro Text", 17, "semibold", 1.4)
+BODY = TypeStyle("SF Pro Text", 14, "normal", 1.5)
+BODY_EMPHASIS = TypeStyle("SF Pro Text", 14, "semibold", 1.5)
+CALLOUT = TypeStyle("SF Pro Text", 13, "normal", 1.45)
+SUBHEADLINE = TypeStyle("SF Pro Text", 12, "normal", 1.4)
+FOOTNOTE = TypeStyle("SF Pro Text", 11, "normal", 1.4, 0.2)
+CAPTION_1 = TypeStyle("SF Pro Text", 11, "normal", 1.3, 0.2)
+CAPTION_2 = TypeStyle("SF Pro Text", 10, "normal", 1.3, 0.3)
+MONO = TypeStyle("SF Mono", 13, "normal", 1.4)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -260,69 +269,63 @@ MONO         = TypeStyle("SF Mono",        13, "normal",  1.4)
 
 ICONS = {
     # Status
-    "check":      "✓",
-    "cross":      "✕",
-    "warning":    "⚠",
-    "info":       "ⓘ",
-    "error":      "⨯",
-    "circle":     "●",
-    "circle_o":   "○",
-
+    "check": "✓",
+    "cross": "✕",
+    "warning": "⚠",
+    "info": "ⓘ",
+    "error": "⨯",
+    "circle": "●",
+    "circle_o": "○",
     # Arrows
-    "arrow_up":   "↑",
+    "arrow_up": "↑",
     "arrow_down": "↓",
     "arrow_left": "←",
-    "arrow_right":"→",
+    "arrow_right": "→",
     "chevron_up": "⌃",
     "chevron_dn": "⌄",
-
     # Security
-    "shield":     "🛡",
-    "shield_ok":  "✓",
-    "lock":       "⌬",
-    "key":        "⚷",
-    "bug":        "⚞",
-    "skull":      "☠",
-    "target":     "◎",
-
+    "shield": "🛡",
+    "shield_ok": "✓",
+    "lock": "⌬",
+    "key": "⚷",
+    "bug": "⚞",
+    "skull": "☠",
+    "target": "◎",
     # Actions
-    "play":       "▶",
-    "pause":      "⏸",
-    "stop":       "⏹",
-    "refresh":    "↻",
-    "search":     "⌕",
-    "settings":   "⚙",
-    "menu":       "≡",
-    "close":      "✕",
-    "add":        "+",
-    "remove":     "−",
-    "edit":       "✎",
-    "save":       "💾",
-    "trash":      "🗑",
-
+    "play": "▶",
+    "pause": "⏸",
+    "stop": "⏹",
+    "refresh": "↻",
+    "search": "⌕",
+    "settings": "⚙",
+    "menu": "≡",
+    "close": "✕",
+    "add": "+",
+    "remove": "−",
+    "edit": "✎",
+    "save": "💾",
+    "trash": "🗑",
     # Status indicators
-    "online":     "●",
-    "offline":    "○",
-    "busy":       "◐",
-    "away":       "◑",
-
+    "online": "●",
+    "offline": "○",
+    "busy": "◐",
+    "away": "◑",
     # Network
-    "wifi":       "⌒",
-    "globe":      "◯",
-    "cloud":      "☁",
-    "server":     "▤",
-    "database":   "▥",
-
+    "wifi": "⌒",
+    "globe": "◯",
+    "cloud": "☁",
+    "server": "▤",
+    "database": "▥",
     # Misc
-    "star":       "★",
-    "heart":      "♥",
-    "fire":       "▲",
-    "lightning":  "⚡",
-    "rocket":     "➤",
-    "gem":        "◆",
-    "diamond":    "◇",
-    "trophy":     "♔",
-    "medal":      "◉",
+    "star": "★",
+    "heart": "♥",
+    "fire": "▲",
+    "lightning": "⚡",
+    "rocket": "➤",
+    "gem": "◆",
+    "diamond": "◇",
+    "trophy": "♔",
+    "medal": "◉",
 }
 
 
@@ -330,8 +333,10 @@ ICONS = {
 # 5. ANIMATIONS — Pre-built animation primitives
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 class EasingFn:
     """Cubic-bezier easing functions for smooth animations."""
+
     @staticmethod
     def linear(t: float) -> float:
         return t
@@ -354,6 +359,7 @@ class EasingFn:
     def spring(t: float) -> float:
         """iOS-style spring with overshoot."""
         import math
+
         return 1 - math.exp(-6 * t) * math.cos(8 * t)
 
     @staticmethod
@@ -372,13 +378,18 @@ def lerp(a: float, b: float, t: float) -> float:
 
 def color_lerp(c1: str, c2: str, t: float) -> str:
     """Interpolate between two hex colors."""
+
     def hex_to_rgb(h: str) -> Tuple[int, int, int]:
         h = h.lstrip("#")
         if len(h) == 3:
             h = "".join(c * 2 for c in h)
-        return tuple(int(h[i:i+2], 16) for i in (0, 2, 4))
+        return tuple(int(h[i : i + 2], 16) for i in (0, 2, 4))
+
     def rgb_to_hex(r: int, g: int, b: int) -> str:
-        return f"#{max(0,min(255,int(r))):02x}{max(0,min(255,int(g))):02x}{max(0,min(255,int(b))):02x}"
+        return (
+            f"#{max(0,min(255,int(r))):02x}{max(0,min(255,int(g))):02x}{max(0,min(255,int(b))):02x}"
+        )
+
     r1, g1, b1 = hex_to_rgb(c1)
     r2, g2, b2 = hex_to_rgb(c2)
     return rgb_to_hex(
@@ -392,9 +403,11 @@ def color_lerp(c1: str, c2: str, t: float) -> str:
 # 6. STATUS — Connection, scan, model, and agent status
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 @dataclass
 class Status:
     """Real-time status display."""
+
     state: str  # "ready" | "thinking" | "scanning" | "offline" | "error"
     label: str
     detail: str = ""
@@ -426,9 +439,11 @@ class Status:
 # 7. PROGRESS — Visual progress with steps, ETA, throughput
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 @dataclass
 class Step:
     """A single step in a multi-step operation."""
+
     name: str
     status: str = "pending"  # pending | running | done | error
     duration_ms: int = 0
@@ -439,14 +454,15 @@ class Step:
         return {
             "pending": "○",
             "running": "◐",
-            "done":    "✓",
-            "error":   "✕",
+            "done": "✓",
+            "error": "✕",
         }.get(self.status, "?")
 
 
 @dataclass
 class Progress:
     """Multi-step progress tracker."""
+
     steps: List[Step] = field(default_factory=list)
     current: int = 0
     started_at: float = 0.0
@@ -468,6 +484,7 @@ class Progress:
 # ═══════════════════════════════════════════════════════════════════════════
 # 8. SMART FORMATTERS — Bytes, duration, numbers
 # ═══════════════════════════════════════════════════════════════════════════
+
 
 def format_bytes(n: int) -> str:
     """Format bytes to human-readable string."""
@@ -500,12 +517,13 @@ def truncate(text: str, max_len: int, suffix: str = "…") -> str:
     """Truncate text to max length, adding suffix if needed."""
     if len(text) <= max_len:
         return text
-    return text[:max_len - len(suffix)] + suffix
+    return text[: max_len - len(suffix)] + suffix
 
 
 # ═══════════════════════════════════════════════════════════════════════════
 # 9. CONVENIENCE EXPORTS
 # ═══════════════════════════════════════════════════════════════════════════
+
 
 def get_theme(name: str = "dark") -> Theme:
     """Get a theme by name (case-insensitive)."""
@@ -518,14 +536,42 @@ def list_themes() -> List[str]:
 
 
 __all__ = [
-    "Severity", "SPACING", "RADIUS", "DURATION", "EASING",
-    "Theme", "DARK", "LIGHT", "HUNT", "HIGH_CONTRAST", "THEMES",
-    "TypeStyle", "LARGE_TITLE", "TITLE_1", "TITLE_2", "TITLE_3",
-    "HEADLINE", "BODY", "BODY_EMPHASIS", "CALLOUT", "SUBHEADLINE",
-    "FOOTNOTE", "CAPTION_1", "CAPTION_2", "MONO",
+    "Severity",
+    "SPACING",
+    "RADIUS",
+    "DURATION",
+    "EASING",
+    "Theme",
+    "DARK",
+    "LIGHT",
+    "HUNT",
+    "HIGH_CONTRAST",
+    "THEMES",
+    "TypeStyle",
+    "LARGE_TITLE",
+    "TITLE_1",
+    "TITLE_2",
+    "TITLE_3",
+    "HEADLINE",
+    "BODY",
+    "BODY_EMPHASIS",
+    "CALLOUT",
+    "SUBHEADLINE",
+    "FOOTNOTE",
+    "CAPTION_1",
+    "CAPTION_2",
+    "MONO",
     "ICONS",
-    "EasingFn", "lerp", "color_lerp",
-    "Status", "Step", "Progress",
-    "format_bytes", "format_duration", "format_number", "truncate",
-    "get_theme", "list_themes",
+    "EasingFn",
+    "lerp",
+    "color_lerp",
+    "Status",
+    "Step",
+    "Progress",
+    "format_bytes",
+    "format_duration",
+    "format_number",
+    "truncate",
+    "get_theme",
+    "list_themes",
 ]

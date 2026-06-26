@@ -46,27 +46,33 @@ def _conn() -> Generator[sqlite3.Connection, None, None]:
 # Schema init
 # ──────────────────────────────────────────────────────────
 
+
 def init_db() -> None:
     with _conn() as c:
         # User preferences table (key → value)
-        c.execute("""
+        c.execute(
+            """
             CREATE TABLE IF NOT EXISTS user_preferences (
                 key       TEXT PRIMARY KEY,
                 value     TEXT NOT NULL,
                 updated   TEXT NOT NULL DEFAULT (datetime('now'))
             )
-        """)
+        """
+        )
         # Context snippets (short-term cross-session memory)
-        c.execute("""
+        c.execute(
+            """
             CREATE TABLE IF NOT EXISTS context_snippets (
                 id        INTEGER PRIMARY KEY AUTOINCREMENT,
                 content   TEXT NOT NULL,
                 tags      TEXT DEFAULT '',
                 created   TEXT NOT NULL DEFAULT (datetime('now'))
             )
-        """)
+        """
+        )
         # Target learnings (recon / scan results per target)
-        c.execute("""
+        c.execute(
+            """
             CREATE TABLE IF NOT EXISTS target_learnings (
                 id        INTEGER PRIMARY KEY AUTOINCREMENT,
                 target    TEXT NOT NULL,
@@ -74,7 +80,8 @@ def init_db() -> None:
                 learning  TEXT NOT NULL,
                 created   TEXT NOT NULL DEFAULT (datetime('now'))
             )
-        """)
+        """
+        )
         c.execute("CREATE INDEX IF NOT EXISTS idx_tl_target ON target_learnings (target)")
 
 
@@ -82,14 +89,18 @@ def init_db() -> None:
 # User Preferences
 # ──────────────────────────────────────────────────────────
 
+
 def set_preference(key: str, value: str) -> None:
     init_db()
     with _conn() as c:
-        c.execute("""
+        c.execute(
+            """
             INSERT INTO user_preferences (key, value, updated)
             VALUES (?, ?, datetime('now'))
             ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated=excluded.updated
-        """, (key.lower().strip(), value.strip()))
+        """,
+            (key.lower().strip(), value.strip()),
+        )
     logger.debug(f"Preference set: {key} = {value}")
 
 
@@ -97,8 +108,7 @@ def get_preference(key: str, default: str = "") -> str:
     init_db()
     with _conn() as c:
         row = c.execute(
-            "SELECT value FROM user_preferences WHERE key=?",
-            (key.lower().strip(),)
+            "SELECT value FROM user_preferences WHERE key=?", (key.lower().strip(),)
         ).fetchone()
     return row[0] if row else default
 
@@ -114,15 +124,13 @@ def get_all_preferences() -> Dict[str, str]:
 # Context Snippets (cross-session short-term memory)
 # ──────────────────────────────────────────────────────────
 
+
 def add_context(content: str, tags: str = "") -> None:
     """Save a context snippet the AI should remember."""
     init_db()
     content = content.strip()[:800]
     with _conn() as c:
-        c.execute(
-            "INSERT INTO context_snippets (content, tags) VALUES (?, ?)",
-            (content, tags)
-        )
+        c.execute("INSERT INTO context_snippets (content, tags) VALUES (?, ?)", (content, tags))
     # Auto-prune: keep only latest 50 snippets
     _prune_context(keep=50)
 
@@ -132,8 +140,7 @@ def get_recent_context(limit: int = 10) -> str:
     init_db()
     with _conn() as c:
         rows = c.execute(
-            "SELECT content, created FROM context_snippets ORDER BY id DESC LIMIT ?",
-            (limit,)
+            "SELECT content, created FROM context_snippets ORDER BY id DESC LIMIT ?", (limit,)
         ).fetchall()
     if not rows:
         return ""
@@ -142,17 +149,21 @@ def get_recent_context(limit: int = 10) -> str:
 
 def _prune_context(keep: int = 50) -> None:
     with _conn() as c:
-        c.execute("""
+        c.execute(
+            """
             DELETE FROM context_snippets
             WHERE id NOT IN (
                 SELECT id FROM context_snippets ORDER BY id DESC LIMIT ?
             )
-        """, (keep,))
+        """,
+            (keep,),
+        )
 
 
 # ──────────────────────────────────────────────────────────
 # Target Learnings
 # ──────────────────────────────────────────────────────────
+
 
 def save_target_learning(target: str, learning: str, category: str = "general") -> None:
     """Persist a finding/fact about a target."""
@@ -162,7 +173,7 @@ def save_target_learning(target: str, learning: str, category: str = "general") 
     with _conn() as c:
         c.execute(
             "INSERT INTO target_learnings (target, category, learning) VALUES (?, ?, ?)",
-            (target.lower().strip(), category.lower(), learning.strip()[:600])
+            (target.lower().strip(), category.lower(), learning.strip()[:600]),
         )
 
 
@@ -170,13 +181,16 @@ def get_target_summary(target: str, max_chars: int = 2000) -> str:
     """Return a compact LLM-friendly summary of what we know about target."""
     init_db()
     with _conn() as c:
-        rows = c.execute("""
+        rows = c.execute(
+            """
             SELECT category, COUNT(*) as cnt, GROUP_CONCAT(learning, ' | ')
             FROM target_learnings
             WHERE target = ?
             GROUP BY category
             ORDER BY cnt DESC
-        """, (target.lower().strip(),)).fetchall()
+        """,
+            (target.lower().strip(),),
+        ).fetchall()
 
     if not rows:
         return ""
@@ -202,7 +216,10 @@ _PREF_PATTERNS = [
     # "call me ash" / "my name is ash"
     (r"(?:เรียก(?:ผม|ฉัน|หนู|ข้าพเจ้า)?(?:ว่า)?|call me|my name is)\s+(\w+)", "user_name"),
     # "reply in thai" / "respond in english"
-    (r"(?:ตอบ|พูด|respond|reply|answer|speak)\s+(?:เป็น|in|ใน)?\s*(ไทย|thai|english|อังกฤษ)", "language"),
+    (
+        r"(?:ตอบ|พูด|respond|reply|answer|speak)\s+(?:เป็น|in|ใน)?\s*(ไทย|thai|english|อังกฤษ)",
+        "language",
+    ),
     # "be concise" / "give short answers"
     (r"(?:ให้|be|give)\s*(?:กระชับ|concise|brief|short)", "response_style", "concise"),
     # "be detailed"
@@ -240,6 +257,7 @@ def extract_and_save_preferences(text: str) -> List[Tuple[str, str]]:
 # Build system context for AI
 # ──────────────────────────────────────────────────────────
 
+
 def build_user_context_block(target: str = "") -> str:
     """
     Build a concise context block to prepend to every AI system prompt.
@@ -249,7 +267,9 @@ def build_user_context_block(target: str = "") -> str:
     lines = []
 
     if prefs.get("user_name"):
-        lines.append(f"User's preferred name: {prefs['user_name']} (always address them as '{prefs['user_name']}')")
+        lines.append(
+            f"User's preferred name: {prefs['user_name']} (always address them as '{prefs['user_name']}')"
+        )
     if prefs.get("language"):
         lang = prefs["language"]
         if lang == "thai":

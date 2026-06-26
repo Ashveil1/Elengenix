@@ -15,7 +15,7 @@ from __future__ import annotations
 import json
 import logging
 import re
-from typing import Any, Dict, List, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from agents.worker_base import BaseWorker, WorkerResult
 from tools.universal_ai_client import AIMessage
@@ -27,6 +27,7 @@ logger = logging.getLogger("elengenix.strategist")
 
 
 # ── Sub-Workers ────────────────────────────────────────────────────────────────
+
 
 class ReconWorker(BaseWorker):
     """Runs subdomain and DNS enumeration tools.
@@ -52,8 +53,8 @@ class ReconWorker(BaseWorker):
         Returns:
             WorkerResult with discovered findings.
         """
-        import subprocess
         import shutil
+        import subprocess
 
         findings = []
         output_lines = []
@@ -64,11 +65,13 @@ class ReconWorker(BaseWorker):
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
             if result.returncode == 0:
                 output_lines.append(result.stdout)
-                findings.append({
-                    "type": "dns_enumeration",
-                    "target": target,
-                    "output": result.stdout[:500],
-                })
+                findings.append(
+                    {
+                        "type": "dns_enumeration",
+                        "target": target,
+                        "output": result.stdout[:500],
+                    }
+                )
         except Exception as e:
             output_lines.append(f"DNS lookup failed: {e}")
 
@@ -113,29 +116,35 @@ class OsintWorker(BaseWorker):
             WorkerResult with OSINT findings.
         """
         params = params or {}
-        queries = params.get("queries", [
-            f"{target} CVE vulnerability",
-            f"{target} technology stack",
-            f"site:github.com {target} leaked",
-        ])
+        queries = params.get(
+            "queries",
+            [
+                f"{target} CVE vulnerability",
+                f"{target} technology stack",
+                f"site:github.com {target} leaked",
+            ],
+        )
 
         findings = []
         output_parts = []
 
         try:
             from tools.research_tool import search_web
+
             for query in queries[:3]:
                 results = search_web(query, num_results=3)
                 if results:
                     snippet = json.dumps(results, ensure_ascii=False)[:800]
                     output_parts.append(f"[Query: {query}]\n{snippet}")
-                    findings.append({
-                        "type": "osint_result",
-                        "severity": "info",
-                        "title": f"OSINT: {query[:60]}",
-                        "description": snippet[:400],
-                        "target": target,
-                    })
+                    findings.append(
+                        {
+                            "type": "osint_result",
+                            "severity": "info",
+                            "title": f"OSINT: {query[:60]}",
+                            "description": snippet[:400],
+                            "target": target,
+                        }
+                    )
         except Exception as exc:
             self.logger.debug(f"OSINT search failed: {exc}")
 
@@ -148,6 +157,7 @@ class OsintWorker(BaseWorker):
 
 
 # ── StrategistAgent ────────────────────────────────────────────────────────────
+
 
 class StrategistAgent:
     """AI agent responsible for attack planning and re-planning.
@@ -260,6 +270,7 @@ Respond with ONLY one word: "approve" or "deny" (no punctuation, no explanation)
         memory_context = ""
         try:
             from tools.vector_memory import get_context_for_ai
+
             memory_context = get_context_for_ai(objective, target, max_memories=5)[:400]
         except Exception:
             pass
@@ -275,12 +286,14 @@ Respond with ONLY one word: "approve" or "deny" (no punctuation, no explanation)
         tasks = self._call_ai_for_json(prompt, "Generate attack plan.")
 
         # Post to inbox
-        inbox.post(CouncilMessage(
-            msg_type=MessageType.PLAN,
-            sender="strategist",
-            recipient="council",
-            payload={"tasks": tasks, "target": target},
-        ))
+        inbox.post(
+            CouncilMessage(
+                msg_type=MessageType.PLAN,
+                sender="strategist",
+                recipient="council",
+                payload={"tasks": tasks, "target": target},
+            )
+        )
 
         return tasks if isinstance(tasks, list) else []
 
@@ -302,10 +315,15 @@ Respond with ONLY one word: "approve" or "deny" (no punctuation, no explanation)
         """
         from agents.agent_council import CouncilMessage, MessageType
 
-        findings_summary = "\n".join([
-            f"- [{f.get('severity', 'info').upper()}] {f.get('title', 'Finding')}: {f.get('description', '')[:100]}"
-            for f in confirmed_findings[:10]
-        ]) or "(none)"
+        findings_summary = (
+            "\n".join(
+                [
+                    f"- [{f.get('severity', 'info').upper()}] {f.get('title', 'Finding')}: {f.get('description', '')[:100]}"
+                    for f in confirmed_findings[:10]
+                ]
+            )
+            or "(none)"
+        )
 
         prompt = self.REPLAN_PROMPT.format(
             target=target,
@@ -314,12 +332,14 @@ Respond with ONLY one word: "approve" or "deny" (no punctuation, no explanation)
 
         tasks = self._call_ai_for_json(prompt, "Generate follow-up tasks.")
 
-        inbox.post(CouncilMessage(
-            msg_type=MessageType.PLAN,
-            sender="strategist",
-            recipient="council",
-            payload={"tasks": tasks, "stage": "follow_up"},
-        ))
+        inbox.post(
+            CouncilMessage(
+                msg_type=MessageType.PLAN,
+                sender="strategist",
+                recipient="council",
+                payload={"tasks": tasks, "stage": "follow_up"},
+            )
+        )
 
         return tasks if isinstance(tasks, list) else []
 
@@ -346,9 +366,14 @@ Respond with ONLY one word: "approve" or "deny" (no punctuation, no explanation)
             target=target,
         )
         try:
-            response = self.client.chat([
-                AIMessage(role="user", content=prompt),
-            ]).content or ""
+            response = (
+                self.client.chat(
+                    [
+                        AIMessage(role="user", content=prompt),
+                    ]
+                ).content
+                or ""
+            )
             decision = response.strip().lower().split()[0] if response.strip() else "approve"
             return "approve" if "approve" in decision else "deny"
         except Exception as exc:
@@ -368,10 +393,15 @@ Respond with ONLY one word: "approve" or "deny" (no punctuation, no explanation)
         if not self.client:
             return []
         try:
-            response = self.client.chat([
-                AIMessage(role="system", content=prompt),
-                AIMessage(role="user", content=user_msg),
-            ]).content or ""
+            response = (
+                self.client.chat(
+                    [
+                        AIMessage(role="system", content=prompt),
+                        AIMessage(role="user", content=user_msg),
+                    ]
+                ).content
+                or ""
+            )
 
             # Track usage
             self.total_tokens_used += len(response) // 4
@@ -383,6 +413,7 @@ Respond with ONLY one word: "approve" or "deny" (no punctuation, no explanation)
 
 
 # ── JSON Helper ────────────────────────────────────────────────────────────────
+
 
 def _extract_json(text: str) -> Any:
     """Extract JSON array or object from LLM response text.
@@ -409,7 +440,7 @@ def _extract_json(text: str) -> Any:
         ei = candidate.rfind(end)
         if si != -1 and ei > si:
             try:
-                return json.loads(candidate[si:ei + 1])
+                return json.loads(candidate[si : ei + 1])
             except (json.JSONDecodeError, ValueError):
                 continue
 

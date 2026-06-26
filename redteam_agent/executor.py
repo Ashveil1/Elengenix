@@ -1,12 +1,14 @@
+import hashlib
 import subprocess
 import time
-import hashlib
 from pathlib import Path
+
 from .governance import Governance
+
 
 class ShellExecutor:
     """Executes shell commands on the host system, enforces safety rules, and archives raw logs."""
-    
+
     def __init__(self, log_dir: str = "logs"):
         self.governance = Governance()
         self.log_dir = Path(log_dir)
@@ -15,7 +17,7 @@ class ShellExecutor:
 
     def execute(self, command: str, timeout: int = 300) -> dict:
         """
-        Verify the command, execute it if permitted, write the full output to logs, 
+        Verify the command, execute it if permitted, write the full output to logs,
         and return a compact summary.
         """
         # Safety gate check
@@ -26,11 +28,11 @@ class ShellExecutor:
                 "error": "Execution blocked by governance policy.",
                 "stdout_summary": "",
                 "stderr_summary": "",
-                "log_path": None
+                "log_path": None,
             }
 
         start_time = time.time()
-        
+
         try:
             # If command requires sudo, prompt interactively first to cache credentials
             if "sudo " in command:
@@ -44,24 +46,20 @@ class ShellExecutor:
                         "error": "Sudo authentication failed or was cancelled.",
                         "stdout_summary": "",
                         "stderr_summary": "",
-                        "log_path": None
+                        "log_path": None,
                     }
 
             # Run the command directly on shell
             result = subprocess.run(
-                command,
-                shell=True,
-                capture_output=True,
-                text=True,
-                timeout=timeout
+                command, shell=True, capture_output=True, text=True, timeout=timeout
             )
             duration = time.time() - start_time
-            
+
             # Create a unique filename for the log based on timestamp and command hash
-            cmd_hash = hashlib.md5(command.encode('utf-8')).hexdigest()[:8]
+            cmd_hash = hashlib.md5(command.encode("utf-8")).hexdigest()[:8]
             timestamp = int(start_time)
             log_file = self.raw_log_dir / f"cmd_{timestamp}_{cmd_hash}.log"
-            
+
             # Write full log
             log_content = (
                 f"Command: {command}\n"
@@ -72,12 +70,12 @@ class ShellExecutor:
                 f"--- STDERR ---\n{result.stderr}\n"
             )
             log_file.write_text(log_content, encoding="utf-8")
-            
+
             # Extract compact summaries for context retention
             stdout_summary = result.stdout[:1000]
             if len(result.stdout) > 1000:
                 stdout_summary += f"\n... [Truncated: full output at {log_file}]"
-                
+
             stderr_summary = result.stderr[:500]
             if len(result.stderr) > 500:
                 stderr_summary += f"\n... [Truncated: full output at {log_file}]"
@@ -88,7 +86,7 @@ class ShellExecutor:
                 "error": "",
                 "stdout_summary": stdout_summary,
                 "stderr_summary": stderr_summary,
-                "log_path": str(log_file.resolve())
+                "log_path": str(log_file.resolve()),
             }
 
         except subprocess.TimeoutExpired:
@@ -98,7 +96,7 @@ class ShellExecutor:
                 "error": f"Command timed out after {timeout} seconds.",
                 "stdout_summary": "",
                 "stderr_summary": "",
-                "log_path": None
+                "log_path": None,
             }
         except KeyboardInterrupt:
             print("\n[System] Command execution interrupted by user (Ctrl+C).")
@@ -108,7 +106,7 @@ class ShellExecutor:
                 "error": "Execution aborted by user (Ctrl+C).",
                 "stdout_summary": "",
                 "stderr_summary": "",
-                "log_path": None
+                "log_path": None,
             }
         except Exception as e:
             return {
@@ -117,5 +115,5 @@ class ShellExecutor:
                 "error": f"Execution error: {str(e)}",
                 "stdout_summary": "",
                 "stderr_summary": "",
-                "log_path": None
+                "log_path": None,
             }

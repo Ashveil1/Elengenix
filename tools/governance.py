@@ -65,8 +65,8 @@ def init_db() -> None:
 @dataclass
 class GateDecision:
     allowed: bool
-    risk_level: str        # destructive | privileged | safe
-    decision: str          # allow | deny | needs_approval
+    risk_level: str  # destructive | privileged | safe
+    decision: str  # allow | deny | needs_approval
     rationale: str = ""
 
     def __post_init__(self) -> None:
@@ -84,11 +84,27 @@ class Governance:
     """
 
     _SYSTEM_PATHS = (
-        "/", "/etc", "/boot", "/usr", "/var", "/lib", "/bin", "/sbin",
-        "/sys", "/proc", "/dev",
+        "/",
+        "/etc",
+        "/boot",
+        "/usr",
+        "/var",
+        "/lib",
+        "/bin",
+        "/sbin",
+        "/sys",
+        "/proc",
+        "/dev",
     )
     _SYSTEM_WRITE_PATHS = (
-        "/etc", "/usr", "/bin", "/sbin", "/boot", "/dev", "/proc", "/sys",
+        "/etc",
+        "/usr",
+        "/bin",
+        "/sbin",
+        "/boot",
+        "/dev",
+        "/proc",
+        "/sys",
     )
 
     # ── Patterns: if matched → DESTRUCTIVE (blocked) ──────────────────
@@ -111,8 +127,8 @@ class Governance:
         r"|chown\s+.*\s+/\s*$"
         r"|shutdown\s+-[rh]\s+now"
         r"|\breboot\s*$"
-        r"|\bhalt\s*$"
-        , re.IGNORECASE,
+        r"|\bhalt\s*$",
+        re.IGNORECASE,
     )
 
     # ── Patterns: if matched → PRIVILEGED (needs approval) ────────────
@@ -135,8 +151,8 @@ class Governance:
         r"|curl\s+.*\|\s*(ba?sh|sh|zsh|python3?|ruby|perl)"
         r"|wget\s+.*\|\s*(ba?sh|sh|zsh|python3?|ruby|perl)"
         r"|(?:^|[\s;&|])(?:tee|cat|echo|printf|cp|mv|install)\b[^\n]*(?:>\s*)?/(?:etc|usr|bin|sbin|boot|dev|proc|sys)(?:/|\s|$)"
-        r"|(?:>|>>)\s*/(?:etc|usr|bin|sbin|boot|dev|proc|sys)(?:/|\s|$)"
-        , re.IGNORECASE,
+        r"|(?:>|>>)\s*/(?:etc|usr|bin|sbin|boot|dev|proc|sys)(?:/|\s|$)",
+        re.IGNORECASE,
     )
 
     def __init__(self, require_approval_high_risk: bool = True):
@@ -186,7 +202,9 @@ class Governance:
             if name == "dd" and self._dd_targets_device(args):
                 return True
 
-            if (name.startswith("mkfs.") or name in {"fdisk", "parted", "mkswap"}) and self._has_device_path(args):
+            if (
+                name.startswith("mkfs.") or name in {"fdisk", "parted", "mkswap"}
+            ) and self._has_device_path(args):
                 return True
 
             if name in {"shutdown", "reboot", "halt"}:
@@ -218,7 +236,10 @@ class Governance:
                 return True
             if name == "npm" and "install" in args and "-g" in args:
                 return True
-            if name in {"apt", "apt-get", "dnf", "yum", "brew", "gem", "cargo"} and "install" in args:
+            if (
+                name in {"apt", "apt-get", "dnf", "yum", "brew", "gem", "cargo"}
+                and "install" in args
+            ):
                 return True
             if name == "go" and args[:1] == ["install"]:
                 return True
@@ -261,8 +282,7 @@ class Governance:
 
     def _rm_targets_protected_path(self, args: list[str]) -> bool:
         has_recursive_or_force = any(
-            arg.startswith("-") and ("r" in arg.lower() or "f" in arg.lower())
-            for arg in args
+            arg.startswith("-") and ("r" in arg.lower() or "f" in arg.lower()) for arg in args
         )
         return has_recursive_or_force and self._has_protected_path(args)
 
@@ -375,7 +395,9 @@ class Governance:
         self.audit(mission_id, target, action, decision)
         return decision
 
-    def audit(self, mission_id: str, target: str, action: Dict[str, Any], decision: GateDecision) -> None:
+    def audit(
+        self, mission_id: str, target: str, action: Dict[str, Any], decision: GateDecision
+    ) -> None:
         try:
             conn = sqlite3.connect(str(_db_path()), timeout=10)
             try:

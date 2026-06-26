@@ -40,19 +40,19 @@ logger = logging.getLogger("elengenix.tui.visualizations")
 SEVERITY_ORDER: Tuple[str, ...] = ("critical", "high", "medium", "low", "info")
 SEVERITY_GLYPH: Dict[str, str] = {
     "critical": "#",
-    "high":     "X",
-    "medium":   "x",
-    "low":      ".",
-    "info":     "o",
+    "high": "X",
+    "medium": "x",
+    "low": ".",
+    "info": "o",
 }
 
 # Default colours used when a theme manager is not provided.
 DEFAULT_SEVERITY_COLORS: Dict[str, str] = {
     "critical": "#ff003c",
-    "high":     "#ff5500",
-    "medium":   "#ffb300",
-    "low":      "#81c784",
-    "info":     "#888888",
+    "high": "#ff5500",
+    "medium": "#ffb300",
+    "low": "#81c784",
+    "info": "#888888",
 }
 
 
@@ -106,7 +106,12 @@ class VulnerabilityHeatmap:
         self.width = width
         self._cells: Dict[Tuple[str, str], HeatmapCell] = {}
         self.color_scale = color_scale or (
-            "#0a0a0a", "#3a1a1a", "#7a1a1a", "#bb2a2a", "#ff3a3a", "#ff6666"
+            "#0a0a0a",
+            "#3a1a1a",
+            "#7a1a1a",
+            "#bb2a2a",
+            "#ff3a3a",
+            "#ff6666",
         )
 
     def set(
@@ -153,9 +158,7 @@ class VulnerabilityHeatmap:
                     intensity = min(len(self.color_scale) - 1, cell.count)
                     bg = self.color_scale[intensity]
                     glyph = SEVERITY_GLYPH.get(cell.severity.lower(), "?")
-                    row_cells.append(
-                        Text(glyph, style=f"bold {color} on {bg}")
-                    )
+                    row_cells.append(Text(glyph, style=f"bold {color} on {bg}"))
             table.add_row(Text(ep, style="#ffffff"), *row_cells)
 
         # Build a tiny legend.
@@ -231,7 +234,7 @@ class FindingTimeline:
         )
         # Trim the list if needed.
         if len(self.findings) > self.max_items * 2:
-            self.findings = self.findings[-self.max_items:]
+            self.findings = self.findings[-self.max_items :]
 
     def render(self) -> Panel:
         """Build the timeline as a Rich ``Panel``."""
@@ -305,8 +308,12 @@ class ExploitChainDiagram:
         self.objective = objective
         self.severity_colors = severity_colors or DEFAULT_SEVERITY_COLORS
 
-    def add(self, title: str, detail: str = "", severity: str = "medium", success: bool = True) -> None:
-        self.steps.append(ExploitStep(title=title, detail=detail, severity=severity, success=success))
+    def add(
+        self, title: str, detail: str = "", severity: str = "medium", success: bool = True
+    ) -> None:
+        self.steps.append(
+            ExploitStep(title=title, detail=detail, severity=severity, success=success)
+        )
 
     def render(self) -> Panel:
         """Build the chain as a Rich ``Panel``."""
@@ -396,7 +403,10 @@ class AttackSurfaceMap:
 
         for head, items in sorted(grouped.items()):
             head_color = _color_for(
-                max((i.risk for i in items), key=lambda r: SEVERITY_ORDER.index(r) if r in SEVERITY_ORDER else 99),
+                max(
+                    (i.risk for i in items),
+                    key=lambda r: SEVERITY_ORDER.index(r) if r in SEVERITY_ORDER else 99,
+                ),
                 self.severity_colors,
             )
             branch = root.add(
@@ -504,7 +514,9 @@ class RiskGauge:
         # Value line below the arc.
         value_text = Text()
         value_text.append(" " * max(0, cx - 4))
-        value_text.append(f"{int(round(self.value))}{self.unit}", style=f"bold {self._arc_color(ratio)}")
+        value_text.append(
+            f"{int(round(self.value))}{self.unit}", style=f"bold {self._arc_color(ratio)}"
+        )
         lines.append(value_text)
 
         # Caption (centred horizontally to the panel width).
@@ -545,10 +557,10 @@ class SeverityChart:
     ) -> None:
         self.counts: Dict[str, int] = {
             "critical": int(critical),
-            "high":     int(high),
-            "medium":   int(medium),
-            "low":      int(low),
-            "info":     int(info),
+            "high": int(high),
+            "medium": int(medium),
+            "low": int(low),
+            "info": int(info),
         }
         self.severity_colors = severity_colors or DEFAULT_SEVERITY_COLORS
         self.max_bar_width = max_bar_width

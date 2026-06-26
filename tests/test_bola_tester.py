@@ -1,4 +1,5 @@
 """tests/test_bola_tester.py — M8 verification tests."""
+
 from __future__ import annotations
 
 import sys
@@ -14,6 +15,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 # ── Mock server with BOLA + non-BOLA scenarios ──
 
+
 class MockBOLAServer(BaseHTTPRequestHandler):
     """Mock server simulating a vulnerable API.
 
@@ -23,6 +25,7 @@ class MockBOLAServer(BaseHTTPRequestHandler):
       /admin/{id}  - returns 403 for B session
       /private/{id}- returns 404 for everyone except A session
     """
+
     USERS = {
         "1": {"id": 1, "name": "Alice", "email": "alice@example.com"},
         "2": {"id": 2, "name": "Bob", "email": "bob@example.com"},
@@ -83,6 +86,7 @@ class MockBOLAServer(BaseHTTPRequestHandler):
 
 import json
 
+
 @pytest.fixture(scope="module")
 def mock_server():
     server = HTTPServer(("127.0.0.1", 18801), MockBOLAServer)
@@ -95,9 +99,11 @@ def mock_server():
 
 # ── Tests ──
 
+
 def test_register_sessions(mock_server):
     """Registering sessions should add them to the tester."""
     from tools.bola_tester import BOLATester
+
     tester = BOLATester()
     s1 = tester.register_session("user_a", cookies={"session": "user_a"})
     s2 = tester.register_session("user_b", cookies={"session": "user_b"})
@@ -110,6 +116,7 @@ def test_register_sessions(mock_server):
 def test_bola_detected_critical(mock_server):
     """BOLA: both sessions get identical 200 response = critical."""
     from tools.bola_tester import BOLATester
+
     tester = BOLATester()
     tester.register_session("user_a", cookies={"session": "user_a"})
     tester.register_session("user_b", cookies={"session": "user_b"})
@@ -127,23 +134,25 @@ def test_bola_detected_critical(mock_server):
 def test_bola_collection_sweep(mock_server):
     """Sweep a range of IDs to find BOLA-accessible objects."""
     from tools.bola_tester import BOLATester
+
     tester = BOLATester()
     tester.register_session("user_a", cookies={"session": "user_a"})
     tester.register_session("user_b", cookies={"session": "user_b"})
     results = tester.test_endpoint_collection(
-        f"{mock_server}/users/{{id}}",
-        ["1", "2", "3", "99"],
-        session_a="user_a", session_b="user_b"
+        f"{mock_server}/users/{{id}}", ["1", "2", "3", "99"], session_a="user_a", session_b="user_b"
     )
     assert len(results) == 4
     bola_count = sum(1 for r in results if r.is_bola)
     assert bola_count >= 2  # users 1, 2 are BOLA-accessible
-    print(f"[SWEEP] {bola_count}/{len(results)} BOLA: {[(r.object_id, r.severity) for r in results if r.is_bola]}")
+    print(
+        f"[SWEEP] {bola_count}/{len(results)} BOLA: {[(r.object_id, r.severity) for r in results if r.is_bola]}"
+    )
 
 
 def test_properly_authorized_no_bola(mock_server):
     """If B gets 403 and A gets 200, no BOLA."""
     from tools.bola_tester import BOLATester
+
     tester = BOLATester()
     tester.register_session("user_a", cookies={"session": "admin_a"})
     tester.register_session("user_b", cookies={"session": "user_b"})
@@ -160,6 +169,7 @@ def test_properly_authorized_no_bola(mock_server):
 def test_enumeration_bola(mock_server):
     """If A=404 but B=200, that's enumeration BOLA."""
     from tools.bola_tester import BOLATester
+
     tester = BOLATester()
     tester.register_session("user_a", cookies={"session": "user_a"})
     tester.register_session("user_b", cookies={"session": "user_b"})
@@ -177,6 +187,7 @@ def test_enumeration_bola(mock_server):
 def test_bola_summarize(mock_server):
     """Summarize should aggregate by severity."""
     from tools.bola_tester import BOLATester
+
     tester = BOLATester()
     tester.register_session("user_a", cookies={"session": "user_a"})
     tester.register_session("user_b", cookies={"session": "user_b"})
@@ -195,16 +206,20 @@ def test_bola_summarize(mock_server):
 def test_invalid_session_raises():
     """Test should raise if session is not registered."""
     from tools.bola_tester import BOLATester
+
     tester = BOLATester()
     tester.register_session("user_a", cookies={"session": "user_a"})
     with pytest.raises(ValueError, match="not registered"):
-        tester.test_object("https://api.com/users/{id}", "1", session_a="user_a", session_b="missing")
+        tester.test_object(
+            "https://api.com/users/{id}", "1", session_a="user_a", session_b="missing"
+        )
     print(f"[VALIDATE] correctly raised for missing session")
 
 
 def test_unauthenticated_session_works():
     """Unauthed session (no cookies) should work as attacker session."""
     from tools.bola_tester import BOLATester
+
     tester = BOLATester()
     tester.register_session("user_a", cookies={"session": "user_a"})
     tester.register_session("attacker", cookies={})  # no auth
@@ -217,7 +232,8 @@ def test_unauthenticated_session_works():
 
 def test_body_size_similarity_threshold(mock_server):
     """Two responses with body size diff > threshold should be medium BOLA."""
-    from tools.bola_tester import BOLATester, BOLAConfig
+    from tools.bola_tester import BOLAConfig, BOLATester
+
     tester = BOLATester(BOLAConfig(body_size_diff_threshold=10))
     tester.register_session("user_a", cookies={"session": "user_a"})
     tester.register_session("user_b", cookies={"session": "user_b"})
@@ -233,6 +249,7 @@ def test_body_size_similarity_threshold(mock_server):
 def test_classify_network_error_handled():
     """Network error should return is_bola=False with low confidence."""
     from tools.bola_tester import BOLATester
+
     tester = BOLATester()
     # No sessions registered
     is_bola, conf, sev, reason = tester._classify(-1, -1, "", "")

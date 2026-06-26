@@ -3,15 +3,17 @@ report_gen.py — Elengenix Professional Report Generator
 Executive + technical reports, evidence packages, PDF (Jensen-ready).
 Version: 1.0.0
 """
+
 from __future__ import annotations
-import json
+
 import html
+import json
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
-from typing import List, Dict, Optional, Any
+from typing import Any, Dict, List, Optional
 from xml.sax.saxutils import escape
 
 logger = logging.getLogger("elengenix.report")
@@ -20,17 +22,19 @@ logger = logging.getLogger("elengenix.report")
 # 1. REPORT MODELS
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 class ReportFormat(Enum):
-    HTML     = "html"
-    JSON     = "json"
+    HTML = "html"
+    JSON = "json"
     MARKDOWN = "md"
-    TEXT     = "txt"
-    SARIF    = "sarif"  # GitHub Security tab
+    TEXT = "txt"
+    SARIF = "sarif"  # GitHub Security tab
 
 
 @dataclass
 class FindingReport:
     """A single finding formatted for report."""
+
     id: str
     title: str
     severity: str
@@ -50,16 +54,21 @@ class FindingReport:
     @property
     def severity_color(self) -> str:
         return {
-            "Critical": "#ff3b30", "High": "#ff9500",
-            "Medium": "#ffcc00", "Low": "#34c759",
+            "Critical": "#ff3b30",
+            "High": "#ff9500",
+            "Medium": "#ffcc00",
+            "Low": "#34c759",
             "Informational": "#5ac8fa",
         }.get(self.severity, "#999")
 
     @property
     def severity_icon(self) -> str:
         return {
-            "Critical": "🔴", "High": "🟠",
-            "Medium": "🟡", "Low": "🟢", "Informational": "🔵",
+            "Critical": "🔴",
+            "High": "🟠",
+            "Medium": "🟡",
+            "Low": "🟢",
+            "Informational": "🔵",
         }.get(self.severity, "⚪")
 
 
@@ -81,10 +90,14 @@ class ExecutiveSummary:
 
     @property
     def risk_level(self) -> str:
-        if self.risk_score >= 9: return "CRITICAL"
-        if self.risk_score >= 7: return "HIGH"
-        if self.risk_score >= 4: return "MEDIUM"
-        if self.risk_score > 0: return "LOW"
+        if self.risk_score >= 9:
+            return "CRITICAL"
+        if self.risk_score >= 7:
+            return "HIGH"
+        if self.risk_score >= 4:
+            return "MEDIUM"
+        if self.risk_score > 0:
+            return "LOW"
         return "INFORMATIONAL"
 
 
@@ -292,8 +305,11 @@ def generate_html(summary: ExecutiveSummary, findings: List[FindingReport]) -> s
     )
     return HTML_TEMPLATE.format(
         target=escape(summary.target),
-        critical=summary.critical, high=summary.high, medium=summary.medium,
-        low=summary.low, info=summary.info,
+        critical=summary.critical,
+        high=summary.high,
+        medium=summary.medium,
+        low=summary.low,
+        info=summary.info,
         total_findings=summary.total_findings,
         exec_summary_text=exec_text,
         findings_html=findings_html,
@@ -307,15 +323,24 @@ def generate_html(summary: ExecutiveSummary, findings: List[FindingReport]) -> s
 # 3. SARIF — GitHub Security tab compatible
 # ═══════════════════════════════════════════════════════════════════════════
 
-SARIF_SCHEMA = "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json"
+SARIF_SCHEMA = (
+    "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json"
+)
 
 
 def severity_to_sarif_level(sev: str) -> str:
-    return {"Critical": "error", "High": "error", "Medium": "warning",
-            "Low": "note", "Informational": "note"}.get(sev, "note")
+    return {
+        "Critical": "error",
+        "High": "error",
+        "Medium": "warning",
+        "Low": "note",
+        "Informational": "note",
+    }.get(sev, "note")
 
 
-def generate_sarif(summary: ExecutiveSummary, findings: List[FindingReport], tool_name: str = "Elengenix") -> Dict:
+def generate_sarif(
+    summary: ExecutiveSummary, findings: List[FindingReport], tool_name: str = "Elengenix"
+) -> Dict:
     """Generate SARIF v2.1.0 for GitHub Security tab."""
     results = []
     rules = []
@@ -324,23 +349,27 @@ def generate_sarif(summary: ExecutiveSummary, findings: List[FindingReport], too
         rule_id = f.cwe[0] if f.cwe else "custom"
         if rule_id not in seen_rules:
             seen_rules.add(rule_id)
-            rules.append({
-                "id": rule_id,
-                "name": f.vuln_class,
-                "shortDescription": {"text": f.vuln_class},
-                "fullDescription": {"text": f.title},
-                "help": {"text": f.remediation},
-                "defaultConfiguration": {"level": severity_to_sarif_level(f.severity)},
-            })
+            rules.append(
+                {
+                    "id": rule_id,
+                    "name": f.vuln_class,
+                    "shortDescription": {"text": f.vuln_class},
+                    "fullDescription": {"text": f.title},
+                    "help": {"text": f.remediation},
+                    "defaultConfiguration": {"level": severity_to_sarif_level(f.severity)},
+                }
+            )
         result = {
             "ruleId": rule_id,
             "level": severity_to_sarif_level(f.severity),
             "message": {"text": f.description},
-            "locations": [{
-                "physicalLocation": {
-                    "artifactLocation": {"uri": f.url},
+            "locations": [
+                {
+                    "physicalLocation": {
+                        "artifactLocation": {"uri": f.url},
+                    }
                 }
-            }],
+            ],
         }
         if f.cve:
             result["properties"] = {"cve": f.cve, "cvss": f.cvss}
@@ -348,23 +377,26 @@ def generate_sarif(summary: ExecutiveSummary, findings: List[FindingReport], too
     return {
         "$schema": SARIF_SCHEMA,
         "version": "2.1.0",
-        "runs": [{
-            "tool": {
-                "driver": {
-                    "name": tool_name,
-                    "version": "3.0.0",
-                    "informationUri": "https://github.com/Ashveil1/Elengenix",
-                    "rules": rules,
-                }
-            },
-            "results": results,
-        }],
+        "runs": [
+            {
+                "tool": {
+                    "driver": {
+                        "name": tool_name,
+                        "version": "3.0.0",
+                        "informationUri": "https://github.com/Ashveil1/Elengenix",
+                        "rules": rules,
+                    }
+                },
+                "results": results,
+            }
+        ],
     }
 
 
 # ═══════════════════════════════════════════════════════════════════════════
 # 4. MARKDOWN — GitHub-friendly
 # ═══════════════════════════════════════════════════════════════════════════
+
 
 def generate_markdown(summary: ExecutiveSummary, findings: List[FindingReport]) -> str:
     lines = [f"# Elengenix Security Report — `{summary.target}`", ""]
@@ -386,8 +418,11 @@ def generate_markdown(summary: ExecutiveSummary, findings: List[FindingReport]) 
     for f in findings:
         lines.append(f"### {f.severity_icon} [{f.severity}] {f.title}")
         lines.append(f"- **URL:** `{f.url}`")
-        lines.append(f"- **CVSS:** {f.cvss} | **Class:** {f.vuln_class} | **CWE:** {', '.join(f.cwe)}")
-        if f.cve: lines.append(f"- **CVE:** {f.cve}")
+        lines.append(
+            f"- **CVSS:** {f.cvss} | **Class:** {f.vuln_class} | **CWE:** {', '.join(f.cwe)}"
+        )
+        if f.cve:
+            lines.append(f"- **CVE:** {f.cve}")
         lines.append(f"- **Description:** {f.description}")
         lines.append(f"- **Impact:** {f.impact}")
         lines.append(f"- **Remediation:** {f.remediation}")
@@ -401,17 +436,29 @@ def generate_markdown(summary: ExecutiveSummary, findings: List[FindingReport]) 
 # 5. CONVENIENCE EXPORT
 # ═══════════════════════════════════════════════════════════════════════════
 
-def export_report(summary: ExecutiveSummary, findings: List[FindingReport], output_path: str, fmt: ReportFormat = ReportFormat.HTML) -> Path:
+
+def export_report(
+    summary: ExecutiveSummary,
+    findings: List[FindingReport],
+    output_path: str,
+    fmt: ReportFormat = ReportFormat.HTML,
+) -> Path:
     """Generate and save report."""
     p = Path(output_path)
     p.parent.mkdir(parents=True, exist_ok=True)
     if fmt == ReportFormat.HTML:
         p.write_text(generate_html(summary, findings))
     elif fmt == ReportFormat.JSON:
-        p.write_text(json.dumps({
-            "summary": summary.__dict__,
-            "findings": [f.__dict__ for f in findings],
-        }, indent=2, default=str))
+        p.write_text(
+            json.dumps(
+                {
+                    "summary": summary.__dict__,
+                    "findings": [f.__dict__ for f in findings],
+                },
+                indent=2,
+                default=str,
+            )
+        )
     elif fmt == ReportFormat.MARKDOWN:
         p.write_text(generate_markdown(summary, findings))
     elif fmt == ReportFormat.SARIF:
@@ -430,6 +477,11 @@ def export_report(summary: ExecutiveSummary, findings: List[FindingReport], outp
 
 
 __all__ = [
-    "ReportFormat", "FindingReport", "ExecutiveSummary",
-    "generate_html", "generate_sarif", "generate_markdown", "export_report",
+    "ReportFormat",
+    "FindingReport",
+    "ExecutiveSummary",
+    "generate_html",
+    "generate_sarif",
+    "generate_markdown",
+    "export_report",
 ]

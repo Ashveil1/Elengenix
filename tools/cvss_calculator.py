@@ -8,8 +8,8 @@ tools/cvss_calculator.py — CVSS 3.1/4.0 Scoring Engine
 
 import logging
 from dataclasses import dataclass
-from typing import Any, Dict, Optional
 from enum import Enum
+from typing import Any, Dict, Optional
 
 # LLMClient was removed — use UniversalAIClient from tools/universal_ai_client.py instead.
 # CVSS AI assistance requires AIClientManager; this import is kept as None for backward compat.
@@ -29,6 +29,7 @@ class Severity(Enum):
 @dataclass
 class CVSSVector:
     """CVSS 3.1 Base Metrics."""
+
     attack_vector: str = "N"  # N(etwork), A(djacent), L(ocal), P(hysical)
     attack_complexity: str = "L"  # L(ow), H(igh)
     privileges_required: str = "N"  # N(one), L(ow), H(igh)
@@ -37,7 +38,7 @@ class CVSSVector:
     confidentiality: str = "N"  # N(one), L(ow), H(igh)
     integrity: str = "N"  # N(one), L(ow), H(igh)
     availability: str = "N"  # N(one), L(ow), H(igh)
-    
+
     def to_vector_string(self) -> str:
         return (
             f"CVSS:3.1/AV:{self.attack_vector}/AC:{self.attack_complexity}/"
@@ -49,6 +50,7 @@ class CVSSVector:
 @dataclass
 class CVSSScore:
     """Calculated CVSS score with metadata."""
+
     base_score: float
     severity: Severity
     vector_string: str
@@ -60,19 +62,15 @@ class CVSSScore:
 
 class CVSSCalculator:
     """CVSS 3.1 Score Calculator with AI enhancement."""
-    
+
     def __init__(self, use_ai: bool = True):
         self.use_ai = use_ai and LLMClient is not None
         self.client = LLMClient() if self.use_ai else None
-    
-    def calculate(
-        self, 
-        vector: CVSSVector,
-        context: Optional[str] = None
-    ) -> CVSSScore:
+
+    def calculate(self, vector: CVSSVector, context: Optional[str] = None) -> CVSSScore:
         """
         Calculate CVSS score from vector.
-        
+
         Uses standard CVSS 3.1 formula:
         https://www.first.org/cvss/v3.1/specification_document
         """
@@ -83,31 +81,31 @@ class CVSSCalculator:
             "PR": {"N": 0.85, "L": 0.62, "H": 0.27},  # Modified for scope
             "UI": {"N": 0.85, "R": 0.62},
         }
-        
+
         isc_weights = {"N": 0, "L": 0.22, "H": 0.56}
-        
+
         # Calculate Impact Sub-Score (ISC)
         isc_base = 1 - (
-            (1 - isc_weights[vector.confidentiality]) *
-            (1 - isc_weights[vector.integrity]) *
-            (1 - isc_weights[vector.availability])
+            (1 - isc_weights[vector.confidentiality])
+            * (1 - isc_weights[vector.integrity])
+            * (1 - isc_weights[vector.availability])
         )
-        
+
         # Scope modifier
         if vector.scope == "U":
             impact = 6.42 * isc_base
         else:  # Changed scope
             impact = 7.52 * (isc_base - 0.029) - 3.25 * (isc_base - 0.02) ** 15
-        
+
         # Calculate Exploitability Sub-Score
         exploitability = (
-            8.22 * 
-            weights["AV"][vector.attack_vector] *
-            weights["AC"][vector.attack_complexity] *
-            weights["PR"][vector.privileges_required] *
-            weights["UI"][vector.user_interaction]
+            8.22
+            * weights["AV"][vector.attack_vector]
+            * weights["AC"][vector.attack_complexity]
+            * weights["PR"][vector.privileges_required]
+            * weights["UI"][vector.user_interaction]
         )
-        
+
         # Calculate Base Score
         if impact <= 0:
             base_score = 0.0
@@ -115,13 +113,13 @@ class CVSSCalculator:
             base_score = min(impact + exploitability, 10)
         else:
             base_score = min(1.08 * (impact + exploitability), 10)
-        
+
         # Round to 1 decimal place
         base_score = round(base_score, 1)
-        
+
         # Determine severity
         severity = self._score_to_severity(base_score)
-        
+
         score = CVSSScore(
             base_score=base_score,
             severity=severity,
@@ -129,13 +127,13 @@ class CVSSCalculator:
             impact_subscore=round(impact, 1),
             exploitability_subscore=round(exploitability, 1),
         )
-        
+
         # AI adjustment if enabled
         if self.use_ai and context:
             score = self._ai_adjust_severity(score, vector, context)
-        
+
         return score
-    
+
     def _score_to_severity(self, score: float) -> Severity:
         """Convert score to severity rating."""
         if score >= 9.0:
@@ -147,17 +145,12 @@ class CVSSCalculator:
         elif score > 0:
             return Severity.LOW
         return Severity.INFO
-    
-    def _ai_adjust_severity(
-        self, 
-        score: CVSSScore, 
-        vector: CVSSVector,
-        context: str
-    ) -> CVSSScore:
+
+    def _ai_adjust_severity(self, score: CVSSScore, vector: CVSSVector, context: str) -> CVSSScore:
         """Use AI to adjust severity based on context."""
         if not self.client:
             return score
-        
+
         try:
             prompt = f"""Analyze this security finding and determine if the CVSS severity needs adjustment.
 
@@ -181,39 +174,34 @@ Respond in this exact JSON format:
 Only adjust if you have high confidence (>0.7). Otherwise keep original."""
 
             response = self.client.chat(
-                "You are a CVSS expert. Provide accurate severity assessments.",
-                prompt
+                "You are a CVSS expert. Provide accurate severity assessments.", prompt
             )
-            
+
             # Parse JSON response
             import json
             import re
-            
-            json_match = re.search(r'\{[^}]+\}', response)
+
+            json_match = re.search(r"\{[^}]+\}", response)
             if json_match:
                 data = json.loads(json_match.group())
-                
+
                 confidence = data.get("confidence", 0)
                 if confidence > 0.7:
                     new_severity = data.get("adjusted_severity", score.severity.value)
                     score.adjusted_severity = Severity(new_severity)
                     score.ai_reasoning = data.get("reasoning", "")
-                    
+
         except Exception as e:
             logger.warning(f"AI adjustment failed: {e}")
-        
+
         return score
-    
+
     def from_finding(
-        self,
-        finding_type: str,
-        url: str,
-        evidence: str,
-        context: str = ""
+        self, finding_type: str, url: str, evidence: str, context: str = ""
     ) -> CVSSScore:
         """
         Auto-calculate CVSS from a finding description.
-        
+
         Args:
             finding_type: Type of vulnerability (xss, sqli, rce, etc.)
             url: Affected URL
@@ -303,17 +291,17 @@ Only adjust if you have high confidence (>0.7). Otherwise keep original."""
                 availability="N",
             ),
         }
-        
+
         # Normalize finding type
         finding_lower = finding_type.lower()
-        
+
         # Match to default vector
         vector = None
         for key, vec in default_vectors.items():
             if key in finding_lower:
                 vector = vec
                 break
-        
+
         if not vector:
             # Generic web vulnerability
             vector = CVSSVector(
@@ -326,33 +314,30 @@ Only adjust if you have high confidence (>0.7). Otherwise keep original."""
                 integrity="L",
                 availability="N",
             )
-        
+
         # Build context
         full_context = f"""Vulnerability Type: {finding_type}
 Affected URL: {url}
 Evidence: {evidence}
 {context}"""
-        
+
         return self.calculate(vector, full_context)
-    
+
     def calculate_from_tool_result(
-        self,
-        tool_name: str,
-        finding: Dict[str, Any],
-        target: str
+        self, tool_name: str, finding: Dict[str, Any], target: str
     ) -> CVSSScore:
         """Calculate CVSS from a tool registry finding."""
         finding_type = finding.get("type", "unknown")
         severity_hint = finding.get("severity", "medium")
-        
+
         url = finding.get("url", finding.get("host", target))
         evidence = finding.get("evidence", finding.get("details", str(finding)))
-        
+
         # Tool-specific context
         tool_context = f"Detected by: {tool_name}"
-        
+
         score = self.from_finding(finding_type, url, evidence, tool_context)
-        
+
         # Override with tool severity hint if no AI adjustment
         if not score.adjusted_severity and severity_hint:
             severity_map = {
@@ -365,7 +350,7 @@ Evidence: {evidence}
             hinted_severity = severity_map.get(severity_hint.lower())
             if hinted_severity:
                 score.adjusted_severity = hinted_severity
-        
+
         return score
 
 
@@ -384,21 +369,17 @@ def get_severity_color(severity: Severity) -> str:
 # Quick test
 if __name__ == "__main__":
     calc = CVSSCalculator(use_ai=False)
-    
+
     # Test XSS
     xss_score = calc.from_finding(
-        "xss",
-        "https://example.com/search",
-        "Reflected XSS in search parameter"
+        "xss", "https://example.com/search", "Reflected XSS in search parameter"
     )
     print(f"XSS Score: {xss_score.base_score} ({xss_score.severity.value})")
     print(f"Vector: {xss_score.vector_string}")
-    
+
     # Test SQLi
     sqli_score = calc.from_finding(
-        "sqli",
-        "https://example.com/api/users",
-        "SQL injection in id parameter"
+        "sqli", "https://example.com/api/users", "SQL injection in id parameter"
     )
     print(f"\nSQLi Score: {sqli_score.base_score} ({sqli_score.severity.value})")
     print(f"Vector: {sqli_score.vector_string}")

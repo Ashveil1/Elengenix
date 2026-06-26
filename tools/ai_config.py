@@ -28,6 +28,7 @@ logger = logging.getLogger("elengenix.ai_config")
 # Load .env once at import (best-effort, safe if missing)
 try:
     from dotenv import load_dotenv
+
     _ENV_PATH = Path(__file__).resolve().parent.parent / ".env"
     if _ENV_PATH.exists():
         load_dotenv(_ENV_PATH, override=False)
@@ -58,6 +59,7 @@ def load_config(config_path: Optional[Path] = None) -> Dict[str, Any]:
             return _CONFIG_CACHE
         try:
             import yaml  # type: ignore
+
             with open(path) as f:
                 _CONFIG_CACHE = yaml.safe_load(f) or {}
         except ImportError:
@@ -77,6 +79,7 @@ def reset_config_cache() -> None:
 
 
 # ── Public API ──────────────────────────────────────────────────
+
 
 def get_ai_section() -> Dict[str, Any]:
     """Return the `ai:` section of config.yaml, or {} if missing."""
@@ -247,8 +250,17 @@ def get_provider_order() -> List[str]:
 # ── Internal helpers ────────────────────────────────────────────
 
 _KNOWN_PROVIDER_PREFIXES = {
-    "openai", "gemini", "anthropic", "groq", "nvidia",
-    "deepseek", "mistral", "openrouter", "together", "perplexity", "ollama",
+    "openai",
+    "gemini",
+    "anthropic",
+    "groq",
+    "nvidia",
+    "deepseek",
+    "mistral",
+    "openrouter",
+    "together",
+    "perplexity",
+    "ollama",
 }
 
 

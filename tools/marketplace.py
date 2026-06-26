@@ -32,7 +32,9 @@ from typing import Any, Dict, List, Optional, Tuple
 logger = logging.getLogger("elengenix.marketplace")
 
 # Default marketplace index (a JSON file in a known GitHub repo)
-DEFAULT_INDEX_URL = "https://raw.githubusercontent.com/Elengenix/marketplace-index/main/plugins.json"
+DEFAULT_INDEX_URL = (
+    "https://raw.githubusercontent.com/Elengenix/marketplace-index/main/plugins.json"
+)
 LOCAL_INDEX_CACHE = Path.home() / ".elengenix" / "marketplace_index.json"
 INDEX_TTL_S = 3600  # 1 hour
 
@@ -43,16 +45,17 @@ DEFAULT_INSTALL_DIR = Path.home() / ".elengenix" / "plugins"
 @dataclass
 class PluginEntry:
     """A plugin in the marketplace index."""
+
     name: str
     version: str
     author: str = ""
     description: str = ""
-    repo_url: str = ""            # git clone URL
+    repo_url: str = ""  # git clone URL
     homepage: str = ""
     tags: List[str] = field(default_factory=list)
     downloads: int = 0
     stars: int = 0
-    verified: bool = False        # Official Elengenix team
+    verified: bool = False  # Official Elengenix team
     min_elengenix_version: str = ""
     sdk_version: str = "1.0.0"
 
@@ -117,7 +120,10 @@ class Marketplace:
         # Fetch from URL
         try:
             import urllib.request
-            req = urllib.request.Request(self.index_url, headers={"User-Agent": "Elengenix-Marketplace/1.0"})
+
+            req = urllib.request.Request(
+                self.index_url, headers={"User-Agent": "Elengenix-Marketplace/1.0"}
+            )
             with urllib.request.urlopen(req, timeout=10) as resp:
                 text = resp.read().decode("utf-8")
             self._index = self._parse_index(text)
@@ -149,20 +155,22 @@ class Marketplace:
         entries: List[PluginEntry] = []
         for item in data:
             try:
-                entries.append(PluginEntry(
-                    name=item.get("name", ""),
-                    version=str(item.get("version", "0.1.0")),
-                    author=item.get("author", ""),
-                    description=item.get("description", ""),
-                    repo_url=item.get("repo_url", ""),
-                    homepage=item.get("homepage", ""),
-                    tags=item.get("tags", []),
-                    downloads=int(item.get("downloads", 0)),
-                    stars=int(item.get("stars", 0)),
-                    verified=bool(item.get("verified", False)),
-                    min_elengenix_version=item.get("min_elengenix_version", ""),
-                    sdk_version=str(item.get("sdk_version", "1.0.0")),
-                ))
+                entries.append(
+                    PluginEntry(
+                        name=item.get("name", ""),
+                        version=str(item.get("version", "0.1.0")),
+                        author=item.get("author", ""),
+                        description=item.get("description", ""),
+                        repo_url=item.get("repo_url", ""),
+                        homepage=item.get("homepage", ""),
+                        tags=item.get("tags", []),
+                        downloads=int(item.get("downloads", 0)),
+                        stars=int(item.get("stars", 0)),
+                        verified=bool(item.get("verified", False)),
+                        min_elengenix_version=item.get("min_elengenix_version", ""),
+                        sdk_version=str(item.get("sdk_version", "1.0.0")),
+                    )
+                )
             except Exception as e:  # noqa: BLE001
                 logger.warning("Skipping bad index entry: %s", e)
         return entries
@@ -233,7 +241,10 @@ class Marketplace:
         dest = (target_dir or self.install_dir) / name
         if dest.exists():
             if not upgrade:
-                return False, f"Plugin {name!r} already installed at {dest} (use upgrade=True to force)"
+                return (
+                    False,
+                    f"Plugin {name!r} already installed at {dest} (use upgrade=True to force)",
+                )
             # Re-install: remove first
             shutil.rmtree(dest, ignore_errors=True)
         # Git clone
@@ -285,18 +296,21 @@ class Marketplace:
             try:
                 if manifest_path.suffix == ".yaml":
                     import yaml
+
                     with open(manifest_path, "r", encoding="utf-8") as f:
                         m = yaml.safe_load(f) or {}
                 else:
                     with open(manifest_path, "r", encoding="utf-8") as f:
                         m = json.load(f)
-                results.append({
-                    "name": m.get("name", entry.name),
-                    "version": str(m.get("version", "?")),
-                    "author": m.get("author", ""),
-                    "description": m.get("description", ""),
-                    "path": str(entry),
-                })
+                results.append(
+                    {
+                        "name": m.get("name", entry.name),
+                        "version": str(m.get("version", "?")),
+                        "author": m.get("author", ""),
+                        "description": m.get("description", ""),
+                        "path": str(entry),
+                    }
+                )
             except Exception as e:  # noqa: BLE001
                 logger.warning("Bad manifest in %s: %s", manifest_path, e)
         return results

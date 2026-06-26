@@ -11,16 +11,16 @@ from __future__ import annotations
 import logging
 import sqlite3
 from contextlib import contextmanager
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Generator, List, Tuple
 
 logger = logging.getLogger("elengenix.memory")
 
 _DB_PATH = Path(__file__).parent.parent / "data" / "elengenix.db"
-_MAX_LEARNING_LEN = 500   # chars per learning
-_SUMMARY_SNIPPET  = 400   # chars per category in summary
-_MAX_AGE_DAYS     = 90    # auto-prune learnings older than this
+_MAX_LEARNING_LEN = 500  # chars per learning
+_SUMMARY_SNIPPET = 400  # chars per category in summary
+_MAX_AGE_DAYS = 90  # auto-prune learnings older than this
 
 
 def _db_path() -> Path:
@@ -45,7 +45,8 @@ def _get_conn() -> Generator[sqlite3.Connection, None, None]:
 
 def init_db() -> None:
     with _get_conn() as conn:
-        conn.execute("""
+        conn.execute(
+            """
             CREATE TABLE IF NOT EXISTS learnings (
                 id        INTEGER PRIMARY KEY AUTOINCREMENT,
                 target    TEXT    NOT NULL,
@@ -53,7 +54,8 @@ def init_db() -> None:
                 learning  TEXT    NOT NULL,
                 created   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
-        """)
+        """
+        )
         conn.execute("CREATE INDEX IF NOT EXISTS idx_target   ON learnings (target)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_category ON learnings (category)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_created  ON learnings (created)")
@@ -100,7 +102,9 @@ def get_summarized_learnings(target: str, max_chars: int = 2000) -> str:
     parts: List[str] = []
     used = 0
     for cat, cnt, details in rows:
-        snippet = (details[:_SUMMARY_SNIPPET] + "...") if len(details) > _SUMMARY_SNIPPET else details
+        snippet = (
+            (details[:_SUMMARY_SNIPPET] + "...") if len(details) > _SUMMARY_SNIPPET else details
+        )
         line = f"[{cat.upper()}] ({cnt} items): {snippet}"
         if used + len(line) > max_chars:
             break
@@ -115,9 +119,7 @@ def get_all_targets() -> List[str]:
         return []
     init_db()
     with _get_conn() as conn:
-        rows = conn.execute(
-            "SELECT DISTINCT target FROM learnings ORDER BY target"
-        ).fetchall()
+        rows = conn.execute("SELECT DISTINCT target FROM learnings ORDER BY target").fetchall()
     return [r[0] for r in rows]
 
 
@@ -137,9 +139,7 @@ def prune_old_learnings(days: int = _MAX_AGE_DAYS) -> int:
     init_db()
     cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
     with _get_conn() as conn:
-        cursor = conn.execute(
-            "DELETE FROM learnings WHERE created < ?", (cutoff,)
-        )
+        cursor = conn.execute("DELETE FROM learnings WHERE created < ?", (cutoff,))
         pruned = cursor.rowcount
     if pruned:
         logger.info(f"Pruned {pruned} old learnings (>{days} days).")

@@ -15,6 +15,7 @@ This unlocks detection of:
     - Broken function-level authorization (BFLA)
     - JWT issuance/validation flaws
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -59,18 +60,20 @@ COMMON_CREDENTIALS = [
 # SESSION DATA
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 @dataclass
 class AuthSession:
     """Authenticated session — cookies + headers."""
+
     username: str
     cookies: Dict[str, str] = field(default_factory=dict)
     headers: Dict[str, str] = field(default_factory=dict)
     jwt_token: str = ""
     api_key: str = ""
-    user_id: int = 0          # User ID from login response
-    role: str = ""            # User role (admin/user/etc)
+    user_id: int = 0  # User ID from login response
+    role: str = ""  # User role (admin/user/etc)
     authenticated_via: str = ""  # login endpoint URL
-    evidence: str = ""           # what we got (token, session id)
+    evidence: str = ""  # what we got (token, session id)
 
     def auth_headers(self) -> Dict[str, str]:
         """Return all auth-related headers for use in requests."""
@@ -86,8 +89,15 @@ class AuthSession:
 
 # Endpoint patterns that look like login
 LOGIN_PATH_HINTS = [
-    "login", "signin", "auth", "authenticate", "session",
-    "token", "api/auth", "/auth/", "api/login",
+    "login",
+    "signin",
+    "auth",
+    "authenticate",
+    "session",
+    "token",
+    "api/auth",
+    "/auth/",
+    "api/login",
 ]
 
 
@@ -144,9 +154,17 @@ async def try_login(
                 try:
                     j = json.loads(body)
                     # Look for tokens/keys in common fields
-                    for key in ("token", "access_token", "jwt", "session",
-                                "session_token", "sessionId", "auth_token",
-                                "api_key", "apikey"):
+                    for key in (
+                        "token",
+                        "access_token",
+                        "jwt",
+                        "session",
+                        "session_token",
+                        "sessionId",
+                        "auth_token",
+                        "api_key",
+                        "apikey",
+                    ):
                         if key in j and isinstance(j[key], str) and len(j[key]) >= 4:
                             token = j[key]
                             if token.count(".") == 2 and "." in token:
@@ -183,7 +201,9 @@ async def try_login(
                     auth_session.authenticated_via = login_url
                     return auth_session
                 # Status 200 with "ok" status in body
-                elif status == 200 and body and ('"status":"ok"' in body or '"success":true' in body):
+                elif (
+                    status == 200 and body and ('"status":"ok"' in body or '"success":true' in body)
+                ):
                     # Even without token, mark as authenticated if status indicates it
                     if auth_session.cookies or auth_session.jwt_token:
                         auth_session.authenticated_via = login_url
@@ -219,8 +239,15 @@ async def discover_and_login(
                 break
 
     # Also try common paths
-    for hint in ("/login", "/api/login", "/auth/login", "/api/auth/login",
-                 "/api/auth", "/api/token", "/oauth/token"):
+    for hint in (
+        "/login",
+        "/api/login",
+        "/auth/login",
+        "/api/auth/login",
+        "/api/auth",
+        "/api/token",
+        "/oauth/token",
+    ):
         url = base_url.rstrip("/") + hint
         if url not in login_urls:
             login_urls.append(url)
@@ -245,6 +272,7 @@ async def discover_and_login(
 # ═══════════════════════════════════════════════════════════════════════════
 # AUTHENTICATED REQUEST HELPER
 # ═══════════════════════════════════════════════════════════════════════════
+
 
 async def authenticated_get(
     session: aiohttp.ClientSession,
@@ -280,6 +308,7 @@ async def authenticated_post(
 # ═══════════════════════════════════════════════════════════════════════════
 # BOLA / IDOR WITH TWO SESSIONS
 # ═══════════════════════════════════════════════════════════════════════════
+
 
 async def test_bola_with_sessions(
     session: aiohttp.ClientSession,

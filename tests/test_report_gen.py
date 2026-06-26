@@ -1,20 +1,35 @@
 """test_report_gen.py — Tests for report generator."""
-import sys, json
+
+import json
+import sys
+
 sys.path.insert(0, "/mnt/data/Elengenix")
 
 from tools.report_gen import (
-    ReportFormat, FindingReport, ExecutiveSummary,
-    generate_html, generate_sarif, generate_markdown, export_report,
+    ExecutiveSummary,
+    FindingReport,
+    ReportFormat,
+    export_report,
+    generate_html,
+    generate_markdown,
+    generate_sarif,
 )
 
 
 def make_finding(**kw):
     defaults = dict(
-        id="VULN-TEST1", title="SQL Injection in search",
-        severity="Critical", cvss=9.8, url="http://x.com/api?id=1",
-        vuln_class="injection", description="User input concatenated into SQL",
-        impact="Full database access", remediation="Use parameterized queries",
-        cwe=["CWE-89"], cve=None, evidence="Got MySQL error: '1' ORDER BY",
+        id="VULN-TEST1",
+        title="SQL Injection in search",
+        severity="Critical",
+        cvss=9.8,
+        url="http://x.com/api?id=1",
+        vuln_class="injection",
+        description="User input concatenated into SQL",
+        impact="Full database access",
+        remediation="Use parameterized queries",
+        cwe=["CWE-89"],
+        cve=None,
+        evidence="Got MySQL error: '1' ORDER BY",
         confidence=0.95,
     )
     defaults.update(kw)

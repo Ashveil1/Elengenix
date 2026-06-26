@@ -21,7 +21,7 @@ import re
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, List, Any, Optional, Set
+from typing import Any, Dict, List, Optional, Set
 
 logger = logging.getLogger("elengenix.enterprise_security")
 
@@ -30,9 +30,11 @@ logger = logging.getLogger("elengenix.enterprise_security")
 # SBOM — Software Bill of Materials (SPDX 2.3)
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 @dataclass
 class Package:
     """A software package identified in the codebase."""
+
     name: str
     version: str
     type: str  # pip, npm, go, cargo, gem, etc.
@@ -103,12 +105,14 @@ class SBOMParser:
         return pkgs
 
     def _parse_pip_requirement(self, line: str) -> Optional[Package]:
-        match = re.match(r'^([a-zA-Z0-9_.-]+)\s*(==|>=|<=|!=|~=)?\s*([\d.]+)?', line)
+        match = re.match(r"^([a-zA-Z0-9_.-]+)\s*(==|>=|<=|!=|~=)?\s*([\d.]+)?", line)
         if match:
             name = match.group(1).lower()
             ver = match.group(3) or "latest"
             return Package(
-                name=name, version=ver, type="pip",
+                name=name,
+                version=ver,
+                type="pip",
                 purl=f"pkg:pip/{name}@{ver}",
                 checksum=hashlib.md5(f"{name}@{ver}".encode()).hexdigest()[:12],
             )
@@ -120,12 +124,16 @@ class SBOMParser:
             data = json.loads(path.read_text())
             for section in ["dependencies", "devDependencies", "peerDependencies"]:
                 for name, ver in data.get(section, {}).items():
-                    pkgs.append(Package(
-                        name=name, version=ver.strip("^~>=< "), type="npm",
-                        path=str(path),
-                        purl=f"pkg:npm/{name}@{ver.strip('^~>=< ')}",
-                        checksum=hashlib.md5(f"{name}@{ver}".encode()).hexdigest()[:12],
-                    ))
+                    pkgs.append(
+                        Package(
+                            name=name,
+                            version=ver.strip("^~>=< "),
+                            type="npm",
+                            path=str(path),
+                            purl=f"pkg:npm/{name}@{ver.strip('^~>=< ')}",
+                            checksum=hashlib.md5(f"{name}@{ver}".encode()).hexdigest()[:12],
+                        )
+                    )
         except Exception as e:
             logger.warning(f"Failed to parse {path}: {e}")
         return pkgs
@@ -146,11 +154,15 @@ class SBOMParser:
                     parts = line.split("=", 1)
                     name = parts[0].strip().strip('"').strip("'")
                     ver = parts[1].strip().strip('"').strip("'").strip(",")
-                    pkgs.append(Package(
-                        name=name, version=ver, type="cargo",
-                        path=str(path),
-                        purl=f"pkg:cargo/{name}@{ver}",
-                    ))
+                    pkgs.append(
+                        Package(
+                            name=name,
+                            version=ver,
+                            type="cargo",
+                            path=str(path),
+                            purl=f"pkg:cargo/{name}@{ver}",
+                        )
+                    )
         except Exception as e:
             logger.warning(f"Failed to parse {path}: {e}")
         return pkgs
@@ -170,11 +182,15 @@ class SBOMParser:
                     parts = line.split()
                     if len(parts) >= 2:
                         name, ver = parts[0], parts[1]
-                        pkgs.append(Package(
-                            name=name, version=ver, type="go",
-                            path=str(path),
-                            purl=f"pkg:go/{name}@{ver}",
-                        ))
+                        pkgs.append(
+                            Package(
+                                name=name,
+                                version=ver,
+                                type="go",
+                                path=str(path),
+                                purl=f"pkg:go/{name}@{ver}",
+                            )
+                        )
         except Exception as e:
             logger.warning(f"Failed to parse {path}: {e}")
         return pkgs
@@ -196,11 +212,15 @@ class SBOMParser:
                         name = parts[0].strip().strip('"').strip("'")
                         ver = parts[1].strip().strip('"').strip("'").strip(",").strip()
                         if name and ver and name != "python":
-                            pkgs.append(Package(
-                                name=name, version=ver, type="pip",
-                                path=str(path),
-                                purl=f"pkg:pip/{name}@{ver}",
-                            ))
+                            pkgs.append(
+                                Package(
+                                    name=name,
+                                    version=ver,
+                                    type="pip",
+                                    path=str(path),
+                                    purl=f"pkg:pip/{name}@{ver}",
+                                )
+                            )
         except Exception:
             pass
         return pkgs
@@ -210,12 +230,18 @@ class SBOMParser:
         pkgs = []
         try:
             content = path.read_text()
-            for match in re.finditer(r'<PackageReference\s+Include="([^"]+)"\s+Version="([^"]+)"', content):
-                pkgs.append(Package(
-                    name=match.group(1), version=match.group(2), type="nuget",
-                    path=str(path),
-                    purl=f"pkg:nuget/{match.group(1)}@{match.group(2)}",
-                ))
+            for match in re.finditer(
+                r'<PackageReference\s+Include="([^"]+)"\s+Version="([^"]+)"', content
+            ):
+                pkgs.append(
+                    Package(
+                        name=match.group(1),
+                        version=match.group(2),
+                        type="nuget",
+                        path=str(path),
+                        purl=f"pkg:nuget/{match.group(1)}@{match.group(2)}",
+                    )
+                )
         except Exception:
             pass
         return pkgs
@@ -225,35 +251,90 @@ class SBOMParser:
 
 KNOWN_VULNERABLE: Dict[str, List[Dict[str, Any]]] = {
     "django": [
-        {"id": "CVE-2024-35680", "versions": ["<4.2.14", "<5.0.8"], "cvss": 7.5, "desc": "SQL injection"},
-        {"id": "CVE-2024-38875", "versions": ["<4.2.15", "<5.0.9"], "cvss": 6.1, "desc": "XSS in debug view"},
+        {
+            "id": "CVE-2024-35680",
+            "versions": ["<4.2.14", "<5.0.8"],
+            "cvss": 7.5,
+            "desc": "SQL injection",
+        },
+        {
+            "id": "CVE-2024-38875",
+            "versions": ["<4.2.15", "<5.0.9"],
+            "cvss": 6.1,
+            "desc": "XSS in debug view",
+        },
     ],
     "flask": [
-        {"id": "CVE-2024-45614", "versions": ["<3.0.3"], "cvss": 7.5, "desc": "DoS via range requests"},
+        {
+            "id": "CVE-2024-45614",
+            "versions": ["<3.0.3"],
+            "cvss": 7.5,
+            "desc": "DoS via range requests",
+        },
     ],
     "requests": [
-        {"id": "CVE-2024-3651", "versions": ["<2.32.0"], "cvss": 6.1, "desc": "Certificate validation bypass"},
+        {
+            "id": "CVE-2024-3651",
+            "versions": ["<2.32.0"],
+            "cvss": 6.1,
+            "desc": "Certificate validation bypass",
+        },
     ],
     "urllib3": [
-        {"id": "CVE-2024-37891", "versions": ["<2.2.2"], "cvss": 5.3, "desc": "Proxy authentication bypass"},
+        {
+            "id": "CVE-2024-37891",
+            "versions": ["<2.2.2"],
+            "cvss": 5.3,
+            "desc": "Proxy authentication bypass",
+        },
     ],
     "cryptography": [
-        {"id": "CVE-2024-4603", "versions": ["<42.0.6"], "cvss": 7.4, "desc": "Buffer overflow in X.509"},
+        {
+            "id": "CVE-2024-4603",
+            "versions": ["<42.0.6"],
+            "cvss": 7.4,
+            "desc": "Buffer overflow in X.509",
+        },
     ],
     "jinja2": [
-        {"id": "CVE-2024-34064", "versions": ["<3.1.4"], "cvss": 6.1, "desc": "HTML attribute injection"},
+        {
+            "id": "CVE-2024-34064",
+            "versions": ["<3.1.4"],
+            "cvss": 6.1,
+            "desc": "HTML attribute injection",
+        },
     ],
     "express": [
-        {"id": "CVE-2024-29041", "versions": ["<4.19.2"], "cvss": 7.5, "desc": "Open redirect via malformed URL"},
+        {
+            "id": "CVE-2024-29041",
+            "versions": ["<4.19.2"],
+            "cvss": 7.5,
+            "desc": "Open redirect via malformed URL",
+        },
     ],
     "lodash": [
-        {"id": "CVE-2024-23346", "versions": ["<4.17.21"], "cvss": 7.5, "desc": "Prototype pollution"},
+        {
+            "id": "CVE-2024-23346",
+            "versions": ["<4.17.21"],
+            "cvss": 7.5,
+            "desc": "Prototype pollution",
+        },
     ],
     "axios": [
-        {"id": "CVE-2024-39338", "versions": ["<1.7.2"], "cvss": 6.5, "desc": "SSRF via URL parsing"},
+        {
+            "id": "CVE-2024-39338",
+            "versions": ["<1.7.2"],
+            "cvss": 6.5,
+            "desc": "SSRF via URL parsing",
+        },
     ],
     "undici": [
-        {"id": "CVE-2024-30260", "versions": ["<5.28.4"], "cvss": 7.5, "desc": "HTTP request smuggling"},
+        {
+            "id": "CVE-2024-30260",
+            "versions": ["<5.28.4"],
+            "cvss": 7.5,
+            "desc": "HTTP request smuggling",
+        },
     ],
 }
 
@@ -279,26 +360,34 @@ class VulnerabilityScanner:
                     pkg_ver = self._parse_version(pkg.version)
                     if pkg_ver is None:
                         continue
-                    findings.append({
-                        "tool": "enterprise_security",
-                        "type": "supply_chain_vuln",
-                        "severity": "Critical" if vuln["cvss"] >= 9.0 else "High" if vuln["cvss"] >= 7.0 else "Medium",
-                        "url": "",
-                        "title": f"{vuln['id']} in {pkg.name}@{pkg.version}",
-                        "details": f"{vuln['desc']} (CVSS: {vuln['cvss']})\nAffects: {', '.join(vuln['versions'])}",
-                        "cve": vuln["id"],
-                        "cvss": vuln["cvss"],
-                        "package_name": pkg.name,
-                        "package_version": pkg.version,
-                        "remediation": f"Upgrade {pkg.name} to a patched version",
-                    })
+                    findings.append(
+                        {
+                            "tool": "enterprise_security",
+                            "type": "supply_chain_vuln",
+                            "severity": (
+                                "Critical"
+                                if vuln["cvss"] >= 9.0
+                                else "High"
+                                if vuln["cvss"] >= 7.0
+                                else "Medium"
+                            ),
+                            "url": "",
+                            "title": f"{vuln['id']} in {pkg.name}@{pkg.version}",
+                            "details": f"{vuln['desc']} (CVSS: {vuln['cvss']})\nAffects: {', '.join(vuln['versions'])}",
+                            "cve": vuln["id"],
+                            "cvss": vuln["cvss"],
+                            "package_name": pkg.name,
+                            "package_version": pkg.version,
+                            "remediation": f"Upgrade {pkg.name} to a patched version",
+                        }
+                    )
         return findings
 
     def _parse_version(self, ver: str) -> Optional[tuple]:
         """Parse version string into comparable tuple."""
         if not ver or ver == "latest":
             return None
-        parts = re.findall(r'\d+', ver)
+        parts = re.findall(r"\d+", ver)
         if not parts:
             return None
         return tuple(int(p) for p in parts[:4])
@@ -306,7 +395,14 @@ class VulnerabilityScanner:
     def scan_directory(self, path: str = ".") -> List[Dict[str, Any]]:
         """Recursively scan a directory for dependency files and check for vulns."""
         findings = []
-        dep_files = ["requirements.txt", "package.json", "Cargo.toml", "go.mod", "Pipfile", "pyproject.toml"]
+        dep_files = [
+            "requirements.txt",
+            "package.json",
+            "Cargo.toml",
+            "go.mod",
+            "Pipfile",
+            "pyproject.toml",
+        ]
         base = Path(path)
         for dep_file in dep_files:
             for f in base.rglob(dep_file):
@@ -324,6 +420,7 @@ class VulnerabilityScanner:
 # SBOM GENERATION
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 def generate_sbom(path: str = ".", output_path: Optional[str] = None) -> Dict[str, Any]:
     """Generate an SPDX 2.3 SBOM from a directory.
 
@@ -336,7 +433,14 @@ def generate_sbom(path: str = ".", output_path: Optional[str] = None) -> Dict[st
     """
     scanner = VulnerabilityScanner()
     all_packages: List[Package] = []
-    dep_files = ["requirements.txt", "package.json", "Cargo.toml", "go.mod", "Pipfile", "pyproject.toml"]
+    dep_files = [
+        "requirements.txt",
+        "package.json",
+        "Cargo.toml",
+        "go.mod",
+        "Pipfile",
+        "pyproject.toml",
+    ]
     base = Path(path)
     for dep_file in dep_files:
         for f in base.rglob(dep_file):
@@ -373,23 +477,37 @@ def generate_sbom(path: str = ".", output_path: Optional[str] = None) -> Dict[st
     }
 
     for pkg in unique:
-        sbom["packages"].append({
-            "SPDXID": pkg.spdx_id,
-            "name": pkg.name,
-            "versionInfo": pkg.version,
-            "supplier": "Unknown",
-            "externalRefs": [{
-                "referenceCategory": "PACKAGE-MANAGER",
-                "referenceType": "purl",
-                "referenceLocator": pkg.purl,
-            }] if pkg.purl else [],
-            "licenseConcluded": "NOASSERTION",
-            "checksums": [{
-                "algorithm": "SHA256",
-                "checksumValue": pkg.checksum or "0" * 64,
-            }] if pkg.checksum else [],
-            "files": [pkg.path] if pkg.path else [],
-        })
+        sbom["packages"].append(
+            {
+                "SPDXID": pkg.spdx_id,
+                "name": pkg.name,
+                "versionInfo": pkg.version,
+                "supplier": "Unknown",
+                "externalRefs": (
+                    [
+                        {
+                            "referenceCategory": "PACKAGE-MANAGER",
+                            "referenceType": "purl",
+                            "referenceLocator": pkg.purl,
+                        }
+                    ]
+                    if pkg.purl
+                    else []
+                ),
+                "licenseConcluded": "NOASSERTION",
+                "checksums": (
+                    [
+                        {
+                            "algorithm": "SHA256",
+                            "checksumValue": pkg.checksum or "0" * 64,
+                        }
+                    ]
+                    if pkg.checksum
+                    else []
+                ),
+                "files": [pkg.path] if pkg.path else [],
+            }
+        )
 
     result = {
         "sbom": sbom,
@@ -415,9 +533,10 @@ def generate_sbom(path: str = ".", output_path: Optional[str] = None) -> Dict[st
 # THREAT INTELLIGENCE
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 class ThreatIntel:
     """Threat intelligence integration."""
-    
+
     def __init__(self):
         self.cisa_kev: List[Dict[str, Any]] = []
         self._load_builtin()
@@ -427,9 +546,21 @@ class ThreatIntel:
         self.cisa_kev = [
             {"cve": "CVE-2024-1709", "name": "ConnectWise ScreenConnect Auth Bypass", "cvss": 10.0},
             {"cve": "CVE-2024-27199", "name": "JetBrains TeamCity Auth Bypass", "cvss": 9.8},
-            {"cve": "CVE-2024-21413", "name": "Microsoft Outlook Remote Code Execution", "cvss": 9.8},
-            {"cve": "CVE-2024-20656", "name": "Microsoft VS Code Remote Code Execution", "cvss": 7.8},
-            {"cve": "CVE-2024-21334", "name": "Microsoft Open Management Infrastructure RCE", "cvss": 9.0},
+            {
+                "cve": "CVE-2024-21413",
+                "name": "Microsoft Outlook Remote Code Execution",
+                "cvss": 9.8,
+            },
+            {
+                "cve": "CVE-2024-20656",
+                "name": "Microsoft VS Code Remote Code Execution",
+                "cvss": 7.8,
+            },
+            {
+                "cve": "CVE-2024-21334",
+                "name": "Microsoft Open Management Infrastructure RCE",
+                "cvss": 9.0,
+            },
             {"cve": "CVE-2023-34362", "name": "MOVEit Transfer SQL Injection", "cvss": 9.1},
             {"cve": "CVE-2023-2868", "name": "Barracuda ESG Remote Command Injection", "cvss": 9.1},
             {"cve": "CVE-2023-42793", "name": "TeamCity Auth Bypass", "cvss": 9.8},
@@ -446,20 +577,26 @@ class ThreatIntel:
             vuln_lower = vuln["name"].lower()
             for tech in techs:
                 if tech.lower() in vuln_lower:
-                    findings.append({
-                        "tool": "enterprise_security",
-                        "type": "threat_intel",
-                        "severity": "Critical" if vuln["cvss"] >= 9.0 else "High",
-                        "url": url,
-                        "title": f"{vuln['cve']}: {vuln['name']}",
-                        "details": f"CISA KEV: {vuln['name']} (CVSS: {vuln['cvss']})",
-                        "cve": vuln["cve"],
-                        "cvss": vuln["cvss"],
-                    })
+                    findings.append(
+                        {
+                            "tool": "enterprise_security",
+                            "type": "threat_intel",
+                            "severity": "Critical" if vuln["cvss"] >= 9.0 else "High",
+                            "url": url,
+                            "title": f"{vuln['cve']}: {vuln['name']}",
+                            "details": f"CISA KEV: {vuln['name']} (CVSS: {vuln['cvss']})",
+                            "cve": vuln["cve"],
+                            "cvss": vuln["cvss"],
+                        }
+                    )
         return findings
 
 
 __all__ = [
-    "SBOMParser", "Package", "VulnerabilityScanner", "generate_sbom",
-    "ThreatIntel", "KNOWN_VULNERABLE",
+    "SBOMParser",
+    "Package",
+    "VulnerabilityScanner",
+    "generate_sbom",
+    "ThreatIntel",
+    "KNOWN_VULNERABLE",
 ]

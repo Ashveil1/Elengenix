@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging
 import os
 import re
-from typing import List, Dict
+from typing import Dict, List
 
 import requests
 
@@ -26,9 +26,9 @@ def run_vuln_scan(
     """
     if not target_url.startswith(("http://", "https://")):
         target_url = f"https://{target_url}"
-    
+
     findings = []
-    
+
     # Common vulnerability checks
     checks = [
         ("/.env", "Environment file exposed", "high"),
@@ -46,25 +46,27 @@ def run_vuln_scan(
         ("/crossdomain.xml", "Cross-domain policy file", "low"),
         ("/clientaccesspolicy.xml", "Silverlight policy file", "low"),
     ]
-    
+
     for path, description, severity in checks:
         try:
             url = f"{target_url.rstrip('/')}{path}"
             response = requests.get(url, timeout=5, verify=False, allow_redirects=False)
-            
+
             if response.status_code == 200 and len(response.text) > 50:
-                findings.append({
-                    "name": description,
-                    "severity": severity.upper(),
-                    "url": url,
-                    "details": f"Status: {response.status_code}, Size: {len(response.text)} bytes",
-                })
+                findings.append(
+                    {
+                        "name": description,
+                        "severity": severity.upper(),
+                        "url": url,
+                        "details": f"Status: {response.status_code}, Size: {len(response.text)} bytes",
+                    }
+                )
         except requests.exceptions.RequestException:
             continue
         except Exception as e:
             logger.debug(f"Error checking {path}: {e}")
             continue
-    
+
     return findings
 
 
@@ -79,12 +81,14 @@ def _parse_output(output_file: str) -> List[Dict]:
                 line = line.strip()
                 m = re.match(r"\[([^\]]+)\]\s+\[([^\]]+)\]\s+(\S+)", line)
                 if m:
-                    findings.append({
-                        "name":     m.group(1),
-                        "severity": m.group(2).upper(),
-                        "url":      m.group(3),
-                        "details":  line,
-                    })
+                    findings.append(
+                        {
+                            "name": m.group(1),
+                            "severity": m.group(2).upper(),
+                            "url": m.group(3),
+                            "details": line,
+                        }
+                    )
     except Exception as e:
         logger.warning(f"Could not parse output: {e}")
     return findings

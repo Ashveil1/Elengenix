@@ -18,7 +18,7 @@ import logging
 import re
 import subprocess
 import time
-from typing import Any, Dict, List, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from agents.worker_base import BaseWorker, WorkerResult
 from tools.universal_ai_client import AIMessage
@@ -30,6 +30,7 @@ logger = logging.getLogger("elengenix.critic")
 
 
 # ── Sub-Workers ────────────────────────────────────────────────────────────────
+
 
 class ValidatorWorker(BaseWorker):
     """Confirms a finding by sending a minimal safe HTTP probe.
@@ -59,10 +60,20 @@ class ValidatorWorker(BaseWorker):
         signatures = params.get("signatures", [])
 
         try:
-            cmd = ["curl", "-si", "--max-time", "8", "--user-agent",
-                   "Mozilla/5.0 (Validator; +https://elengenix.io)", target]
+            cmd = [
+                "curl",
+                "-si",
+                "--max-time",
+                "8",
+                "--user-agent",
+                "Mozilla/5.0 (Validator; +https://elengenix.io)",
+                target,
+            ]
             result = subprocess.run(
-                cmd, shell=False, capture_output=True, text=True,
+                cmd,
+                shell=False,
+                capture_output=True,
+                text=True,
                 timeout=self.timeout_seconds,
             )
             response = result.stdout + result.stderr
@@ -76,14 +87,16 @@ class ValidatorWorker(BaseWorker):
 
             findings = []
             if confirmed:
-                findings.append({
-                    "type": "validated_finding",
-                    "severity": "medium",
-                    "title": f"Finding validated: {matched}",
-                    "target": target,
-                    "description": f"HTTP probe confirmed signatures: {matched}",
-                    "evidence": response[:500],
-                })
+                findings.append(
+                    {
+                        "type": "validated_finding",
+                        "severity": "medium",
+                        "title": f"Finding validated: {matched}",
+                        "target": target,
+                        "description": f"HTTP probe confirmed signatures: {matched}",
+                        "evidence": response[:500],
+                    }
+                )
 
             return WorkerResult(
                 success=True,
@@ -94,7 +107,9 @@ class ValidatorWorker(BaseWorker):
             )
         except Exception as exc:
             return WorkerResult(
-                success=False, worker_name=self.name, error=str(exc),
+                success=False,
+                worker_name=self.name,
+                error=str(exc),
             )
 
 
@@ -146,6 +161,7 @@ class ReportWorker(BaseWorker):
 
 
 # ── CriticAgent ─────────────────────────────────────────────────────────────────
+
 
 class CriticAgent:
     """AI agent that validates findings and filters false positives.
@@ -262,12 +278,14 @@ Respond with ONLY one word: "approve" or "deny"."""
                         f["_probe_matched"] = probe.metadata.get("matched", [])
 
         # Build findings list for AI
-        findings_text = "\n".join([
-            f"{i}. [{f.get('severity', 'info').upper()}] {f.get('title', 'Finding')}: "
-            f"{f.get('description', '')[:150]}"
-            f"{' [HTTP-CONFIRMED]' if f.get('_probe_confirmed') else ''}"
-            for i, f in enumerate(findings)
-        ])
+        findings_text = "\n".join(
+            [
+                f"{i}. [{f.get('severity', 'info').upper()}] {f.get('title', 'Finding')}: "
+                f"{f.get('description', '')[:150]}"
+                f"{' [HTTP-CONFIRMED]' if f.get('_probe_confirmed') else ''}"
+                for i, f in enumerate(findings)
+            ]
+        )
 
         prompt = self.REVIEW_PROMPT.format(
             target=target,
@@ -297,25 +315,29 @@ Respond with ONLY one word: "approve" or "deny"."""
             if verdict == "confirmed" and cvss < self.cvss_threshold:
                 verdict = "false_positive"
 
-            results.append({
-                "verdict": verdict,
-                "finding": finding,
-                "cvss": cvss,
-                "confidence": v.get("confidence", "medium"),
-                "notes": v.get("notes", ""),
-            })
+            results.append(
+                {
+                    "verdict": verdict,
+                    "finding": finding,
+                    "cvss": cvss,
+                    "confidence": v.get("confidence", "medium"),
+                    "notes": v.get("notes", ""),
+                }
+            )
 
         # Post verdicts to inbox
-        inbox.post(CouncilMessage(
-            msg_type=MessageType.VERDICT,
-            sender="critic",
-            recipient="council",
-            payload={
-                "total": len(findings),
-                "confirmed": sum(1 for r in results if r["verdict"] == "confirmed"),
-                "false_positives": sum(1 for r in results if r["verdict"] == "false_positive"),
-            },
-        ))
+        inbox.post(
+            CouncilMessage(
+                msg_type=MessageType.VERDICT,
+                sender="critic",
+                recipient="council",
+                payload={
+                    "total": len(findings),
+                    "confirmed": sum(1 for r in results if r["verdict"] == "confirmed"),
+                    "false_positives": sum(1 for r in results if r["verdict"] == "false_positive"),
+                },
+            )
+        )
 
         return results
 
@@ -342,9 +364,14 @@ Respond with ONLY one word: "approve" or "deny"."""
             target=target,
         )
         try:
-            response = self.client.chat([
-                AIMessage(role="user", content=prompt),
-            ]).content or ""
+            response = (
+                self.client.chat(
+                    [
+                        AIMessage(role="user", content=prompt),
+                    ]
+                ).content
+                or ""
+            )
             self.total_tokens_used += len(response) // 4
             decision = response.strip().lower().split()[0] if response.strip() else "approve"
             return "approve" if "approve" in decision else "deny"
@@ -365,10 +392,15 @@ Respond with ONLY one word: "approve" or "deny"."""
         if not self.client:
             return []
         try:
-            response = self.client.chat([
-                AIMessage(role="system", content=prompt),
-                AIMessage(role="user", content=user_msg),
-            ]).content or ""
+            response = (
+                self.client.chat(
+                    [
+                        AIMessage(role="system", content=prompt),
+                        AIMessage(role="user", content=user_msg),
+                    ]
+                ).content
+                or ""
+            )
             self.total_tokens_used += len(response) // 4
             return _extract_json(response)
         except Exception as exc:
@@ -377,6 +409,7 @@ Respond with ONLY one word: "approve" or "deny"."""
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
+
 
 def _extract_signatures(finding: Dict[str, Any]) -> List[str]:
     """Extract testable signatures from a finding for HTTP probing.
@@ -418,7 +451,7 @@ def _extract_json(text: str) -> Any:
         ei = candidate.rfind(end)
         if si != -1 and ei > si:
             try:
-                return json.loads(candidate[si:ei + 1])
+                return json.loads(candidate[si : ei + 1])
             except (json.JSONDecodeError, ValueError):
                 continue
 

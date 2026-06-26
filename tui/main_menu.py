@@ -13,13 +13,13 @@ Features:
 
 from __future__ import annotations
 
-import os
-import sys
 import logging
-from typing import Any, Callable, Dict, List, Optional
+import os
+from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 from rich.align import Align
-from rich.box import ROUNDED, SIMPLE, HEAVY
+from rich.box import HEAVY, ROUNDED, SIMPLE
 from rich.console import Group
 from rich.panel import Panel
 from rich.table import Table
@@ -86,7 +86,11 @@ MENU_ITEMS = {
 
 SCAN_OPTIONS = [
     {"label": "Quick Scan", "description": "Fast vulnerability scan", "args": {"mode": "quick"}},
-    {"label": "Full Scan", "description": "Comprehensive security assessment", "args": {"mode": "full"}},
+    {
+        "label": "Full Scan",
+        "description": "Comprehensive security assessment",
+        "args": {"mode": "full"},
+    },
     {"label": "Custom Scan", "description": "Choose specific scanners", "args": {"mode": "custom"}},
     {"label": "Back", "description": "Return to main menu", "args": {}},
 ]
@@ -96,27 +100,63 @@ SCAN_OPTIONS = [
 
 TOOL_CATEGORIES = {
     "Reconnaissance": [
-        {"name": "Python Recon", "module": "python_recon", "description": "HTTP probe and directory discovery"},
+        {
+            "name": "Python Recon",
+            "module": "python_recon",
+            "description": "HTTP probe and directory discovery",
+        },
         {"name": "API Finder", "module": "api_finder", "description": "Discover API endpoints"},
     ],
     "Vulnerability Scanning": [
-        {"name": "SSRF Scanner", "module": "ssrf_scanner", "description": "Server-Side Request Forgery"},
-        {"name": "SSTI Scanner", "module": "ssti_scanner", "description": "Server-Side Template Injection"},
+        {
+            "name": "SSRF Scanner",
+            "module": "ssrf_scanner",
+            "description": "Server-Side Request Forgery",
+        },
+        {
+            "name": "SSTI Scanner",
+            "module": "ssti_scanner",
+            "description": "Server-Side Template Injection",
+        },
         {"name": "XXE Scanner", "module": "xxe_scanner", "description": "XML External Entity"},
-        {"name": "Deserialization", "module": "deserialization_scanner", "description": "Insecure deserialization"},
-        {"name": "GraphQL Scanner", "module": "graphql_scanner", "description": "GraphQL vulnerabilities"},
+        {
+            "name": "Deserialization",
+            "module": "deserialization_scanner",
+            "description": "Insecure deserialization",
+        },
+        {
+            "name": "GraphQL Scanner",
+            "module": "graphql_scanner",
+            "description": "GraphQL vulnerabilities",
+        },
     ],
     "API Security": [
         {"name": "CORS Checker", "module": "cors_checker", "description": "CORS misconfiguration"},
         {"name": "JWT Tester", "module": "jwt_tester", "description": "JWT vulnerabilities"},
-        {"name": "API Schema Diff", "module": "api_schema_diff", "description": "Schema drift detection"},
+        {
+            "name": "API Schema Diff",
+            "module": "api_schema_diff",
+            "description": "Schema drift detection",
+        },
     ],
     "Business Logic": [
-        {"name": "Logic Flaw Engine", "module": "logic_flaw_engine", "description": "Business logic vulnerabilities"},
-        {"name": "Race Condition Tester", "module": "race_condition_tester", "description": "Race conditions"},
+        {
+            "name": "Logic Flaw Engine",
+            "module": "logic_flaw_engine",
+            "description": "Business logic vulnerabilities",
+        },
+        {
+            "name": "Race Condition Tester",
+            "module": "race_condition_tester",
+            "description": "Race conditions",
+        },
     ],
     "Supply Chain": [
-        {"name": "Supply Chain Analyzer", "module": "supply_chain_analyzer", "description": "Dependency vulnerabilities"},
+        {
+            "name": "Supply Chain Analyzer",
+            "module": "supply_chain_analyzer",
+            "description": "Dependency vulnerabilities",
+        },
     ],
 }
 
@@ -134,18 +174,19 @@ SETTINGS_OPTIONS = [
 
 # ── Main Menu Functions ─────────────────────────────────────────────────────
 
+
 def render_main_menu(
     primary: str = "#ff2222",
     text_color: str = "#ffffff",
     muted: str = "#888888",
 ) -> Panel:
     """Render the main menu as a Rich Panel.
-    
+
     Args:
         primary: Primary theme color.
         text_color: Main text color.
         muted: Muted text color.
-        
+
     Returns:
         Rich Panel with main menu.
     """
@@ -159,14 +200,14 @@ def render_main_menu(
     table.add_column("#", width=4, justify="right")
     table.add_column("Option", width=20)
     table.add_column("Description", style=muted)
-    
+
     for i, (key, item) in enumerate(MENU_ITEMS.items(), 1):
         table.add_row(
             str(i),
             f"[bold]{item['title']}[/bold]",
-            item['description'],
+            item["description"],
         )
-    
+
     return Panel(
         table,
         title=f"[bold {primary}]ELENGENIX MAIN MENU[/bold {primary}]",
@@ -182,12 +223,12 @@ def render_scan_menu(
     muted: str = "#888888",
 ) -> Panel:
     """Render the scan menu as a Rich Panel.
-    
+
     Args:
         primary: Primary theme color.
         text_color: Main text color.
         muted: Muted text color.
-        
+
     Returns:
         Rich Panel with scan menu.
     """
@@ -201,14 +242,14 @@ def render_scan_menu(
     table.add_column("#", width=4, justify="right")
     table.add_column("Scan Type", width=20)
     table.add_column("Description", style=muted)
-    
+
     for i, option in enumerate(SCAN_OPTIONS, 1):
         table.add_row(
             str(i),
             f"[bold]{option['label']}[/bold]",
-            option['description'],
+            option["description"],
         )
-    
+
     return Panel(
         table,
         title=f"[bold {primary}]SCAN TARGET[/bold {primary}]",
@@ -224,12 +265,12 @@ def render_tools_menu(
     muted: str = "#888888",
 ) -> Panel:
     """Render the tools menu as a Rich Panel.
-    
+
     Args:
         primary: Primary theme color.
         text_color: Main text color.
         muted: Muted text color.
-        
+
     Returns:
         Rich Panel with tools menu.
     """
@@ -243,15 +284,15 @@ def render_tools_menu(
     table.add_column("Category", width=20, style=f"bold {primary}")
     table.add_column("Tool", width=20)
     table.add_column("Description", style=muted)
-    
+
     for category, tools in TOOL_CATEGORIES.items():
         for i, tool in enumerate(tools):
             table.add_row(
                 category if i == 0 else "",
-                tool['name'],
-                tool['description'],
+                tool["name"],
+                tool["description"],
             )
-    
+
     return Panel(
         table,
         title=f"[bold {primary}]SECURITY TOOLS[/bold {primary}]",
@@ -267,12 +308,12 @@ def render_settings_menu(
     muted: str = "#888888",
 ) -> Panel:
     """Render the settings menu as a Rich Panel.
-    
+
     Args:
         primary: Primary theme color.
         text_color: Main text color.
         muted: Muted text color.
-        
+
     Returns:
         Rich Panel with settings menu.
     """
@@ -286,14 +327,14 @@ def render_settings_menu(
     table.add_column("#", width=4, justify="right")
     table.add_column("Setting", width=20)
     table.add_column("Description", style=muted)
-    
+
     for i, option in enumerate(SETTINGS_OPTIONS, 1):
         table.add_row(
             str(i),
             f"[bold]{option['label']}[/bold]",
-            option['description'],
+            option["description"],
         )
-    
+
     return Panel(
         table,
         title=f"[bold {primary}]SETTINGS[/bold {primary}]",
@@ -305,6 +346,7 @@ def render_settings_menu(
 
 # ── Menu Runner ─────────────────────────────────────────────────────────────
 
+
 def run_main_menu() -> None:
     """Run the interactive main menu."""
     try:
@@ -312,34 +354,35 @@ def run_main_menu() -> None:
     except ImportError:
         print("questionary not installed. Install with: pip install questionary")
         return
-    
+
     while True:
         # Clear screen
-        os.system('clear' if os.name != 'nt' else 'cls')
-        
+        os.system("clear" if os.name != "nt" else "cls")
+
         # Print banner
         from tui.welcome import ascii_logo
+
         logo = ascii_logo()
         print(logo)
         print()
-        
+
         # Get user choice
-        choices = [item['title'] for item in MENU_ITEMS.values()]
+        choices = [item["title"] for item in MENU_ITEMS.values()]
         choice = questionary.select(
             "Select an option:",
             choices=choices,
         ).ask()
-        
+
         if choice is None:
             break
-        
+
         # Find action
         action = None
         for key, item in MENU_ITEMS.items():
-            if item['title'] == choice:
-                action = item['action']
+            if item["title"] == choice:
+                action = item["action"]
                 break
-        
+
         if action == "exit":
             break
         elif action == "scan":
@@ -365,28 +408,28 @@ def run_scan_menu() -> None:
     except ImportError:
         print("questionary not installed")
         return
-    
+
     # Get target
     target = questionary.text("Enter target domain/IP:").ask()
     if not target:
         return
-    
+
     # Get scan type
     scan_type = questionary.select(
         "Select scan type:",
-        choices=[opt['label'] for opt in SCAN_OPTIONS],
+        choices=[opt["label"] for opt in SCAN_OPTIONS],
     ).ask()
-    
+
     if scan_type == "Back":
         return
-    
+
     # Find scan mode
     mode = "full"
     for opt in SCAN_OPTIONS:
-        if opt['label'] == scan_type:
-            mode = opt['args'].get('mode', 'full')
+        if opt["label"] == scan_type:
+            mode = opt["args"].get("mode", "full")
             break
-    
+
     # Run scan
     print(f"\nStarting {scan_type} on {target}...")
     os.system(f"python3 main.py scan {target}")
@@ -399,24 +442,24 @@ def run_tools_menu() -> None:
     except ImportError:
         print("questionary not installed")
         return
-    
+
     # Flatten tools
     all_tools = []
     for category, tools in TOOL_CATEGORIES.items():
         for tool in tools:
             all_tools.append(f"{tool['name']} - {tool['description']}")
-    
+
     # Add back option
     all_tools.append("Back")
-    
+
     choice = questionary.select(
         "Select a tool:",
         choices=all_tools,
     ).ask()
-    
+
     if choice == "Back" or choice is None:
         return
-    
+
     # Find tool module
     for category, tools in TOOL_CATEGORIES.items():
         for tool in tools:
@@ -434,16 +477,16 @@ def run_settings_menu() -> None:
     except ImportError:
         print("questionary not installed")
         return
-    
+
     while True:
         choice = questionary.select(
             "Select setting:",
-            choices=[opt['label'] for opt in SETTINGS_OPTIONS],
+            choices=[opt["label"] for opt in SETTINGS_OPTIONS],
         ).ask()
-        
+
         if choice == "Back" or choice is None:
             break
-        
+
         if choice == "Theme":
             run_theme_selector()
         elif choice == "AI Provider":
@@ -459,15 +502,15 @@ def run_theme_selector() -> None:
     except ImportError:
         print("questionary not installed")
         return
-    
+
     from tui.themes import THEMES
-    
+
     theme_names = list(THEMES.keys())
     choice = questionary.select(
         "Select theme:",
         choices=theme_names,
     ).ask()
-    
+
     if choice:
         print(f"Theme changed to: {choice}")
 
@@ -479,7 +522,7 @@ def run_memory_menu() -> None:
     except ImportError:
         print("questionary not installed")
         return
-    
+
     while True:
         choice = questionary.select(
             "Select action:",
@@ -490,14 +533,15 @@ def run_memory_menu() -> None:
                 "Back",
             ],
         ).ask()
-        
+
         if choice == "Back" or choice is None:
             break
-        
+
         if choice == "Search memories":
             query = questionary.text("Enter search query:").ask()
             if query:
                 from tools.vector_memory import recall
+
                 results = recall(query, n_results=5)
                 print(f"\nFound {len(results)} memories:")
                 for r in results:
@@ -517,7 +561,7 @@ def run_recon_menu() -> None:
     except ImportError:
         print("questionary not installed")
         return
-    
+
     target = questionary.text("Enter target domain:").ask()
     if target:
         print(f"\nStarting reconnaissance on {target}...")
@@ -531,30 +575,31 @@ def run_reports_menu() -> None:
     except ImportError:
         print("questionary not installed")
         return
-    
+
     reports_dir = Path("reports")
     if not reports_dir.exists():
         print("No reports found.")
         return
-    
+
     reports = list(reports_dir.glob("*.html")) + list(reports_dir.glob("*.md"))
     if not reports:
         print("No reports found.")
         return
-    
+
     choices = [r.name for r in reports] + ["Back"]
     choice = questionary.select(
         "Select a report:",
         choices=choices,
     ).ask()
-    
+
     if choice and choice != "Back":
         print(f"Opening {choice}...")
 
 
 def run_help_menu() -> None:
     """Run the help menu."""
-    print("""
+    print(
+        """
 ╔══════════════════════════════════════════════════════════════╗
 ║                    ELENGENIX HELP                           ║
 ╠══════════════════════════════════════════════════════════════╣
@@ -579,7 +624,8 @@ def run_help_menu() -> None:
 ║    - No external tools required                              ║
 ║                                                              ║
 ╚══════════════════════════════════════════════════════════════╝
-""")
+"""
+    )
     input("\nPress Enter to continue...")
 
 

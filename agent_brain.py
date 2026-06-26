@@ -6,23 +6,24 @@ agent_brain.py — Elengenix Intelligent Hunting Engine
 - High-security Subprocess Execution (Shell=False + Strict Allowlist)
 """
 
-import os
+import asyncio
 import json
+import logging
+import os
 import re
 import time
-import asyncio
-import logging
-from pathlib import Path
 from collections import Counter
-from typing import Optional, Callable, Dict, Any, List
+from pathlib import Path
+from typing import Any, Callable, Dict, List, Optional
+
+from bot_utils import send_telegram_notification
+from live_display import display_in_chat_mode, get_activity_logger
+from tools.cvss_calculator import CVSSCalculator
+from tools.governance import GateDecision, Governance
+from tools.tool_registry import ToolResult, registry
 
 # Core imports (always needed)
 from tools.universal_ai_client import AIClientManager, AIMessage
-from tools.tool_registry import registry, ToolResult
-from tools.cvss_calculator import CVSSCalculator
-from tools.governance import Governance, GateDecision
-from live_display import get_activity_logger, display_in_chat_mode
-from bot_utils import send_telegram_notification
 
 # Lazy imports (deferred until needed)
 _vector_memory = None
@@ -40,6 +41,7 @@ def _get_vector_memory():
     global _vector_memory
     if _vector_memory is None:
         from tools import vector_memory
+
         _vector_memory = vector_memory
     return _vector_memory
 
@@ -48,6 +50,7 @@ def _get_memory_persistence():
     global _memory_persistence
     if _memory_persistence is None:
         from tools import memory_persistence
+
         _memory_persistence = memory_persistence
     return _memory_persistence
 
@@ -56,6 +59,7 @@ def _get_cve_database():
     global _cve_database
     if _cve_database is None:
         from tools import cve_database
+
         _cve_database = cve_database
     return _cve_database
 
@@ -64,6 +68,7 @@ def _get_mission_state():
     global _mission_state
     if _mission_state is None:
         from tools import mission_state
+
         _mission_state = mission_state
     return _mission_state
 
@@ -72,30 +77,28 @@ def _get_agent_reflection():
     global _agent_reflection
     if _agent_reflection is None:
         from tools import agent_reflection
+
         _agent_reflection = agent_reflection
     return _agent_reflection
 
 
 logger = logging.getLogger("elengenix.agent")
 
-# ── Re-export shared helpers from agents/ modules ──────────────────────
-from agents.agent_helpers import (
-    _get_now_context,
-    _extract_target_from_text,
-    _safe_operation,
-)
+from agents.agent_conversation import ConversationManager
 from agents.agent_dataclasses import AttackTree
-from agents.agent_planner import StrategicPlanner
-from agents.agent_logger import ChainOfThoughtLogger
 from agents.agent_executor import (
     execute_tool,
     execute_tool_registry,
     execute_tool_subprocess,
     handle_ask_user,
 )
+
+# ── Re-export shared helpers from agents/ modules ──────────────────────
+from agents.agent_helpers import _extract_target_from_text, _get_now_context, _safe_operation
 from agents.agent_intent import analyze_intent as _analyze_intent
-from agents.agent_conversation import ConversationManager
+from agents.agent_logger import ChainOfThoughtLogger
 from agents.agent_modes import ModeProcessor
+from agents.agent_planner import StrategicPlanner
 
 
 class ElengenixAgent:
@@ -103,7 +106,7 @@ class ElengenixAgent:
     Relentless Security Research Agent v3.0.
     Features strategic planning, chain of thought logging, and adaptive tool selection.
     """
-    
+
     #  GLOBAL SECURITY ALLOWLIST (removed — now uses Governance classification)
     #  The agent may execute any command.  Governance (tools/governance.py)
     #  classifies each action as DESTRUCTIVE / PRIVILEGED / SAFE.
@@ -116,6 +119,7 @@ class ElengenixAgent:
     @staticmethod
     def _get_shared_loop():
         from tools.event_loop import get_shared_loop
+
         return get_shared_loop()
 
     def __init__(
@@ -127,7 +131,7 @@ class ElengenixAgent:
         enable_planning: bool = True,
         enable_cot_logging: bool = True,
         max_history_turns: int = 20,
-        verbose_thoughts: bool = True
+        verbose_thoughts: bool = True,
     ):
         self.client = AIClientManager()
 
@@ -142,7 +146,7 @@ class ElengenixAgent:
         self.enable_cot_logging = enable_cot_logging
         self.max_history_turns = max_history_turns
         self.verbose_thoughts = verbose_thoughts
-        
+
         #  Conversation Manager (handles history, persistence, summarization)
         self.conversation_manager = ConversationManager(
             client=self.client,
@@ -151,28 +155,28 @@ class ElengenixAgent:
         )
         # Backward compatibility: expose conversation_history directly
         self.conversation_history = self.conversation_manager.conversation_history
-        
+
         #  Mode Processor (handles universal, hybrid, team modes)
         self.mode_processor = ModeProcessor(
             client=self.client,
             governance=None,  # Set after governance is initialized
-            cvss_calc=None,   # Set after cvss_calc is initialized
-            cve_db=None,      # Set after cve_db is initialized
+            cvss_calc=None,  # Set after cvss_calc is initialized
+            cve_db=None,  # Set after cve_db is initialized
         )
-        
+
         #  Absolute Path Resolution for Prompts
         self.base_dir = Path(__file__).parent.absolute()
         prompt_path = self.base_dir / "prompts" / "system_prompt.txt"
-        
+
         if not prompt_path.exists():
             self.base_prompt = "You are a specialized security AI agent."
         else:
             self.base_prompt = prompt_path.read_text(encoding="utf-8")
-        
+
         #  Strategic Planning
         self.planner = StrategicPlanner(self.client) if enable_planning else None
         self.current_tree: Optional[AttackTree] = None
-        
+
         #  Chain of Thought Logging
         self.cot_logger = ChainOfThoughtLogger() if enable_cot_logging else None
 
@@ -187,10 +191,10 @@ class ElengenixAgent:
         #  attack tree generation, so the planner sees the detected stack
         #  instead of relying purely on the AI prompt.
         self._fingerprint_cache: Dict[str, Dict[str, Any]] = {}
-        
+
         #  CVE Database
         self.cve_db = _get_cve_database().get_cve_database(auto_update=False)
-        
+
         #  System Prompt Enhancement with CVE context
         self._enhance_prompt_with_cve_context()
 
@@ -209,6 +213,7 @@ class ElengenixAgent:
         #  (vs just generating candidates).
         try:
             from tools.active_fuzzer import ActiveFuzzer
+
             self.active_fuzzer = ActiveFuzzer()
         except Exception as e:
             logger.debug(f"ActiveFuzzer unavailable: {e}")
@@ -218,6 +223,7 @@ class ElengenixAgent:
         #  so we can answer "what did we actually test?" honestly.
         try:
             from tools.coverage_analyzer import CoverageAnalyzer
+
             self.coverage_analyzer = CoverageAnalyzer()
         except Exception as e:
             logger.debug(f"CoverageAnalyzer unavailable: {e}")
@@ -228,6 +234,7 @@ class ElengenixAgent:
         #  for the current tech stack.
         try:
             from tools.learning_engine import LearningEngine
+
             self.learning_engine = LearningEngine(use_chroma=False)
         except Exception as e:
             logger.debug(f"LearningEngine unavailable: {e}")
@@ -237,6 +244,7 @@ class ElengenixAgent:
         #  to detect broken object-level authorization.
         try:
             from tools.bola_tester import BOLATester
+
             self.bola_tester = BOLATester()
         except Exception as e:
             logger.debug(f"BOLATester unavailable: {e}")
@@ -246,6 +254,7 @@ class ElengenixAgent:
         #  Cloudflare / ModSecurity / AWS WAF etc. and suggests evasions.
         try:
             from tools.waf_detector import SmartWAFDetector
+
             self.waf_detector = SmartWAFDetector()
         except Exception as e:
             logger.debug(f"SmartWAFDetector unavailable: {e}")
@@ -260,6 +269,7 @@ class ElengenixAgent:
         #  Analysis Pipeline (13+ post-finding analyzers)
         try:
             from tools.analysis_pipeline import AnalysisPipeline
+
             self.analysis_pipeline = AnalysisPipeline(self)
         except Exception as e:
             logger.warning(f"Failed to initialize centralized AnalysisPipeline: {e}")
@@ -268,6 +278,7 @@ class ElengenixAgent:
         #  Skill Registry (Tool Awareness)
         try:
             from tools.skill_registry import get_skill_registry
+
             self.skill_registry = get_skill_registry()
             # Add available tools context to base prompt
             skill_context = self.skill_registry.get_skill_context()
@@ -289,6 +300,7 @@ class ElengenixAgent:
         """Lazy-initialize BusinessLogicAnalyzer on first access."""
         if self._logic_analyzer is None:
             from tools.logic_analyzer import BusinessLogicAnalyzer
+
             self._logic_analyzer = BusinessLogicAnalyzer()
         return self._logic_analyzer
 
@@ -297,6 +309,7 @@ class ElengenixAgent:
         """Lazy-initialize PayloadMutator on first access."""
         if self._payload_mutator is None:
             from tools.payload_mutation import PayloadMutator
+
             self._payload_mutator = PayloadMutator()
         return self._payload_mutator
 
@@ -305,6 +318,7 @@ class ElengenixAgent:
         """Lazy-initialize SmartOrchestrator on first access."""
         if self._smart_orchestrator is None:
             from scan_engine_upgrade import SmartOrchestrator
+
             self._smart_orchestrator = SmartOrchestrator(max_concurrency=5)
         return self._smart_orchestrator
 
@@ -336,6 +350,7 @@ class ElengenixAgent:
 
         try:
             import requests
+
             resp = requests.get(
                 probe_url,
                 timeout=max_probe_seconds,
@@ -354,6 +369,7 @@ class ElengenixAgent:
 
         try:
             from agents.agent_planner import TargetFingerprinter
+
             fp = TargetFingerprinter().fingerprint(
                 headers=headers,
                 body=body_sample,
@@ -415,6 +431,7 @@ class ElengenixAgent:
 
         try:
             import yaml
+
             config_path = Path(__file__).parent / "config.yaml"
             if not config_path.exists():
                 return defaults
@@ -449,11 +466,11 @@ class ElengenixAgent:
             logger.debug(f"[TeamAegis] Config load failed: {exc}")
             return defaults
 
-
     def _save_to_persistent_memory(self, role: str, content: str) -> None:
         """Save a message to SQLite for cross-session persistence."""
         try:
             from tools.token_counter import count_tokens
+
             model_name = ""
             if hasattr(self, "client") and hasattr(self.client, "active_client"):
                 model_name = getattr(self.client.active_client, "model", "")
@@ -533,9 +550,7 @@ class ElengenixAgent:
                 "SUMMARY:"
             )
 
-            summary_response = self.client.chat([
-                AIMessage(role="user", content=compress_prompt)
-            ])
+            summary_response = self.client.chat([AIMessage(role="user", content=compress_prompt)])
 
             summary_text = summary_response.content if summary_response else ""
             if not summary_text or len(summary_text.strip()) < 20:
@@ -547,7 +562,7 @@ class ElengenixAgent:
                 "content": (
                     f"[COMPRESSED SUMMARY of {len(middle_messages)} earlier turns]: "
                     f"{summary_text.strip()}"
-                )
+                ),
             }
 
             self.conversation_history = (
@@ -567,11 +582,11 @@ class ElengenixAgent:
                 conv_tokens = 0
                 for msg in self.conversation_history:
                     from tools.token_counter import count_tokens
+
                     token_est = count_tokens(msg["content"])
                     conv_tokens += token_est
                     _sqlite_save_message(
-                        "default", msg["role"], msg["content"],
-                        model_name, token_est
+                        "default", msg["role"], msg["content"], model_name, token_est
                     )
             except Exception as e:
                 logger.warning(f"Failed to update SQLite after compress: {e}")
@@ -584,11 +599,11 @@ class ElengenixAgent:
         self.conversation_manager.append_history(role, content)
         # Sync the backward-compatible reference
         self.conversation_history = self.conversation_manager.conversation_history
-    
+
     def _persist_recent_conversation(self) -> None:
         """Save recent conversation turns to vector memory for long-term recall."""
         self.conversation_manager._persist_recent_conversation()
-    
+
     def _check_for_negative_feedback(self, current_input: str) -> None:
         """
         Check if current user input is negative feedback about the previous AI response.
@@ -599,7 +614,7 @@ class ElengenixAgent:
         """
         if not self.conversation_history:
             return
-        
+
         # Get the last assistant response
         last_assistant = None
         last_user_query = None
@@ -608,10 +623,10 @@ class ElengenixAgent:
                 last_assistant = turn["content"]
             elif turn["role"] == "user" and last_assistant is None:
                 last_user_query = turn["content"]
-        
+
         if not last_assistant:
             return
-        
+
         # Check if current input looks like negative feedback
         sentiment = self.reflection_tracker.classify_sentiment(current_input)
         if sentiment == "negative" and last_user_query:
@@ -682,23 +697,30 @@ To use the CVE database, reference vulnerability types and ask for similar CVEs.
         return "http://localhost"
 
     def _extract_json(self, text: str) -> Optional[Dict[str, Any]]:
-        """ Extract JSON from LLM response, supporting Markdown and raw blocks."""
-        json_match = re.search(r'```(?:json)?\s*([\s\S]*?)\s*```|({[\s\S]*})', text)
+        """Extract JSON from LLM response, supporting Markdown and raw blocks."""
+        json_match = re.search(r"```(?:json)?\s*([\s\S]*?)\s*```|({[\s\S]*})", text)
         if not json_match:
             return None
-        
+
         json_str = json_match.group(1) or json_match.group(2)
         try:
             return json.loads(json_str)
         except json.JSONDecodeError:
             return None
 
-    def _execute_tool(self, action_data: Dict[str, Any], callback: Optional[Callable] = None) -> str:
+    def _execute_tool(
+        self, action_data: Dict[str, Any], callback: Optional[Callable] = None
+    ) -> str:
         return execute_tool(
-            action_data, self.governance, self.max_output_len, callback,
+            action_data,
+            self.governance,
+            self.max_output_len,
+            callback,
         )
 
-    def _handle_ask_user(self, action_data: Dict[str, Any], callback: Optional[Callable] = None) -> str:
+    def _handle_ask_user(
+        self, action_data: Dict[str, Any], callback: Optional[Callable] = None
+    ) -> str:
         return handle_ask_user(action_data, callback)
 
     def _execute_tool_registry(
@@ -709,7 +731,11 @@ To use the CVE database, reference vulnerability types and ask for similar CVEs.
         semaphore: Optional[asyncio.Semaphore] = None,
     ) -> ToolResult:
         return execute_tool_registry(
-            tool_name, target, report_dir, self._get_shared_loop, semaphore,
+            tool_name,
+            target,
+            report_dir,
+            self._get_shared_loop,
+            semaphore,
         )
 
     def _execute_tool_subprocess(self, tool_name: str, target: str) -> ToolResult:
@@ -731,6 +757,7 @@ To use the CVE database, reference vulnerability types and ask for similar CVEs.
             A summary string of the findings.
         """
         try:
+
             async def _run():
                 return await self.smart_orchestrator.run_smart_scan(
                     target=target,
@@ -750,11 +777,13 @@ To use the CVE database, reference vulnerability types and ask for similar CVEs.
 
         summary_parts = ["Smart Scan Results:", "-" * 20]
         if state:
-            summary_parts.extend([
-                f"Total tools run: {len(state.results)}",
-                f"Total findings: {len(state.findings)}",
-                f"Scan duration: {state.duration:.1f} seconds"
-            ])
+            summary_parts.extend(
+                [
+                    f"Total tools run: {len(state.results)}",
+                    f"Total findings: {len(state.findings)}",
+                    f"Scan duration: {state.duration:.1f} seconds",
+                ]
+            )
         if correlator:
             clusters = correlator.get_clustered_report()
             if clusters:
@@ -762,22 +791,22 @@ To use the CVE database, reference vulnerability types and ask for similar CVEs.
         return "\n".join(summary_parts)
 
     def process_query(
-        self, 
-        user_input: str, 
-        callback: Optional[Callable] = None, 
+        self,
+        user_input: str,
+        callback: Optional[Callable] = None,
         target: str = "",
-        use_smart_scan: bool = False
+        use_smart_scan: bool = False,
     ) -> str:
         """
         Process a single mission with strategic planning and tool registry.
-        
+
         Features:
         - Strategic attack tree generation
         - Intelligent tool selection via registry
         - Chain of thought logging
         - CVSS scoring integration
         """
-        
+
         # 1. Use AI to classify user intent
         intent = self._analyze_intent(user_input)
         if callback:
@@ -790,13 +819,13 @@ To use the CVE database, reference vulnerability types and ask for similar CVEs.
             if inferred:
                 target = inferred
         logger.info(f"AI classified intent: {intent}")
-        
+
         # 2. If it's a conversation or research, handle it without starting a mission
         if intent in ["casual", "research", "security_chat"] and not target:
             # RETRIEVE MEMORY: Load past knowledge about the user/topic
             past_memories = get_context_for_ai(user_input, target="universal", max_memories=5)
             logger.info(f"Retrieved {len(past_memories.splitlines())} context lines from memory.")
-            
+
             now_context = _get_now_context()
             chat_prompt = f"""You are Elengenix AI v3.0, an expert security assistant and conversational AI.
 Intent category: {intent}
@@ -809,7 +838,7 @@ If the intent is 'casual', be friendly and conversational.
 If the intent is 'research', provide accurate information or web research.
 If the intent is 'security_chat', provide expert cybersecurity advice or code examples.
 Do NOT attempt to run a scan. Respond naturally in the user's language (English or Thai)."""
-            
+
             messages = self._build_chat_messages(chat_prompt, user_input)
             response = (self.client.chat(messages).content or "").strip()
 
@@ -820,11 +849,11 @@ Do NOT attempt to run a scan. Respond naturally in the user's language (English 
             remember(
                 content=f"User said: {user_input} | AI responded: {response[:100]}...",
                 target="universal",
-                category="conversation"
+                category="conversation",
             )
-            
+
             return response
-        
+
         # send_telegram_notification(f" Mission Started: \"{user_input}\"")
         logger.info(f"Starting mission: {user_input}")
 
@@ -834,16 +863,22 @@ Do NOT attempt to run a scan. Respond naturally in the user's language (English 
             target=target or "global",
             objective=user_input,
         )
-        mission_state.upsert_node(GraphNode(node_id=mission_state.target, node_type="target", props={"target": mission_state.target}))
-        
+        mission_state.upsert_node(
+            GraphNode(
+                node_id=mission_state.target,
+                node_type="target",
+                props={"target": mission_state.target},
+            )
+        )
+
         #  REMEMBER: Store this mission start in vector memory
         remember(
             f"Started mission: {user_input}. Target: {target or 'general'}",
             target or "global",
             "mission_start",
-            session_type="ai_chat"
+            session_type="ai_chat",
         )
-        
+
         #  STRATEGIC PLANNING PHASE
         if self.enable_planning and target:
             # ── W2: probe target with a lightweight HTTP request to get a
@@ -866,21 +901,23 @@ Do NOT attempt to run a scan. Respond naturally in the user's language (English 
             if callback:
                 callback(f"Strategy: {self.current_tree.reasoning[:100]}...")
             logger.info(f"Attack tree generated: {len(self.current_tree.steps)} steps")
-            
+
             #  Log to activity display
-            self.activity_logger.log_thought(f"Strategy: {self.current_tree.reasoning[:80]}...", step=0)
+            self.activity_logger.log_thought(
+                f"Strategy: {self.current_tree.reasoning[:80]}...", step=0
+            )
             display_in_chat_mode(f"Planning: {len(self.current_tree.steps)} steps ahead", "thought")
-            
+
             #  REMEMBER: Store the strategy
             remember(
                 f"Strategy planned: {self.current_tree.reasoning}",
                 target,
                 "strategy",
-                step_count=len(self.current_tree.steps)
+                step_count=len(self.current_tree.steps),
             )
-        
+
         # Setup report directory
-        safe_target = target.replace('.', '_') if target else "global"
+        safe_target = target.replace(".", "_") if target else "global"
         report_dir = Path("reports") / f"agent_{safe_target}_{int(time.time())}"
         report_dir.mkdir(parents=True, exist_ok=True)
 
@@ -890,13 +927,13 @@ Do NOT attempt to run a scan. Respond naturally in the user's language (English 
                 callback("Starting smart scan with file relationship analysis...")
             display_in_chat_mode("[Smart Scan] Starting upgraded scan engine", "system")
             return self.run_smart_scan(target, report_dir)
-        
+
         #  Reset mission state
         action_history = []
         history = [{"role": "user", "content": user_input}]
         previous_results: List[ToolResult] = []
         all_findings: List[Dict] = []
-        
+
         for step in range(self.max_steps):
             # Determine next action
             if self.current_tree and step < len(self.current_tree.steps):
@@ -912,40 +949,35 @@ Do NOT attempt to run a scan. Respond naturally in the user's language (English 
                 reasoning = f"{current_step.purpose}"
             else:
                 #  AI-driven dynamic planning with SEMANTIC MEMORY
-                
+
                 # Retrieve context from Vector Memory (remembers across sessions)
                 semantic_context = get_context_for_ai(
-                    current_query=user_input,
-                    target=target or "global",
-                    max_memories=15
+                    current_query=user_input, target=target or "global", max_memories=15
                 )
-                
+
                 # Recent conversation history (session only)
-                recent_history = history[-self.history_limit:]
-                history_text = "\n".join([f"{m['role'].capitalize()}: {m['content']}" for m in recent_history])
-                
+                recent_history = history[-self.history_limit :]
+                history_text = "\n".join(
+                    [f"{m['role'].capitalize()}: {m['content']}" for m in recent_history]
+                )
+
                 # Available tools context
                 available_tools = registry.list_available_tools()
-                tool_list = ", ".join([
-                    name for name, info in available_tools.items() 
-                    if info["available"]
-                ])
-                
-                #  SEMANTIC SEARCH: find memories similar to current problem
-                related_memories = recall(
-                    query=user_input,
-                    target=target,
-                    n_results=5
+                tool_list = ", ".join(
+                    [name for name, info in available_tools.items() if info["available"]]
                 )
-                
+
+                #  SEMANTIC SEARCH: find memories similar to current problem
+                related_memories = recall(query=user_input, target=target, n_results=5)
+
                 related_context = ""
                 if related_memories:
                     related_context = "\n### SEMANTICALLY RELATED PAST MEMORIES:\n"
                     for mem in related_memories:
-                        content = mem['content'][:100]
-                        sim = mem.get('similarity', 0)
+                        content = mem["content"][:100]
+                        sim = mem.get("similarity", 0)
                         related_context += f"- {content}... (relevance: {sim:.0%})\n"
-                
+
                 full_prompt = f"""{self.base_prompt}
 
 ### AVAILABLE TOOLS:
@@ -973,14 +1005,17 @@ Plan your next move. Consider:
 Use JSON format: {{"action": "run_shell|ask_user|web_search|submit_findings|save_memory|finish", "command": "...", "query": "...", "findings": [...], "purpose": "...", "question": "..."}}"""
 
                 from ui_components import show_spinner
+
                 with show_spinner("AI Agent is planning its next move...", spinner_style="#ffffff"):
-                    response_text = self.client.chat([
-                        AIMessage(role="system", content=full_prompt),
-                        AIMessage(role="user", content="Plan next action")
-                    ]).content
+                    response_text = self.client.chat(
+                        [
+                            AIMessage(role="system", content=full_prompt),
+                            AIMessage(role="user", content="Plan next action"),
+                        ]
+                    ).content
                 action_data = self._extract_json(response_text) or {}
-                reasoning = action_data.get('purpose', 'continue investigation')
-            
+                reasoning = action_data.get("purpose", "continue investigation")
+
             #  Chain of Thought Logging
             if self.cot_logger:
                 self.cot_logger.log(
@@ -989,12 +1024,12 @@ Use JSON format: {{"action": "run_shell|ask_user|web_search|submit_findings|save
                     reasoning=reasoning,
                     action=str(action_data),
                     result="",
-                    confidence=0.8 if self.current_tree else 0.6
+                    confidence=0.8 if self.current_tree else 0.6,
                 )
-                
+
             if self.verbose_thoughts and reasoning:
                 display_in_chat_mode(f"[Thought] {reasoning}", "thought")
-            
+
             # Action Validation
             action_val = action_data.get("action", "")
             if isinstance(action_val, dict):
@@ -1003,36 +1038,39 @@ Use JSON format: {{"action": "run_shell|ask_user|web_search|submit_findings|save
                     action_data.update(params)
                 action_val = action_val.get("type", "")
             action = str(action_val).lower()
-            
+
             if action == "finish":
                 summary = action_data.get("summary", "Mission completed")
-                
+
                 # Calculate CVSS for findings
                 cvss_results = []
                 for finding in all_findings:
                     score = self.cvss_calc.from_finding(
                         finding.get("type", "unknown"),
                         finding.get("url", target),
-                        finding.get("evidence", str(finding))
+                        finding.get("evidence", str(finding)),
                     )
-                    
+
                     #  CVE Lookup: Find similar historical vulnerabilities
                     finding_type = finding.get("type", "unknown")
                     similar_cves = self.cve_db.find_similar_vulns(
                         finding_type=finding_type,
-                        cvss_range=(max(0, score.base_score - 1.0), min(10, score.base_score + 1.0))
+                        cvss_range=(
+                            max(0, score.base_score - 1.0),
+                            min(10, score.base_score + 1.0),
+                        ),
                     )
-                    
-                    cvss_results.append({
-                        "finding": finding,
-                        "cvss": score,
-                        "similar_cves": similar_cves
-                    })
-                
+
+                    cvss_results.append(
+                        {"finding": finding, "cvss": score, "similar_cves": similar_cves}
+                    )
+
                 #  REMEMBER: Store mission completion
-                critical_count = len([c for c in cvss_results if c['cvss'].severity.value == 'Critical'])
-                high_count = len([c for c in cvss_results if c['cvss'].severity.value == 'High'])
-                
+                critical_count = len(
+                    [c for c in cvss_results if c["cvss"].severity.value == "Critical"]
+                )
+                high_count = len([c for c in cvss_results if c["cvss"].severity.value == "High"])
+
                 remember(
                     f"Mission completed: {user_input}. "
                     f"Total findings: {len(all_findings)}. "
@@ -1043,14 +1081,14 @@ Use JSON format: {{"action": "run_shell|ask_user|web_search|submit_findings|save
                     total_findings=len(all_findings),
                     critical=critical_count,
                     high=high_count,
-                    steps_taken=step
+                    steps_taken=step,
                 )
-                
+
                 #  REMEMBER: Store key findings for quick recall
                 for cvss_item in cvss_results[:5]:  # Top 5 most severe
-                    finding = cvss_item['finding']
-                    score = cvss_item['cvss']
-                    if score.severity.value in ['Critical', 'High']:
+                    finding = cvss_item["finding"]
+                    score = cvss_item["cvss"]
+                    if score.severity.value in ["Critical", "High"]:
                         remember(
                             f"CRITICAL FINDING: {finding.get('type', 'unknown')} "
                             f"at {finding.get('url', target)} "
@@ -1058,49 +1096,50 @@ Use JSON format: {{"action": "run_shell|ask_user|web_search|submit_findings|save
                             target or "global",
                             "critical_finding",
                             cvss_score=score.base_score,
-                            severity=score.severity.value
+                            severity=score.severity.value,
                         )
-                
+
                 # Save CoT log
                 if self.cot_logger:
                     cot_file = self.cot_logger.save_session(target or user_input)
                     summary += f"\n\n Chain of Thought: {cot_file}"
-                
+
                 # Generate findings report with CVE references
                 if cvss_results:
                     summary += f"\n\n CRITICAL FINDINGS: {critical_count}"
                     summary += f"\n HIGH: {high_count}"
-                    
+
                     # Add CVE references for top findings
                     summary += "\n\n SIMILAR HISTORICAL VULNERABILITIES:"
                     for cvss_item in cvss_results[:3]:  # Top 3
-                        finding = cvss_item['finding']
-                        similar_cves = cvss_item.get('similar_cves', [])
+                        finding = cvss_item["finding"]
+                        similar_cves = cvss_item.get("similar_cves", [])
                         if similar_cves:
-                            finding_type = finding.get('type', 'unknown')
+                            finding_type = finding.get("type", "unknown")
                             summary += f"\n  • {finding_type.upper()}:"
                             for cve in similar_cves[:3]:  # Top 3 similar CVEs
                                 summary += f"\n    - {cve.cve_id} (CVSS: {cve.cvss_score})"
                                 if cve.exploit_available:
                                     summary += " [EXPLOIT AVAILABLE]"
-                
+
                 # Generate bounty report
                 try:
                     from tools.bounty_reporter import BountyReporter, FindingArtifact
+
                     reporter = BountyReporter(target=target or "global")
                     artifacts: List[FindingArtifact] = []
                     for i, cvss_item in enumerate(cvss_results):
-                        finding = cvss_item['finding']
-                        score = cvss_item['cvss']
+                        finding = cvss_item["finding"]
+                        score = cvss_item["cvss"]
                         artifacts.append(
                             FindingArtifact(
                                 finding_id=f"{target or 'global'}:f{i}",
-                                finding_type=finding.get('type', 'unknown'),
+                                finding_type=finding.get("type", "unknown"),
                                 severity=score.severity.value.lower(),
                                 confidence=0.7,
-                                url=finding.get('url', ''),
+                                url=finding.get("url", ""),
                                 title=f"{finding.get('type','Finding')} at {finding.get('url','')} (CVSS {score.base_score})",
-                                description=finding.get('evidence', str(finding))[:500],
+                                description=finding.get("evidence", str(finding))[:500],
                                 cvss_score=score.base_score,
                                 cwe_id=None,
                             )
@@ -1114,7 +1153,7 @@ Use JSON format: {{"action": "run_shell|ask_user|web_search|submit_findings|save
 
                 # send_telegram_notification(f" Mission Accomplished: {user_input}")
                 return summary
-            
+
             if action == "save_memory":
                 remember(
                     action_data.get("learning", ""),
@@ -1124,17 +1163,17 @@ Use JSON format: {{"action": "run_shell|ask_user|web_search|submit_findings|save
                 history.append({"role": "assistant", "content": str(action_data)})
                 history.append({"role": "user", "content": "Learning saved."})
                 continue
-            
+
             #  Loop & Deadlock Protection
             action_sig = f"{action}:{action_data.get('command', '')}"
             action_history.append(action_sig)
-            
+
             if Counter(action_history)[action_sig] > self.loop_threshold:
                 msg = f" DEADLOCK DETECTED: Agent is repeating '{action_sig}'. Terminating."
                 send_telegram_notification(msg)
                 logger.warning(msg)
                 return msg
-            
+
             #  EXECUTION via Tool Registry or Submit Findings
             tool_name = action_data.get("tool", "")
             skip_execution = False
@@ -1143,31 +1182,32 @@ Use JSON format: {{"action": "run_shell|ask_user|web_search|submit_findings|save
             if action == "submit_findings":
                 tool_name = "ai_manual_analysis"
                 skip_execution = True
-                
+
                 findings_data = action_data.get("findings", [])
                 if not isinstance(findings_data, list):
                     findings_data = [findings_data]
-                
-                from tools.tool_registry import ToolResult, ToolCategory
+
+                from tools.tool_registry import ToolCategory, ToolResult
+
                 result = ToolResult(
                     success=True,
                     tool_name=tool_name,
                     category=ToolCategory.VULNERABILITY,
                     findings=findings_data,
-                    error_message=""
+                    error_message="",
                 )
                 purpose = action_data.get("purpose", "Reporting manually discovered findings")
-                
+
                 if callback:
                     callback(f" Reporting {len(findings_data)} findings to system...")
                 display_in_chat_mode(f"AI reported {len(findings_data)} findings.", "success")
-                
+
                 # Note: We still want to run the analysis pipeline and update mission graph!
 
             if tool_name:
                 if not skip_execution:
-                    purpose = action_data.get('purpose', '')
-    
+                    purpose = action_data.get("purpose", "")
+
                     # Governance gate before executing tool
                     gate_decision = self.governance.gate(
                         mission_id=mission_key,
@@ -1185,13 +1225,14 @@ Use JSON format: {{"action": "run_shell|ask_user|web_search|submit_findings|save
                         if gate_decision.decision == "needs_approval":
                             try:
                                 from ui_components import confirm
+
                                 approved = confirm(
                                     f"Approve high-risk action?\n\nTool: {tool_name}\nPurpose: {purpose}",
                                     default=False,
                                 )
                             except Exception:
                                 approved = False
-    
+
                             if approved:
                                 gate_decision = GateDecision(
                                     allowed=True,
@@ -1226,7 +1267,9 @@ Use JSON format: {{"action": "run_shell|ask_user|web_search|submit_findings|save
                                 except Exception as e:
                                     logger.warning(f"MissionState gate ledger write failed: {e}")
                             else:
-                                msg = f" Governance gate: rejected (risk={gate_decision.risk_level})."
+                                msg = (
+                                    f" Governance gate: rejected (risk={gate_decision.risk_level})."
+                                )
                                 display_in_chat_mode(msg, "warning")
                                 try:
                                     mission_state.add_ledger_entry(
@@ -1265,15 +1308,15 @@ Use JSON format: {{"action": "run_shell|ask_user|web_search|submit_findings|save
                             return msg
                     if callback:
                         callback(f"Running: {tool_name} - {purpose}")
-                    
+
                     #  Log activity
-                    self.activity_logger.log_action(f"Running {tool_name}", tool=tool_name, target=target, step=step)
+                    self.activity_logger.log_action(
+                        f"Running {tool_name}", tool=tool_name, target=target, step=step
+                    )
                     display_in_chat_mode(f"[{tool_name}] {purpose}", "action")
-                    
+
                     result = self._execute_tool_registry(
-                        tool_name, 
-                        target or user_input,
-                        report_dir
+                        tool_name, target or user_input, report_dir
                     )
 
                 _safe_operation(
@@ -1283,26 +1326,36 @@ Use JSON format: {{"action": "run_shell|ask_user|web_search|submit_findings|save
                     kind="tool_execution",
                     tool=tool_name,
                     action={"tool": tool_name, "purpose": purpose, "target": target or user_input},
-                    result={"success": result.success, "findings_count": len(result.findings), "error": result.error_message},
+                    result={
+                        "success": result.success,
+                        "findings_count": len(result.findings),
+                        "error": result.error_message,
+                    },
                 )
-                
+
                 #  Log result
                 status = "success" if result.success else "error"
-                self.activity_logger.log_result(f"{tool_name}: {len(result.findings)} findings", result.success, step=step)
+                self.activity_logger.log_result(
+                    f"{tool_name}: {len(result.findings)} findings", result.success, step=step
+                )
                 if result.success:
                     display_in_chat_mode(f"{tool_name}: {len(result.findings)} findings", "result")
                 else:
                     display_in_chat_mode(f"{tool_name} failed: {result.error_message}", "error")
-                
+
                 previous_results.append(result)
                 all_findings.extend(result.findings)
 
                 # Update mission graph/facts from findings
                 for i, finding in enumerate(result.findings):
                     ftype = finding.get("type", "unknown")
-                    furl = finding.get("url", "") or finding.get("subdomain", "") or finding.get("host", "")
+                    furl = (
+                        finding.get("url", "")
+                        or finding.get("subdomain", "")
+                        or finding.get("host", "")
+                    )
                     node_id = furl or f"finding:{tool_name}:{step}:{i}"
-                    
+
                     _safe_operation(
                         "MissionState upsert_node",
                         mission_state.upsert_node,
@@ -1351,6 +1404,7 @@ Use JSON format: {{"action": "run_shell|ask_user|web_search|submit_findings|save
                     )
                 else:
                     from tools.analysis_pipeline import AnalysisPipeline
+
                     pipeline = AnalysisPipeline(self)
                     pipeline.run_all(
                         result=result,
@@ -1361,60 +1415,60 @@ Use JSON format: {{"action": "run_shell|ask_user|web_search|submit_findings|save
                         mission_state=mission_state,
                         callback=callback,
                     )
-                
+
                 # Mark step as completed in attack tree
                 if self.current_tree and step < len(self.current_tree.steps):
                     self.current_tree.steps[step].completed = True
                     self.current_tree.steps[step].result = result
                     self.current_tree.steps[step].findings = result.findings
-                
+
                 #  ADAPTIVE STRATEGY
                 if self.planner and result.findings:
                     for finding in result.findings:
                         new_steps = self.planner.adapt_strategy(self.current_tree, finding)
                         if new_steps and callback:
                             callback(f" Adapted strategy: +{len(new_steps)} new steps")
-                            
+
                             #  REMEMBER: Strategy adaptation
                             remember(
                                 f"Strategy adapted based on finding: {finding.get('type', 'unknown')}. "
                                 f"Added {len(new_steps)} new steps.",
                                 target or "global",
                                 "strategy_adaptation",
-                                trigger_finding=finding.get('type', 'unknown')
+                                trigger_finding=finding.get("type", "unknown"),
                             )
-                
+
                 obs = f"Tool {tool_name}: {len(result.findings)} findings, success={result.success}"
-                
+
                 if self.cot_logger:
                     self.cot_logger.current_session[-1].result = obs
             else:
                 # Fallback to legacy execution
                 obs = self._execute_tool(action_data, callback)
-            
+
             if obs == "__FINISH__":
                 # send_telegram_notification(f" Mission Accomplished: {user_input}")
                 return action_data.get("summary", "Mission completed successfully.")
-            
+
             # Feedback Loop
             history.append({"role": "assistant", "content": str(action_data)})
             history.append({"role": "user", "content": f"OBSERVATION: {obs}"})
-        
+
         # Save CoT log on completion
         if self.cot_logger:
             self.cot_logger.save_session(target or user_input)
-        
+
         return f"Task halted after {self.max_steps} steps. Findings: {len(all_findings)}"
-    
+
     def _summarize_results(self, results: List[ToolResult]) -> str:
         """Summarize previous tool results for context."""
         if not results:
             return "No previous results."
-        
+
         lines = []
         for r in results[-3:]:  # Last 3 results
             lines.append(f"- {r.tool_name}: {len(r.findings)} findings")
-        
+
         return "\n".join(lines)
 
     def process_team_scan(
@@ -1426,11 +1480,11 @@ Use JSON format: {{"action": "run_shell|ask_user|web_search|submit_findings|save
     ) -> str:
         """
         TEAM AEGIS — Multi-Agent Collaborative Scan.
-        
+
         Multiple AI models work as a team: discussing strategies,
         assigning tasks, sharing results, and collaborating to find
         vulnerabilities on the target.
-        
+
         Args:
             user_input: The user's scan request
             model_names: List of model identifiers (provider/model or just model)
@@ -1440,11 +1494,12 @@ Use JSON format: {{"action": "run_shell|ask_user|web_search|submit_findings|save
         from tools.multi_agent import TeamAegis
         from tools.universal_ai_client import UniversalAIClient
         from tools.universal_executor import get_universal_executor
-        
+
         logger.info(f"Team Aegis scan started: {len(model_names)} models, target={target}")
-        
+
         # Build team clients using ai_config (single source of truth)
-        from tools.ai_config import parse_active_models, _KNOWN_PROVIDER_PREFIXES
+        from tools.ai_config import _KNOWN_PROVIDER_PREFIXES, parse_active_models
+
         team_clients = []
 
         # If model_names is empty, use config.yaml active_models
@@ -1469,6 +1524,7 @@ Use JSON format: {{"action": "run_shell|ask_user|web_search|submit_findings|save
                 else:
                     # No provider prefix — use active_provider from config.yaml
                     from tools.ai_config import get_active_provider
+
                     new_client = UniversalAIClient(
                         provider=get_active_provider(),
                         model=model_name,
@@ -1483,7 +1539,7 @@ Use JSON format: {{"action": "run_shell|ask_user|web_search|submit_findings|save
                     )
             except Exception as e:
                 logger.warning(f"Failed to load team client {model_str}: {e}")
-        
+
         # Fallback: if we couldn't build enough clients, use what we have
         if len(team_clients) < 2:
             # Use all available clients from the manager
@@ -1492,15 +1548,19 @@ Use JSON format: {{"action": "run_shell|ask_user|web_search|submit_findings|save
                     team_clients.append(client)
                     if len(team_clients) >= 3:
                         break
-        
+
         if len(team_clients) < 2:
             if callback:
-                callback("Team Aegis requires at least 2 available AI models. Falling back to single agent.")
-            return self.process_universal(user_input, callback=callback, target=target, mode="bug_bounty")
-        
+                callback(
+                    "Team Aegis requires at least 2 available AI models. Falling back to single agent."
+                )
+            return self.process_universal(
+                user_input, callback=callback, target=target, mode="bug_bounty"
+            )
+
         # Initialize executor for tool execution
         executor = get_universal_executor()
-        
+
         # Create and run Team Aegis
         team = TeamAegis(
             clients=team_clients[:3],
@@ -1508,57 +1568,61 @@ Use JSON format: {{"action": "run_shell|ask_user|web_search|submit_findings|save
             callback=callback,
             max_rounds=30,
         )
-        
+
         # Add the user's request as initial context
         from tools.multi_agent import TeamMessage
-        team.discussion.append(TeamMessage(
-            round=0,
-            agent_id=-1,
-            agent_role="Operator",
-            model_name="human",
-            content=f"Mission briefing: {user_input}",
-            msg_type="discussion"
-        ))
-        
+
+        team.discussion.append(
+            TeamMessage(
+                round=0,
+                agent_id=-1,
+                agent_role="Operator",
+                model_name="human",
+                content=f"Mission briefing: {user_input}",
+                msg_type="discussion",
+            )
+        )
+
         # Run the engagement
         return team.run_full_engagement(executor=executor)
 
     def request_tool_install(self, tool_name: str, ask_first: bool = True) -> str:
         """
         Request to install a missing security tool.
-        
+
         Args:
             tool_name: Name of the tool to install
             ask_first: If True, only create a pending request (don't install until user confirms)
-            
+
         Returns:
             Status message — either "Please confirm: ..." or "[OK] Installed"
         """
         if not self.skill_registry:
             return "[FAIL] Skill registry not available."
-        
+
         skill = self.skill_registry.skills.get(tool_name)
         if not skill:
             return f"[FAIL] Unknown tool: {tool_name}"
-        
+
         if skill.status.value == "available":
             return f"[OK] {tool_name} is already installed."
-        
+
         from tools.install_request import get_install_manager
+
         mgr = get_install_manager()
-        
+
         # Check if already pending
         for r in mgr.get_pending_requests():
             if r.tool_name == tool_name:
                 return f"[PENDING] {tool_name} is already waiting for install confirmation."
-        
+
         req = mgr.request(
             tool_name=tool_name,
             description=skill.description,
             install_command=skill.install_command,
-            reason=f"AI recommended for current scenario: {skill.description}"
+            reason=f"AI recommended for current scenario: {skill.description}",
         )
-        
+
         if ask_first:
             return (
                 f"[INSTALL REQUEST] {tool_name}\n"
@@ -1566,7 +1630,7 @@ Use JSON format: {{"action": "run_shell|ask_user|web_search|submit_findings|save
                 f"  Install: {skill.install_command}\n"
                 f"  To confirm: type '/install confirm {tool_name}' or 'y'"
             )
-        
+
         # Auto-install without asking
         success = mgr.confirm_install(req)
         if success:
@@ -1629,9 +1693,7 @@ Use JSON format: {{"action": "run_shell|ask_user|web_search|submit_findings|save
 
         # 2. Non-mission queries go to universal handler
         if intent in ("casual", "research", "security_chat") and not target:
-            return self.process_universal(
-                user_input, callback=callback, target=target, mode=mode
-            )
+            return self.process_universal(user_input, callback=callback, target=target, mode=mode)
 
         # 3. Extract target if needed
         if not target and intent == "scan":
@@ -1671,7 +1733,8 @@ Use JSON format: {{"action": "run_shell|ask_user|web_search|submit_findings|save
         Loads past state and findings, recovers the strategic attack tree, and continues
         from the next uncompleted step.
         """
-        from tools.mission_state import open_mission, _get_conn, _uj, _now
+        from tools.mission_state import _get_conn, _now, _uj, open_mission
+
         mission_state = open_mission(mission_id)
         if not mission_state:
             return f"Error: Mission '{mission_id}' not found in database."
@@ -1692,12 +1755,9 @@ Use JSON format: {{"action": "run_shell|ask_user|web_search|submit_findings|save
                     (mission_id,),
                 ).fetchall()
                 for r in rows:
-                    ledger_entries.append({
-                        "tool": r[0],
-                        "action": _uj(r[1]),
-                        "result": _uj(r[2]),
-                        "ts": r[3]
-                    })
+                    ledger_entries.append(
+                        {"tool": r[0], "action": _uj(r[1]), "result": _uj(r[2]), "ts": r[3]}
+                    )
         except Exception as e:
             logger.warning(f"Could not load mission ledger: {e}")
 
@@ -1716,9 +1776,7 @@ Use JSON format: {{"action": "run_shell|ask_user|web_search|submit_findings|save
                     target, objective=objective, fingerprint=fingerprint
                 )
             except TypeError:
-                self.current_tree = self.planner.generate_attack_tree(
-                    target, objective=objective
-                )
+                self.current_tree = self.planner.generate_attack_tree(target, objective=objective)
             # Mark completed steps as completed in tree
             for i, entry in enumerate(ledger_entries):
                 if self.current_tree and i < len(self.current_tree.steps):
@@ -1726,7 +1784,7 @@ Use JSON format: {{"action": "run_shell|ask_user|web_search|submit_findings|save
 
         # Now launch standard process_query scan loop but skipping completed steps
         # Setup report directory
-        safe_target = target.replace('.', '_') if target else "global"
+        safe_target = target.replace(".", "_") if target else "global"
         report_dir = Path("reports") / f"agent_{safe_target}_resumed_{int(time.time())}"
         report_dir.mkdir(parents=True, exist_ok=True)
 
@@ -1736,7 +1794,8 @@ Use JSON format: {{"action": "run_shell|ask_user|web_search|submit_findings|save
             res_data = e["result"] or {}
             # Reconstruct dummy ToolResult for context
             try:
-                from tools.tool_registry import ToolResult, ToolCategory
+                from tools.tool_registry import ToolCategory, ToolResult
+
                 dummy_res = ToolResult(
                     success=res_data.get("success", True),
                     tool_name=e["tool"] or "shell",
@@ -1787,10 +1846,16 @@ Return a single JSON block representing the action. Example:
 {{"action": "run_shell", "command": "nuclei -t cves/ -u {target}", "tool": "nuclei", "purpose": "Vulnerability scan"}}"""
                 messages = [
                     AIMessage(role="system", content=prompt),
-                    AIMessage(role="user", content=f"Last results: {[r.tool_name for r in previous_results[-3:]]}")
+                    AIMessage(
+                        role="user",
+                        content=f"Last results: {[r.tool_name for r in previous_results[-3:]]}",
+                    ),
                 ]
                 res_content = (self.client.chat(messages).content or "").strip()
-                action_data = self._extract_json(res_content) or {"action": "finish", "purpose": "Scan completed"}
+                action_data = self._extract_json(res_content) or {
+                    "action": "finish",
+                    "purpose": "Scan completed",
+                }
                 reasoning = action_data.get("purpose", "Dynamic execution")
 
             if action_data.get("action") == "finish":
@@ -1801,21 +1866,28 @@ Return a single JSON block representing the action. Example:
             # Execute tool safely
             if callback:
                 callback(f"Executing: {action_data.get('command')}")
-            
+
             tool_name = action_data.get("tool", "shell")
             result_str = self._execute_tool(action_data, callback)
 
             # Reconstruct structured result
-            from tools.tool_registry import ToolResult, ToolCategory
+            from tools.tool_registry import ToolCategory, ToolResult
+
             dummy_findings = []
             if "finding" in result_str.lower() or "vuln" in result_str.lower():
-                dummy_findings.append({"title": "Discovered vulnerability", "severity": "medium", "evidence": result_str})
+                dummy_findings.append(
+                    {
+                        "title": "Discovered vulnerability",
+                        "severity": "medium",
+                        "evidence": result_str,
+                    }
+                )
 
             res_obj = ToolResult(
                 success=True,
                 tool_name=tool_name,
                 category=ToolCategory.UTILITY,
-                output=result_str[:self.max_output_len],
+                output=result_str[: self.max_output_len],
                 findings=dummy_findings,
             )
 
@@ -1825,7 +1897,7 @@ Return a single JSON block representing the action. Example:
                 kind="tool_execution",
                 tool=tool_name,
                 action=action_data,
-                result={"success": True, "output": result_str[:400], "findings": dummy_findings}
+                result={"success": True, "output": result_str[:400], "findings": dummy_findings},
             )
 
             # Trigger analysis pipeline

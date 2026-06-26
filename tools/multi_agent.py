@@ -13,25 +13,31 @@ Architecture:
 Author: Elengenix Project
 """
 
+import concurrent.futures
 import json
-import time
 import logging
 import threading
-import concurrent.futures
-from typing import List, Dict, Any, Optional, Callable
+import time
 from dataclasses import dataclass, field
-from heapq import heappush, heappop
+from heapq import heappop, heappush
+from typing import Any, Callable, Dict, List, Optional
 
 from tools.universal_ai_client import UniversalAIClient
 
 # Try to import skill registry
 try:
     from tools.skill_registry import get_skill_registry, recommend_tools_for_scenario
+
     SKILL_REGISTRY_AVAILABLE = True
 except ImportError:
     SKILL_REGISTRY_AVAILABLE = False
-    def get_skill_registry(): return None
-    def recommend_tools_for_scenario(s): return []
+
+    def get_skill_registry():
+        return None
+
+    def recommend_tools_for_scenario(s):
+        return []
+
 
 logger = logging.getLogger("elengenix.team_aegis")
 
@@ -40,9 +46,11 @@ logger = logging.getLogger("elengenix.team_aegis")
 # Data Structures
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class TeamMessage:
     """A single message in the team discussion."""
+
     round: int
     agent_id: int
     agent_role: str
@@ -52,11 +60,12 @@ class TeamMessage:
     msg_type: str = "discussion"  # discussion, task_result, proposal, consensus
 
 
-@dataclass  
+@dataclass
 class TaskAssignment:
     """A task assigned to a specific agent during execution."""
+
     agent_id: int
-    action_type: str      # shell, run_tool, search_web, write_file
+    action_type: str  # shell, run_tool, search_web, write_file
     params: Dict[str, Any]
     description: str
     result: Optional[str] = None
@@ -67,9 +76,10 @@ class TaskAssignment:
 @dataclass
 class Finding:
     """A confirmed vulnerability or interesting discovery."""
+
     source_agent: str
     description: str
-    severity: str = "info"     # critical, high, medium, low, info
+    severity: str = "info"  # critical, high, medium, low, info
     evidence: str = ""
     confirmed_by: List[str] = field(default_factory=list)
 
@@ -119,10 +129,11 @@ AGENT_ROLES = [
 # Team Aegis Engine
 # ---------------------------------------------------------------------------
 
+
 class TeamAegis:
     """
     Multi-Agent Collaboration Engine.
-    
+
     Enables up to 3 AI models to work as a security research team.
     They communicate through a shared discussion board, assign tasks,
     share results, and collaboratively analyze findings.
@@ -139,7 +150,7 @@ class TeamAegis:
     ):
         """
         Initialize the team.
-        
+
         Args:
             clients: List of 2-3 UniversalAIClient instances
             target: Target domain/IP for scanning
@@ -153,14 +164,14 @@ class TeamAegis:
             raise ValueError("Team Aegis requires at least 2 AI models.")
         if len(clients) > 3:
             clients = clients[:3]
-        
+
         self.clients = clients
         self.target = target
         self.callback = callback
         self.async_callback = async_callback
         self.max_rounds = max_rounds
         self.parallel_mode = parallel_mode
-        
+
         # Shared state
         self.discussion: List[TeamMessage] = []
         self.findings: List[Finding] = []
@@ -170,64 +181,69 @@ class TeamAegis:
         self.shared_intel: List[str] = []  # intelligence shared across agents
         self.round = 0
         # Context compression
-        self._compress_threshold = 3500   # tokens — compress when discussion exceeds this
+        self._compress_threshold = 3500  # tokens — compress when discussion exceeds this
         self._compress_check_interval = 3  # check every N rounds
         self.team_size = len(clients)
         self.finished = False
-        
+
         # Assign roles
-        self.roles = AGENT_ROLES[:self.team_size]
-        
+        self.roles = AGENT_ROLES[: self.team_size]
+
         # Initialize skill registry for tool awareness
         self.skill_registry = get_skill_registry() if SKILL_REGISTRY_AVAILABLE else None
-        
+
         # Thread pool for parallel execution
         self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=self.team_size)
-        
+
         # Vector memory for cross-session learning
         self._memories: Dict[str, str] = {}
         if target:
             try:
                 from tools.vector_memory import recall
-                recalled = recall(query=f"target:{target}", target=target, category="finding", n_results=3)
+
+                recalled = recall(
+                    query=f"target:{target}", target=target, category="finding", n_results=3
+                )
                 if recalled:
                     self._memories[target] = str(recalled)
                     logger.info(f"Recalled {len(recalled)} prior memories for {target}")
             except Exception:
                 pass
-        
-        logger.info(f"Team Aegis initialized: {self.team_size} agents targeting {target} (parallel={parallel_mode})")
+
+        logger.info(
+            f"Team Aegis initialized: {self.team_size} agents targeting {target} (parallel={parallel_mode})"
+        )
 
     def _format_available_tools_for_agent(self) -> str:
         """Format available tools from skill registry for agent prompt."""
         if not self.skill_registry:
             return "(Tool registry not available)"
-        
+
         lines = []
         available = self.skill_registry.get_available_skills()
         missing = self.skill_registry.get_missing_skills()
-        
+
         if available:
             lines.append("READY TO USE:")
             for skill in available:
                 lines.append(f"  - {skill.name} ({skill.category}): {skill.description}")
-        
+
         if missing:
             lines.append("\nMISSING (can request install):")
             for skill in missing:
                 lines.append(f"  - {skill.name}: {skill.description}")
                 lines.append(f"    Install: {skill.install_command}")
-        
+
         return "\n".join(lines) if lines else "(No tools registered)"
 
     def _format_discussion_history(self, max_messages: int = 30) -> str:
         """Format the discussion board for agent context."""
         if not self.discussion:
             return "(No previous discussion. You are starting the engagement.)"
-        
+
         recent = self.discussion[-max_messages:]
         lines = []
-        
+
         for msg in recent:
             header = f"[{msg.agent_role}] ({msg.model_name}) — Round {msg.round}"
             if msg.msg_type == "task_result":
@@ -236,18 +252,18 @@ class TeamAegis:
                 header += " [PROPOSAL]"
             elif msg.msg_type == "consensus":
                 header += " [CONSENSUS]"
-            
+
             lines.append(f"{header}:")
             lines.append(msg.content)
             lines.append("")
-        
+
         return "\n".join(lines)
 
     def _format_findings(self) -> str:
         """Format current findings for agent context."""
         if not self.findings:
             return "(No confirmed findings yet.)"
-        
+
         lines = []
         for i, f in enumerate(self.findings, 1):
             confirmed = ", ".join(f.confirmed_by) if f.confirmed_by else "unconfirmed"
@@ -255,7 +271,7 @@ class TeamAegis:
             lines.append(f"   Found by: {f.source_agent} | Confirmed by: {confirmed}")
             if f.evidence:
                 lines.append(f"   Evidence: {f.evidence[:200]}")
-        
+
         return "\n".join(lines)
 
     def _format_team_roster(self) -> str:
@@ -327,6 +343,7 @@ class TeamAegis:
         """Save a finding to vector memory for future sessions."""
         try:
             from tools.vector_memory import remember
+
             remember(
                 content=f"[{finding.severity}] {finding.description} — {finding.evidence[:300]}",
                 target=self.target,
@@ -343,6 +360,7 @@ class TeamAegis:
     def _estimate_discussion_tokens(self) -> int:
         """Estimate total tokens in the discussion board."""
         from tools.token_counter import count_tokens
+
         total = 0
         for msg in self.discussion:
             total += count_tokens(msg.content)
@@ -371,8 +389,7 @@ class TeamAegis:
         tail_msgs = self.discussion[-keep_tail:]
 
         middle_text = "\n---\n".join(
-            f"[{m.agent_role}] R{m.round}: {m.content[:400]}"
-            for m in middle
+            f"[{m.agent_role}] R{m.round}: {m.content[:400]}" for m in middle
         )
 
         try:
@@ -407,17 +424,19 @@ class TeamAegis:
         """Build the full prompt for a specific agent."""
         role = self.roles[agent_id]
         client = self.clients[agent_id]
-        
+
         teammates = []
         for i, r in enumerate(self.roles):
             if i != agent_id:
-                teammates.append(f"- {r['name']} ({self.clients[i].provider}/{self.clients[i].model}): {r['focus']}")
+                teammates.append(
+                    f"- {r['name']} ({self.clients[i].provider}/{self.clients[i].model}): {r['focus']}"
+                )
         teammates_str = "\n".join(teammates)
-        
+
         discussion_history = self._format_discussion_history()
         findings_summary = self._format_findings()
         shared_intel = self._format_shared_intel()
-        
+
         # Get available tools from registries
         tools_context = ""
         if SKILL_REGISTRY_AVAILABLE and self.skill_registry:
@@ -425,6 +444,7 @@ class TeamAegis:
         # Add ToolRegistry tools
         try:
             from tools.tool_registry import registry
+
             avail = registry.list_available_tools()
             tool_names = [name for name, info in avail.items() if info.get("available")]
             if tool_names:
@@ -432,7 +452,7 @@ class TeamAegis:
                 tools_context += "\n".join(f"  - {name}" for name in sorted(tool_names))
         except Exception:
             pass
-        
+
         prompt = f"""## TEAM AEGIS — Security Research Team Collaboration
 
 ### YOUR IDENTITY
@@ -497,7 +517,7 @@ Respond with JSON:
         "suggest_task": ""  // Optional: suggest a task for teammates (e.g., "Run nuclei on api.1win.com")
     }}
     ```
-    
+
     - Set `action.type` to `"none"` if you just want to discuss without executing anything
     - Set `action.type` to `"finish"` if you believe the scan is complete
     - Set `needs_help` to `true` if you are stuck and need teammates' input
@@ -523,36 +543,36 @@ Respond with JSON:
     # ---------------------------------------------------------------------------
     # Parallel Execution Engine
     # ---------------------------------------------------------------------------
-    
+
     def _run_single_agent(self, agent_id: int, executor=None) -> Dict[str, Any]:
         """Run a single agent in parallel (thread-safe)."""
         role = self.roles[agent_id]
         client = self.clients[agent_id]
-        
+
         # Notify that this agent is starting
         if self.async_callback:
             self.async_callback(agent_id, role["name"], "thinking", "")
-        
+
         try:
             # Build prompt from latest state
             prompt = self._build_agent_prompt(agent_id)
-            
+
             # Call AI
             response_text = client.simple_chat(
                 f"Team discussion round {self.round}. Your turn to contribute.",
-                system_prompt=prompt
+                system_prompt=prompt,
             )
-            
+
             # Parse response
             action_data = self._parse_agent_response(response_text)
-            
+
             return {
                 "agent_id": agent_id,
                 "success": True,
                 "action_data": action_data,
                 "response_text": response_text,
             }
-            
+
         except Exception as e:
             logger.error(f"Agent {role['name']} error: {e}")
             return {
@@ -560,43 +580,47 @@ Respond with JSON:
                 "success": False,
                 "error": str(e),
             }
-    
+
     def _process_agent_result(self, result: Dict, executor=None) -> bool:
         """Process a single agent's result (thread-safe). Returns True if voted to finish."""
         agent_id = result.get("agent_id", 0)
         role = self.roles[agent_id]
         client = self.clients[agent_id]
-        
+
         if not result["success"]:
             # Handle error
             error_msg = result.get("error", "Unknown error")
-            self.discussion.append(TeamMessage(
-                round=self.round,
-                agent_id=agent_id,
-                agent_role=role["name"],
-                model_name=f"{client.provider}/{client.model}",
-                content=f"[ERROR] Agent encountered an issue: {error_msg[:200]}",
-                msg_type="discussion"
-            ))
+            self.discussion.append(
+                TeamMessage(
+                    round=self.round,
+                    agent_id=agent_id,
+                    agent_role=role["name"],
+                    model_name=f"{client.provider}/{client.model}",
+                    content=f"[ERROR] Agent encountered an issue: {error_msg[:200]}",
+                    msg_type="discussion",
+                )
+            )
             if self.callback:
                 self.callback(f"    [ERROR] {role['name']}: {error_msg[:100]}")
             if self.async_callback:
                 self.async_callback(agent_id, role["name"], "error", error_msg[:200])
             return False
-        
+
         action_data = result["action_data"]
         discussion_msg = action_data.get("discussion", result["response_text"][:500])
-        
+
         # Add to discussion board
-        self.discussion.append(TeamMessage(
-            round=self.round,
-            agent_id=agent_id,
-            agent_role=role["name"],
-            model_name=f"{client.provider}/{client.model}",
-            content=discussion_msg,
-            msg_type="discussion"
-        ))
-        
+        self.discussion.append(
+            TeamMessage(
+                round=self.round,
+                agent_id=agent_id,
+                agent_role=role["name"],
+                model_name=f"{client.provider}/{client.model}",
+                content=discussion_msg,
+                msg_type="discussion",
+            )
+        )
+
         # Show to user
         if self.callback:
             self.callback(f"\n[{role['icon']}] {role['name']}:")
@@ -604,32 +628,36 @@ Respond with JSON:
                 self.callback(f"    {line}")
         if self.async_callback:
             self.async_callback(agent_id, role["name"], "done", discussion_msg)
-        
+
         # Handle action
         action = action_data.get("action", {})
         action_type = action.get("type", "none")
-        
+
         if action_type == "finish":
             if self.callback:
                 self.callback(f"    >> {role['name']} votes to FINISH the scan.")
             if self.async_callback:
                 self.async_callback(agent_id, role["name"], "finish", "")
-        
+
         elif action_type not in ("none", ""):
             # Execute action in background
             if executor:
                 exec_result = self._execute_agent_action(agent_id, action, executor)
-                
-                result_msg = f"[TOOL RESULT] {action.get('description', action_type)}: {exec_result[:500]}"
-                self.discussion.append(TeamMessage(
-                    round=self.round,
-                    agent_id=agent_id,
-                    agent_role=role["name"],
-                    model_name=f"{client.provider}/{client.model}",
-                    content=result_msg,
-                    msg_type="task_result"
-                ))
-                
+
+                result_msg = (
+                    f"[TOOL RESULT] {action.get('description', action_type)}: {exec_result[:500]}"
+                )
+                self.discussion.append(
+                    TeamMessage(
+                        round=self.round,
+                        agent_id=agent_id,
+                        agent_role=role["name"],
+                        model_name=f"{client.provider}/{client.model}",
+                        content=result_msg,
+                        msg_type="task_result",
+                    )
+                )
+
                 if self.callback:
                     self.callback(f"    >> Executed: {action.get('description', action_type)}")
                     for line in exec_result[:300].split("\n")[:5]:
@@ -650,7 +678,11 @@ Respond with JSON:
                 existing = None
                 if confirmed_by:
                     for f in self.findings:
-                        if f.description.strip().lower() == finding_data["description"].strip().lower() and not f.confirmed_by:
+                        if (
+                            f.description.strip().lower()
+                            == finding_data["description"].strip().lower()
+                            and not f.confirmed_by
+                        ):
                             existing = f
                             break
 
@@ -660,8 +692,13 @@ Respond with JSON:
                     existing.severity = finding_data.get("severity", existing.severity)
                     if self.callback:
                         sev = existing.severity.upper()
-                        self.callback(f"    ** CONFIRMED [{sev}] by {confirmed_by}: {existing.description}")
-                    self._share_intel(agent_id, f"CONFIRMED [{existing.severity.upper()}] {existing.description} (confirmed by {confirmed_by})")
+                        self.callback(
+                            f"    ** CONFIRMED [{sev}] by {confirmed_by}: {existing.description}"
+                        )
+                    self._share_intel(
+                        agent_id,
+                        f"CONFIRMED [{existing.severity.upper()}] {existing.description} (confirmed by {confirmed_by})",
+                    )
                 else:
                     # New finding (starts unconfirmed)
                     finding = Finding(
@@ -673,16 +710,25 @@ Respond with JSON:
                     self.findings.append(finding)
                     self._save_memory(finding)
                     sev = finding_data.get("severity", "info").upper()
-                    self._share_intel(agent_id, f"UNCONFIRMED [{sev}] {finding_data['description']} — waiting for teammate confirmation")
+                    self._share_intel(
+                        agent_id,
+                        f"UNCONFIRMED [{sev}] {finding_data['description']} — waiting for teammate confirmation",
+                    )
                     if self.callback:
                         self.callback(f"    ** UNCONFIRMED [{sev}]: {finding_data['description']}")
                 if self.async_callback:
-                    self.async_callback(agent_id, role["name"], "finding", finding_data["description"])
+                    self.async_callback(
+                        agent_id, role["name"], "finding", finding_data["description"]
+                    )
 
         # Handle task suggestions
         suggested = action_data.get("suggest_task", "").strip()
         if suggested and len(suggested) > 5:
-            self._push_task(priority=3, agent_id=agent_id, action={"type": "suggested", "description": suggested})
+            self._push_task(
+                priority=3,
+                agent_id=agent_id,
+                action={"type": "suggested", "description": suggested},
+            )
             self._share_intel(agent_id, f"SUGGESTED TASK: {suggested[:200]}")
             if self.callback:
                 self.callback(f"    >> TASK SUGGESTED: {suggested[:200]}")
@@ -690,19 +736,21 @@ Respond with JSON:
         # Handle help request
         if action_data.get("needs_help"):
             help_req = action_data.get("help_request", "Need input from teammates")
-            self.discussion.append(TeamMessage(
-                round=self.round,
-                agent_id=agent_id,
-                agent_role=role["name"],
-                model_name=f"{client.provider}/{client.model}",
-                content=f"[HELP NEEDED] {help_req}",
-                msg_type="proposal"
-            ))
+            self.discussion.append(
+                TeamMessage(
+                    round=self.round,
+                    agent_id=agent_id,
+                    agent_role=role["name"],
+                    model_name=f"{client.provider}/{client.model}",
+                    content=f"[HELP NEEDED] {help_req}",
+                    msg_type="proposal",
+                )
+            )
             if self.callback:
                 self.callback(f"    ?? NEEDS HELP: {help_req}")
             if self.async_callback:
                 self.async_callback(agent_id, role["name"], "help", help_req)
-        
+
     def run_round(self, executor=None) -> bool:
         """Run one discussion round — delegates to parallel or sequential."""
         if self.parallel_mode:
@@ -713,24 +761,26 @@ Respond with JSON:
         """Run one discussion round where all agents contribute in parallel."""
         self.round += 1
         finish_votes = 0
-        
+
         if self.callback:
             self.callback(f"\n{'='*60}")
             self.callback(f" TEAM AEGIS — Round {self.round} | Target: {self.target} (PARALLEL)")
             self.callback(f"{'='*60}")
-        
+
         # Run all agents concurrently with staggered starts
         agent_results = []
         with concurrent.futures.ThreadPoolExecutor(max_workers=self.team_size) as pool:
             future_to_id = {}
             import os
+
             for i in range(self.team_size):
                 if i > 0:
                     import random
+
                     os.environ["TEAM_STAGGERING"] = "1"
                     time.sleep(random.uniform(0.3, 0.8))
                 future_to_id[pool.submit(self._run_single_agent, i, executor)] = i
-            
+
             os.environ["TEAM_STAGGERING"] = "0"
 
             for future in concurrent.futures.as_completed(future_to_id):
@@ -740,88 +790,96 @@ Respond with JSON:
                     agent_results.append(result)
                 except Exception as e:
                     logger.error(f"Agent {agent_id} failed: {e}")
-                    agent_results.append({
-                        "agent_id": agent_id,
-                        "success": False,
-                        "error": str(e),
-                    })
-        
+                    agent_results.append(
+                        {
+                            "agent_id": agent_id,
+                            "success": False,
+                            "error": str(e),
+                        }
+                    )
+
         # Sort results by agent_id to keep order consistent
         agent_results.sort(key=lambda r: r.get("agent_id", 0))
-        
+
         # Process results sequentially (shared state needs ordering)
         for result in agent_results:
             voted_finish = self._process_agent_result(result, executor=executor)
             if voted_finish:
                 finish_votes += 1
-        
+
         # Check if majority wants to finish
         if finish_votes > self.team_size / 2:
             self.finished = True
             if self.callback:
-                self.callback(f"\n>> Team consensus: SCAN COMPLETE ({finish_votes}/{self.team_size} voted finish)")
+                self.callback(
+                    f"\n>> Team consensus: SCAN COMPLETE ({finish_votes}/{self.team_size} voted finish)"
+                )
             return False
-        
+
         return True
 
     def run_round_sequential(self, executor=None) -> bool:
         """Run one discussion round where each agent takes a turn (original behavior)."""
         self.round += 1
         finish_votes = 0
-        
+
         if self.callback:
             self.callback(f"\n{'='*60}")
             self.callback(f" TEAM AEGIS — Round {self.round} | Target: {self.target}")
             self.callback(f"{'='*60}")
-        
+
         for agent_id in range(self.team_size):
             result = self._run_single_agent(agent_id, executor=executor)
             voted_finish = self._process_agent_result(result, executor=executor)
             if voted_finish:
                 finish_votes += 1
-        
+
         # Check if majority wants to finish
         if finish_votes > self.team_size / 2:
             self.finished = True
             if self.callback:
-                self.callback(f"\n>> Team consensus: SCAN COMPLETE ({finish_votes}/{self.team_size} voted finish)")
+                self.callback(
+                    f"\n>> Team consensus: SCAN COMPLETE ({finish_votes}/{self.team_size} voted finish)"
+                )
             return False
-        
+
         return True
 
     def _execute_agent_action(self, agent_id: int, action: Dict, executor) -> str:
         """Execute a tool action requested by an agent.
-        
+
         Passes agent_id to the executor for workspace isolation,
         preventing file conflicts between parallel agents.
         """
         action_type = action.get("type", "none")
         params = action.get("params", {})
-        
+
         if action_type in ("none", "finish", ""):
             return ""
-        
+
         try:
             # Inject agent_id for shell workspace isolation
             if action_type == "shell":
                 params["agent_id"] = agent_id
-            
+
             result = executor.execute_action({"type": action_type, "params": params})
             output = result.output if result.success else f"Error: {result.error}"
-            
+
             # Track task
-            self.tasks.append(TaskAssignment(
-                agent_id=agent_id,
-                action_type=action_type,
-                params=params,
-                description=action.get("description", ""),
-                result=output[:1000],
-                success=result.success,
-                completed=True,
-            ))
-            
+            self.tasks.append(
+                TaskAssignment(
+                    agent_id=agent_id,
+                    action_type=action_type,
+                    params=params,
+                    description=action.get("description", ""),
+                    result=output[:1000],
+                    success=result.success,
+                    completed=True,
+                )
+            )
+
             return output[:2000]
-            
+
         except Exception as e:
             return f"Execution failed: {str(e)[:200]}"
 
@@ -829,20 +887,20 @@ Respond with JSON:
         """Parse agent response, handling both JSON and plain text."""
         if not text:
             return {"discussion": "(No response)", "action": {"type": "none"}}
-        
+
         # Try to extract JSON
         import re
-        
+
         # Try ```json blocks first
-        json_match = re.search(r'```json\s*(.*?)\s*```', text, re.DOTALL)
+        json_match = re.search(r"```json\s*(.*?)\s*```", text, re.DOTALL)
         if json_match:
             try:
                 return json.loads(json_match.group(1))
             except json.JSONDecodeError:
                 pass
-        
+
         # Try raw JSON
-        json_match = re.search(r'\{.*\}', text, re.DOTALL)
+        json_match = re.search(r"\{.*\}", text, re.DOTALL)
         if json_match:
             try:
                 parsed = json.loads(json_match.group())
@@ -850,7 +908,7 @@ Respond with JSON:
                     return parsed
             except json.JSONDecodeError:
                 pass
-        
+
         # Fallback: treat entire text as discussion
         return {
             "discussion": text[:1000],
@@ -861,7 +919,7 @@ Respond with JSON:
     def run_full_engagement(self, executor=None) -> str:
         """
         Run the complete team engagement until done.
-        
+
         Returns:
             Final merged report as string
         """
@@ -873,7 +931,7 @@ Respond with JSON:
             self.callback(f"{'='*60}")
             self.callback(self._format_team_roster())
             self.callback(f"{'='*60}\n")
-        
+
         while self.round < self.max_rounds and not self.finished:
             should_continue = self.run_round(executor=executor)
             if not should_continue:
@@ -882,7 +940,7 @@ Respond with JSON:
             # Auto-compress discussion if it gets too long
             if self.round > 0 and self.round % self._compress_check_interval == 0:
                 self._compress_discussion()
-        
+
         # Generate final report
         return self._generate_final_report()
 
@@ -897,13 +955,13 @@ Respond with JSON:
             f"{'='*60}",
             "",
         ]
-        
+
         # Findings by severity
         if self.findings:
             severity_order = ["critical", "high", "medium", "low", "info"]
             lines.append("FINDINGS:")
             lines.append("-" * 40)
-            
+
             for sev in severity_order:
                 sev_findings = [f for f in self.findings if f.severity == sev]
                 if sev_findings:
@@ -915,21 +973,23 @@ Respond with JSON:
                         lines.append(f"    Found by: {f.source_agent}")
         else:
             lines.append("No confirmed vulnerabilities found during this engagement.")
-        
+
         # Tasks executed
         lines.append(f"\n\nACTIONS EXECUTED: {len(self.tasks)}")
         lines.append("-" * 40)
         for t in self.tasks:
             status = "OK" if t.success else "FAIL"
-            role_name = self.roles[t.agent_id]["name"] if t.agent_id < len(self.roles) else "Unknown"
+            role_name = (
+                self.roles[t.agent_id]["name"] if t.agent_id < len(self.roles) else "Unknown"
+            )
             lines.append(f"  [{status}] {role_name}: {t.description or t.action_type}")
-        
+
         # Discussion highlights
         lines.append(f"\n\nDISCUSSION ROUNDS: {self.round}")
         lines.append(f"TOTAL MESSAGES: {len(self.discussion)}")
-        
+
         lines.append(f"\n{'='*60}")
         lines.append(f" END OF REPORT")
         lines.append(f"{'='*60}")
-        
+
         return "\n".join(lines)

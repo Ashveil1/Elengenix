@@ -1,31 +1,30 @@
 """tests/test_agent_council.py — Unit tests for TeamAegis v2 AgentCouncil."""
 
 import json
-import pytest
 from unittest.mock import MagicMock, patch
 
-from agents.worker_base import BaseWorker, WorkerResult
-from agents.agent_council import (
-    AgentCouncil,
-    CouncilMessage,
-    MessageType,
-    SharedInbox,
-)
-from agents.strategist_agent import StrategistAgent, _extract_json
-from agents.specialist_agent import SpecialistAgent, _heuristic_findings
-from agents.critic_agent import CriticAgent, _extract_json as critic_extract_json
+import pytest
 
+from agents.agent_council import AgentCouncil, CouncilMessage, MessageType, SharedInbox
+from agents.critic_agent import CriticAgent
+from agents.critic_agent import _extract_json as critic_extract_json
+from agents.specialist_agent import SpecialistAgent, _heuristic_findings
+from agents.strategist_agent import StrategistAgent, _extract_json
+from agents.worker_base import BaseWorker, WorkerResult
 
 # ── Fixtures ──────────────────────────────────────────────────────────────────
 
+
 class _FakeResponse:
     """Mimics AIClientManager.chat() response."""
+
     def __init__(self, content: str):
         self.content = content
 
 
 class _FakeClient:
     """Minimal fake AI client."""
+
     def __init__(self, response: str = ""):
         self._response = response
 
@@ -34,6 +33,7 @@ class _FakeClient:
 
 
 # ── WorkerResult ───────────────────────────────────────────────────────────────
+
 
 class TestWorkerResult:
     def test_to_dict_fields(self):
@@ -60,14 +60,17 @@ class TestWorkerResult:
 
 # ── BaseWorker ─────────────────────────────────────────────────────────────────
 
+
 class ConcreteWorker(BaseWorker):
     """Minimal concrete worker for testing."""
+
     def run(self, target, params=None):
         return WorkerResult(success=True, worker_name=self.name, output=f"done:{target}")
 
 
 class FailingWorker(BaseWorker):
     """Worker that raises an exception."""
+
     def run(self, target, params=None):
         raise RuntimeError("worker kaboom")
 
@@ -93,6 +96,7 @@ class TestBaseWorker:
 
 # ── SharedInbox ────────────────────────────────────────────────────────────────
 
+
 class TestSharedInbox:
     def test_post_and_get(self):
         inbox = SharedInbox()
@@ -114,12 +118,14 @@ class TestSharedInbox:
     def test_drain_multiple(self):
         inbox = SharedInbox()
         for i in range(5):
-            inbox.post(CouncilMessage(
-                msg_type=MessageType.STATUS,
-                sender="test",
-                recipient="all",
-                payload={"i": i},
-            ))
+            inbox.post(
+                CouncilMessage(
+                    msg_type=MessageType.STATUS,
+                    sender="test",
+                    recipient="all",
+                    payload={"i": i},
+                )
+            )
         msgs = inbox.drain(limit=3)
         assert len(msgs) == 3
 
@@ -145,6 +151,7 @@ class TestSharedInbox:
 
 # ── CouncilMessage ─────────────────────────────────────────────────────────────
 
+
 class TestCouncilMessage:
     def test_auto_msg_id(self):
         msg = CouncilMessage(
@@ -169,6 +176,7 @@ class TestCouncilMessage:
 
 # ── _extract_json (Strategist) ─────────────────────────────────────────────────
 
+
 class TestExtractJson:
     def test_plain_json_list(self):
         text = '[{"description": "task1", "phase": "recon"}]'
@@ -187,6 +195,7 @@ class TestExtractJson:
 
 
 # ── _heuristic_findings (Specialist) ──────────────────────────────────────────
+
 
 class TestHeuristicFindings:
     def test_secret_detected(self):
@@ -213,6 +222,7 @@ class TestHeuristicFindings:
 
 
 # ── StrategistAgent ─────────────────────────────────────────────────────────────
+
 
 class TestStrategistAgent:
     def test_plan_returns_list(self):
@@ -260,32 +270,43 @@ class TestStrategistAgent:
 
 # ── CriticAgent ────────────────────────────────────────────────────────────────
 
+
 class TestCriticAgent:
     def test_review_confirmed(self):
-        verdicts = json.dumps([{
-            "index": 0,
-            "verdict": "confirmed",
-            "cvss": 8.5,
-            "confidence": "high",
-            "notes": "Patch immediately",
-        }])
+        verdicts = json.dumps(
+            [
+                {
+                    "index": 0,
+                    "verdict": "confirmed",
+                    "cvss": 8.5,
+                    "confidence": "high",
+                    "notes": "Patch immediately",
+                }
+            ]
+        )
         client = _FakeClient(verdicts)
         agent = CriticAgent(client=client, enable_workers=False)
         inbox = SharedInbox()
-        findings = [{"type": "xss", "severity": "high", "title": "XSS found", "description": "alert(1)"}]
+        findings = [
+            {"type": "xss", "severity": "high", "title": "XSS found", "description": "alert(1)"}
+        ]
         results = agent.review(findings, "example.com", inbox)
         assert len(results) == 1
         assert results[0]["verdict"] == "confirmed"
         assert results[0]["cvss"] == 8.5
 
     def test_review_false_positive(self):
-        verdicts = json.dumps([{
-            "index": 0,
-            "verdict": "false_positive",
-            "cvss": 0.0,
-            "confidence": "high",
-            "notes": "Expected behavior",
-        }])
+        verdicts = json.dumps(
+            [
+                {
+                    "index": 0,
+                    "verdict": "false_positive",
+                    "cvss": 0.0,
+                    "confidence": "high",
+                    "notes": "Expected behavior",
+                }
+            ]
+        )
         client = _FakeClient(verdicts)
         agent = CriticAgent(client=client, enable_workers=False)
         inbox = SharedInbox()
@@ -309,6 +330,7 @@ class TestCriticAgent:
 
 
 # ── AgentCouncil ───────────────────────────────────────────────────────────────
+
 
 class TestAgentCouncil:
     def _make_council(self, plan_json, exec_result, review_json):
@@ -355,13 +377,22 @@ class TestAgentCouncil:
             output="vuln found",
             findings=[{"type": "xss", "severity": "high", "title": "XSS", "description": "alert"}],
         )
-        review = json.dumps([{
-            "verdict": "confirmed",
-            "finding": {"type": "xss", "severity": "high", "title": "XSS", "description": "alert"},
-            "cvss": 8.0,
-            "confidence": "high",
-            "notes": "Fix it",
-        }])
+        review = json.dumps(
+            [
+                {
+                    "verdict": "confirmed",
+                    "finding": {
+                        "type": "xss",
+                        "severity": "high",
+                        "title": "XSS",
+                        "description": "alert",
+                    },
+                    "cvss": 8.0,
+                    "confidence": "high",
+                    "notes": "Fix it",
+                }
+            ]
+        )
         council = self._make_council(plan, exec_r, review)
         report = council.run("Find bugs")
         assert "XSS" in report or "confirmed" in report.lower() or "8.0" in report
@@ -404,7 +435,6 @@ class TestAgentCouncil:
         council.run("Both approve test")
         council.specialist.execute_task.assert_called_once()
 
-
     def test_empty_plan_uses_default(self):
         exec_r = WorkerResult(success=True, worker_name="spec", output="", findings=[])
         council = self._make_council("[]", exec_r, "[]")
@@ -422,9 +452,11 @@ class TestAgentCouncil:
 
 # ── HybridAgent council mode ────────────────────────────────────────────────────
 
+
 class TestHybridAgentCouncilMode:
     def test_council_mode_activated_with_separate_clients(self):
         from agents.hybrid_agent import HybridAgent
+
         client_a = _FakeClient("[]")
         client_b = _FakeClient("{}")
         client_c = _FakeClient("[]")
@@ -438,12 +470,14 @@ class TestHybridAgentCouncilMode:
 
     def test_legacy_mode_with_single_client(self):
         from agents.hybrid_agent import HybridAgent
+
         client = _FakeClient("[]")
         agent = HybridAgent(client=client)
         assert agent._use_council is False
 
     def test_partial_clients_activates_council(self):
         from agents.hybrid_agent import HybridAgent
+
         client = _FakeClient("[]")
         agent = HybridAgent(client=client, strategist_client=client)
         assert agent._use_council is True

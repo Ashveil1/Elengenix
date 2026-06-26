@@ -20,18 +20,18 @@ from enum import Enum
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from rich.align import Align
-from rich.box import ROUNDED, SIMPLE, HEAVY
+from rich.box import HEAVY, ROUNDED, SIMPLE
 from rich.console import Group
 from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
-
 
 logger = logging.getLogger("elengenix.tui.keyboard_shortcuts")
 
 
 class ShortcutCategory(Enum):
     """Categories for keyboard shortcuts."""
+
     NAVIGATION = "navigation"
     ACTION = "action"
     VIEW = "view"
@@ -42,40 +42,41 @@ class ShortcutCategory(Enum):
 @dataclass
 class KeyboardShortcut:
     """A single keyboard shortcut definition."""
+
     key: str
     description: str
     action: str
     category: ShortcutCategory = ShortcutCategory.ACTION
     context: Optional[str] = None  # None = global, otherwise view name
     enabled: bool = True
-    
+
     def __str__(self) -> str:
         return f"{self.key}: {self.description}"
 
 
 class KeyboardShortcutManager:
     """Manages keyboard shortcuts for the TUI.
-    
+
     Features:
         - Global shortcuts (work everywhere)
         - Context-specific shortcuts (work in specific views)
         - Shortcut categories (navigation, actions, view)
         - Help overlay with all shortcuts
-    
+
     Example:
         manager = KeyboardShortcutManager()
         manager.register("Ctrl+S", "Save", "save", ShortcutCategory.ACTION)
         manager.register("Ctrl+Q", "Quit", "quit", ShortcutCategory.SYSTEM)
-        
+
         action = manager.get_action("Ctrl+S")
         # Returns "save"
     """
-    
+
     def __init__(self):
         self.shortcuts: List[KeyboardShortcut] = []
         self._action_handlers: Dict[str, Callable] = {}
         self._current_context: Optional[str] = None
-    
+
     def register(
         self,
         key: str,
@@ -85,7 +86,7 @@ class KeyboardShortcutManager:
         context: Optional[str] = None,
     ) -> None:
         """Register a keyboard shortcut.
-        
+
         Args:
             key: Key combination (e.g., "Ctrl+S", "F1", "a").
             description: Human-readable description.
@@ -101,54 +102,56 @@ class KeyboardShortcutManager:
             context=context,
         )
         self.shortcuts.append(shortcut)
-    
+
     def register_handler(self, action: str, handler: Callable) -> None:
         """Register a handler for an action.
-        
+
         Args:
             action: Action identifier.
             handler: Callable to execute when action is triggered.
         """
         self._action_handlers[action] = handler
-    
+
     def set_context(self, context: Optional[str]) -> None:
         """Set the current view context.
-        
+
         Args:
             context: View name or None for global.
         """
         self._current_context = context
-    
+
     def get_action(self, key: str) -> Optional[str]:
         """Get the action for a key combination.
-        
+
         Args:
             key: Key combination to look up.
-            
+
         Returns:
             Action identifier or None if not found.
         """
         # First check context-specific shortcuts
         if self._current_context:
             for shortcut in self.shortcuts:
-                if (shortcut.key == key and 
-                    shortcut.context == self._current_context and 
-                    shortcut.enabled):
+                if (
+                    shortcut.key == key
+                    and shortcut.context == self._current_context
+                    and shortcut.enabled
+                ):
                     return shortcut.action
-        
+
         # Then check global shortcuts
         for shortcut in self.shortcuts:
             if shortcut.key == key and shortcut.context is None and shortcut.enabled:
                 return shortcut.action
-        
+
         return None
-    
+
     def execute(self, key: str) -> bool:
         """Execute the action for a key combination.
-        
+
         Args:
             key: Key combination to execute.
-            
+
         Returns:
             True if action was executed, False otherwise.
         """
@@ -161,7 +164,7 @@ class KeyboardShortcutManager:
                 logger.error(f"Error executing action {action}: {e}")
                 return False
         return False
-    
+
     def get_shortcuts(
         self,
         category: Optional[ShortcutCategory] = None,
@@ -169,12 +172,12 @@ class KeyboardShortcutManager:
         include_global: bool = True,
     ) -> List[KeyboardShortcut]:
         """Get shortcuts filtered by category and context.
-        
+
         Args:
             category: Filter by category (None = all).
             context: Filter by context (None = all).
             include_global: Include global shortcuts.
-            
+
         Returns:
             List of matching shortcuts.
         """
@@ -190,7 +193,7 @@ class KeyboardShortcutManager:
                 continue
             result.append(shortcut)
         return result
-    
+
     def render_help(
         self,
         primary: str = "#ff2222",
@@ -199,13 +202,13 @@ class KeyboardShortcutManager:
         context: Optional[str] = None,
     ) -> Panel:
         """Render keyboard shortcuts help panel.
-        
+
         Args:
             primary: Primary theme color.
             text_color: Main text color.
             muted: Muted text color.
             context: Current context to show context-specific shortcuts.
-            
+
         Returns:
             Rich Panel with shortcuts help.
         """
@@ -216,7 +219,7 @@ class KeyboardShortcutManager:
             if cat not in categories:
                 categories[cat] = []
             categories[cat].append(shortcut)
-        
+
         # Build table
         table = Table(
             show_header=True,
@@ -228,7 +231,7 @@ class KeyboardShortcutManager:
         table.add_column("Key", style=f"bold {text_color}", width=15)
         table.add_column("Action", style=text_color, width=25)
         table.add_column("Description", style=muted)
-        
+
         # Add shortcuts by category
         category_order = [
             ShortcutCategory.NAVIGATION.value,
@@ -237,7 +240,7 @@ class KeyboardShortcutManager:
             ShortcutCategory.EDIT.value,
             ShortcutCategory.SYSTEM.value,
         ]
-        
+
         for cat_name in category_order:
             if cat_name in categories:
                 for shortcut in categories[cat_name]:
@@ -248,7 +251,7 @@ class KeyboardShortcutManager:
                         shortcut.action,
                         shortcut.description,
                     )
-        
+
         return Panel(
             table,
             title=f"[bold {primary}]KEYBOARD SHORTCUTS[/bold {primary}]",
@@ -269,7 +272,6 @@ DEFAULT_SHORTCUTS = [
     ("Down", "Move down", "move_down", ShortcutCategory.NAVIGATION),
     ("Left", "Move left", "move_left", ShortcutCategory.NAVIGATION),
     ("Right", "Move right", "move_right", ShortcutCategory.NAVIGATION),
-    
     # Actions
     ("Enter", "Select/Confirm", "select", ShortcutCategory.ACTION),
     ("Escape", "Cancel/Back", "cancel", ShortcutCategory.ACTION),
@@ -277,14 +279,12 @@ DEFAULT_SHORTCUTS = [
     ("Ctrl+Z", "Undo", "undo", ShortcutCategory.ACTION),
     ("Ctrl+Y", "Redo", "redo", ShortcutCategory.ACTION),
     ("Delete", "Delete item", "delete", ShortcutCategory.ACTION),
-    
     # View
     ("F1", "Show help", "help", ShortcutCategory.VIEW),
     ("F5", "Refresh view", "refresh", ShortcutCategory.VIEW),
     ("F11", "Toggle fullscreen", "fullscreen", ShortcutCategory.VIEW),
     ("Ctrl+F", "Search/Filter", "search", ShortcutCategory.VIEW),
     ("Ctrl+G", "Go to", "goto", ShortcutCategory.VIEW),
-    
     # System
     ("Ctrl+Q", "Quit", "quit", ShortcutCategory.SYSTEM),
     ("Ctrl+C", "Copy", "copy", ShortcutCategory.SYSTEM),
@@ -295,15 +295,15 @@ DEFAULT_SHORTCUTS = [
 
 def create_default_shortcut_manager() -> KeyboardShortcutManager:
     """Create a KeyboardShortcutManager with default shortcuts.
-    
+
     Returns:
         KeyboardShortcutManager with default shortcuts registered.
     """
     manager = KeyboardShortcutManager()
-    
+
     for key, desc, action, category in DEFAULT_SHORTCUTS:
         manager.register(key, desc, action, category)
-    
+
     return manager
 
 
@@ -314,13 +314,13 @@ def render_shortcuts_help(
     context: Optional[str] = None,
 ) -> Panel:
     """Render keyboard shortcuts help as a standalone Rich Panel.
-    
+
     Args:
         primary: Primary theme color.
         text_color: Main text color.
         muted: Muted text color.
         context: Current context.
-        
+
     Returns:
         Rich Panel with shortcuts help.
     """

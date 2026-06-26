@@ -29,7 +29,13 @@ logger = logging.getLogger("elengenix.agent_bola_bridge")
 class AgentBOLABridge:
     """Bridge to run BOLA harness from agent loop with governance."""
 
-    def __init__(self, base_url: str, headers_a: Dict[str, str], headers_b: Dict[str, str], rate_limit_rps: float = 1.0):
+    def __init__(
+        self,
+        base_url: str,
+        headers_a: Dict[str, str],
+        headers_b: Dict[str, str],
+        rate_limit_rps: float = 1.0,
+    ):
         self.base_url = base_url
         self.headers_a = headers_a
         self.headers_b = headers_b
@@ -122,9 +128,7 @@ class AgentBOLABridge:
                 logger.debug(f"BOLA ledger note failed: {e}")
 
         # Run seeded checks
-        result = self.harness.run_seeded_checks(
-            self.headers_a, self.headers_b, ids_a, ids_b, seeds
-        )
+        result = self.harness.run_seeded_checks(self.headers_a, self.headers_b, ids_a, ids_b, seeds)
 
         # Store findings as facts and ledger entries
         for i, finding in enumerate(result.findings):

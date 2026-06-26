@@ -24,10 +24,10 @@ import json
 import logging
 import socket
 import ssl
-from dataclasses import dataclass, field, asdict
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional
-from urllib.parse import urlparse, urljoin
+from urllib.parse import urljoin, urlparse
 
 import requests
 from requests.adapters import HTTPAdapter
@@ -73,77 +73,364 @@ class ParamHit:
 
 # Small but effective wordlists (kept lean for speed)
 SUBDOMAIN_WORDLIST = [
-    "www", "mail", "api", "dev", "test", "staging", "admin", "portal",
-    "blog", "shop", "store", "cdn", "static", "media", "img", "images",
-    "docs", "wiki", "support", "help", "status", "monitor", "grafana",
-    "kibana", "jenkins", "jira", "gitlab", "github", "git", "svn",
-    "vpn", "remote", "ssh", "ftp", "sftp", "smtp", "imap", "pop",
-    "db", "mysql", "postgres", "redis", "mongo", "elastic", "es",
-    "auth", "login", "sso", "oauth", "account", "accounts", "user", "users",
-    "app", "web", "web1", "web2", "host", "server", "node1", "node2",
-    "internal", "intranet", "corp", "corporate", "office", "hr", "finance",
-    "beta", "alpha", "release", "preview", "demo", "sandbox", "lab",
-    "cloud", "aws", "azure", "gcp", "k8s", "kubernetes", "docker",
-    "m", "mobile", "mapi", "wap", "touch",
+    "www",
+    "mail",
+    "api",
+    "dev",
+    "test",
+    "staging",
+    "admin",
+    "portal",
+    "blog",
+    "shop",
+    "store",
+    "cdn",
+    "static",
+    "media",
+    "img",
+    "images",
+    "docs",
+    "wiki",
+    "support",
+    "help",
+    "status",
+    "monitor",
+    "grafana",
+    "kibana",
+    "jenkins",
+    "jira",
+    "gitlab",
+    "github",
+    "git",
+    "svn",
+    "vpn",
+    "remote",
+    "ssh",
+    "ftp",
+    "sftp",
+    "smtp",
+    "imap",
+    "pop",
+    "db",
+    "mysql",
+    "postgres",
+    "redis",
+    "mongo",
+    "elastic",
+    "es",
+    "auth",
+    "login",
+    "sso",
+    "oauth",
+    "account",
+    "accounts",
+    "user",
+    "users",
+    "app",
+    "web",
+    "web1",
+    "web2",
+    "host",
+    "server",
+    "node1",
+    "node2",
+    "internal",
+    "intranet",
+    "corp",
+    "corporate",
+    "office",
+    "hr",
+    "finance",
+    "beta",
+    "alpha",
+    "release",
+    "preview",
+    "demo",
+    "sandbox",
+    "lab",
+    "cloud",
+    "aws",
+    "azure",
+    "gcp",
+    "k8s",
+    "kubernetes",
+    "docker",
+    "m",
+    "mobile",
+    "mapi",
+    "wap",
+    "touch",
 ]
 
 # Common directory names (top 200 most common)
 DIR_WORDLIST = [
-    "admin", "administrator", "login", "wp-admin", "wp-login.php",
-    "dashboard", "panel", "controlpanel", "cpanel", "phpmyadmin",
-    "api", "api/v1", "api/v2", "v1", "v2", "rest", "graphql",
-    "robots.txt", "sitemap.xml", "sitemap_index.xml", "crossdomain.xml",
-    "humans.txt", "security.txt", ".well-known/security.txt",
-    ".git", ".git/HEAD", ".git/config", ".svn", ".env", ".htaccess",
-    "backup", "backups", "bak", "old", "temp", "tmp", "test", "tests",
-    "uploads", "upload", "files", "media", "images", "img", "static",
-    "assets", "css", "js", "javascript", "fonts", "docs", "doc",
-    "download", "downloads", "data", "database", "db", "sql", "dump",
-    "config", "conf", "configuration", "settings", "setup", "install",
-    "readme", "README.md", "CHANGELOG.md", "LICENSE", "license.txt",
-    "user", "users", "account", "accounts", "profile", "profiles",
-    "register", "signup", "signin", "forgot", "reset", "password",
-    "search", "find", "lookup", "query",
-    "info", "info.php", "phpinfo.php", "test.php", "debug",
-    "log", "logs", "log.txt", "error.log", "debug.log",
-    "shell", "cmd", "exec", "run", "system", "command",
-    "internal", "private", "secret", "hidden",
+    "admin",
+    "administrator",
+    "login",
+    "wp-admin",
+    "wp-login.php",
+    "dashboard",
+    "panel",
+    "controlpanel",
+    "cpanel",
+    "phpmyadmin",
+    "api",
+    "api/v1",
+    "api/v2",
+    "v1",
+    "v2",
+    "rest",
+    "graphql",
+    "robots.txt",
+    "sitemap.xml",
+    "sitemap_index.xml",
+    "crossdomain.xml",
+    "humans.txt",
+    "security.txt",
+    ".well-known/security.txt",
+    ".git",
+    ".git/HEAD",
+    ".git/config",
+    ".svn",
+    ".env",
+    ".htaccess",
+    "backup",
+    "backups",
+    "bak",
+    "old",
+    "temp",
+    "tmp",
+    "test",
+    "tests",
+    "uploads",
+    "upload",
+    "files",
+    "media",
+    "images",
+    "img",
+    "static",
+    "assets",
+    "css",
+    "js",
+    "javascript",
+    "fonts",
+    "docs",
+    "doc",
+    "download",
+    "downloads",
+    "data",
+    "database",
+    "db",
+    "sql",
+    "dump",
+    "config",
+    "conf",
+    "configuration",
+    "settings",
+    "setup",
+    "install",
+    "readme",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE",
+    "license.txt",
+    "user",
+    "users",
+    "account",
+    "accounts",
+    "profile",
+    "profiles",
+    "register",
+    "signup",
+    "signin",
+    "forgot",
+    "reset",
+    "password",
+    "search",
+    "find",
+    "lookup",
+    "query",
+    "info",
+    "info.php",
+    "phpinfo.php",
+    "test.php",
+    "debug",
+    "log",
+    "logs",
+    "log.txt",
+    "error.log",
+    "debug.log",
+    "shell",
+    "cmd",
+    "exec",
+    "run",
+    "system",
+    "command",
+    "internal",
+    "private",
+    "secret",
+    "hidden",
 ]
 
 # Common parameter names (top 100 for fuzzing)
 PARAM_WORDLIST = [
-    "id", "user_id", "uid", "userId", "user", "username", "name",
-    "email", "mail", "phone", "mobile", "tel",
-    "q", "query", "search", "s", "term", "keyword", "k",
-    "page", "p", "pg", "offset", "limit", "count", "size", "per_page",
-    "sort", "order", "orderby", "sort_by", "direction", "dir",
-    "filter", "f", "filter_by", "where", "category", "cat", "tag",
-    "type", "format", "lang", "locale", "language", "l",
-    "file", "filename", "path", "url", "uri", "src", "source", "dest",
-    "redirect", "redirect_uri", "return", "return_url", "next", "prev",
-    "callback", "cb", "jsonp", "ref", "referer", "referrer",
-    "debug", "test", "verbose", "admin", "root", "sudo",
-    "action", "do", "method", "op", "operation", "cmd", "command",
-    "input", "data", "value", "val", "v", "key", "k", "secret",
-    "token", "access_token", "api_key", "apikey", "auth", "authorization",
-    "session", "sessionid", "sid", "csrf", "csrf_token", "nonce",
-    "id[]", "ids[]", "user_ids[]", "items[]",  # array params
-    "x", "y", "z", "a", "b", "c", "w", "h", "width", "height",
+    "id",
+    "user_id",
+    "uid",
+    "userId",
+    "user",
+    "username",
+    "name",
+    "email",
+    "mail",
+    "phone",
+    "mobile",
+    "tel",
+    "q",
+    "query",
+    "search",
+    "s",
+    "term",
+    "keyword",
+    "k",
+    "page",
+    "p",
+    "pg",
+    "offset",
+    "limit",
+    "count",
+    "size",
+    "per_page",
+    "sort",
+    "order",
+    "orderby",
+    "sort_by",
+    "direction",
+    "dir",
+    "filter",
+    "f",
+    "filter_by",
+    "where",
+    "category",
+    "cat",
+    "tag",
+    "type",
+    "format",
+    "lang",
+    "locale",
+    "language",
+    "l",
+    "file",
+    "filename",
+    "path",
+    "url",
+    "uri",
+    "src",
+    "source",
+    "dest",
+    "redirect",
+    "redirect_uri",
+    "return",
+    "return_url",
+    "next",
+    "prev",
+    "callback",
+    "cb",
+    "jsonp",
+    "ref",
+    "referer",
+    "referrer",
+    "debug",
+    "test",
+    "verbose",
+    "admin",
+    "root",
+    "sudo",
+    "action",
+    "do",
+    "method",
+    "op",
+    "operation",
+    "cmd",
+    "command",
+    "input",
+    "data",
+    "value",
+    "val",
+    "v",
+    "key",
+    "k",
+    "secret",
+    "token",
+    "access_token",
+    "api_key",
+    "apikey",
+    "auth",
+    "authorization",
+    "session",
+    "sessionid",
+    "sid",
+    "csrf",
+    "csrf_token",
+    "nonce",
+    "id[]",
+    "ids[]",
+    "user_ids[]",
+    "items[]",  # array params
+    "x",
+    "y",
+    "z",
+    "a",
+    "b",
+    "c",
+    "w",
+    "h",
+    "width",
+    "height",
 ]
 
 # Top common ports
 PORT_WORDLIST = [
-    (21, "ftp"), (22, "ssh"), (23, "telnet"), (25, "smtp"),
-    (53, "dns"), (80, "http"), (110, "pop3"), (135, "msrpc"),
-    (139, "netbios"), (143, "imap"), (443, "https"), (445, "smb"),
-    (993, "imaps"), (995, "pop3s"), (1433, "mssql"), (1521, "oracle"),
-    (2082, "cpanel"), (2083, "cpanel-ssl"), (2086, "whm"), (2087, "whm-ssl"),
-    (3306, "mysql"), (3389, "rdp"), (5432, "postgres"), (5900, "vnc"),
-    (5984, "couchdb"), (6379, "redis"), (8000, "http-alt"), (8008, "http-alt"),
-    (8080, "http-alt"), (8081, "http-alt"), (8443, "https-alt"),
-    (8888, "http-alt"), (9000, "http-alt"), (9090, "prometheus"),
-    (9200, "elasticsearch"), (9300, "elasticsearch"), (11211, "memcached"),
-    (27017, "mongodb"), (27018, "mongodb"), (50000, "sap"),
+    (21, "ftp"),
+    (22, "ssh"),
+    (23, "telnet"),
+    (25, "smtp"),
+    (53, "dns"),
+    (80, "http"),
+    (110, "pop3"),
+    (135, "msrpc"),
+    (139, "netbios"),
+    (143, "imap"),
+    (443, "https"),
+    (445, "smb"),
+    (993, "imaps"),
+    (995, "pop3s"),
+    (1433, "mssql"),
+    (1521, "oracle"),
+    (2082, "cpanel"),
+    (2083, "cpanel-ssl"),
+    (2086, "whm"),
+    (2087, "whm-ssl"),
+    (3306, "mysql"),
+    (3389, "rdp"),
+    (5432, "postgres"),
+    (5900, "vnc"),
+    (5984, "couchdb"),
+    (6379, "redis"),
+    (8000, "http-alt"),
+    (8008, "http-alt"),
+    (8080, "http-alt"),
+    (8081, "http-alt"),
+    (8443, "https-alt"),
+    (8888, "http-alt"),
+    (9000, "http-alt"),
+    (9090, "prometheus"),
+    (9200, "elasticsearch"),
+    (9300, "elasticsearch"),
+    (11211, "memcached"),
+    (27017, "mongodb"),
+    (27018, "mongodb"),
+    (50000, "sap"),
 ]
 
 
@@ -159,14 +446,15 @@ class PythonRecon:
         s = requests.Session()
         # No retries on connect errors — we want to fail fast and move on
         # when a target is slow/unreachable. Retries only on 5xx (server hiccups).
-        retry = Retry(total=0, connect=0, read=0,
-                      status_forcelist=[500, 502, 503, 504])
+        retry = Retry(total=0, connect=0, read=0, status_forcelist=[500, 502, 503, 504])
         adapter = HTTPAdapter(max_retries=retry, pool_connections=50, pool_maxsize=50)
         s.mount("http://", adapter)
         s.mount("https://", adapter)
-        s.headers.update({
-            "User-Agent": "Mozilla/5.0 (Elengenix Python Recon) AppleWebKit/537.36",
-        })
+        s.headers.update(
+            {
+                "User-Agent": "Mozilla/5.0 (Elengenix Python Recon) AppleWebKit/537.36",
+            }
+        )
         return s
 
     def _normalize_url(self, target: str) -> str:
@@ -178,12 +466,15 @@ class PythonRecon:
 
     def _extract_title(self, html: str) -> str:
         import re
+
         m = re.search(r"<title[^>]*>(.*?)</title>", html, re.IGNORECASE | re.DOTALL)
         return m.group(1).strip()[:100] if m else ""
 
     # ── Subdomain enum ───────────────────────────────────────────────
 
-    def enum_subdomains(self, domain: str, wordlist: Optional[List[str]] = None) -> List[SubdomainHit]:
+    def enum_subdomains(
+        self, domain: str, wordlist: Optional[List[str]] = None
+    ) -> List[SubdomainHit]:
         """Brute-force subdomains via DNS resolution."""
         wordlist = wordlist or SUBDOMAIN_WORDLIST
         domain = domain.lower().strip()
@@ -211,8 +502,13 @@ class PythonRecon:
         """Fetch the base URL, extract headers, title, server tech."""
         url = self._normalize_url(target)
         result: Dict[str, Any] = {
-            "url": url, "status": 0, "headers": {},
-            "title": "", "tech": [], "final_url": url, "length": 0,
+            "url": url,
+            "status": 0,
+            "headers": {},
+            "title": "",
+            "tech": [],
+            "final_url": url,
+            "length": 0,
         }
         try:
             r = self._session.get(url, timeout=self.timeout, allow_redirects=True, verify=False)
@@ -258,14 +554,19 @@ class PythonRecon:
         for path in wordlist:
             test_url = f"{url}/{path}"
             try:
-                r = self._session.get(test_url, timeout=self.timeout, allow_redirects=False, verify=False)
+                r = self._session.get(
+                    test_url, timeout=self.timeout, allow_redirects=False, verify=False
+                )
                 if r.status_code != 404:
-                    results.append(EndpointHit(
-                        url=test_url, status=r.status_code,
-                        length=len(r.content),
-                        content_type=r.headers.get("Content-Type", ""),
-                        title=self._extract_title(r.text),
-                    ))
+                    results.append(
+                        EndpointHit(
+                            url=test_url,
+                            status=r.status_code,
+                            length=len(r.content),
+                            content_type=r.headers.get("Content-Type", ""),
+                            title=self._extract_title(r.text),
+                        )
+                    )
             except requests.RequestException:
                 continue
         return results
@@ -306,7 +607,9 @@ class PythonRecon:
 
     # ── Parameter discovery ────────────────────────────────────────
 
-    def discover_params(self, target: str, path: str = "/", wordlist: Optional[List[str]] = None) -> List[ParamHit]:
+    def discover_params(
+        self, target: str, path: str = "/", wordlist: Optional[List[str]] = None
+    ) -> List[ParamHit]:
         """Send common param names; flag responses that differ in size from baseline."""
         base = self._normalize_url(target)
         url = base + path
@@ -324,21 +627,31 @@ class PythonRecon:
             for method in ("GET", "POST"):
                 try:
                     if method == "GET":
-                        r = self._session.get(url, params={p: "test123"}, timeout=self.timeout, verify=False)
+                        r = self._session.get(
+                            url, params={p: "test123"}, timeout=self.timeout, verify=False
+                        )
                     else:
-                        r = self._session.post(url, data={p: "test123"}, timeout=self.timeout, verify=False)
+                        r = self._session.post(
+                            url, data={p: "test123"}, timeout=self.timeout, verify=False
+                        )
                     test_len = len(r.content)
                     delta_pct = (abs(test_len - base_len) / max(base_len, 1)) * 100
                     is_interesting = (
-                        r.status_code not in (200, 204, 301, 302, 304) or
-                        delta_pct > 30 or
-                        r.status_code >= 500
+                        r.status_code not in (200, 204, 301, 302, 304)
+                        or delta_pct > 30
+                        or r.status_code >= 500
                     )
-                    results.append(ParamHit(
-                        url=url, method=method, param=p,
-                        baseline_len=base_len, test_len=test_len,
-                        is_interesting=is_interesting, delta_pct=round(delta_pct, 1),
-                    ))
+                    results.append(
+                        ParamHit(
+                            url=url,
+                            method=method,
+                            param=p,
+                            baseline_len=base_len,
+                            test_len=test_len,
+                            is_interesting=is_interesting,
+                            delta_pct=round(delta_pct, 1),
+                        )
+                    )
                 except requests.RequestException:
                     continue
         return results

@@ -36,8 +36,9 @@ CURRENT_VERSION = "1.0.0"
 @dataclass
 class ReleaseInfo:
     """A GitHub release."""
-    tag: str             # e.g. "v1.2.3"
-    version: str         # e.g. "1.2.3" (tag without 'v')
+
+    tag: str  # e.g. "v1.2.3"
+    version: str  # e.g. "1.2.3" (tag without 'v')
     name: str = ""
     body: str = ""
     published_at: str = ""
@@ -162,9 +163,13 @@ class Updater:
         # Fetch from GitHub
         try:
             import urllib.request
+
             req = urllib.request.Request(
                 self.api_url,
-                headers={"User-Agent": "Elengenix-Updater/1.0", "Accept": "application/vnd.github+json"},
+                headers={
+                    "User-Agent": "Elengenix-Updater/1.0",
+                    "Accept": "application/vnd.github+json",
+                },
             )
             with urllib.request.urlopen(req, timeout=10) as resp:
                 data = json.loads(resp.read().decode("utf-8"))
@@ -184,15 +189,20 @@ class Updater:
             )
             # Cache
             CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
-            CACHE_FILE.write_text(json.dumps({
-                "tag": rel.tag,
-                "name": rel.name,
-                "body": rel.body,
-                "published_at": rel.published_at,
-                "url": rel.url,
-                "prerelease": rel.prerelease,
-                "checked_at": time.time(),
-            }), encoding="utf-8")
+            CACHE_FILE.write_text(
+                json.dumps(
+                    {
+                        "tag": rel.tag,
+                        "name": rel.name,
+                        "body": rel.body,
+                        "published_at": rel.published_at,
+                        "url": rel.url,
+                        "prerelease": rel.prerelease,
+                        "checked_at": time.time(),
+                    }
+                ),
+                encoding="utf-8",
+            )
             if rel.is_newer:
                 return rel
             return None
@@ -253,6 +263,7 @@ class Updater:
         """pip install --upgrade the package."""
         # Use sys.executable -m pip to ensure correct interpreter
         import sys
+
         try:
             result = subprocess.run(
                 [sys.executable, "-m", "pip", "install", "--upgrade", "elengenix"],

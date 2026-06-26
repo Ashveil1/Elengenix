@@ -10,7 +10,7 @@ from __future__ import annotations
 import os
 from datetime import datetime
 from pathlib import Path
-from typing import List, Dict
+from typing import Dict, List
 
 
 def _count_lines(filepath: str) -> int:
@@ -32,13 +32,14 @@ def generate_bug_report(
     Returns the path of the written file.
     """
     report_dir = str(Path(report_path).parent)
-    now        = datetime.now().strftime("%Y-%m-%d %H:%M:%S UTC")
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S UTC")
 
     # Stats from report dir
-    subs_count = _count_lines(os.path.join(report_dir, f"{target}_subs.txt")) or \
-                 _count_lines(os.path.join(report_dir, "subdomains.txt"))
+    subs_count = _count_lines(os.path.join(report_dir, f"{target}_subs.txt")) or _count_lines(
+        os.path.join(report_dir, "subdomains.txt")
+    )
     live_count = _count_lines(os.path.join(report_dir, "live_hosts.txt"))
-    url_count  = _count_lines(os.path.join(report_dir, "discovered_urls.txt"))
+    url_count = _count_lines(os.path.join(report_dir, "discovered_urls.txt"))
 
     # Severity counts
     by_sev: Dict[str, int] = {"CRITICAL": 0, "HIGH": 0, "MEDIUM": 0, "LOW": 0, "INFO": 0}

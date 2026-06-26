@@ -82,7 +82,10 @@ class ObjectIDPermuter:
         self._last_ts = time.time()
 
     def discover_identities(
-        self, headers_a: Dict[str, str], headers_b: Optional[Dict[str, str]] = None, seed_endpoints: Optional[List[str]] = None
+        self,
+        headers_a: Dict[str, str],
+        headers_b: Optional[Dict[str, str]] = None,
+        seed_endpoints: Optional[List[str]] = None,
     ) -> Dict[str, str]:
         """
         Light identity discovery via common endpoints.
@@ -177,9 +180,7 @@ class ObjectIDPermuter:
         def fetch(url: str, hdr: Dict[str, str]) -> Tuple[int, str]:
             self._sleep()
             try:
-                r = requests.get(
-                    url, headers=hdr, timeout=self.timeout, allow_redirects=False
-                )
+                r = requests.get(url, headers=hdr, timeout=self.timeout, allow_redirects=False)
                 return r.status_code, r.text or ""
             except Exception as e:
                 return 0, str(e)

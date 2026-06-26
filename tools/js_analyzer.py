@@ -18,21 +18,27 @@ logger = logging.getLogger("elengenix.js_analyzer")
 # Pattern → (description, severity)
 PATTERNS: Dict[str, tuple] = {
     # Cloud / API Keys
-    r'AIza[0-9A-Za-z\-_]{35}':                        ("Google API Key",         "HIGH"),
-    r'AKIA[0-9A-Z]{16}':                               ("AWS Access Key ID",       "CRITICAL"),
-    r'(?i)aws[_\-]?secret[_\-]?(?:access[_\-]?)?key[\s:=]+[A-Za-z0-9/+=]{40}': ("AWS Secret Key", "CRITICAL"),
-    r'(?i)github[_\-]?token[\s:=]+[a-zA-Z0-9_]{36,}': ("GitHub Token",           "HIGH"),
-    r'(?i)bearer[\s:=]+[a-zA-Z0-9\._\-]{20,}':        ("Bearer Token",           "HIGH"),
-    r'sk-[a-zA-Z0-9]{20,}':                            ("OpenAI Secret Key",      "HIGH"),
-    r'[0-9a-f]{32}':                                   ("MD5-like Hash/Secret",   "MEDIUM"),
+    r"AIza[0-9A-Za-z\-_]{35}": ("Google API Key", "HIGH"),
+    r"AKIA[0-9A-Z]{16}": ("AWS Access Key ID", "CRITICAL"),
+    r"(?i)aws[_\-]?secret[_\-]?(?:access[_\-]?)?key[\s:=]+[A-Za-z0-9/+=]{40}": (
+        "AWS Secret Key",
+        "CRITICAL",
+    ),
+    r"(?i)github[_\-]?token[\s:=]+[a-zA-Z0-9_]{36,}": ("GitHub Token", "HIGH"),
+    r"(?i)bearer[\s:=]+[a-zA-Z0-9\._\-]{20,}": ("Bearer Token", "HIGH"),
+    r"sk-[a-zA-Z0-9]{20,}": ("OpenAI Secret Key", "HIGH"),
+    r"[0-9a-f]{32}": ("MD5-like Hash/Secret", "MEDIUM"),
     # Endpoints
     r'["\']/(api|v[0-9]+|graphql|rest|rpc)/[a-zA-Z0-9/_\-\.?=&]{3,}["\']': ("API Endpoint", "INFO"),
     # Cloud Storage
-    r'[a-z0-9\-]+\.s3\.amazonaws\.com':                ("S3 Bucket",              "MEDIUM"),
-    r'[a-z0-9\-]+\.blob\.core\.windows\.net':          ("Azure Blob",             "MEDIUM"),
-    r'[a-z0-9\-]+\.storage\.googleapis\.com':          ("GCS Bucket",             "MEDIUM"),
+    r"[a-z0-9\-]+\.s3\.amazonaws\.com": ("S3 Bucket", "MEDIUM"),
+    r"[a-z0-9\-]+\.blob\.core\.windows\.net": ("Azure Blob", "MEDIUM"),
+    r"[a-z0-9\-]+\.storage\.googleapis\.com": ("GCS Bucket", "MEDIUM"),
     # Internal URLs
-    r'https?://(?:localhost|127\.0\.0\.1|10\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+)[^\s"\']*': ("Internal URL", "MEDIUM"),
+    r'https?://(?:localhost|127\.0\.0\.1|10\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+)[^\s"\']*': (
+        "Internal URL",
+        "MEDIUM",
+    ),
 }
 
 _TIMEOUT = 12
@@ -60,8 +66,7 @@ def analyze_js(url: str) -> Dict[str, List[Dict]]:
     results: Dict[str, List[Dict]] = {}
 
     for pattern, (description, severity) in PATTERNS.items():
-        matches = list({m if isinstance(m, str) else m[0]
-                        for m in re.findall(pattern, content)})
+        matches = list({m if isinstance(m, str) else m[0] for m in re.findall(pattern, content)})
         if matches:
             results[description] = [
                 {"match": m, "severity": severity, "pattern": pattern}
@@ -82,6 +87,8 @@ def analyze_js_files_from_list(urls: List[str]) -> Dict[str, Dict]:
 
 
 if __name__ == "__main__":
-    import sys, json
+    import json
+    import sys
+
     if len(sys.argv) > 1:
         print(json.dumps(analyze_js(sys.argv[1]), indent=2))

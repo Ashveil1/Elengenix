@@ -33,21 +33,16 @@ from rich.console import Group
 from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
-
+from textual import work
 from textual.containers import Container, Horizontal, Vertical
 from textual.reactive import reactive
 from textual.widget import Widget
 from textual.widgets import Static
-from textual import work
 
 from ui_components import console as shared_console
+
 from .themes import ThemeManager, get_theme
-from .visualizations import (
-    FindingTimeline,
-    RiskGauge,
-    SeverityChart,
-    render_text_panel,
-)
+from .visualizations import FindingTimeline, RiskGauge, SeverityChart, render_text_panel
 
 logger = logging.getLogger("elengenix.tui.dashboard")
 
@@ -198,13 +193,13 @@ class ThreatDashboard(Container):
 
     def set_layout(self, layout_name: str) -> None:
         """Change the dashboard layout configuration.
-        
+
         Available layouts:
         - "default": Standard 2-row layout
         - "compact": Single column, vertical stack
         - "wide": Full-width panels
         - "focus": Enlarged findings panel
-        
+
         Args:
             layout_name: Name of the layout to apply.
         """
@@ -226,18 +221,18 @@ class ThreatDashboard(Container):
                 "bottom": ["findings", "findings"],
             },
         }
-        
+
         if layout_name not in layouts:
             logger.warning(f"Unknown layout: {layout_name}")
             return
-        
+
         self._current_layout = layout_name
         self._refresh_all()
         logger.info(f"Dashboard layout changed to: {layout_name}")
 
     def get_layout(self) -> str:
         """Get the current layout name.
-        
+
         Returns:
             Current layout name.
         """
@@ -276,7 +271,7 @@ class ThreatDashboard(Container):
             )
         )
         if len(self.findings) > self._max_findings * 2:
-            self.findings = self.findings[-self._max_findings:]
+            self.findings = self.findings[-self._max_findings :]
         self._refresh_findings()
 
     def add_threat(
@@ -289,11 +284,9 @@ class ThreatDashboard(Container):
         """Drop a new pulsing marker onto the threat map."""
         x = x if x is not None else random.randint(0, self._threatmap_w - 1)
         y = y if y is not None else random.randint(0, self._threatmap_h - 1)
-        self.markers.append(
-            ThreatMarker(x=x, y=y, severity=severity, label=label, pulse=0.0)
-        )
+        self.markers.append(ThreatMarker(x=x, y=y, severity=severity, label=label, pulse=0.0))
         if len(self.markers) > self._max_markers:
-            self.markers = self.markers[-self._max_markers:]
+            self.markers = self.markers[-self._max_markers :]
         self._refresh_threatmap()
 
     def add_scan(
@@ -314,10 +307,12 @@ class ThreatDashboard(Container):
             )
         )
         if len(self.scans) > self._max_scans:
-            self.scans = self.scans[-self._max_scans:]
+            self.scans = self.scans[-self._max_scans :]
         self._refresh_scans()
 
-    def add_host(self, ip: str, hostname: str = "", role: str = "unknown", risk: str = "low") -> None:
+    def add_host(
+        self, ip: str, hostname: str = "", role: str = "unknown", risk: str = "low"
+    ) -> None:
         """Add a host to the topology view."""
         self.hosts.append(Host(ip=ip, hostname=hostname, role=role, risk=risk))
         self._refresh_topology()
@@ -350,20 +345,30 @@ class ThreatDashboard(Container):
         if not self.findings:
             demo_findings = [
                 ("Open admin port", "high", ":8080/admin", "Default credentials may be in use"),
-                ("Reflected XSS in search", "medium", "/search?q=", "User input echoed without sanitisation"),
+                (
+                    "Reflected XSS in search",
+                    "medium",
+                    "/search?q=",
+                    "User input echoed without sanitisation",
+                ),
                 ("TLS 1.0 enabled", "medium", ":443", "Deprecated protocol version supported"),
-                ("Verbose error page", "low", "/api/items/0", "Stack trace returned in response body"),
+                (
+                    "Verbose error page",
+                    "low",
+                    "/api/items/0",
+                    "Stack trace returned in response body",
+                ),
                 ("CORS wildcard", "info", "global", "Access-Control-Allow-Origin: *"),
             ]
             for title, sev, loc, desc in demo_findings:
                 self.add_finding(title, sev, loc, desc)
         if not self.hosts:
             for ip, role, risk in [
-                ("10.0.0.1",  "gateway",   "low"),
-                ("10.0.0.5",  "web",       "medium"),
-                ("10.0.0.12", "database",  "high"),
-                ("10.0.0.20", "auth",      "critical"),
-                ("10.0.0.30", "cache",     "low"),
+                ("10.0.0.1", "gateway", "low"),
+                ("10.0.0.5", "web", "medium"),
+                ("10.0.0.12", "database", "high"),
+                ("10.0.0.20", "auth", "critical"),
+                ("10.0.0.30", "cache", "low"),
             ]:
                 self.add_host(ip, role=role, risk=risk)
         if not self.scans:
@@ -435,10 +440,15 @@ class ThreatDashboard(Container):
         accent = theme.get("accent", "#ffffff")
         score = int(round(self.risk_score))
         score_color = (
-            theme.get("critical") if score >= 80 else
-            theme.get("high")     if score >= 60 else
-            theme.get("medium")   if score >= 30 else
-            theme.get("low")
+            theme.get("critical")
+            if score >= 80
+            else (
+                theme.get("high")
+                if score >= 60
+                else theme.get("medium")
+                if score >= 30
+                else theme.get("low")
+            )
         )
 
         line = Text()
@@ -484,10 +494,10 @@ class ThreatDashboard(Container):
         muted = theme.get("muted", "#888888")
         sev_colors = {
             "critical": theme.get("critical", "#ff003c"),
-            "high":     theme.get("high", "#ff5500"),
-            "medium":   theme.get("medium", "#ffb300"),
-            "low":      theme.get("low", "#81c784"),
-            "info":     theme.get("info", "#888888"),
+            "high": theme.get("high", "#ff5500"),
+            "medium": theme.get("medium", "#ffb300"),
+            "low": theme.get("low", "#81c784"),
+            "info": theme.get("info", "#888888"),
         }
 
         grid = [[" "] * self._threatmap_w for _ in range(self._threatmap_h)]
@@ -554,20 +564,26 @@ class ThreatDashboard(Container):
                 padding=(0, 0),
                 expand=True,
             )
-            table.add_column("Scan",     style=f"bold {text}",  no_wrap=True)
-            table.add_column("Target",   style=muted,           no_wrap=True)
+            table.add_column("Scan", style=f"bold {text}", no_wrap=True)
+            table.add_column("Target", style=muted, no_wrap=True)
             table.add_column("Progress", width=14)
-            table.add_column("ETA",      justify="right",       width=6)
-            table.add_column("Status",   justify="center",      width=8)
+            table.add_column("ETA", justify="right", width=6)
+            table.add_column("Status", justify="center", width=8)
             for s in self.scans:
                 pct = int(round(s.progress * 100))
                 bar_w = 8
                 filled = int(round(s.progress * bar_w))
-                bar = f"[{primary}]" + "\u2588" * filled + f"[{muted}]" + "\u2591" * (bar_w - filled)
+                bar = (
+                    f"[{primary}]" + "\u2588" * filled + f"[{muted}]" + "\u2591" * (bar_w - filled)
+                )
                 status_color = (
-                    theme.get("success", "#ffffff") if s.status == "done" else
-                    theme.get("warning", "#ffb300") if s.status == "paused" else
-                    theme.get("primary", "#ff2222")
+                    theme.get("success", "#ffffff")
+                    if s.status == "done"
+                    else (
+                        theme.get("warning", "#ffb300")
+                        if s.status == "paused"
+                        else theme.get("primary", "#ff2222")
+                    )
                 )
                 table.add_row(
                     s.name,
@@ -596,10 +612,10 @@ class ThreatDashboard(Container):
         muted = theme.get("muted", "#888888")
         sev_colors = {
             "critical": theme.get("critical", "#ff003c"),
-            "high":     theme.get("high", "#ff5500"),
-            "medium":   theme.get("medium", "#ffb300"),
-            "low":      theme.get("low", "#81c784"),
-            "info":     theme.get("info", "#888888"),
+            "high": theme.get("high", "#ff5500"),
+            "medium": theme.get("medium", "#ffb300"),
+            "low": theme.get("low", "#81c784"),
+            "info": theme.get("info", "#888888"),
         }
         items = sorted(self.findings, key=lambda f: f.timestamp, reverse=True)[: self._max_findings]
         if not items:
@@ -637,10 +653,17 @@ class ThreatDashboard(Container):
         def _bar(value: float, width: int = 18) -> Text:
             filled = int(round((value / 100.0) * width))
             color = (
-                theme.get("critical", "#ff003c") if value >= 80 else
-                theme.get("high", "#ff5500")     if value >= 60 else
-                theme.get("medium", "#ffb300")   if value >= 30 else
-                theme.get("low", "#81c784")
+                theme.get("critical", "#ff003c")
+                if value >= 80
+                else (
+                    theme.get("high", "#ff5500")
+                    if value >= 60
+                    else (
+                        theme.get("medium", "#ffb300")
+                        if value >= 30
+                        else theme.get("low", "#81c784")
+                    )
+                )
             )
             return Text(
                 "\u2588" * filled + "\u2591" * (width - filled) + f" {int(round(value)):3d}%",
@@ -656,9 +679,9 @@ class ThreatDashboard(Container):
         body.add_column("Label", style=muted, width=10)
         body.add_column("Bar", width=24)
         body.add_column("Value", style=text, justify="right", width=8)
-        body.add_row("CPU",     _bar(self.stats.cpu),     f"{self.stats.cpu:.1f}%")
-        body.add_row("MEMORY",  _bar(self.stats.memory),  f"{self.stats.memory:.1f}%")
-        body.add_row("NET IN",  Text(f"{self.stats.net_in:7.1f} kbps",  style=text), "")
+        body.add_row("CPU", _bar(self.stats.cpu), f"{self.stats.cpu:.1f}%")
+        body.add_row("MEMORY", _bar(self.stats.memory), f"{self.stats.memory:.1f}%")
+        body.add_row("NET IN", Text(f"{self.stats.net_in:7.1f} kbps", style=text), "")
         body.add_row("NET OUT", Text(f"{self.stats.net_out:7.1f} kbps", style=text), "")
 
         widget.update(
@@ -679,10 +702,10 @@ class ThreatDashboard(Container):
         muted = theme.get("muted", "#888888")
         sev_colors = {
             "critical": theme.get("critical", "#ff003c"),
-            "high":     theme.get("high", "#ff5500"),
-            "medium":   theme.get("medium", "#ffb300"),
-            "low":      theme.get("low", "#81c784"),
-            "info":     theme.get("info", "#888888"),
+            "high": theme.get("high", "#ff5500"),
+            "medium": theme.get("medium", "#ffb300"),
+            "low": theme.get("low", "#81c784"),
+            "info": theme.get("info", "#888888"),
         }
         if not self.hosts:
             body = Text("  (no hosts discovered)", style=muted)
@@ -724,6 +747,7 @@ class ThreatDashboard(Container):
 def run_demo() -> None:
     """Print a one-shot render of the dashboard for manual inspection."""
     from rich.console import Console as _Console
+
     c = _Console(width=140, record=True)
     c.print(build_static_renderable("DEFAULT", risk=73, target="example.com"))
 

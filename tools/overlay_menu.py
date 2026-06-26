@@ -8,17 +8,17 @@ Usage:
     panel = overlay.render()  # Build Rich panel for display
 """
 
+import logging
 import os
 import time
-import logging
 from pathlib import Path
-from typing import Optional, List, Dict, Tuple
+from typing import Dict, List, Optional, Tuple
 
+from rich.align import Align
+from rich.box import ROUNDED
 from rich.console import Console
 from rich.panel import Panel
 from rich.text import Text
-from rich.align import Align
-from rich.box import ROUNDED
 
 logger = logging.getLogger("elengenix.overlay")
 
@@ -128,7 +128,12 @@ class SettingsOverlay:
             return "exit"
 
         # In model_select, any printable char starts search filtering
-        if self._current_layer == "model_select" and ch.isprintable() and len(ch) == 1 and not ch.isspace():
+        if (
+            self._current_layer == "model_select"
+            and ch.isprintable()
+            and len(ch) == 1
+            and not ch.isspace()
+        ):
             self._search += ch
             self._update_items()
             self._selected_idx = 0
@@ -190,7 +195,7 @@ class SettingsOverlay:
             if not label:
                 lines.append("\n")
                 continue
-            is_selected = (i == self._selected_idx)
+            is_selected = i == self._selected_idx
             if is_selected:
                 prefix = "\u25b6 "
                 style = "bold #ffffff on #333333"
@@ -392,6 +397,7 @@ class SettingsOverlay:
         items = [{"id": "", "label": "--- Select a session to load ---", "action": ""}]
         try:
             from tools.session_manager import SessionManager
+
             mgr = SessionManager()
             sessions = mgr.list_sessions()
             if not sessions:
@@ -432,9 +438,20 @@ class SettingsOverlay:
         return items
 
     ALL_PROVIDERS = [
-        "openai", "gemini", "anthropic", "groq", "nvidia",
-        "deepseek", "mistral", "openrouter", "together", "perplexity",
-        "cohere", "huggingface", "replicate", "ollama",
+        "openai",
+        "gemini",
+        "anthropic",
+        "groq",
+        "nvidia",
+        "deepseek",
+        "mistral",
+        "openrouter",
+        "together",
+        "perplexity",
+        "cohere",
+        "huggingface",
+        "replicate",
+        "ollama",
     ]
 
     def _build_provider_items(self):
@@ -446,7 +463,9 @@ class SettingsOverlay:
         items.append({"id": "", "label": "", "action": ""})
         items.append({"id": "custom", "label": "CUSTOM (OpenAI-compatible URL)", "action": ""})
         items.append({"id": "", "label": "", "action": ""})
-        items.append({"id": "back_to_agents", "label": "[BACK] Back to Agent Setup", "action": "back"})
+        items.append(
+            {"id": "back_to_agents", "label": "[BACK] Back to Agent Setup", "action": "back"}
+        )
         return items
 
     def _build_model_items(self):
@@ -463,11 +482,25 @@ class SettingsOverlay:
         for m in models[:50]:
             items.append({"id": m, "label": m, "action": ""})
         if not items:
-            items.append({"id": "", "label": "(No models — enter manually below or type to search)", "action": ""})
+            items.append(
+                {
+                    "id": "",
+                    "label": "(No models — enter manually below or type to search)",
+                    "action": "",
+                }
+            )
         items.append({"id": "", "label": "", "action": ""})
-        items.append({"id": f"manual:{provider}", "label": f"TYPE MODEL NAME MANUALLY: {provider}/<model>", "action": ""})
+        items.append(
+            {
+                "id": f"manual:{provider}",
+                "label": f"TYPE MODEL NAME MANUALLY: {provider}/<model>",
+                "action": "",
+            }
+        )
         items.append({"id": "", "label": "", "action": ""})
-        items.append({"id": "back_to_provider", "label": "[BACK] Back to Provider", "action": "back"})
+        items.append(
+            {"id": "back_to_provider", "label": "[BACK] Back to Provider", "action": "back"}
+        )
         return items
 
     def _build_api_key_items(self):
@@ -485,7 +518,11 @@ class SettingsOverlay:
         label = f"Enter API Key for {prov.upper()}:"
         return [
             {"id": "", "label": label, "action": ""},
-            {"id": "key_value", "label": self._api_keys_dirty.get(prov, "") or "(type here)", "action": ""},
+            {
+                "id": "key_value",
+                "label": self._api_keys_dirty.get(prov, "") or "(type here)",
+                "action": "",
+            },
             {"id": "", "label": "", "action": ""},
             {"id": "confirm_save", "label": "[OK] Confirm & Save", "action": "save_key"},
             {"id": "cancel_edit", "label": "[BACK] Cancel", "action": "back"},
@@ -494,12 +531,30 @@ class SettingsOverlay:
     def _build_rate_limit_items(self):
         items = []
         for i in range(3):
-            items.append({
-                "id": f"agent_{i+1}_rpm", "label": f"Agent {i+1}: {self._rate_limits[i]} RPM",
-                "action": "", "rpm": i,
-            })
-            items.append({"id": f"decrease_{i}", "label": "  [-] Decrease", "action": "decrease_rpm", "rpm": i})
-            items.append({"id": f"increase_{i}", "label": "  [+] Increase", "action": "increase_rpm", "rpm": i})
+            items.append(
+                {
+                    "id": f"agent_{i+1}_rpm",
+                    "label": f"Agent {i+1}: {self._rate_limits[i]} RPM",
+                    "action": "",
+                    "rpm": i,
+                }
+            )
+            items.append(
+                {
+                    "id": f"decrease_{i}",
+                    "label": "  [-] Decrease",
+                    "action": "decrease_rpm",
+                    "rpm": i,
+                }
+            )
+            items.append(
+                {
+                    "id": f"increase_{i}",
+                    "label": "  [+] Increase",
+                    "action": "increase_rpm",
+                    "rpm": i,
+                }
+            )
             items.append({"id": "", "label": "", "action": ""})
         items.append({"id": "", "label": "", "action": ""})
         items.append({"id": "back_to_main", "label": "[BACK] Back to Settings", "action": "back"})
@@ -508,10 +563,15 @@ class SettingsOverlay:
     def _build_skills_items(self):
         try:
             from tools.skill_registry import get_skill_registry
+
             registry = get_skill_registry()
             missing = registry.get_missing_skills()
             names = [s.name for s in missing[:3]]
-            label = f"Missing tools: {len(missing)} " + ", ".join(names) + ("..." if len(missing) > 3 else "")
+            label = (
+                f"Missing tools: {len(missing)} "
+                + ", ".join(names)
+                + ("..." if len(missing) > 3 else "")
+            )
         except Exception:
             label = "Skills registry not available"
         return [
@@ -543,6 +603,7 @@ class SettingsOverlay:
 
         try:
             from tools.universal_ai_client import UniversalAIClient
+
             client = UniversalAIClient(provider=provider)
             if client.is_available():
                 models = client.fetch_available_models()
@@ -585,6 +646,7 @@ class SettingsOverlay:
         models = []
         try:
             import requests
+
             headers = {}
             if apikey:
                 headers["Authorization"] = f"Bearer {apikey}"
@@ -631,6 +693,7 @@ class SettingsOverlay:
             # Clear global agent cache so next get_agent() creates fresh instance with new config
             try:
                 import agent
+
                 agent._agent_instance = None
             except Exception:
                 pass
@@ -639,6 +702,7 @@ class SettingsOverlay:
             if self.agent:
                 saved_history = getattr(self.agent, "conversation_history", []).copy()
                 from tools.universal_ai_client import AIClientManager
+
                 new_manager = AIClientManager()
                 self.agent.client = new_manager
                 # Also re-init team_aegis clients
@@ -647,6 +711,7 @@ class SettingsOverlay:
                 # Re-create planner with new client
                 if hasattr(self.agent, "planner") and self.agent.planner:
                     from agent_brain import StrategicPlanner
+
                     self.agent.planner = StrategicPlanner(new_manager)
                 self.agent.conversation_history = saved_history
 
@@ -675,13 +740,16 @@ class SettingsOverlay:
 
     def _save_config(self) -> None:
         import yaml
+
         config_file = Path("config.yaml")
         if not config_file.exists():
             config = {}
         else:
             config = yaml.safe_load(config_file.read_text()) or {}
         config.setdefault("ai", {}).setdefault("active_models", [])
-        active = [f"{cfg['provider']}/{cfg['model']}" for cfg in self._agent_config if cfg.get("provider")]
+        active = [
+            f"{cfg['provider']}/{cfg['model']}" for cfg in self._agent_config if cfg.get("provider")
+        ]
         config["ai"]["active_models"] = active
         config_file.write_text(yaml.dump(config, allow_unicode=True))
 

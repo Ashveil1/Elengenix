@@ -30,6 +30,7 @@ Usage:
     )
     interesting = [r for r in results if r.is_interesting]
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -54,6 +55,7 @@ logger = logging.getLogger("elengenix.active_fuzzer")
 @dataclass
 class BaselineResponse:
     """A 'normal' request response used as the comparison baseline."""
+
     status: int
     length: int
     elapsed_ms: float
@@ -66,16 +68,17 @@ class BaselineResponse:
 @dataclass
 class ResponseDelta:
     """Difference between a fuzzed response and the baseline."""
+
     status_changed: bool
     status_before: int
     status_after: int
-    length_diff: int           # payload_len - baseline_len
-    length_diff_pct: float     # 0.0-1.0
-    time_diff_ms: float        # payload_time - baseline_time
-    time_ratio: float          # payload_time / baseline_time
+    length_diff: int  # payload_len - baseline_len
+    length_diff_pct: float  # 0.0-1.0
+    time_diff_ms: float  # payload_time - baseline_time
+    time_ratio: float  # payload_time / baseline_time
     body_hash_changed: bool
-    error_indicator: bool      # 5xx response
-    auth_indicator: bool       # 4xx where baseline was 2xx/3xx
+    error_indicator: bool  # 5xx response
+    auth_indicator: bool  # 4xx where baseline was 2xx/3xx
     sql_error_in_body: bool
     reflection_indicator: bool  # payload text found in body
 
@@ -83,27 +86,29 @@ class ResponseDelta:
 @dataclass
 class FuzzResult:
     """One fuzz iteration: payload + response + delta + score."""
+
     payload: str
-    injection_point: str       # "param:q" / "path" / "header:User-Agent"
+    injection_point: str  # "param:q" / "path" / "header:User-Agent"
     method: str
     url: str
     status: int
     response_length: int
     elapsed_ms: float
     delta: ResponseDelta
-    score: float               # 0.0-1.0
-    is_interesting: bool       # score >= 0.5
-    reasoning: str             # human-readable explanation
-    body_snippet: str = ""     # first 200 chars of response body
+    score: float  # 0.0-1.0
+    is_interesting: bool  # score >= 0.5
+    reasoning: str  # human-readable explanation
+    body_snippet: str = ""  # first 200 chars of response body
 
 
 @dataclass
 class FuzzerConfig:
     """Tunable knobs for the active fuzzer."""
+
     timeout_seconds: float = 8.0
     max_retries: int = 2
-    rate_limit_cooldown: float = 1.5   # sleep after a 429
-    max_interesting: int = 50         # stop early after N interesting
+    rate_limit_cooldown: float = 1.5  # sleep after a 429
+    max_interesting: int = 50  # stop early after N interesting
     interesting_threshold: float = 0.5
     user_agent: str = "Elengenix/1.0 (Security Research)"
     follow_redirects: bool = False
@@ -223,7 +228,9 @@ def _detect_reflection(payload: str, body: str) -> bool:
     return needle in body
 
 
-def compute_delta(baseline: BaselineResponse, status: int, body: str, elapsed_ms: float) -> ResponseDelta:
+def compute_delta(
+    baseline: BaselineResponse, status: int, body: str, elapsed_ms: float
+) -> ResponseDelta:
     """Compute a ResponseDelta from a baseline + new response."""
     body_hash = hashlib.sha256(body.encode("utf-8", errors="replace")).hexdigest()
     length_diff = len(body) - baseline.length
@@ -279,7 +286,9 @@ def score_delta(delta: ResponseDelta, payload: str = "", body: str = "") -> Tupl
         reasons.append("SQL error signature in response body")
     if delta.time_ratio > 2.0 and delta.time_diff_ms > 500:
         score += 0.20
-        reasons.append(f"slow response ({delta.time_ratio:.1f}x baseline, {delta.time_diff_ms:.0f}ms slower)")
+        reasons.append(
+            f"slow response ({delta.time_ratio:.1f}x baseline, {delta.time_diff_ms:.0f}ms slower)"
+        )
     if delta.body_hash_changed and delta.length_diff_pct > 0.5:
         score += 0.15
         reasons.append(f"body length changed {delta.length_diff_pct:.0%}")
@@ -394,7 +403,9 @@ class ActiveFuzzer:
         baseline_params[param] = "baseline_normal_value"
         try:
             baseline = self.baseline_capture.capture(
-                url, method=method, params=baseline_params if method.upper() == "GET" else None,
+                url,
+                method=method,
+                params=baseline_params if method.upper() == "GET" else None,
                 body=urllib.parse.urlencode(baseline_params) if method.upper() == "POST" else None,
             )
         except Exception as e:
@@ -414,7 +425,8 @@ class ActiveFuzzer:
                 status, body, elapsed = self._send(url, "GET", params=fuzz_params)
             else:
                 status, body, elapsed = self._send(
-                    url, method,
+                    url,
+                    method,
                     body=urllib.parse.urlencode(fuzz_params),
                     headers={"Content-Type": "application/x-www-form-urlencoded"},
                 )
@@ -431,20 +443,22 @@ class ActiveFuzzer:
             if is_interesting:
                 interesting_count += 1
 
-            results.append(FuzzResult(
-                payload=payload,
-                injection_point=f"param:{param}",
-                method=method,
-                url=url,
-                status=status,
-                response_length=len(body),
-                elapsed_ms=elapsed,
-                delta=delta,
-                score=score,
-                is_interesting=is_interesting,
-                reasoning=reasoning,
-                body_snippet=body[:200],
-            ))
+            results.append(
+                FuzzResult(
+                    payload=payload,
+                    injection_point=f"param:{param}",
+                    method=method,
+                    url=url,
+                    status=status,
+                    response_length=len(body),
+                    elapsed_ms=elapsed,
+                    delta=delta,
+                    score=score,
+                    is_interesting=is_interesting,
+                    reasoning=reasoning,
+                    body_snippet=body[:200],
+                )
+            )
 
         return results
 
@@ -481,20 +495,22 @@ class ActiveFuzzer:
             score, reasoning = score_delta(delta, payload, body)
             is_interesting = score >= self.config.interesting_threshold
 
-            results.append(FuzzResult(
-                payload=payload,
-                injection_point="path",
-                method=method,
-                url=full_url,
-                status=status,
-                response_length=len(body),
-                elapsed_ms=elapsed,
-                delta=delta,
-                score=score,
-                is_interesting=is_interesting,
-                reasoning=reasoning,
-                body_snippet=body[:200],
-            ))
+            results.append(
+                FuzzResult(
+                    payload=payload,
+                    injection_point="path",
+                    method=method,
+                    url=full_url,
+                    status=status,
+                    response_length=len(body),
+                    elapsed_ms=elapsed,
+                    delta=delta,
+                    score=score,
+                    is_interesting=is_interesting,
+                    reasoning=reasoning,
+                    body_snippet=body[:200],
+                )
+            )
 
         return results
 
@@ -528,20 +544,22 @@ class ActiveFuzzer:
             score, reasoning = score_delta(delta, payload, body)
             is_interesting = score >= self.config.interesting_threshold
 
-            results.append(FuzzResult(
-                payload=payload,
-                injection_point=f"header:{header}",
-                method=method,
-                url=url,
-                status=status,
-                response_length=len(body),
-                elapsed_ms=elapsed,
-                delta=delta,
-                score=score,
-                is_interesting=is_interesting,
-                reasoning=reasoning,
-                body_snippet=body[:200],
-            ))
+            results.append(
+                FuzzResult(
+                    payload=payload,
+                    injection_point=f"header:{header}",
+                    method=method,
+                    url=url,
+                    status=status,
+                    response_length=len(body),
+                    elapsed_ms=elapsed,
+                    delta=delta,
+                    score=score,
+                    is_interesting=is_interesting,
+                    reasoning=reasoning,
+                    body_snippet=body[:200],
+                )
+            )
 
         return results
 
@@ -553,8 +571,14 @@ class ActiveFuzzer:
         interesting = [r for r in results if r.is_interesting]
         categories: Dict[str, int] = {}
         for r in interesting:
-            for signal in ("error_indicator", "auth_indicator", "sql_error_in_body",
-                          "time_diff_ms", "body_hash_changed", "reflection_indicator"):
+            for signal in (
+                "error_indicator",
+                "auth_indicator",
+                "sql_error_in_body",
+                "time_diff_ms",
+                "body_hash_changed",
+                "reflection_indicator",
+            ):
                 if signal == "error_indicator" and r.delta.error_indicator:
                     categories["server_error"] = categories.get("server_error", 0) + 1
                 elif signal == "auth_indicator" and r.delta.auth_indicator:
@@ -563,7 +587,11 @@ class ActiveFuzzer:
                     categories["sql_error"] = categories.get("sql_error", 0) + 1
                 elif signal == "reflection_indicator" and r.delta.reflection_indicator:
                     categories["reflection"] = categories.get("reflection", 0) + 1
-                elif signal == "body_hash_changed" and r.delta.body_hash_changed and r.delta.length_diff_pct > 0.5:
+                elif (
+                    signal == "body_hash_changed"
+                    and r.delta.body_hash_changed
+                    and r.delta.length_diff_pct > 0.5
+                ):
                     categories["body_diff"] = categories.get("body_diff", 0) + 1
 
         return {

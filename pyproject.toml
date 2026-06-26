@@ -15,3 +15,17 @@ testpaths = ["tests"]
 markers = [
     "integration: opt-in integration tests that hit real network/services (deselect with '-m \"not integration\"')",
 ]
+
+[tool.black]
+line-length = 100
+target-version = ["py310"]
+
+[tool.isort]
+profile = "black"
+line_length = 100
+known_first_party = ["tools", "agents", "tui", "commands"]
+
+[tool.flake8]
+max-line-length = 100
+ignore = ["E501", "W503", "E203"]
+exclude = ["venv", "__pycache__", ".git"]

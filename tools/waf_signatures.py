@@ -60,8 +60,7 @@ WAF_SIGNATURES = {
 }
 
 
-def detect_waf_from_response(headers: dict, body: str = "",
-                             cookies: dict = None) -> tuple:
+def detect_waf_from_response(headers: dict, body: str = "", cookies: dict = None) -> tuple:
     """
     Detect WAF from HTTP response characteristics.
 
@@ -103,8 +102,14 @@ def detect_waf_from_response(headers: dict, body: str = "",
                     break
 
         if matches > 0:
-            total_sigs = len(sigs.get("headers", [])) + len(sigs.get("body", [])) + len(sigs.get("cookies", []))
-            confidence = min(1.0, 0.4 + (0.3 * matches / max(1, total_sigs)) + (0.3 if matches >= 2 else 0))
+            total_sigs = (
+                len(sigs.get("headers", []))
+                + len(sigs.get("body", []))
+                + len(sigs.get("cookies", []))
+            )
+            confidence = min(
+                1.0, 0.4 + (0.3 * matches / max(1, total_sigs)) + (0.3 if matches >= 2 else 0)
+            )
 
         if confidence > best_confidence:
             best_confidence = confidence

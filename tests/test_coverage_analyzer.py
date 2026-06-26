@@ -1,4 +1,5 @@
 """tests/test_coverage_analyzer.py — M6 verification tests."""
+
 from __future__ import annotations
 
 import sys
@@ -13,6 +14,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 @pytest.fixture
 def analyzer(tmp_path):
     from tools.coverage_analyzer import CoverageAnalyzer
+
     db = tmp_path / "test_coverage.db"
     return CoverageAnalyzer(db_path=db)
 
@@ -43,9 +45,15 @@ def test_record_test_marks_coverage(analyzer):
     """Recording a test should mark that param slot as tested."""
     analyzer.record_endpoint("https://target.com/search", "GET", params=["q"])
     analyzer.record_test(
-        url="https://target.com/search", method="GET", tool="dalfox",
-        injection_point="param:q", payload="<script>", status=200, response_size=1234,
-        is_interesting=True, notes="XSS reflected"
+        url="https://target.com/search",
+        method="GET",
+        tool="dalfox",
+        injection_point="param:q",
+        payload="<script>",
+        status=200,
+        response_size=1234,
+        is_interesting=True,
+        notes="XSS reflected",
     )
     cov = analyzer.get_endpoint_coverage("https://target.com/search")
     assert cov["coverage_pct"] == 100.0
@@ -68,7 +76,9 @@ def test_get_untested_endpoints(analyzer):
 def test_get_undertested_params(analyzer):
     """Params tested < 2 times should appear as undertested."""
     analyzer.record_endpoint("https://target.com/api", "GET", params=["id"])
-    analyzer.record_test("https://target.com/api", "GET", "nuclei", "param:id", "1", 200, 100, False)
+    analyzer.record_test(
+        "https://target.com/api", "GET", "nuclei", "param:id", "1", 200, 100, False
+    )
     undertested = analyzer.get_undertested_params(min_tests=2)
     assert len(undertested) == 1
     assert undertested[0] == ("https://target.com/api", "param:id")
@@ -87,7 +97,7 @@ def test_coverage_report(analyzer):
     assert report.total_endpoints == 2
     assert report.total_param_slots == 3
     assert report.tested_param_slots == 2  # x (2x) + y (1x) = 2 unique params
-    assert report.coverage_pct == round(2/3 * 100, 1)
+    assert report.coverage_pct == round(2 / 3 * 100, 1)
     assert report.total_tests == 3
     assert report.interesting_findings == 1
     assert report.unique_tools_used == 2
@@ -108,7 +118,9 @@ def test_suggest_next_targets_untested_first(analyzer):
     assert "https://target.com/a" in urls  # has untested name
     # First suggestion should be highest priority (untested or high-value)
     assert suggestions[0]["priority"] in (0, 1)
-    print(f"[SUGGEST] {len(suggestions)} suggestions: {[(s['type'], s['url'], s['param']) for s in suggestions[:3]]}")
+    print(
+        f"[SUGGEST] {len(suggestions)} suggestions: {[(s['type'], s['url'], s['param']) for s in suggestions[:3]]}"
+    )
 
 
 def test_high_value_param_priority(analyzer):
@@ -155,8 +167,16 @@ def test_interesting_count(analyzer):
     """Interesting findings count should be accurate."""
     analyzer.record_endpoint("https://target.com/api", "GET", params=["id"])
     for i in range(5):
-        analyzer.record_test("https://target.com/api", "GET", "tool",
-                             "param:id", str(i), 200, 100, is_interesting=(i % 2 == 0))
+        analyzer.record_test(
+            "https://target.com/api",
+            "GET",
+            "tool",
+            "param:id",
+            str(i),
+            200,
+            100,
+            is_interesting=(i % 2 == 0),
+        )
     report = analyzer.get_coverage_report()
     assert report.interesting_findings == 3  # i=0,2,4
     assert report.total_tests == 5

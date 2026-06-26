@@ -12,15 +12,15 @@ import re
 import time
 from typing import Any, Callable, Dict, List, Optional
 
-from tools.universal_ai_client import AIMessage
-from tools.tool_registry import registry
-from tools.vector_memory import remember, get_context_for_ai
-from tools.governance import Governance
-from tools.universal_executor import get_universal_executor
-from tools.cvss_calculator import CVSSCalculator
-from tools.agent_reflection import AgentReflection
-from agents.agent_helpers import _get_now_context, _get_memory_profile_context
+from agents.agent_helpers import _get_memory_profile_context, _get_now_context
 from agents.agent_intent import analyze_intent
+from tools.agent_reflection import AgentReflection
+from tools.cvss_calculator import CVSSCalculator
+from tools.governance import Governance
+from tools.tool_registry import registry
+from tools.universal_ai_client import AIMessage
+from tools.universal_executor import get_universal_executor
+from tools.vector_memory import get_context_for_ai, remember
 
 logger = logging.getLogger("elengenix.agent")
 
@@ -52,9 +52,8 @@ def _format_preflight_context(findings: List[Dict[str, Any]]) -> str:
         f"The framework's pure-Python modules + PythonRecon have already gathered this data.",
         f"Total: {len(findings)} findings across {len(by_type)} categories.",
         "",
-        "Severity breakdown: " + ", ".join(
-            f"{k}={v}" for k, v in sorted(sev_count.items(), key=lambda x: -x[1])
-        ),
+        "Severity breakdown: "
+        + ", ".join(f"{k}={v}" for k, v in sorted(sev_count.items(), key=lambda x: -x[1])),
         "",
     ]
 
@@ -79,13 +78,15 @@ def _format_preflight_context(findings: List[Dict[str, Any]]) -> str:
             lines.append(f"  ... +{len(items) - 5} more")
         lines.append("")
 
-    lines.extend([
-        "**HOW TO USE THIS:**",
-        "- DO NOT re-discover these endpoints/params/ports — they're already in your context",
-        "- FOCUS on vulnerability confirmation: probe interesting params, test access controls, validate findings",
-        "- If a finding is already at a URL, run targeted checks (XSS, SQLi, auth) on THAT URL",
-        "- Use `read_file` to load `reports/preflight_<target>/elengenix_findings.json` for the full list",
-    ])
+    lines.extend(
+        [
+            "**HOW TO USE THIS:**",
+            "- DO NOT re-discover these endpoints/params/ports — they're already in your context",
+            "- FOCUS on vulnerability confirmation: probe interesting params, test access controls, validate findings",
+            "- If a finding is already at a URL, run targeted checks (XSS, SQLi, auth) on THAT URL",
+            "- Use `read_file` to load `reports/preflight_<target>/elengenix_findings.json` for the full list",
+        ]
+    )
 
     return "\n".join(lines)
 
@@ -220,7 +221,9 @@ Plus: Built-in Python scanners for SSRF, SSTI, XXE, Deserialization, GraphQL, CO
             return direct
         if has_thai:
             return "Hello! I am Elengenix AI, your security research assistant. How can I help you?"
-        return "Hello! I'm Elengenix AI, your security research assistant. How can I help you today?"
+        return (
+            "Hello! I'm Elengenix AI, your security research assistant. How can I help you today?"
+        )
 
     # ── Research mode (no target) ────────────────────────────────────────
     if intent == "research" and not target:
@@ -228,19 +231,37 @@ Plus: Built-in Python scanners for SSRF, SSTI, XXE, Deserialization, GraphQL, CO
 
     # ── Simple greeting fast-path (deterministic, no AI call) ────────────
     simple_greetings = [
-        "hi", "hello", "hey", "hiya", "yo",
-        "สวัสดี", "สวัสดีครับ", "สวัสดีค่ะ",
-        "หวัดดี", "หวัดดีครับ", "หวัดดีค่ะ",
-        "สัวสดี", "สวัส", "สวัดดี", "สวัสดีจ้า",
-        "ไง", "ไงครับ", "ไงค่ะ", "ไงจ้า", "ว่าไง",
-        "sawasdee", "sawasdee krub", "sawasdee krap",
+        "hi",
+        "hello",
+        "hey",
+        "hiya",
+        "yo",
+        "สวัสดี",
+        "สวัสดีครับ",
+        "สวัสดีค่ะ",
+        "หวัดดี",
+        "หวัดดีครับ",
+        "หวัดดีค่ะ",
+        "สัวสดี",
+        "สวัส",
+        "สวัดดี",
+        "สวัสดีจ้า",
+        "ไง",
+        "ไงครับ",
+        "ไงค่ะ",
+        "ไงจ้า",
+        "ว่าไง",
+        "sawasdee",
+        "sawasdee krub",
+        "sawasdee krap",
     ]
     simple_questions = ["how are you", "what can you do", "help", "?", "who are you"]
     normalized = user_input.lower().strip()
 
     starts_with_thai_greeting = any(
         normalized.replace(" ", "").startswith(g.replace(" ", ""))
-        for g in simple_greetings if re.search(r"[฀-๿]", g)
+        for g in simple_greetings
+        if re.search(r"[฀-๿]", g)
     )
     thai_only = bool(re.fullmatch(r"[\s฀-๿\.!?]+", user_input.strip()))
     is_thai_greeting = starts_with_thai_greeting or (
@@ -248,11 +269,16 @@ Plus: Built-in Python scanners for SSRF, SSTI, XXE, Deserialization, GraphQL, CO
     )
     is_short_thai_chat = thai_only and 0 < len(user_input.strip()) <= 8
     is_simple_query = (
-        any(normalized.startswith(g) for g in simple_greetings)
-        or any(q in normalized for q in simple_questions)
-        or is_thai_greeting
-        or is_short_thai_chat
-    ) and not is_security_task and not target and intent not in ("research", "scan")
+        (
+            any(normalized.startswith(g) for g in simple_greetings)
+            or any(q in normalized for q in simple_questions)
+            or is_thai_greeting
+            or is_short_thai_chat
+        )
+        and not is_security_task
+        and not target
+        and intent not in ("research", "scan")
+    )
 
     if is_simple_query:
         wants_thai = bool(re.search(r"[฀-๿]", user_input))
@@ -273,12 +299,19 @@ Contains Thai characters: {wants_thai}
 ### RESPONSE:
 Keep it short and conversational. No tools. No emojis."""
 
-        response = (client.chat([
-            AIMessage(role="system", content=simple_prompt),
-            AIMessage(role="user", content="Greeting"),
-        ]).content or "")
+        response = (
+            client.chat(
+                [
+                    AIMessage(role="system", content=simple_prompt),
+                    AIMessage(role="user", content="Greeting"),
+                ]
+            ).content
+            or ""
+        )
         if not response.strip():
-            return "Hello! How can I help you?" if wants_thai else "Hello! How can I help you today?"
+            return (
+                "Hello! How can I help you?" if wants_thai else "Hello! How can I help you today?"
+            )
         return response.strip()
 
     # ── Build mode-specific prompt ──────────────────────────────────────
@@ -326,10 +359,15 @@ Respond with JSON:
 
         # Get AI decision
         try:
-            response_text = client.chat([
-                AIMessage(role="system", content=step_prompt),
-                AIMessage(role="user", content="What is the next action?"),
-            ]).content or ""
+            response_text = (
+                client.chat(
+                    [
+                        AIMessage(role="system", content=step_prompt),
+                        AIMessage(role="user", content="What is the next action?"),
+                    ]
+                ).content
+                or ""
+            )
             consecutive_ai_failures = 0  # reset on success
         except Exception as e:
             consecutive_ai_failures += 1
@@ -347,7 +385,11 @@ Respond with JSON:
         # Parse JSON
         thought = ""
         try:
-            decision = json.loads(response_text) if response_text.startswith("{") else _extract_json_from_text(response_text)
+            decision = (
+                json.loads(response_text)
+                if response_text.startswith("{")
+                else _extract_json_from_text(response_text)
+            )
             if not decision:
                 action_data = {"type": "finish"}
             else:
@@ -390,6 +432,7 @@ Respond with JSON:
                 continue
             elif gate.decision == "needs_approval":
                 from ui_components import confirm
+
                 try:
                     approved = confirm(f"Run: {cmd[:80]}?", default=False)
                 except Exception:
@@ -403,8 +446,6 @@ Respond with JSON:
         result_obj = executor.execute_action({"type": action_type, "params": params})
         result = result_obj.output if result_obj.success else f"{result_obj.error}"
 
-
-
         _append_history(history, "assistant", f"[{action_type}] {result[:300]}")
 
         # Score findings
@@ -413,11 +454,13 @@ Respond with JSON:
             finding_type = params.get("tool", action_type)
             try:
                 score = calc.from_finding(finding_type, result[:200], result[:500], {})
-                all_findings.append({
-                    "type": finding_type,
-                    "severity": score.severity.value,
-                    "cvss": score.base_score,
-                })
+                all_findings.append(
+                    {
+                        "type": finding_type,
+                        "severity": score.severity.value,
+                        "cvss": score.base_score,
+                    }
+                )
             except Exception:
                 pass
 
@@ -456,6 +499,7 @@ Respond with JSON:
 
 # ── Helper functions ────────────────────────────────────────────────────
 
+
 def _build_chat_messages(
     conversation_history: List[Dict[str, str]],
     system_prompt: str,
@@ -469,9 +513,7 @@ def _build_chat_messages(
     return messages
 
 
-def _append_history(
-    history: List[Dict[str, str]], role: str, content: str
-) -> None:
+def _append_history(history: List[Dict[str, str]], role: str, content: str) -> None:
     """Append to an in-memory conversation history list."""
     history.append({"role": role, "content": content})
 
@@ -559,13 +601,21 @@ def _build_bug_bounty_prompt(
             pass
 
     tools_list_str = "\n".join(tool_descriptions)
-    available_list = "\n".join(
-        [f"  - {s.name}: {s.description}" for s in available_skills]
-    ) if available_skills else "  (No additional tools registered)"
-    missing_list = "\n".join(
-        [f"  - {s.name}: {s.description} [MISSING - install: {s.install_command}]"
-         for s in missing_skills[:5]]
-    ) if missing_skills else ""
+    available_list = (
+        "\n".join([f"  - {s.name}: {s.description}" for s in available_skills])
+        if available_skills
+        else "  (No additional tools registered)"
+    )
+    missing_list = (
+        "\n".join(
+            [
+                f"  - {s.name}: {s.description} [MISSING - install: {s.install_command}]"
+                for s in missing_skills[:5]
+            ]
+        )
+        if missing_skills
+        else ""
+    )
 
     return f"""You are an autonomous AI security researcher. Your mission: Find vulnerabilities on {target}
 

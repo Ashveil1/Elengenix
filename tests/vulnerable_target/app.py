@@ -20,16 +20,18 @@ Default port: 5555 (configurable via PORT env var)
 NEVER deploy this to production. NEVER expose to internet.
 For local scanner testing ONLY.
 """
+
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import sqlite3
 import threading
 import time
-from flask import Flask, request, jsonify, render_template_string, make_response
+
 import jwt
-import hashlib
+from flask import Flask, jsonify, make_response, render_template_string, request
 
 app = Flask(__name__)
 app.config["SECRET_KEY"] = "supersecretkey-12345"  # INTENTIONALLY WEAK
@@ -39,10 +41,12 @@ DB_PATH = "/tmp/elengenix_vuln.db"
 # DB SETUP
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 def _init_db():
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    c.executescript("""
+    c.executescript(
+        """
         DROP TABLE IF EXISTS users;
         DROP TABLE IF EXISTS comments;
         DROP TABLE IF EXISTS coupons;
@@ -72,7 +76,8 @@ def _init_db():
         INSERT INTO coupons (code, used, value) VALUES
             ('WELCOME50', 0, 50.0),
             ('SAVE10',    0, 10.0);
-    """)
+    """
+    )
     conn.commit()
     conn.close()
 
@@ -90,6 +95,7 @@ def _db():
 # VULN 1: SQL Injection — login form (string concatenation)
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 @app.route("/login", methods=["POST"])
 def login_sqli():
     username = request.form.get("username", "")
@@ -102,11 +108,15 @@ def login_sqli():
     if row:
         # Set session cookie properly
         session_id = f"session_{row['id']}_{hashlib.md5(username.encode()).hexdigest()[:8]}"
-        resp = make_response(jsonify({
-            "status": "ok",
-            "user": dict(row),
-            "token": session_id,
-        }))
+        resp = make_response(
+            jsonify(
+                {
+                    "status": "ok",
+                    "user": dict(row),
+                    "token": session_id,
+                }
+            )
+        )
         resp.set_cookie("session_id", session_id, httponly=False, samesite="Lax")
         return resp
     return jsonify({"status": "fail", "query": query}), 401  # echoes query (debug leak)
@@ -115,6 +125,7 @@ def login_sqli():
 # ═══════════════════════════════════════════════════════════════════════════
 # VULN 2: Reflected XSS — search
 # ═══════════════════════════════════════════════════════════════════════════
+
 
 @app.route("/search")
 def search_xss():
@@ -127,6 +138,7 @@ def search_xss():
 # ═══════════════════════════════════════════════════════════════════════════
 # VULN 3: Stored XSS — comments
 # ═══════════════════════════════════════════════════════════════════════════
+
 
 @app.route("/comments", methods=["GET", "POST"])
 def comments():
@@ -152,6 +164,7 @@ def comments():
 # VULN: Authenticated BOLA — /api/user/<id> accessible to any logged-in user
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 @app.route("/api/user/<int:user_id>")
 def user_profile_idor(user_id):
     # Check session cookie OR Authorization header
@@ -172,6 +185,7 @@ def user_profile_idor(user_id):
 # VULN 5: Mass Assignment — registration accepts role parameter
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 @app.route("/register", methods=["POST"])
 def register_mass_assign():
     data = request.get_json() or {}
@@ -185,7 +199,7 @@ def register_mass_assign():
         conn = _db()
         conn.execute(
             "INSERT INTO users (username, password, email, role, balance) VALUES (?,?,?,?,?)",
-            (username, password, email, role, balance)
+            (username, password, email, role, balance),
         )
         conn.commit()
         conn.close()
@@ -197,6 +211,7 @@ def register_mass_assign():
 # ═══════════════════════════════════════════════════════════════════════════
 # VULN 6: SSTI — template injection
 # ═══════════════════════════════════════════════════════════════════════════
+
 
 @app.route("/render")
 def render_ssti():
@@ -210,12 +225,15 @@ def render_ssti():
 # VULN 7: JWT alg=none acceptance
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 @app.route("/api/jwt/verify", methods=["POST"])
 def jwt_verify():
     token = request.get_json().get("token", "")
     try:
         # VULNERABLE: algorithms not pinned — accepts alg=none
-        payload = jwt.decode(token, options={"verify_signature": False}, algorithms=["HS256", "RS256", "none"])
+        payload = jwt.decode(
+            token, options={"verify_signature": False}, algorithms=["HS256", "RS256", "none"]
+        )
         return jsonify({"valid": True, "payload": payload})
     except Exception as e:
         return jsonify({"valid": False, "error": str(e)}), 401
@@ -231,6 +249,7 @@ def jwt_issue():
 # VULN 8: Prototype pollution — JSON merge
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 @app.route("/api/merge", methods=["POST"])
 def proto_pollution():
     # VULNERABLE: naive deep merge with __proto__
@@ -244,6 +263,7 @@ def proto_pollution():
             else:
                 target[k] = v
         return target
+
     data = request.get_json() or {}
     result = merge({}, data)
     return jsonify({"merged": result})
@@ -252,6 +272,7 @@ def proto_pollution():
 # ═══════════════════════════════════════════════════════════════════════════
 # VULN 9: Race condition — single-use coupon
 # ═══════════════════════════════════════════════════════════════════════════
+
 
 @app.route("/api/coupon/redeem", methods=["POST"])
 def coupon_redeem():
@@ -272,6 +293,7 @@ def coupon_redeem():
 # ═══════════════════════════════════════════════════════════════════════════
 # VULN 10: Path traversal — file download
 # ═══════════════════════════════════════════════════════════════════════════
+
 
 @app.route("/download")
 def download_traversal():
@@ -298,25 +320,28 @@ def download_traversal():
 # HEALTH & INFO
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 @app.route("/")
 def index():
-    return jsonify({
-        "app": "Elengenix Vulnerable Test Target",
-        "version": "1.0.0",
-        "vulnerabilities": [
-            "SQL Injection: POST /login",
-            "Reflected XSS: GET /search?q=",
-            "Stored XSS: POST /comments",
-            "IDOR: GET /api/user/<id>",
-            "Mass Assignment: POST /register",
-            "SSTI: GET /render?template=",
-            "JWT alg=none: POST /api/jwt/verify",
-            "Prototype Pollution: POST /api/merge",
-            "Race Condition: POST /api/coupon/redeem",
-            "Path Traversal: GET /download?file=",
-        ],
-        "warning": "FOR LOCAL TESTING ONLY — DO NOT EXPOSE",
-    })
+    return jsonify(
+        {
+            "app": "Elengenix Vulnerable Test Target",
+            "version": "1.0.0",
+            "vulnerabilities": [
+                "SQL Injection: POST /login",
+                "Reflected XSS: GET /search?q=",
+                "Stored XSS: POST /comments",
+                "IDOR: GET /api/user/<id>",
+                "Mass Assignment: POST /register",
+                "SSTI: GET /render?template=",
+                "JWT alg=none: POST /api/jwt/verify",
+                "Prototype Pollution: POST /api/merge",
+                "Race Condition: POST /api/coupon/redeem",
+                "Path Traversal: GET /download?file=",
+            ],
+            "warning": "FOR LOCAL TESTING ONLY — DO NOT EXPOSE",
+        }
+    )
 
 
 @app.route("/health")

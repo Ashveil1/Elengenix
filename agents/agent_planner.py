@@ -14,14 +14,14 @@ from __future__ import annotations
 
 import logging
 import re
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any  # re-export for type hints
+from typing import Dict, List, Optional, Tuple
 
-from tools.universal_ai_client import AIClientManager, AIMessage
-from tools.cvss_calculator import CVSSCalculator
-from tools.tool_registry import ToolResult
 from agents.agent_dataclasses import AttackPhase, AttackStep, AttackTree
 from agents.agent_helpers import _extract_json_object
-from typing import Any  # re-export for type hints
+from tools.cvss_calculator import CVSSCalculator
+from tools.tool_registry import ToolResult
+from tools.universal_ai_client import AIClientManager, AIMessage
 
 logger = logging.getLogger("elengenix.agent")
 
@@ -271,15 +271,19 @@ AttackHypothesis = Tuple[str, str, Tuple[str, ...]]
 
 VULN_BY_STACK: Dict[str, List[AttackHypothesis]] = {
     "php": [
-        ("sqli", "PHP+MySQL combination is the #1 source of SQLi", ("_ext_scanner","_ext_fuzzer","_ext_sqli")),
-        ("lfi", "PHP LFI/RFI is endemic", ("_ext_fuzzer","_ext_scanner")),
+        (
+            "sqli",
+            "PHP+MySQL combination is the #1 source of SQLi",
+            ("_ext_scanner", "_ext_fuzzer", "_ext_sqli"),
+        ),
+        ("lfi", "PHP LFI/RFI is endemic", ("_ext_fuzzer", "_ext_scanner")),
         ("xxe", "PHP libxml_disable_entity_loader default ON pre-8.0 was off", ("_ext_scanner",)),
         ("rce", "PHP deserialization (unserialize) on session/cache", ("_ext_scanner",)),
         ("ssrf", "PHP curl/wrappers abused for SSRF", ("_ext_scanner",)),
         ("ssti", "Twig / Smarty template engines", ("_ext_scanner",)),
     ],
     "aspnet": [
-        ("sqli", "ASP.NET+MSSQL: classic SQLi via string concat", ("_ext_scanner","_ext_sqli")),
+        ("sqli", "ASP.NET+MSSQL: classic SQLi via string concat", ("_ext_scanner", "_ext_sqli")),
         ("xxe", "XmlDocument / DataSet parsing XXE", ("_ext_scanner",)),
         ("deser", "ViewState deserialization (YSOSerial)", ("_ext_scanner",)),
         ("auth_bypass", "FormsAuthentication cookie tampering", ("_ext_scanner",)),
@@ -328,13 +332,13 @@ VULN_BY_STACK: Dict[str, List[AttackHypothesis]] = {
     ],
     "cloudflare": [
         ("ssrf", "Cloudflare may obscure origin but not block SSRF", ("_ext_scanner",)),
-        ("origin", "Try Origin IP via DNS history (_ext_recon)", ("_ext_recon","_ext_scanner")),
+        ("origin", "Try Origin IP via DNS history (_ext_recon)", ("_ext_recon", "_ext_scanner")),
     ],
     "wordpress": [
         ("sqli", "WordPress plugin SQLi (nextgen, duplicator, etc.)", ("_ext_scanner",)),
         ("rce", "WordPress plugin RCE (revslider, mailpoet)", ("_ext_scanner",)),
         ("lfi", "Theme/plugin LFI", ("_ext_scanner",)),
-        ("auth_bypass", "wp-admin brute force", ("_ext_fuzzer","_ext_scanner")),
+        ("auth_bypass", "wp-admin brute force", ("_ext_fuzzer", "_ext_scanner")),
     ],
     "drupal": [
         ("rce", "Drupalgeddon / Drupalgeddon2 (CVE-2014-3704, CVE-2018-7600)", ("_ext_scanner",)),
@@ -439,16 +443,16 @@ VULN_BY_STACK: Dict[str, List[AttackHypothesis]] = {
         ("sqli", "NoSQL injection: $where, $ne, $regex", ("_ext_scanner",)),
     ],
     "mysql": [
-        ("sqli", "MySQL classic SQLi via string concat", ("_ext_scanner","_ext_sqli")),
+        ("sqli", "MySQL classic SQLi via string concat", ("_ext_scanner", "_ext_sqli")),
     ],
     "mssql": [
-        ("sqli", "MSSQL xp_cmdshell post-exploitation", ("_ext_scanner","_ext_sqli")),
+        ("sqli", "MSSQL xp_cmdshell post-exploitation", ("_ext_scanner", "_ext_sqli")),
     ],
     "postgres": [
-        ("sqli", "Postgres COPY / pg_sleep blind SQLi", ("_ext_scanner","_ext_sqli")),
+        ("sqli", "Postgres COPY / pg_sleep blind SQLi", ("_ext_scanner", "_ext_sqli")),
     ],
     "oracle": [
-        ("sqli", "Oracle DBMS_PIPE / UTL_HTTP abuse", ("_ext_scanner","_ext_sqli")),
+        ("sqli", "Oracle DBMS_PIPE / UTL_HTTP abuse", ("_ext_scanner", "_ext_sqli")),
     ],
     "redis": [
         ("ssrf", "Redis via gopher:// SSRF", ("_ext_scanner",)),
@@ -467,18 +471,67 @@ VULN_BY_STACK: Dict[str, List[AttackHypothesis]] = {
 
 # Reverse index: vuln_class -> set of relevant techs
 VULN_CLASS_TECH_HINTS: Dict[str, List[str]] = {
-    "sqli": ["php", "aspnet", "java", "python", "node", "ruby", "go",
-             "mysql", "mssql", "postgres", "oracle", "sqlite", "mongo", "wordpress", "magento"],
+    "sqli": [
+        "php",
+        "aspnet",
+        "java",
+        "python",
+        "node",
+        "ruby",
+        "go",
+        "mysql",
+        "mssql",
+        "postgres",
+        "oracle",
+        "sqlite",
+        "mongo",
+        "wordpress",
+        "magento",
+    ],
     "lfi": ["php", "java", "wordpress", "magento", "grafana"],
-    "rce": ["php", "aspnet", "java", "ruby", "wordpress", "drupal", "joomla", "magento",
-            "tomcat", "jenkins", "kibana", "phpmyadmin", "apache"],
+    "rce": [
+        "php",
+        "aspnet",
+        "java",
+        "ruby",
+        "wordpress",
+        "drupal",
+        "joomla",
+        "magento",
+        "tomcat",
+        "jenkins",
+        "kibana",
+        "phpmyadmin",
+        "apache",
+    ],
     "xxe": ["php", "aspnet", "java"],
-    "ssrf": ["php", "java", "python", "node", "go", "nginx", "cloudflare",
-             "azure", "redis", "django", "flask", "express"],
+    "ssrf": [
+        "php",
+        "java",
+        "python",
+        "node",
+        "go",
+        "nginx",
+        "cloudflare",
+        "azure",
+        "redis",
+        "django",
+        "flask",
+        "express",
+    ],
     "ssti": ["php", "python", "ruby", "java", "laravel", "django", "flask"],
     "deser": ["php", "aspnet", "java", "python", "ruby", "laravel", "rails"],
     "xss": ["jquery", "react", "vue", "angular"],
-    "auth_bypass": ["aspnet", "node", "wordpress", "tomcat", "graphql", "shopify", "phpmyadmin", "grafana"],
+    "auth_bypass": [
+        "aspnet",
+        "node",
+        "wordpress",
+        "tomcat",
+        "graphql",
+        "shopify",
+        "phpmyadmin",
+        "grafana",
+    ],
     "prototype_pollution": ["node", "express"],
     "path": ["nginx", "apache", "iis", "go"],
     "cache_poisoning": ["varnish"],
@@ -587,10 +640,12 @@ Available tools: Built-in Python scanners (SSRF, SSTI, XXE, Deserialization, Gra
 Respond with valid JSON only."""
 
         try:
-            response = self.client.chat([
-                AIMessage(role="system", content="Generate penetration testing strategy"),
-                AIMessage(role="user", content=planning_prompt),
-            ]).content
+            response = self.client.chat(
+                [
+                    AIMessage(role="system", content="Generate penetration testing strategy"),
+                    AIMessage(role="user", content=planning_prompt),
+                ]
+            ).content
 
             plan_data = _extract_json_object(response)
             if plan_data:
@@ -599,12 +654,14 @@ Respond with valid JSON only."""
                 for phase_data in plan_data.get("phases", []):
                     phase = AttackPhase(phase_data.get("phase", "recon"))
                     for tool_name in phase_data.get("tools", []):
-                        ai_steps.append(AttackStep(
-                            phase=phase,
-                            tool_name=tool_name,
-                            target=target,
-                            purpose=phase_data.get("purpose", ""),
-                        ))
+                        ai_steps.append(
+                            AttackStep(
+                                phase=phase,
+                                tool_name=tool_name,
+                                target=target,
+                                purpose=phase_data.get("purpose", ""),
+                            )
+                        )
                 # Merge: AI steps add value, don't duplicate
                 existing_tools = {s.tool_name for s in tree.steps}
                 for s in ai_steps:
@@ -647,9 +704,21 @@ Respond with valid JSON only."""
         hypotheses = self.vector_db.hypotheses_for(technologies)
         # Sort by severity
         severity_order = {
-            "rce": 0, "deser": 1, "sqli": 2, "ssrf": 3, "lfi": 4, "ssti": 5,
-            "xxe": 6, "xss": 7, "auth_bypass": 8, "prototype_pollution": 9,
-            "path": 10, "cache_poisoning": 11, "waf_bypass": 12, "origin": 13, "info": 14,
+            "rce": 0,
+            "deser": 1,
+            "sqli": 2,
+            "ssrf": 3,
+            "lfi": 4,
+            "ssti": 5,
+            "xxe": 6,
+            "xss": 7,
+            "auth_bypass": 8,
+            "prototype_pollution": 9,
+            "path": 10,
+            "cache_poisoning": 11,
+            "waf_bypass": 12,
+            "origin": 13,
+            "info": 14,
         }
         hypotheses = sorted(
             hypotheses,
@@ -682,12 +751,14 @@ Respond with valid JSON only."""
                 if tool in seen_tools:
                     continue
                 seen_tools.add(tool)
-                steps.append(AttackStep(
-                    phase=phase,
-                    tool_name=tool,
-                    target=target,
-                    purpose=f"[{vuln_class}] {hypothesis_text}",
-                ))
+                steps.append(
+                    AttackStep(
+                        phase=phase,
+                        tool_name=tool,
+                        target=target,
+                        purpose=f"[{vuln_class}] {hypothesis_text}",
+                    )
+                )
         return steps
 
     def _default_attack_tree(self, target: str, objective: str) -> AttackTree:
@@ -707,9 +778,11 @@ Respond with valid JSON only."""
         tree.steps = default_steps
         return tree
 
-    def select_next_tool(self, tree: AttackTree, previous_results: List[ToolResult]) -> Optional[str]:
+    def select_next_tool(
+        self, tree: AttackTree, previous_results: List[ToolResult]
+    ) -> Optional[str]:
         """Select the next tool to run based on previous results and attack tree.
-        
+
         Improved logic:
         1. Prioritize critical findings that need immediate action
         2. Consider the attack phase and dependencies
@@ -722,7 +795,7 @@ Respond with valid JSON only."""
             for finding in result.findings:
                 severity = finding.get("severity", "info")
                 finding_type = finding.get("type", "")
-                
+
                 # Critical findings - prioritize immediate action
                 if severity in ("critical", "high"):
                     if finding_type == "secret":
@@ -733,7 +806,7 @@ Respond with valid JSON only."""
                         return "sqli_test"
                     if finding_type in ("xss", "reflected_xss"):
                         return "xss_test"
-                
+
                 # Port-based decisions
                 if finding_type == "open_port":
                     port = finding.get("port", 0)
@@ -741,15 +814,15 @@ Respond with valid JSON only."""
                         return "service_scan"
                     if port in [80, 443, 8080, 3000]:
                         return "dir_scan"
-                
+
                 # API endpoints - enumerate parameters
                 if finding_type == "api_endpoint":
                     return "param_discovery"
-                
+
                 # Hidden parameters - test for XSS
                 if finding_type == "hidden_parameter":
                     return "xss_test"
-        
+
         # Then follow the attack tree phases in order
         phase_order = [
             AttackPhase.RECONNAISSANCE,
@@ -757,169 +830,192 @@ Respond with valid JSON only."""
             AttackPhase.ENUMERATION,
             AttackPhase.EXPLOITATION,
         ]
-        
+
         for phase in phase_order:
             for step in tree.steps:
                 if step.phase == phase and not step.completed:
                     # Check if dependencies are met
                     deps_met = True
                     for dep in step.depends_on:
-                        dep_step = next(
-                            (s for s in tree.steps if s.tool_name == dep),
-                            None
-                        )
+                        dep_step = next((s for s in tree.steps if s.tool_name == dep), None)
                         if dep_step and not dep_step.completed:
                             deps_met = False
                             break
-                    
+
                     if deps_met:
                         return step.tool_name
-        
+
         return None
 
     def adapt_strategy(self, tree: AttackTree, new_finding: Dict[str, Any]) -> List[AttackStep]:
         """Adapt the attack strategy based on new findings.
-        
+
         Expanded to handle more finding types and use learning from past missions.
         """
         additional_steps = []
         finding_type = new_finding.get("type", "")
         target_url = new_finding.get("url", tree.target)
-        
+
         # API endpoint discovered
         if finding_type == "api_endpoint":
-            additional_steps.append(AttackStep(
-                phase=AttackPhase.ENUMERATION,
-                tool_name="param_discovery",
-                target=target_url,
-                purpose="Discover API parameters",
-                depends_on=[],
-            ))
-            additional_steps.append(AttackStep(
-                phase=AttackPhase.SCANNING,
-                tool_name="vuln_scan",
-                target=target_url,
-                purpose="Scan API for vulnerabilities",
-                depends_on=["param_discovery"],
-            ))
-        
+            additional_steps.append(
+                AttackStep(
+                    phase=AttackPhase.ENUMERATION,
+                    tool_name="param_discovery",
+                    target=target_url,
+                    purpose="Discover API parameters",
+                    depends_on=[],
+                )
+            )
+            additional_steps.append(
+                AttackStep(
+                    phase=AttackPhase.SCANNING,
+                    tool_name="vuln_scan",
+                    target=target_url,
+                    purpose="Scan API for vulnerabilities",
+                    depends_on=["param_discovery"],
+                )
+            )
+
         # Subdomain discovered
         elif finding_type == "subdomain":
             subdomain = new_finding.get("subdomain", "")
             if subdomain:
-                additional_steps.append(AttackStep(
-                    phase=AttackPhase.SCANNING,
-                    tool_name="http_probe",
-                    target=subdomain,
-                    purpose=f"Probe new subdomain: {subdomain}",
-                    depends_on=[],
-                ))
-                additional_steps.append(AttackStep(
-                    phase=AttackPhase.EXPLOITATION,
-                    tool_name="vuln_scan",
-                    target=subdomain,
-                    purpose=f"Scan subdomain for vulnerabilities: {subdomain}",
-                    depends_on=["http_probe"],
-                ))
-        
+                additional_steps.append(
+                    AttackStep(
+                        phase=AttackPhase.SCANNING,
+                        tool_name="http_probe",
+                        target=subdomain,
+                        purpose=f"Probe new subdomain: {subdomain}",
+                        depends_on=[],
+                    )
+                )
+                additional_steps.append(
+                    AttackStep(
+                        phase=AttackPhase.EXPLOITATION,
+                        tool_name="vuln_scan",
+                        target=subdomain,
+                        purpose=f"Scan subdomain for vulnerabilities: {subdomain}",
+                        depends_on=["http_probe"],
+                    )
+                )
+
         # Hidden parameter discovered
         elif finding_type == "hidden_parameter":
-            additional_steps.append(AttackStep(
-                phase=AttackPhase.EXPLOITATION,
-                tool_name="xss_test",
-                target=target_url,
-                purpose="Test discovered parameters for XSS",
-                depends_on=[],
-            ))
-            additional_steps.append(AttackStep(
-                phase=AttackPhase.EXPLOITATION,
-                tool_name="sqli_test",
-                target=target_url,
-                purpose="Test parameters for SQLi and other injections",
-                depends_on=[],
-            ))
-        
+            additional_steps.append(
+                AttackStep(
+                    phase=AttackPhase.EXPLOITATION,
+                    tool_name="xss_test",
+                    target=target_url,
+                    purpose="Test discovered parameters for XSS",
+                    depends_on=[],
+                )
+            )
+            additional_steps.append(
+                AttackStep(
+                    phase=AttackPhase.EXPLOITATION,
+                    tool_name="sqli_test",
+                    target=target_url,
+                    purpose="Test parameters for SQLi and other injections",
+                    depends_on=[],
+                )
+            )
+
         # SQL injection found - escalate
         elif finding_type in ("sqli", "sql_injection"):
-            additional_steps.append(AttackStep(
-                phase=AttackPhase.EXPLOITATION,
-                tool_name="sqli_test",
-                target=target_url,
-                purpose="Deep SQLi analysis and exploitation",
-                depends_on=[],
-            ))
-        
+            additional_steps.append(
+                AttackStep(
+                    phase=AttackPhase.EXPLOITATION,
+                    tool_name="sqli_test",
+                    target=target_url,
+                    purpose="Deep SQLi analysis and exploitation",
+                    depends_on=[],
+                )
+            )
+
         # XSS found - check for stored XSS
         elif finding_type in ("xss", "reflected_xss"):
-            additional_steps.append(AttackStep(
-                phase=AttackPhase.EXPLOITATION,
-                tool_name="xss_test",
-                target=target_url,
-                purpose="Test for stored XSS variants",
-                depends_on=[],
-            ))
-        
+            additional_steps.append(
+                AttackStep(
+                    phase=AttackPhase.EXPLOITATION,
+                    tool_name="xss_test",
+                    target=target_url,
+                    purpose="Test for stored XSS variants",
+                    depends_on=[],
+                )
+            )
+
         # LFI/RFI found - check for RCE
         elif finding_type in ("lfi", "rfi", "path_traversal"):
-            additional_steps.append(AttackStep(
-                phase=AttackPhase.EXPLOITATION,
-                tool_name="vuln_scan",
-                target=target_url,
-                purpose="Test for RCE via LFI/RFI",
-                depends_on=[],
-            ))
-        
+            additional_steps.append(
+                AttackStep(
+                    phase=AttackPhase.EXPLOITATION,
+                    tool_name="vuln_scan",
+                    target=target_url,
+                    purpose="Test for RCE via LFI/RFI",
+                    depends_on=[],
+                )
+            )
+
         # RCE found - document and report
         elif finding_type in ("rce", "remote_code_execution"):
             # RCE is critical - no further exploitation needed, just document
             pass
-        
+
         # Open port with services
         elif finding_type == "open_port":
             port = new_finding.get("port", 0)
             service = new_finding.get("service", "")
             # Database ports - check for injection
             if port in [3306, 5432, 6379, 27017]:
-                additional_steps.append(AttackStep(
-                    phase=AttackPhase.EXPLOITATION,
-                    tool_name="service_scan",
-                    target=target_url,
-                    purpose=f"Test {service} service on port {port}",
-                    depends_on=[],
-                ))
+                additional_steps.append(
+                    AttackStep(
+                        phase=AttackPhase.EXPLOITATION,
+                        tool_name="service_scan",
+                        target=target_url,
+                        purpose=f"Test {service} service on port {port}",
+                        depends_on=[],
+                    )
+                )
             # Web ports - scan for vulnerabilities
             elif port in [80, 443, 8080, 8443, 3000, 5000]:
-                additional_steps.append(AttackStep(
-                    phase=AttackPhase.SCANNING,
-                    tool_name="vuln_scan",
-                    target=f"{target_url}:{port}",
-                    purpose=f"Scan web service on port {port}",
-                    depends_on=[],
-                ))
-        
+                additional_steps.append(
+                    AttackStep(
+                        phase=AttackPhase.SCANNING,
+                        tool_name="vuln_scan",
+                        target=f"{target_url}:{port}",
+                        purpose=f"Scan web service on port {port}",
+                        depends_on=[],
+                    )
+                )
+
         # Secret found - investigate
         elif finding_type == "secret":
             severity = new_finding.get("severity", "info")
             if severity in ("critical", "high"):
-                additional_steps.append(AttackStep(
-                    phase=AttackPhase.EXPLOITATION,
-                    tool_name="secret_scan",
-                    target=target_url,
-                    purpose="Deep secret scan for additional credentials",
-                    depends_on=[],
-                ))
-        
+                additional_steps.append(
+                    AttackStep(
+                        phase=AttackPhase.EXPLOITATION,
+                        tool_name="secret_scan",
+                        target=target_url,
+                        purpose="Deep secret scan for additional credentials",
+                        depends_on=[],
+                    )
+                )
+
         # WAF detected - plan bypass
         elif finding_type == "waf_detected":
             waf_name = new_finding.get("waf_name", "unknown")
-            additional_steps.append(AttackStep(
-                phase=AttackPhase.SCANNING,
-                tool_name="waf_bypass",
-                target=target_url,
-                purpose=f"Test {waf_name} bypass techniques",
-                depends_on=[],
-            ))
-        
+            additional_steps.append(
+                AttackStep(
+                    phase=AttackPhase.SCANNING,
+                    tool_name="waf_bypass",
+                    target=target_url,
+                    purpose=f"Test {waf_name} bypass techniques",
+                    depends_on=[],
+                )
+            )
+
         tree.steps.extend(additional_steps)
         return additional_steps
 

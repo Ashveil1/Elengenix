@@ -10,6 +10,7 @@ Verifies ActiveFuzzer can:
   7. Summarize results
   8. Generate realistic timing deltas (time-based blind detection)
 """
+
 from __future__ import annotations
 
 import sys
@@ -25,6 +26,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 # ── Mock server that returns different responses based on payload ──
 
+
 class MockVulnServer(BaseHTTPRequestHandler):
     """Mock server with multiple vuln scenarios.
 
@@ -36,11 +38,13 @@ class MockVulnServer(BaseHTTPRequestHandler):
       /auth              — 200 if no payload, 403 if payload contains 'admin'
       /ratelimit         — 429 if User-Agent is "tester"
     """
+
     SLEEP_TRIGGER = "SLEEP"
 
     def do_GET(self):
         path, _, query = self.path.partition("?")
         from urllib.parse import parse_qs
+
         params = parse_qs(query)
         payload = params.get("q", [""])[0]
         ua = self.headers.get("User-Agent", "")
@@ -94,20 +98,25 @@ def mock_server():
 
 # ── Tests ──
 
+
 def test_baseline_capture(mock_server):
     from tools.active_fuzzer import BaselineCapture
+
     cap = BaselineCapture()
     bl = cap.capture(f"{mock_server}/normal")
     assert bl.status == 200
     assert "OK normal" in bl.body
     assert bl.length > 0
     assert bl.body_hash
-    print(f"[BASELINE] status={bl.status} len={bl.length} time={bl.elapsed_ms:.1f}ms hash={bl.body_hash[:12]}")
+    print(
+        f"[BASELINE] status={bl.status} len={bl.length} time={bl.elapsed_ms:.1f}ms hash={bl.body_hash[:12]}"
+    )
 
 
 def test_active_fuzzer_detects_5xx_error(mock_server):
     """5xx response to a payload should score as interesting."""
     from tools.active_fuzzer import ActiveFuzzer, FuzzerConfig
+
     fuzzer = ActiveFuzzer(FuzzerConfig(timeout_seconds=5, interesting_threshold=0.3))
     results = fuzzer.fuzz_parameter(
         f"{mock_server}/sqli", "q", ["normal", "admin' OR '1'='1", "x'y"]
@@ -123,10 +132,9 @@ def test_active_fuzzer_detects_5xx_error(mock_server):
 def test_active_fuzzer_detects_sql_error_signature(mock_server):
     """SQL error pattern in body should bump score."""
     from tools.active_fuzzer import ActiveFuzzer
+
     fuzzer = ActiveFuzzer()
-    results = fuzzer.fuzz_parameter(
-        f"{mock_server}/sqli", "q", ["'", "x", "y"]
-    )
+    results = fuzzer.fuzz_parameter(f"{mock_server}/sqli", "q", ["'", "x", "y"])
     sql_err_results = [r for r in results if r.delta.sql_error_in_body]
     assert len(sql_err_results) >= 1, f"Expected SQL error detection, got {len(sql_err_results)}"
     top = sql_err_results[0]
@@ -138,6 +146,7 @@ def test_active_fuzzer_detects_sql_error_signature(mock_server):
 def test_active_fuzzer_detects_reflection(mock_server):
     """Payload echoed in response should be marked as reflected."""
     from tools.active_fuzzer import ActiveFuzzer
+
     fuzzer = ActiveFuzzer()
     results = fuzzer.fuzz_parameter(
         f"{mock_server}/reflect", "q", ["hello world", "<script>alert(1)</script>", "test"]
@@ -150,6 +159,7 @@ def test_active_fuzzer_detects_reflection(mock_server):
 def test_active_fuzzer_detects_auth_bypass(mock_server):
     """4xx where baseline was 2xx = broken access control indicator."""
     from tools.active_fuzzer import ActiveFuzzer
+
     fuzzer = ActiveFuzzer()
     results = fuzzer.fuzz_parameter(
         f"{mock_server}/auth", "q", ["user1", "admin", "admin' OR 1=1--"]
@@ -164,6 +174,7 @@ def test_active_fuzzer_detects_auth_bypass(mock_server):
 def test_active_fuzzer_detects_time_based(mock_server):
     """Slow response (>2x baseline, >500ms slower) should be flagged."""
     from tools.active_fuzzer import ActiveFuzzer
+
     fuzzer = ActiveFuzzer()
     results = fuzzer.fuzz_parameter(
         f"{mock_server}/timeblind", "q", ["normal", "1' AND SLEEP(2)--", "x"]
@@ -172,18 +183,19 @@ def test_active_fuzzer_detects_time_based(mock_server):
     assert len(slow_results) >= 1, f"Expected time-based detection, got {len(slow_results)}"
     top = slow_results[0]
     assert top.score > 0.0
-    print(f"[TIME] detected slow response: ratio={top.delta.time_ratio:.1f}x, diff={top.delta.time_diff_ms:.0f}ms")
+    print(
+        f"[TIME] detected slow response: ratio={top.delta.time_ratio:.1f}x, diff={top.delta.time_diff_ms:.0f}ms"
+    )
 
 
 def test_active_fuzzer_handles_429_backoff(mock_server):
     """Rate-limited requests should trigger backoff (no crash)."""
     from tools.active_fuzzer import ActiveFuzzer
+
     fuzzer = ActiveFuzzer()
     # Override user agent to trigger 429
     fuzzer.config.user_agent = "tester"
-    results = fuzzer.fuzz_parameter(
-        f"{mock_server}/ratelimit", "q", ["a", "b", "c"]
-    )
+    results = fuzzer.fuzz_parameter(f"{mock_server}/ratelimit", "q", ["a", "b", "c"])
     # Should not crash; all should be 429
     assert all(r.status == 429 for r in results)
     print(f"[429] all {len(results)} requests returned 429, backoff handled")
@@ -192,10 +204,9 @@ def test_active_fuzzer_handles_429_backoff(mock_server):
 def test_active_fuzzer_summary(mock_server):
     """Summary should aggregate findings by category."""
     from tools.active_fuzzer import ActiveFuzzer
+
     fuzzer = ActiveFuzzer()
-    results = fuzzer.fuzz_parameter(
-        f"{mock_server}/sqli", "q", ["normal", "x'y", "z'w"]
-    )
+    results = fuzzer.fuzz_parameter(f"{mock_server}/sqli", "q", ["normal", "x'y", "z'w"])
     summary = fuzzer.summarize(results)
     assert "total" in summary
     assert "interesting" in summary
@@ -207,10 +218,9 @@ def test_active_fuzzer_summary(mock_server):
 def test_fuzz_path(mock_server):
     """Path fuzzing should send each payload as a path segment."""
     from tools.active_fuzzer import ActiveFuzzer
+
     fuzzer = ActiveFuzzer()
-    results = fuzzer.fuzz_path(
-        f"{mock_server}/normal", ["admin", "test", "<script>"]
-    )
+    results = fuzzer.fuzz_path(f"{mock_server}/normal", ["admin", "test", "<script>"])
     assert len(results) == 3
     assert all(r.injection_point == "path" for r in results)
     print(f"[PATH] fuzzed {len(results)} paths, top score={max(r.score for r in results)}")
@@ -219,6 +229,7 @@ def test_fuzz_path(mock_server):
 def test_fuzz_header(mock_server):
     """Header fuzzing should send each payload as header value."""
     from tools.active_fuzzer import ActiveFuzzer
+
     fuzzer = ActiveFuzzer()
     # Use the ratelimit endpoint to verify header reaches server
     results = fuzzer.fuzz_header(
@@ -234,12 +245,21 @@ def test_fuzz_header(mock_server):
 
 def test_scoring_is_deterministic():
     """score_delta should give the same result for the same delta."""
-    from tools.active_fuzzer import score_delta, ResponseDelta
+    from tools.active_fuzzer import ResponseDelta, score_delta
+
     delta = ResponseDelta(
-        status_changed=True, status_before=200, status_after=500,
-        length_diff=50, length_diff_pct=0.1, time_diff_ms=100, time_ratio=1.5,
-        body_hash_changed=True, error_indicator=True, auth_indicator=False,
-        sql_error_in_body=False, reflection_indicator=False,
+        status_changed=True,
+        status_before=200,
+        status_after=500,
+        length_diff=50,
+        length_diff_pct=0.1,
+        time_diff_ms=100,
+        time_ratio=1.5,
+        body_hash_changed=True,
+        error_indicator=True,
+        auth_indicator=False,
+        sql_error_in_body=False,
+        reflection_indicator=False,
     )
     s1, r1 = score_delta(delta)
     s2, r2 = score_delta(delta)
@@ -251,12 +271,21 @@ def test_scoring_is_deterministic():
 
 def test_scoring_high_for_sql_error():
     """SQL error + 5xx = high score (>= 0.5)."""
-    from tools.active_fuzzer import score_delta, ResponseDelta
+    from tools.active_fuzzer import ResponseDelta, score_delta
+
     delta = ResponseDelta(
-        status_changed=True, status_before=200, status_after=500,
-        length_diff=200, length_diff_pct=0.8, time_diff_ms=200, time_ratio=1.5,
-        body_hash_changed=True, error_indicator=True, auth_indicator=False,
-        sql_error_in_body=True, reflection_indicator=False,
+        status_changed=True,
+        status_before=200,
+        status_after=500,
+        length_diff=200,
+        length_diff_pct=0.8,
+        time_diff_ms=200,
+        time_ratio=1.5,
+        body_hash_changed=True,
+        error_indicator=True,
+        auth_indicator=False,
+        sql_error_in_body=True,
+        reflection_indicator=False,
     )
     score, reasoning = score_delta(delta)
     assert score >= 0.5

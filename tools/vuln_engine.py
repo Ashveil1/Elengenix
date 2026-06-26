@@ -3,16 +3,18 @@ vuln_engine.py — Elengenix Next-Gen Vulnerability Detection Engine
 LLM-powered 0-day hunting, exploit chain builder, supply chain analysis.
 Version: 1.0.0
 """
+
 from __future__ import annotations
-import re
-import json
-import hashlib
-import logging
+
 import asyncio
+import hashlib
+import json
+import logging
+import re
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import List, Dict, Optional, Any, Tuple
 from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger("elengenix.vuln_engine")
 
@@ -20,34 +22,36 @@ logger = logging.getLogger("elengenix.vuln_engine")
 # 1. VULNERABILITY TAXONOMY
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 class VulnClass(Enum):
     """OWASP + beyond classifications."""
-    INJECTION        = "injection"          # SQLi, NoSQLi, LDAP, OS command
-    XSS              = "xss"                # Reflected, stored, DOM
-    AUTH_BROKEN      = "auth"               # Broken auth/session
-    SENSITIVE_DATA   = "sensitive"          # Data exposure
-    XXE              = "xxe"
-    BROKEN_ACCESS    = "access"             # IDOR, BOLA, BFLA
-    MISCONFIG        = "misconfig"
-    CSRF             = "csrf"
-    VULN_COMPONENTS  = "components"         # Supply chain, CVE
-    LOGGING          = "logging"
-    SSRF             = "ssrf"
-    DESERIALIZATION  = "deserialization"
-    RACE_CONDITION   = "race"
-    BUSINESS_LOGIC   = "business"
-    API_ABUSE        = "api"
-    CRYPTO           = "crypto"
-    FILE_UPLOAD      = "upload"
+
+    INJECTION = "injection"  # SQLi, NoSQLi, LDAP, OS command
+    XSS = "xss"  # Reflected, stored, DOM
+    AUTH_BROKEN = "auth"  # Broken auth/session
+    SENSITIVE_DATA = "sensitive"  # Data exposure
+    XXE = "xxe"
+    BROKEN_ACCESS = "access"  # IDOR, BOLA, BFLA
+    MISCONFIG = "misconfig"
+    CSRF = "csrf"
+    VULN_COMPONENTS = "components"  # Supply chain, CVE
+    LOGGING = "logging"
+    SSRF = "ssrf"
+    DESERIALIZATION = "deserialization"
+    RACE_CONDITION = "race"
+    BUSINESS_LOGIC = "business"
+    API_ABUSE = "api"
+    CRYPTO = "crypto"
+    FILE_UPLOAD = "upload"
     SUBDOMAIN_TAKEOVER = "takeover"
-    JWT              = "jwt"
-    GRAPHQL          = "graphql"
-    WEBSOCKET        = "websocket"
+    JWT = "jwt"
+    GRAPHQL = "graphql"
+    WEBSOCKET = "websocket"
     PROTOTYPE_POLLUTION = "prototype"
     TEMPLATE_INJECTION = "ssti"
-    HTTP_SMUGGLING   = "smuggling"
-    CACHE_POISONING  = "cache"
-    ZERO_DAY         = "zeroday"            # Unknown/LLM-predicted
+    HTTP_SMUGGLING = "smuggling"
+    CACHE_POISONING = "cache"
+    ZERO_DAY = "zeroday"  # Unknown/LLM-predicted
 
     @property
     def cwe_ids(self) -> List[str]:
@@ -83,18 +87,21 @@ class VulnClass(Enum):
 
 
 class ExploitMaturity(Enum):
-    UNPROVEN     = "unproven"     # Theoretical
-    PROOF_OF_CONCEPT = "poc"      # Reproducible
-    FUNCTIONAL   = "functional"   # Weaponized
-    HIGH         = "high"         # Automated
+    UNPROVEN = "unproven"  # Theoretical
+    PROOF_OF_CONCEPT = "poc"  # Reproducible
+    FUNCTIONAL = "functional"  # Weaponized
+    HIGH = "high"  # Automated
+
 
 # ═══════════════════════════════════════════════════════════════════════════
 # 2. VULNERABILITY DATA MODEL
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 @dataclass
 class VulnFinding:
     """A confirmed or hypothesized vulnerability."""
+
     id: str = ""
     title: str = ""
     vuln_class: VulnClass = VulnClass.INJECTION
@@ -120,11 +127,14 @@ class VulnFinding:
 
     def __post_init__(self):
         if not self.id:
-            h = hashlib.sha256(f"{self.url}:{self.parameter}:{self.vuln_class.value}".encode()).hexdigest()[:12]
+            h = hashlib.sha256(
+                f"{self.url}:{self.parameter}:{self.vuln_class.value}".encode()
+            ).hexdigest()[:12]
             self.id = f"VULN-{h.upper()}"
         if not self.cwe and self.vuln_class:
             self.cwe = self.vuln_class.cwe_ids
         import time
+
         if not self.discovered_at:
             self.discovered_at = time.time()
 
@@ -157,6 +167,7 @@ class VulnFinding:
 # 3. PAYLOAD GENERATORS — Smart, context-aware
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 class PayloadGen:
     """Context-aware payload generation for various vuln classes."""
 
@@ -167,7 +178,7 @@ class PayloadGen:
             "1 AND 1=1",
             "1 AND 1=2",
             "1' OR '1'='1'--",
-            "1\" OR \"1\"=\"1\"--",
+            '1" OR "1"="1"--',
         ],
         "time": [
             "1' AND SLEEP(3)--",
@@ -191,24 +202,24 @@ class PayloadGen:
 
     XSS_PAYLOADS = {
         "reflected": [
-            '<script>alert(1)</script>',
+            "<script>alert(1)</script>",
             '"><script>alert(1)</script>',
             "'><script>alert(1)</script>",
-            '<img src=x onerror=alert(1)>',
-            '<svg onload=alert(1)>',
-            '<body onload=alert(1)>',
-            'javascript:alert(1)',
+            "<img src=x onerror=alert(1)>",
+            "<svg onload=alert(1)>",
+            "<body onload=alert(1)>",
+            "javascript:alert(1)",
             '"><img src=x onerror=alert(document.domain)>',
         ],
         "polyglot": [
-            'jaVasCript:/*-/*`/*\\`/*\'/*"/**/(/* */oNcLiCk=alert(1) )//',
+            "jaVasCript:/*-/*`/*\\`/*'/*\"/**/(/* */oNcLiCk=alert(1) )//",
             '"><svg/onload=alert(1)><!--',
             "'-alert(1)-'",
         ],
         "dom": [
-            '#<script>alert(1)</script>',
-            'javascript:void(0);alert(1)',
-            'data:text/html;base64,PHNjcmlwdD5hbGVydCgxKTwvc2NyaXB0Pg==',
+            "#<script>alert(1)</script>",
+            "javascript:void(0);alert(1)",
+            "data:text/html;base64,PHNjcmlwdD5hbGVydCgxKTwvc2NyaXB0Pg==",
         ],
     }
 
@@ -221,11 +232,11 @@ class PayloadGen:
         ],
         "freemarker": [
             "${7*7}",
-            "<#assign a=\"freemarker.template.utility.Execute\"?new()> ${a(\"id\")}",
+            '<#assign a="freemarker.template.utility.Execute"?new()> ${a("id")}',
         ],
         "twig": [
             "{{7*7}}",
-            "{{_self.env.registerUndefinedFilterCallback(\"exec\")}}{{_self.env.getFilter(\"id\")}}",
+            '{{_self.env.registerUndefinedFilterCallback("exec")}}{{_self.env.getFilter("id")}}',
         ],
     }
 
@@ -242,7 +253,7 @@ class PayloadGen:
         "http://localhost",
         "http://127.0.0.1",
         "http://169.254.169.254/latest/meta-data/",  # AWS metadata
-        "http://metadata.google.internal/",          # GCP
+        "http://metadata.google.internal/",  # GCP
         "http://100.100.100.200/latest/meta-data/",  # Alibaba
         "gopher://localhost:6379/_FLUSHALL",
         "file:///etc/passwd",
@@ -344,7 +355,9 @@ TECH_SIGNATURES = {
 }
 
 
-def fingerprint_tech(headers: Dict[str, str], body: str = "", url: str = "") -> List[Dict[str, str]]:
+def fingerprint_tech(
+    headers: Dict[str, str], body: str = "", url: str = ""
+) -> List[Dict[str, str]]:
     """Detect technology stack from response headers and body."""
     detected = []
     headers_lower = {k.lower(): v for k, v in headers.items()}
@@ -359,7 +372,8 @@ def fingerprint_tech(headers: Dict[str, str], body: str = "", url: str = "") -> 
                     if h_val and h_val in resp_v:
                         score += 2
                         m = re.search(r"[\d.]+", resp_v)
-                        if m: version = m.group()
+                        if m:
+                            version = m.group()
                     elif not h_val:
                         score += 1
         # Check meta tags
@@ -367,7 +381,8 @@ def fingerprint_tech(headers: Dict[str, str], body: str = "", url: str = "") -> 
             m = re.search(pattern, body, re.IGNORECASE)
             if m:
                 score += 3
-                if m.groups(): version = m.group(1)
+                if m.groups():
+                    version = m.group(1)
         if score >= 1:
             detected.append({"tech": tech, "score": score, "version": version})
     detected.sort(key=lambda x: -x["score"])
@@ -378,29 +393,35 @@ def fingerprint_tech(headers: Dict[str, str], body: str = "", url: str = "") -> 
 # 5. EXPLOIT CHAIN BUILDER — Combine vulns into kill chain
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 class KillChainPhase(Enum):
     """MITRE ATT&CK-inspired kill chain phases."""
-    RECON          = "recon"
-    WEAPONIZE      = "weaponize"
-    DELIVER        = "deliver"
-    EXPLOIT        = "exploit"
-    INSTALL        = "install"
-    C2             = "c2"
-    ACTIONS        = "actions"
-    OBJECTIVES     = "objectives"
+
+    RECON = "recon"
+    WEAPONIZE = "weaponize"
+    DELIVER = "deliver"
+    EXPLOIT = "exploit"
+    INSTALL = "install"
+    C2 = "c2"
+    ACTIONS = "actions"
+    OBJECTIVES = "objectives"
+
 
 @dataclass
 class ChainLink:
     """Single step in an exploit chain."""
+
     vuln_id: str
     phase: KillChainPhase
     description: str
     next_links: List[str] = field(default_factory=list)
     impact: str = ""
 
+
 @dataclass
 class ExploitChain:
     """Multi-step exploit path."""
+
     name: str
     target: str
     links: List[ChainLink] = field(default_factory=list)
@@ -419,7 +440,11 @@ class ExploitChain:
         return link
 
     def render(self) -> str:
-        lines = [f"═══ {self.name} ═══", f"Target: {self.target}", f"Risk: {self.risk_score:.1f}/10"]
+        lines = [
+            f"═══ {self.name} ═══",
+            f"Target: {self.target}",
+            f"Risk: {self.risk_score:.1f}/10",
+        ]
         for i, link in enumerate(self.links, 1):
             lines.append(f"  {i}. [{link.phase.value.upper()}] {link.description}")
             if link.impact:
@@ -463,13 +488,15 @@ def check_known_cves(tech: str, version: str) -> List[Dict]:
             for version_range, cve_data in version_map.items():
                 if _version_in_range(version, version_range):
                     for cve_id, desc, score in cve_data:
-                        cves.append({
-                            "cve": cve_id,
-                            "tech": tech_pattern,
-                            "version": version,
-                            "description": desc,
-                            "cvss": score,
-                        })
+                        cves.append(
+                            {
+                                "cve": cve_id,
+                                "tech": tech_pattern,
+                                "version": version,
+                                "description": desc,
+                                "cvss": score,
+                            }
+                        )
     return cves
 
 
@@ -510,7 +537,9 @@ Output JSON array of hypothesis objects:
 """
 
 
-async def llm_hypothesize_zero_day(target: str, tech: str, findings: List[Dict], ai_client=None) -> List[Dict]:
+async def llm_hypothesize_zero_day(
+    target: str, tech: str, findings: List[Dict], ai_client=None
+) -> List[Dict]:
     """Use LLM to generate zero-day hypotheses."""
     if not ai_client:
         return []
@@ -537,11 +566,12 @@ CVSS_WEIGHTS = {
     "AC": {"L": 0.77, "H": 0.44},
     "PR": {"N": 0.85, "L": 0.62, "H": 0.27},
     "UI": {"N": 0.85, "R": 0.62},
-    "S":  {"U": 6.42, "C": 7.52, "H": 8.22},
-    "C":  {"H": 0.56, "L": 0.22, "N": 0.0},
-    "I":  {"H": 0.56, "L": 0.22, "N": 0.0},
-    "A":  {"H": 0.56, "L": 0.22, "N": 0.0},
+    "S": {"U": 6.42, "C": 7.52, "H": 8.22},
+    "C": {"H": 0.56, "L": 0.22, "N": 0.0},
+    "I": {"H": 0.56, "L": 0.22, "N": 0.0},
+    "A": {"H": 0.56, "L": 0.22, "N": 0.0},
 }
+
 
 def calculate_cvss(vector: str) -> float:
     """Calculate CVSS v3.1 base score from vector string.
@@ -579,18 +609,31 @@ def calculate_cvss(vector: str) -> float:
 
 
 def severity_from_cvss(score: float) -> str:
-    if score >= 9.0: return "Critical"
-    if score >= 7.0: return "High"
-    if score >= 4.0: return "Medium"
-    if score >  0.0: return "Low"
+    if score >= 9.0:
+        return "Critical"
+    if score >= 7.0:
+        return "High"
+    if score >= 4.0:
+        return "Medium"
+    if score > 0.0:
+        return "Low"
     return "Informational"
 
 
 __all__ = [
-    "VulnClass", "ExploitMaturity", "VulnFinding",
-    "PayloadGen", "TECH_SIGNATURES", "fingerprint_tech",
-    "KillChainPhase", "ChainLink", "ExploitChain",
-    "KNOWN_CVES", "check_known_cves",
-    "llm_hypothesize_zero_day", "LLM_HYPOTHESIS_PROMPT",
-    "calculate_cvss", "severity_from_cvss",
+    "VulnClass",
+    "ExploitMaturity",
+    "VulnFinding",
+    "PayloadGen",
+    "TECH_SIGNATURES",
+    "fingerprint_tech",
+    "KillChainPhase",
+    "ChainLink",
+    "ExploitChain",
+    "KNOWN_CVES",
+    "check_known_cves",
+    "llm_hypothesize_zero_day",
+    "LLM_HYPOTHESIS_PROMPT",
+    "calculate_cvss",
+    "severity_from_cvss",
 ]

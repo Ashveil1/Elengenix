@@ -13,11 +13,13 @@ Dependencies:
     - rich
 """
 
-import yaml
-import questionary
 import logging
 from pathlib import Path
 from typing import Dict, List
+
+import questionary
+import yaml
+
 from ui_components import console
 
 logger = logging.getLogger("elengenix.wizard")
@@ -27,22 +29,34 @@ logger = logging.getLogger("elengenix.wizard")
 # ---------------------------------------------------------------------------
 
 PROVIDERS = [
-    "gemini", "openai", "anthropic", "groq", "openrouter",
-    "together", "mistral", "deepseek", "perplexity", "local", "skip"
+    "gemini",
+    "openai",
+    "anthropic",
+    "groq",
+    "openrouter",
+    "together",
+    "mistral",
+    "deepseek",
+    "perplexity",
+    "local",
+    "skip",
 ]
 
 # Preset model lists per provider (used as defaults when dynamic fetch is unavailable)
 DEFAULT_MODELS: Dict[str, List[str]] = {
-    "gemini":      ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"],
-    "openai":      ["gpt-4o-mini", "gpt-4o", "gpt-4-turbo", "gpt-3.5-turbo"],
-    "anthropic":   ["claude-3-5-sonnet-latest", "claude-3-haiku-20240307", "claude-3-opus-20240229"],
-    "groq":        ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "mixtral-8x7b-32768"],
-    "openrouter":  ["meta-llama/llama-3.1-70b-instruct", "anthropic/claude-3-haiku", "auto"],
-    "together":    ["meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo", "mistralai/Mixtral-8x7B-Instruct-v0.1"],
-    "mistral":     ["mistral-large-latest", "mistral-small-latest", "open-mixtral-8x7b"],
-    "deepseek":    ["deepseek-chat", "deepseek-coder"],
-    "perplexity":  ["llama-3.1-sonar-large-128k-online", "llama-3.1-sonar-small-128k-online"],
-    "local":       ["llama3.2", "llama3.1:8b", "mistral:7b", "codellama:7b"],
+    "gemini": ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"],
+    "openai": ["gpt-4o-mini", "gpt-4o", "gpt-4-turbo", "gpt-3.5-turbo"],
+    "anthropic": ["claude-3-5-sonnet-latest", "claude-3-haiku-20240307", "claude-3-opus-20240229"],
+    "groq": ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "mixtral-8x7b-32768"],
+    "openrouter": ["meta-llama/llama-3.1-70b-instruct", "anthropic/claude-3-haiku", "auto"],
+    "together": [
+        "meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo",
+        "mistralai/Mixtral-8x7B-Instruct-v0.1",
+    ],
+    "mistral": ["mistral-large-latest", "mistral-small-latest", "open-mixtral-8x7b"],
+    "deepseek": ["deepseek-chat", "deepseek-coder"],
+    "perplexity": ["llama-3.1-sonar-large-128k-online", "llama-3.1-sonar-small-128k-online"],
+    "local": ["llama3.2", "llama3.1:8b", "mistral:7b", "codellama:7b"],
 }
 
 
@@ -106,6 +120,7 @@ def _save_key_to_env(provider: str, api_key: str) -> None:
 # Main Wizard Flow
 # ---------------------------------------------------------------------------
 
+
 def main() -> None:
     """Run the interactive AI provider configuration wizard."""
     config_path = "config.yaml"
@@ -120,10 +135,7 @@ def main() -> None:
     console.print("\n[bold red]AI Provider Configuration Wizard[/bold red]\n")
 
     # Step 1: Select provider
-    provider = questionary.select(
-        "Select your AI Provider:",
-        choices=PROVIDERS
-    ).ask()
+    provider = questionary.select("Select your AI Provider:", choices=PROVIDERS).ask()
 
     if not provider or provider == "skip":
         console.print("[dim]Configuration skipped[/dim]")
@@ -143,10 +155,7 @@ def main() -> None:
     models = _get_models_for_provider(provider)
     choices = models + ["Custom (enter manually)"]
 
-    model = questionary.select(
-        f"Select model for {provider}:",
-        choices=choices
-    ).ask()
+    model = questionary.select(f"Select model for {provider}:", choices=choices).ask()
 
     if model == "Custom (enter manually)":
         model = questionary.text("Enter model identifier:").ask()
@@ -163,7 +172,9 @@ def main() -> None:
     # Note: API keys are stored in .env, not in config.yaml
 
     if _save_config(config, config_path):
-        console.print(f"\n[bold white][OK] {provider.upper()} configured with model: {model}[/bold white]")
+        console.print(
+            f"\n[bold white][OK] {provider.upper()} configured with model: {model}[/bold white]"
+        )
         console.print("[dim]API key saved to .env (not stored in config.yaml)[/dim]")
     else:
         console.print("[bold red][FAIL] Configuration could not be saved[/bold red]")

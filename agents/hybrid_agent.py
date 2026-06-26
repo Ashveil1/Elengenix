@@ -26,21 +26,21 @@ import shlex
 import time
 from typing import Any, Callable, Dict, List, Optional
 
-from tools.tool_registry import registry, ToolResult, ToolCategory
-from tools.universal_executor import UniversalExecutor
-from tools.governance import Governance
-from tools.vector_memory import remember, get_context_for_ai
-from tools.analysis_pipeline import AnalysisPipeline
-from tools.mission_state import MissionState, GraphNode, GraphEdge
-from tools.cvss_calculator import CVSSCalculator
-from tools.agent_reflection import get_reflection
-from tools.universal_ai_client import AIMessage
-from ui_components import console
 from agents.hybrid_prompts import (
-    HYBRID_STRATEGIST_PROMPT,
-    HYBRID_SPECIALIST_PROMPT,
     HYBRID_GOVERNANCE_RULES,
+    HYBRID_SPECIALIST_PROMPT,
+    HYBRID_STRATEGIST_PROMPT,
 )
+from tools.agent_reflection import get_reflection
+from tools.analysis_pipeline import AnalysisPipeline
+from tools.cvss_calculator import CVSSCalculator
+from tools.governance import Governance
+from tools.mission_state import GraphEdge, GraphNode, MissionState
+from tools.tool_registry import ToolCategory, ToolResult, registry
+from tools.universal_ai_client import AIMessage
+from tools.universal_executor import UniversalExecutor
+from tools.vector_memory import get_context_for_ai, remember
+from ui_components import console
 
 logger = logging.getLogger("elengenix.hybrid")
 
@@ -61,7 +61,7 @@ def _extract_json(text: str):
         ei = candidate.rfind(e)
         if si != -1 and ei > si:
             try:
-                return json.loads(candidate[si:ei + 1])
+                return json.loads(candidate[si : ei + 1])
             except json.JSONDecodeError:
                 continue
     raise ValueError(f"No valid JSON in response:\n{text[:500]}")
@@ -191,9 +191,9 @@ class HybridAgent:
             Configured AgentCouncil instance.
         """
         from agents.agent_council import AgentCouncil
-        from agents.strategist_agent import StrategistAgent
-        from agents.specialist_agent import SpecialistAgent
         from agents.critic_agent import CriticAgent
+        from agents.specialist_agent import SpecialistAgent
+        from agents.strategist_agent import StrategistAgent
 
         # Resolve clients: use dedicated if available, else fall back to self.client
         s_client = self._strategist_client or self.client
@@ -238,15 +238,18 @@ class HybridAgent:
         # Build context from memory and tools
         semantic_context = ""
         if self.enable_memory and self.target:
-            semantic_context = get_context_for_ai(
-                self.objective, self.target, max_memories=8
-            )
+            semantic_context = get_context_for_ai(self.objective, self.target, max_memories=8)
 
         available_tools = registry.list_available_tools()
-        tool_summary = "\n".join([
-            f"  {name} ({info['category']}) - {'[OK]' if info['available'] else '[FAIL] not installed'}"
-            for name, info in sorted(available_tools.items())
-        ]) or "  (no tools registered)"
+        tool_summary = (
+            "\n".join(
+                [
+                    f"  {name} ({info['category']}) - {'[OK]' if info['available'] else '[FAIL] not installed'}"
+                    for name, info in sorted(available_tools.items())
+                ]
+            )
+            or "  (no tools registered)"
+        )
 
         plan_context = (
             f"Mission Objective: {self.objective}\n"
@@ -259,10 +262,15 @@ class HybridAgent:
         prompt = f"{HYBRID_STRATEGIST_PROMPT}\n\n{plan_context}"
 
         try:
-            response = self.client.chat([
-                AIMessage(role="system", content=prompt),
-                AIMessage(role="user", content="Generate updated task plan."),
-            ]).content or ""
+            response = (
+                self.client.chat(
+                    [
+                        AIMessage(role="system", content=prompt),
+                        AIMessage(role="user", content="Generate updated task plan."),
+                    ]
+                ).content
+                or ""
+            )
             tasks = _extract_json(response)
             if isinstance(tasks, list):
                 self.tasks = tasks
@@ -319,7 +327,9 @@ class HybridAgent:
         if self.tasks:
             state_text += "\n[Tasks]\n"
             for i, t in enumerate(self.tasks):
-                state_text += f"  {i}. [{t.get('status','pending').upper()}] {t.get('description','')}\n"
+                state_text += (
+                    f"  {i}. [{t.get('status','pending').upper()}] {t.get('description','')}\n"
+                )
 
         if self.all_findings:
             state_text += f"\n[Findings so far: {len(self.all_findings)}]\n"
@@ -334,9 +344,9 @@ class HybridAgent:
 
         # Available tools
         available = registry.list_available_tools()
-        tool_line = ", ".join([
-            n for n, i in available.items() if i["available"]
-        ]) or "none installed"
+        tool_line = (
+            ", ".join([n for n, i in available.items() if i["available"]]) or "none installed"
+        )
         tool_summary = f"Available: {tool_line}"
 
         prompt = HYBRID_SPECIALIST_PROMPT.format(
@@ -347,9 +357,15 @@ class HybridAgent:
         )
 
         try:
-            response = self.client.chat([
-                AIMessage(role="user", content=prompt),
-            ], temperature=0.4).content or ""
+            response = (
+                self.client.chat(
+                    [
+                        AIMessage(role="user", content=prompt),
+                    ],
+                    temperature=0.4,
+                ).content
+                or ""
+            )
             return _extract_json(response)
         except ValueError as e:
             self._log(f"[Specialist] JSON parse error, retrying: {e}")
@@ -359,9 +375,15 @@ class HybridAgent:
                 '{"action": "run_command", "command": "echo retrying", "purpose": "retry"}'
             )
             try:
-                response = self.client.chat([
-                    AIMessage(role="user", content=prompt + "\n\n" + retry_prompt),
-                ], temperature=0.2).content or ""
+                response = (
+                    self.client.chat(
+                        [
+                            AIMessage(role="user", content=prompt + "\n\n" + retry_prompt),
+                        ],
+                        temperature=0.2,
+                    ).content
+                    or ""
+                )
                 return _extract_json(response)
             except Exception:
                 return None
@@ -389,13 +411,20 @@ class HybridAgent:
         # Try auto-install if tool is known but missing/unavailable
         try:
             import shutil
+
             if not shutil.which(tool_name):
-                from dependency_manager import TOOLS as INSTALLABLE_TOOLS, run_with_streaming, verify_and_advise
+                from dependency_manager import TOOLS as INSTALLABLE_TOOLS
+                from dependency_manager import run_with_streaming, verify_and_advise
+
                 if tool_name in INSTALLABLE_TOOLS:
-                    console.print(f"  [cyan][RUN] [INSTALL] Missing '{tool_name}'. Attempting auto-installation...[/cyan]")
+                    console.print(
+                        f"  [cyan][RUN] [INSTALL] Missing '{tool_name}'. Attempting auto-installation...[/cyan]"
+                    )
                     if run_with_streaming(INSTALLABLE_TOOLS[tool_name]):
                         if verify_and_advise(tool_name):
-                            console.print(f"  [white][OK] '{tool_name}' successfully installed and integrated[/white]")
+                            console.print(
+                                f"  [white][OK] '{tool_name}' successfully installed and integrated[/white]"
+                            )
                             # Refresh registry/tool status if possible
                             tool = registry.get_tool(tool_name)
                             if tool and tool.is_available:
@@ -465,10 +494,12 @@ class HybridAgent:
         query = decision.get("query", "")
         if not query:
             return
-        result = self.executor.execute_action({
-            "type": "search_web",
-            "params": {"query": query, "num_results": 5},
-        })
+        result = self.executor.execute_action(
+            {
+                "type": "search_web",
+                "params": {"query": query, "num_results": 5},
+            }
+        )
         if result.success:
             console.print(f"  [blue][INFO] Web: {query[:80]}[/blue]")
             console.print(f"  {result.output[:500]}")
@@ -485,9 +516,7 @@ class HybridAgent:
 
     # ── Execution Backends ──────────────────────────────────────────────
 
-    def _execute_registry_tool(
-        self, tool: Any, tool_name: str, cmd_target: str, cycle: int
-    ):
+    def _execute_registry_tool(self, tool: Any, tool_name: str, cmd_target: str, cycle: int):
         """Execute via ToolRegistry using the shared persistent event loop.
 
         Uses asyncio.run_coroutine_threadsafe() against the shared loop from
@@ -498,14 +527,13 @@ class HybridAgent:
 
         console.print(f"  [cyan][RUN] [{tool_name}] via ToolRegistry[/cyan]")
 
-        report_dir = (
-            Path("reports") / f"hybrid_{tool_name}_{int(time.time())}"
-        )
+        report_dir = Path("reports") / f"hybrid_{tool_name}_{int(time.time())}"
         report_dir.mkdir(parents=True, exist_ok=True)
 
         try:
             # Prefer the shared persistent event loop (avoids per-call loop cost)
             from tools.event_loop import get_shared_loop
+
             loop = get_shared_loop()
             sem = asyncio.Semaphore(3)
             timeout = getattr(getattr(tool, "metadata", None), "timeout_seconds", 180)
@@ -531,8 +559,6 @@ class HybridAgent:
 
         self._process_tool_result(result, tool_name, cmd_target, cycle)
 
-
-
     def _execute_shell_command(self, command: str, cycle: int):
         """Execute shell command with Governance gating."""
         # Governance check
@@ -544,19 +570,13 @@ class HybridAgent:
 
         if not gate.allowed:
             if gate.risk_level == "DESTRUCTIVE":
-                console.print(
-                    f"  [red][FAIL] BLOCKED: {gate.rationale}[/red]"
-                )
+                console.print(f"  [red][FAIL] BLOCKED: {gate.rationale}[/red]")
             else:
-                console.print(
-                    f"  [yellow][WARN] Requires approval: {command[:80]}[/yellow]"
-                )
+                console.print(f"  [yellow][WARN] Requires approval: {command[:80]}[/yellow]")
             return
 
         safe_name = command.split()[0] if command.split() else "shell"
-        console.print(
-            f"  [dim][RUN] [{safe_name}] via shell[/dim]"
-        )
+        console.print(f"  [dim][RUN] [{safe_name}] via shell[/dim]")
 
         result = self.executor.execute_shell(command, timeout=300)
 
@@ -565,9 +585,7 @@ class HybridAgent:
             if snippet:
                 console.print(f"  [dim]{snippet}[/dim]")
         else:
-            console.print(
-                f"  [red][FAIL] {result.error[:100]}[/red]"
-            )
+            console.print(f"  [red][FAIL] {result.error[:100]}[/red]")
 
         # Convert to ToolResult-like for analysis
         tool_result = ToolResult(
@@ -582,9 +600,7 @@ class HybridAgent:
 
     # ── Results & Analysis ─────────────────────────────────────────────
 
-    def _process_tool_result(
-        self, result: ToolResult, tool_name: str, target_str: str, cycle: int
-    ):
+    def _process_tool_result(self, result: ToolResult, tool_name: str, target_str: str, cycle: int):
         """Post-process a tool result: store findings, run analysis."""
         # Collect findings
         for f in result.findings:
@@ -592,9 +608,7 @@ class HybridAgent:
             self.all_findings.append(f)
 
         if result.findings:
-            console.print(
-                f"  [green][OK] {len(result.findings)} findings[/green]"
-            )
+            console.print(f"  [green][OK] {len(result.findings)} findings[/green]")
 
         # Persist to MissionState
         if self.mission_state and result.findings:
@@ -706,40 +720,48 @@ class HybridAgent:
                 if "template-id" in item or "template" in item:
                     info = item.get("info", {})
                     severity = info.get("severity", item.get("severity", "info")).lower()
-                    findings.append({
-                        "type": "vulnerability",
-                        "severity": severity,
-                        "title": f"Vulnerability: {info.get('name', item.get('template-id', 'finding'))}",
-                        "target": item.get("matched-at", item.get("host", "")),
-                        "url": item.get("matched-at", ""),
-                        "description": f"Template: {item.get('template-id')}. Matched: {item.get('matched-at') or item.get('host')}",
-                        "evidence": item.get("extracted-results", item.get("matcher-name", "")),
-                    })
+                    findings.append(
+                        {
+                            "type": "vulnerability",
+                            "severity": severity,
+                            "title": f"Vulnerability: {info.get('name', item.get('template-id', 'finding'))}",
+                            "target": item.get("matched-at", item.get("host", "")),
+                            "url": item.get("matched-at", ""),
+                            "description": f"Template: {item.get('template-id')}. Matched: {item.get('matched-at') or item.get('host')}",
+                            "evidence": item.get("extracted-results", item.get("matcher-name", "")),
+                        }
+                    )
 
                 # B. HTTP probe result format
                 elif "webserver" in item or "status-code" in item or "tech" in item:
-                    findings.append({
-                        "type": "http_probe",
-                        "severity": "info",
-                        "title": f"HTTP Probe: {item.get('url', 'host')} [{item.get('status-code', '')}]",
-                        "target": item.get("url", item.get("host", "")),
-                        "url": item.get("url", ""),
-                        "description": f"Server: {item.get('webserver', 'unknown')}. Tech: {', '.join(item.get('tech', []))}",
-                        "evidence": f"Title: {item.get('title', '')} | Status: {item.get('status-code')}",
-                    })
+                    findings.append(
+                        {
+                            "type": "http_probe",
+                            "severity": "info",
+                            "title": f"HTTP Probe: {item.get('url', 'host')} [{item.get('status-code', '')}]",
+                            "target": item.get("url", item.get("host", "")),
+                            "url": item.get("url", ""),
+                            "description": f"Server: {item.get('webserver', 'unknown')}. Tech: {', '.join(item.get('tech', []))}",
+                            "evidence": f"Title: {item.get('title', '')} | Status: {item.get('status-code')}",
+                        }
+                    )
 
                 # C. Generic security finding
-                elif any(k in item for k in ("vuln", "vulnerability", "finding", "issue", "severity")):
+                elif any(
+                    k in item for k in ("vuln", "vulnerability", "finding", "issue", "severity")
+                ):
                     severity = item.get("severity", "medium").lower()
-                    findings.append({
-                        "type": item.get("type", "generic_finding"),
-                        "severity": severity,
-                        "title": item.get("title", item.get("name", "Security Finding")),
-                        "target": item.get("target", item.get("url", "")),
-                        "url": item.get("url", ""),
-                        "description": item.get("description", item.get("message", "")),
-                        "evidence": json.dumps(item),
-                    })
+                    findings.append(
+                        {
+                            "type": item.get("type", "generic_finding"),
+                            "severity": severity,
+                            "title": item.get("title", item.get("name", "Security Finding")),
+                            "target": item.get("target", item.get("url", "")),
+                            "url": item.get("url", ""),
+                            "description": item.get("description", item.get("message", "")),
+                            "evidence": json.dumps(item),
+                        }
+                    )
 
             if findings:
                 return findings
@@ -753,24 +775,28 @@ class HybridAgent:
                 if line_str and not line_str.startswith("[") and "." in line_str:
                     hosts.append(line_str)
             if hosts:
-                findings.append({
-                    "type": "subdomains_discovered",
-                    "severity": "info",
-                    "title": f"Discovered {len(hosts)} subdomains",
-                    "description": f"Found: {', '.join(hosts[:10])}...",
-                    "evidence": "\n".join(hosts),
-                })
+                findings.append(
+                    {
+                        "type": "subdomains_discovered",
+                        "severity": "info",
+                        "title": f"Discovered {len(hosts)} subdomains",
+                        "description": f"Found: {', '.join(hosts[:10])}...",
+                        "evidence": "\n".join(hosts),
+                    }
+                )
                 return findings
 
         # Look for URLs in output
         urls = re.findall(r"https?://[^\s\"'>]+", output)
         if urls:
-            findings.append({
-                "type": "extracted_url",
-                "urls": urls[:20],
-                "count": len(urls),
-                "severity": "info",
-            })
+            findings.append(
+                {
+                    "type": "extracted_url",
+                    "urls": urls[:20],
+                    "count": len(urls),
+                    "severity": "info",
+                }
+            )
 
         # Look for potential credentials/keys
         keys = re.findall(
@@ -779,11 +805,13 @@ class HybridAgent:
             re.IGNORECASE,
         )
         if keys:
-            findings.append({
-                "type": "potential_secret",
-                "matches": keys[:5],
-                "severity": "high",
-            })
+            findings.append(
+                {
+                    "type": "potential_secret",
+                    "matches": keys[:5],
+                    "severity": "high",
+                }
+            )
 
         return findings
 
@@ -794,10 +822,9 @@ class HybridAgent:
         if len(self.action_history) < self.loop_threshold:
             return False
 
-        recent = self.action_history[-self.loop_threshold:]
+        recent = self.action_history[-self.loop_threshold :]
         signatures = [
-            (a.get("action", ""), str(a.get("command", a.get("tool", ""))))
-            for a in recent
+            (a.get("action", ""), str(a.get("command", a.get("tool", "")))) for a in recent
         ]
         if len(set(signatures)) == 1:
             return True
@@ -820,20 +847,24 @@ class HybridAgent:
                     json.dumps(f)[:200],
                     {},
                 )
-                scored.append({
-                    "tool": f.get("_tool", "?"),
-                    "type": f.get("type", "unknown"),
-                    "severity": score.severity.value,
-                    "cvss": score.base_score,
-                    "vector": score.vector_string,
-                })
+                scored.append(
+                    {
+                        "tool": f.get("_tool", "?"),
+                        "type": f.get("type", "unknown"),
+                        "severity": score.severity.value,
+                        "cvss": score.base_score,
+                        "vector": score.vector_string,
+                    }
+                )
             except Exception:
-                scored.append({
-                    "tool": f.get("_tool", "?"),
-                    "type": f.get("type", "unknown"),
-                    "severity": f.get("severity", "info"),
-                    "cvss": 0,
-                })
+                scored.append(
+                    {
+                        "tool": f.get("_tool", "?"),
+                        "type": f.get("type", "unknown"),
+                        "severity": f.get("severity", "info"),
+                        "cvss": 0,
+                    }
+                )
 
         # Sort by severity
         sev_order = {"Critical": 0, "High": 1, "Medium": 2, "Low": 3, "Info": 4}
@@ -856,9 +887,7 @@ class HybridAgent:
             lines.append("| Severity | Type | CVSS | Source |")
             lines.append("|----------|------|------|--------|")
             for s in scored:
-                lines.append(
-                    f"| {s['severity']} | {s['type']} | {s['cvss']:.1f} | {s['tool']} |"
-                )
+                lines.append(f"| {s['severity']} | {s['type']} | {s['cvss']:.1f} | {s['tool']} |")
         else:
             lines.append("\nNo structured findings recorded.")
 
@@ -897,6 +926,7 @@ class HybridAgent:
 
     def _agent_ref(self):
         """Return a minimal reference for AnalysisPipeline compatibility."""
+
         class _AgentRef:
             governance = self.governance
             payload_mutator = None
@@ -908,45 +938,54 @@ class HybridAgent:
             waf_detector = None
             logic_analyzer = None
             activity_logger = None
+
         ref = _AgentRef()
         try:
             from tools.payload_mutation import PayloadMutator, SmartPayloadGenerator
+
             ref.payload_mutator = PayloadMutator()
             ref.smart_payload_generator = SmartPayloadGenerator(seed=42)
         except Exception:
             pass
         try:
             from tools.active_fuzzer import ActiveFuzzer
+
             ref.active_fuzzer = ActiveFuzzer()
         except Exception:
             pass
         try:
             from tools.coverage_analyzer import CoverageAnalyzer
+
             ref.coverage_analyzer = CoverageAnalyzer()
         except Exception:
             pass
         try:
             from tools.learning_engine import LearningEngine
+
             ref.learning_engine = LearningEngine(use_chroma=False)
         except Exception:
             pass
         try:
             from tools.bola_tester import BOLATester
+
             ref.bola_tester = BOLATester()
         except Exception:
             pass
         try:
             from tools.waf_detector import SmartWAFDetector
+
             ref.waf_detector = SmartWAFDetector()
         except Exception:
             pass
         try:
             from tools.logic_analyzer import BusinessLogicAnalyzer
+
             ref.logic_analyzer = BusinessLogicAnalyzer(mission_state=self.mission_state)
         except Exception:
             pass
         try:
             from live_display import get_activity_logger
+
             ref.activity_logger = get_activity_logger()
         except Exception:
             pass

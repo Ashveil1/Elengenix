@@ -14,17 +14,18 @@ import os
 import re
 import sys
 from pathlib import Path
-from typing import List, Dict, Any
+from typing import Any, Dict, List
 
 # Safe import for nest_asyncio (for async compatibility)
 try:
     import nest_asyncio
+
     nest_asyncio.apply()
 except ImportError:
     pass  # nest_asyncio not available, but not critical for omni_scan
 
 from rich.panel import Panel
-from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn
+from rich.progress import BarColumn, Progress, SpinnerColumn, TextColumn
 from rich.table import Table
 
 # Make sure project root is on sys.path
@@ -32,15 +33,15 @@ project_root = Path(__file__).parent.parent
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
-from ui_components import console
 from bot_utils import send_telegram_notification
-from orchestrator import run_standard_scan, is_in_scope
-from tools.tool_registry import registry
+from orchestrator import is_in_scope, run_standard_scan
 from tools.cvss_calculator import CVSSCalculator
-from tools.reporter import generate_bug_report
 from tools.html_reporter import generate_html_report
+from tools.reporter import generate_bug_report
+from tools.tool_registry import registry
+from ui_components import console
 
-logger  = logging.getLogger("elengenix.omni_scan")
+logger = logging.getLogger("elengenix.omni_scan")
 
 _DOMAIN_RE = re.compile(r"^[a-zA-Z0-9.\-]+$")
 
@@ -58,11 +59,11 @@ def run_omni_scan(
     rate_limit: int = 5,
     use_new_tools: bool = True,
     enable_cvss: bool = True,
-    use_smart_scan: bool = False
+    use_smart_scan: bool = False,
 ) -> None:
     """
     CLI entry point. Runs the full pipeline synchronously (wraps async).
-    
+
     Args:
         target: Target domain or IP
         rate_limit: Max concurrent operations
@@ -84,19 +85,21 @@ def run_omni_scan(
     # Check available tools
     available_tools = registry.list_available_tools()
     tool_count = sum(1 for info in available_tools.values() if info["available"])
-    
-    console.print(Panel(
-        f"[bold red]  ELENGENIX FULL-SCALE MISSION v3.0[/bold red]\n"
-        f" Target: [red]{safe_target}[/red]\n"
-        f"  Tools Available: {tool_count}/{len(available_tools)}\n"
-        f" Rate Limit: {rate_limit} concurrent | CVSS: {'' if enable_cvss else ''}",
-        border_style="red",
-    ))
-    
+
+    console.print(
+        Panel(
+            f"[bold red]  ELENGENIX FULL-SCALE MISSION v3.0[/bold red]\n"
+            f" Target: [red]{safe_target}[/red]\n"
+            f"  Tools Available: {tool_count}/{len(available_tools)}\n"
+            f" Rate Limit: {rate_limit} concurrent | CVSS: {'' if enable_cvss else ''}",
+            border_style="red",
+        )
+    )
+
     if tool_count == 0:
         console.print("[grey70]  Warning: No tools available. Install required binaries.[/grey70]")
         console.print("[dim]Run: elengenix doctor[/dim]")
-    
+
     send_telegram_notification(f" Full scan initiated: `{safe_target}`")
 
     with Progress(
@@ -129,10 +132,10 @@ def run_omni_scan(
         return
 
     progress.update(task, description="Generating reports...")
-    
+
     # Load and process findings from registry results
     findings = _load_registry_findings(report_dir)
-    
+
     # Calculate CVSS if enabled
     cvss_scores = {}
     if enable_cvss and findings:
@@ -141,30 +144,36 @@ def run_omni_scan(
             score = cvss_calc.from_finding(
                 finding.get("type", "unknown"),
                 finding.get("url", safe_target),
-                finding.get("evidence", str(finding.get("details", "")))
+                finding.get("evidence", str(finding.get("details", ""))),
             )
             cvss_scores[i] = score
-        
+
         # Update findings with CVSS
         for i, finding in enumerate(findings):
             if i in cvss_scores:
                 finding["cvss_score"] = cvss_scores[i].base_score
-                finding["cvss_severity"] = (cvss_scores[i].adjusted_severity or cvss_scores[i].severity).value
+                finding["cvss_severity"] = (
+                    cvss_scores[i].adjusted_severity or cvss_scores[i].severity
+                ).value
                 finding["cvss_vector"] = cvss_scores[i].vector_string
 
     # Generate reports
     report_path = os.path.join(report_dir, "professional_report.md")
-    html_path   = os.path.join(report_dir, "dashboard.html")
-    json_path   = os.path.join(report_dir, "findings.json")
+    html_path = os.path.join(report_dir, "dashboard.html")
+    json_path = os.path.join(report_dir, "findings.json")
 
     # Save JSON findings
     with open(json_path, "w") as f:
-        json.dump({
-            "target": safe_target,
-            "findings_count": len(findings),
-            "findings": findings,
-            "cvss_enabled": enable_cvss,
-        }, f, indent=2)
+        json.dump(
+            {
+                "target": safe_target,
+                "findings_count": len(findings),
+                "findings": findings,
+                "cvss_enabled": enable_cvss,
+            },
+            f,
+            indent=2,
+        )
 
     generate_bug_report(safe_target, findings, report_path)
     generate_html_report(safe_target, findings, html_path)
@@ -172,33 +181,35 @@ def run_omni_scan(
     # Print findings summary
     _print_findings_table(findings)
 
-    console.print(Panel(
-        f"[bold green] MISSION COMPLETE[/bold green]\n"
-        f" Reports: [red]{report_dir}[/red]\n"
-        f" Markdown: {report_path}\n"
-        f" Dashboard: {html_path}\n"
-        f" JSON Data: {json_path}",
-        border_style="bold white",
-    ))
-    
+    console.print(
+        Panel(
+            f"[bold green] MISSION COMPLETE[/bold green]\n"
+            f" Reports: [red]{report_dir}[/red]\n"
+            f" Markdown: {report_path}\n"
+            f" Dashboard: {html_path}\n"
+            f" JSON Data: {json_path}",
+            border_style="bold white",
+        )
+    )
+
     # Send detailed notification
     critical_count = len([f for f in findings if f.get("cvss_severity", "").upper() == "CRITICAL"])
     high_count = len([f for f in findings if f.get("cvss_severity", "").upper() == "HIGH"])
-    
+
     notification = f" Scan complete: `{safe_target}`\n"
     notification += f" Findings: {len(findings)} total"
     if critical_count > 0:
         notification += f"\n CRITICAL: {critical_count}"
     if high_count > 0:
         notification += f"\n HIGH: {high_count}"
-    
+
     send_telegram_notification(notification)
 
 
 def _load_registry_findings(report_dir: Path) -> List[Dict[str, Any]]:
     """Load findings from all tool registry results."""
     findings = []
-    
+
     # Load from cvss_scores.json if exists (new format)
     cvss_file = report_dir / "cvss_scores.json"
     if cvss_file.exists():
@@ -214,20 +225,20 @@ def _load_registry_findings(report_dir: Path) -> List[Dict[str, Any]]:
             return findings
         except Exception as e:
             logger.warning(f"Failed to load CVSS results: {e}")
-    
+
     # Fallback: Parse individual tool outputs
     tool_files = {
         "vuln_scan": "vuln_results.json",
         "xss_hunt": "xss_results.json",
         "secret_scan": "secret_results.json",
     }
-    
+
     for tool_name, filename in tool_files.items():
         file_path = report_dir / filename
         if file_path.exists():
             try:
                 content = file_path.read_text()
-                for line in content.strip().split('\n'):
+                for line in content.strip().split("\n"):
                     if line:
                         try:
                             data = json.loads(line)
@@ -237,7 +248,7 @@ def _load_registry_findings(report_dir: Path) -> List[Dict[str, Any]]:
                             pass
             except Exception as e:
                 logger.warning(f"Failed to parse {filename}: {e}")
-    
+
     return findings
 
 
@@ -246,33 +257,35 @@ def _print_findings_table(findings: List[Dict[str, Any]]) -> None:
     if not findings:
         console.print("[dim]ℹ  No findings detected.[/dim]")
         return
-    
+
     table = Table(title=f"\n� Findings Summary ({len(findings)} total)")
     table.add_column("Severity", style="bold", width=12)
     table.add_column("Type", width=20)
     table.add_column("Tool", width=12)
     table.add_column("CVSS", justify="right", width=6)
     table.add_column("URL/Details", width=50)
-    
+
     # Sort by severity
     severity_order = {"Critical": 0, "High": 1, "Medium": 2, "Low": 3, "Info": 4, "Unknown": 5}
     sorted_findings = sorted(
         findings,
-        key=lambda x: severity_order.get(x.get("cvss_severity", x.get("severity", "Unknown")).capitalize(), 5)
+        key=lambda x: severity_order.get(
+            x.get("cvss_severity", x.get("severity", "Unknown")).capitalize(), 5
+        ),
     )
-    
+
     for finding in sorted_findings:
         severity = finding.get("cvss_severity", finding.get("severity", "Unknown")).capitalize()
         finding_type = finding.get("type", "unknown")
         tool = finding.get("tool", "unknown")
         cvss = finding.get("cvss_score", "N/A")
         cvss_str = f"{cvss}" if isinstance(cvss, (int, float)) else str(cvss)
-        
+
         # Truncate URL/details
         details = finding.get("url", finding.get("details", ""))
         if len(details) > 47:
             details = details[:44] + "..."
-        
+
         # Color by severity
         severity_style = {
             "Critical": "red",
@@ -281,15 +294,15 @@ def _print_findings_table(findings: List[Dict[str, Any]]) -> None:
             "Low": "bold white",
             "Info": "grey70",
         }.get(severity, "white")
-        
+
         table.add_row(
             f"[{severity_style}]{severity}[/{severity_style}]",
             finding_type,
             tool,
             cvss_str,
-            details
+            details,
         )
-    
+
     console.print(table)
 
 
@@ -306,16 +319,27 @@ def _parse_nuclei_findings(findings_file: str) -> list:
                     continue
                 try:
                     import json as _json
+
                     entry = _json.loads(line)
-                    findings.append({
-                        "name": entry.get("name", entry.get("title", "Unknown")),
-                        "severity": entry.get("severity", "INFO").upper(),
-                        "url": entry.get("url", "-"),
-                        "details": entry.get("description", line[:200]),
-                        "tool": "vuln_scan",
-                    })
+                    findings.append(
+                        {
+                            "name": entry.get("name", entry.get("title", "Unknown")),
+                            "severity": entry.get("severity", "INFO").upper(),
+                            "url": entry.get("url", "-"),
+                            "details": entry.get("description", line[:200]),
+                            "tool": "vuln_scan",
+                        }
+                    )
                 except _json.JSONDecodeError:
-                    findings.append({"name": line[:80], "severity": "INFO", "url": "-", "details": line, "tool": "vuln_scan"})
+                    findings.append(
+                        {
+                            "name": line[:80],
+                            "severity": "INFO",
+                            "url": "-",
+                            "details": line,
+                            "tool": "vuln_scan",
+                        }
+                    )
     except Exception as e:
         logger.warning(f"Could not parse output: {e}")
     return findings
@@ -327,15 +351,25 @@ def _parse_nuclei_findings(findings_file: str) -> list:
                     continue
                 m = re.match(r"\[([^\]]+)\]\s+\[([^\]]+)\]\s+(\S+)", line)
                 if m:
-                    findings.append({
-                        "name":     m.group(1),
-                        "severity": m.group(2).upper(),
-                        "url":      m.group(3),
-                        "details":  line,
-                        "tool":     "nuclei",
-                    })
+                    findings.append(
+                        {
+                            "name": m.group(1),
+                            "severity": m.group(2).upper(),
+                            "url": m.group(3),
+                            "details": line,
+                            "tool": "nuclei",
+                        }
+                    )
                 else:
-                    findings.append({"name": line[:80], "severity": "INFO", "url": "-", "details": line, "tool": "nuclei"})
+                    findings.append(
+                        {
+                            "name": line[:80],
+                            "severity": "INFO",
+                            "url": "-",
+                            "details": line,
+                            "tool": "nuclei",
+                        }
+                    )
     except Exception as e:
         logger.warning(f"Could not parse findings: {e}")
     return findings
@@ -344,19 +378,21 @@ def _parse_nuclei_findings(findings_file: str) -> list:
 def list_available_tools() -> None:
     """Print list of available tools from registry."""
     tools = registry.list_available_tools()
-    
+
     table = Table(title="  Registered Security Tools")
     table.add_column("Tool", style="bold red")
     table.add_column("Category", style="dim")
     table.add_column("Available", justify="center")
     table.add_column("Description")
-    
+
     for name, info in sorted(tools.items()):
         available = "[bold white][/bold white]" if info["available"] else "[red][/red]"
         table.add_row(name, info["category"], available, info["description"][:50])
-    
+
     console.print(table)
-    console.print(f"\n[dim]Total: {len(tools)} tools | Available: {sum(1 for i in tools.values() if i['available'])}[/dim]")
+    console.print(
+        f"\n[dim]Total: {len(tools)} tools | Available: {sum(1 for i in tools.values() if i['available'])}[/dim]"
+    )
 
 
 if __name__ == "__main__":
@@ -364,7 +400,7 @@ if __name__ == "__main__":
         console.print("[grey70]Usage: python omni_scan.py <target> [--list-tools][/grey70]")
         console.print("[dim]Example: python omni_scan.py example.com[/dim]")
         sys.exit(1)
-    
+
     if sys.argv[1] == "--list-tools":
         list_available_tools()
     else:

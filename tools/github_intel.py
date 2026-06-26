@@ -9,10 +9,11 @@ Requires: GITHUB_TOKEN environment variable (Personal Access Token)
 Works without token but with heavily rate-limited results.
 """
 
-import os
 import logging
-import requests
+import os
 from typing import Dict, List
+
+import requests
 
 logger = logging.getLogger("elengenix.github_intel")
 
@@ -48,18 +49,20 @@ def search_code(query: str, per_page: int = 10) -> List[Dict]:
         if resp.status_code == 403:
             logger.warning("GitHub API rate limited. Set GITHUB_TOKEN for higher limits.")
             return []
-        
+
         resp.raise_for_status()
         data = resp.json()
 
         for item in data.get("items", []):
-            results.append({
-                "name": item.get("name", ""),
-                "path": item.get("path", ""),
-                "repo": item.get("repository", {}).get("full_name", ""),
-                "url": item.get("html_url", ""),
-                "score": item.get("score", 0),
-            })
+            results.append(
+                {
+                    "name": item.get("name", ""),
+                    "path": item.get("path", ""),
+                    "repo": item.get("repository", {}).get("full_name", ""),
+                    "url": item.get("html_url", ""),
+                    "score": item.get("score", 0),
+                }
+            )
 
         logger.info(f"GitHub code search '{query}': {len(results)} results")
     except Exception as e:
@@ -79,21 +82,23 @@ def _build_dork_queries(domain: str) -> List[Dict[str, str]]:
         {"query": f'"{domain}" password OR secret OR token OR api_key', "category": "credentials"},
         {"query": f'"{domain}" AWS_ACCESS_KEY OR AWS_SECRET OR AKIA', "category": "aws_keys"},
         {"query": f'"{domain}" PRIVATE KEY', "category": "private_keys"},
-
         # Configuration files
         {"query": f'"{domain}" filename:.env', "category": "env_files"},
-        {"query": f'"{domain}" filename:config.json OR filename:config.yaml', "category": "config_files"},
+        {
+            "query": f'"{domain}" filename:config.json OR filename:config.yaml',
+            "category": "config_files",
+        },
         {"query": f'"{domain}" filename:docker-compose.yml', "category": "docker"},
-
         # Internal infrastructure
-        {"query": f'"{domain}" internal OR staging OR dev OR localhost', "category": "internal_infra"},
+        {
+            "query": f'"{domain}" internal OR staging OR dev OR localhost',
+            "category": "internal_infra",
+        },
         {"query": f'"{domain}" 10.0. OR 172.16. OR 192.168.', "category": "internal_ips"},
-
         # API and endpoint leaks
         {"query": f'"{domain}" /api/ OR /v1/ OR /v2/ OR graphql', "category": "api_endpoints"},
-
         # Organization repositories
-        {"query": f'org:{org_name} filename:.env OR filename:.htpasswd', "category": "org_secrets"},
+        {"query": f"org:{org_name} filename:.env OR filename:.htpasswd", "category": "org_secrets"},
     ]
 
 
@@ -137,12 +142,8 @@ def hunt_leaks(domain: str) -> Dict:
     critical_categories = {"credentials", "aws_keys", "private_keys"}
     high_categories = {"env_files", "internal_ips", "org_secrets"}
 
-    critical_count = sum(
-        categories_found.get(c, 0) for c in critical_categories
-    )
-    high_count = sum(
-        categories_found.get(c, 0) for c in high_categories
-    )
+    critical_count = sum(categories_found.get(c, 0) for c in critical_categories)
+    high_count = sum(categories_found.get(c, 0) for c in high_categories)
 
     severity = "info"
     if critical_count > 0:
@@ -162,7 +163,9 @@ def hunt_leaks(domain: str) -> Dict:
         "high_count": high_count,
     }
 
-    print(f"  [github] Found {len(all_findings)} potential leaks "
-          f"(critical: {critical_count}, high: {high_count})")
+    print(
+        f"  [github] Found {len(all_findings)} potential leaks "
+        f"(critical: {critical_count}, high: {high_count})"
+    )
 
     return result

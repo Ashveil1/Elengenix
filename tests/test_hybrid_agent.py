@@ -8,11 +8,13 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import pytest
+
 from agents.hybrid_agent import HybridAgent, _extract_json
 
 
 class FakeClient:
     """Minimal mock AI client for testing."""
+
     def __init__(self, responses=None):
         self.responses = responses or []
 
@@ -24,8 +26,10 @@ class FakeClient:
 
 class FakeGovernance:
     """Always-allows governance for testing."""
+
     def gate(self, mission_id="", target="", action=None):
         from tools.governance import GateDecision
+
         return GateDecision(
             allowed=True,
             risk_level="SAFE",
@@ -43,6 +47,7 @@ class FakeGovernance:
 
 # ── _extract_json tests ────────────────────────────────────────────────
 
+
 class TestExtractJson:
     def test_extract_json_from_markdown_fence(self):
         text = '```json\n{"action": "run_command", "command": "nmap"}\n```'
@@ -57,7 +62,7 @@ class TestExtractJson:
         assert _extract_json(text) == [{"description": "task1", "status": "pending"}]
 
     def test_extract_json_finds_braces_in_noisy_text(self):
-        text = "Here is my response:\n\n{\"action\": \"run_command\", \"command\": \"ls\"}\n\nThat's all."
+        text = 'Here is my response:\n\n{"action": "run_command", "command": "ls"}\n\nThat\'s all.'
         assert _extract_json(text) == {"action": "run_command", "command": "ls"}
 
     def test_extract_json_raises_on_invalid(self):
@@ -71,20 +76,39 @@ class TestExtractJson:
 
 # ── Analysis filtering tests ───────────────────────────────────────────
 
+
 class TestShouldRunAnalysis:
     def test_skip_simple_commands(self):
         agent = HybridAgent()
-        for cmd in ["ls", "cat /etc/hosts", "echo hello", "pwd", "cd /tmp", "which nmap", "whoami", "ls -la"]:
+        for cmd in [
+            "ls",
+            "cat /etc/hosts",
+            "echo hello",
+            "pwd",
+            "cd /tmp",
+            "which nmap",
+            "whoami",
+            "ls -la",
+        ]:
             assert not agent._should_run_analysis(cmd), f"{cmd} should be skipped"
 
     def test_run_for_security_tools(self):
         agent = HybridAgent()
-        for cmd in ["nuclei -u https://example.com", "nmap -sV target.com", "python3 exploit.py", "curl -si http://target/"]:
+        for cmd in [
+            "nuclei -u https://example.com",
+            "nmap -sV target.com",
+            "python3 exploit.py",
+            "curl -si http://target/",
+        ]:
             assert agent._should_run_analysis(cmd), f"{cmd} should run analysis"
 
     def test_run_for_custom_tools(self):
         agent = HybridAgent()
-        for cmd in ["sublist3r -d example.com", "ffuf -u https://example.com/FUZZ", "sqlmap -u https://example.com/"]:
+        for cmd in [
+            "sublist3r -d example.com",
+            "ffuf -u https://example.com/FUZZ",
+            "sqlmap -u https://example.com/",
+        ]:
             assert agent._should_run_analysis(cmd), f"{cmd} should run analysis"
 
     def test_empty_command_skipped(self):
@@ -94,6 +118,7 @@ class TestShouldRunAnalysis:
 
 
 # ── Deadlock detection tests ──────────────────────────────────────────
+
 
 class TestDeadlockDetection:
     def test_no_deadlock_with_few_actions(self):
@@ -131,6 +156,7 @@ class TestDeadlockDetection:
 
 # ── Finding extraction tests ───────────────────────────────────────────
 
+
 class TestExtractFindings:
     def test_extract_urls_from_output(self):
         output = "Found something at https://example.com/admin and https://example.com/api"
@@ -152,18 +178,25 @@ class TestExtractFindings:
         assert findings == []
 
     def test_no_findings_for_clean_output(self):
-        findings = HybridAgent._extract_findings("Everything looks normal\nNo issues found.", "echo check")
+        findings = HybridAgent._extract_findings(
+            "Everything looks normal\nNo issues found.", "echo check"
+        )
         assert findings == []
 
 
 # ── Report generation tests ────────────────────────────────────────────
+
 
 class TestReportGeneration:
     def test_finalize_mission_with_no_findings(self):
         agent = HybridAgent()
         agent.objective = "test target"
         agent.action_history = [
-            {"action": "run_command", "command": "ping -c 1 target", "purpose": "check connectivity"},
+            {
+                "action": "run_command",
+                "command": "ping -c 1 target",
+                "purpose": "check connectivity",
+            },
         ]
         report = agent._finalize_mission()
         assert "Hybrid Mission Report" in report
@@ -176,7 +209,12 @@ class TestReportGeneration:
         agent.target = "target.com"
         agent.all_findings = [
             {"type": "open_port", "port": 80, "severity": "medium", "_tool": "nmap"},
-            {"type": "xss", "url": "https://target.com/search", "severity": "high", "_tool": "dalfox"},
+            {
+                "type": "xss",
+                "url": "https://target.com/search",
+                "severity": "high",
+                "_tool": "dalfox",
+            },
         ]
         report = agent._finalize_mission()
         assert "CVSS-Scored Findings" in report
@@ -185,6 +223,7 @@ class TestReportGeneration:
 
     def test_report_includes_duration(self):
         import time
+
         agent = HybridAgent()
         agent.start_time = time.time() - 60  # 1 minute ago
         agent.objective = "test"
@@ -202,6 +241,7 @@ class TestReportGeneration:
 
 
 # ── SMOKE: HybridAgent construction ───────────────────────────────────
+
 
 class TestHybridAgentConstruction:
     def test_default_construction(self):
@@ -241,6 +281,7 @@ class TestHybridAgentConstruction:
 
 # ── SMOKE: Full cycle (mocked) ────────────────────────────────────────
 
+
 class TestHybridCycle:
     def test_mocked_cycle_no_client_returns_early(self):
         agent = HybridAgent()
@@ -251,16 +292,20 @@ class TestHybridCycle:
     def test_mocked_cycle_with_client(self):
         responses = [
             # Strategist response
-            json.dumps([
-                {"description": "Run subfinder", "status": "pending", "phase": "recon"},
-                {"description": "Scan with nuclei", "status": "pending", "phase": "scanning"},
-            ]),
+            json.dumps(
+                [
+                    {"description": "Run subfinder", "status": "pending", "phase": "recon"},
+                    {"description": "Scan with nuclei", "status": "pending", "phase": "scanning"},
+                ]
+            ),
             # Specialist cycle 1 - complete_mission immediately
-            json.dumps({
-                "thought": "No tasks to execute, mission complete",
-                "action": "complete_mission",
-                "message": "Mission completed successfully",
-            }),
+            json.dumps(
+                {
+                    "thought": "No tasks to execute, mission complete",
+                    "action": "complete_mission",
+                    "message": "Mission completed successfully",
+                }
+            ),
         ]
         agent = HybridAgent(client=FakeClient(responses))
         result = agent.run("test scan")
@@ -269,10 +314,12 @@ class TestHybridCycle:
 
     def test_strategist_parses_json_tasks(self):
         responses = [
-            json.dumps([
-                {"description": "Recon phase", "status": "pending", "phase": "recon"},
-                {"description": "Scan phase", "status": "pending", "phase": "scanning"},
-            ]),
+            json.dumps(
+                [
+                    {"description": "Recon phase", "status": "pending", "phase": "recon"},
+                    {"description": "Scan phase", "status": "pending", "phase": "scanning"},
+                ]
+            ),
             json.dumps({"action": "complete_mission", "message": "done"}),
         ]
         agent = HybridAgent(client=FakeClient(responses))

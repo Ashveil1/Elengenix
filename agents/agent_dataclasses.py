@@ -12,6 +12,7 @@ from tools.tool_registry import ToolResult
 
 class AttackPhase(Enum):
     """Standard penetration testing phases."""
+
     RECONNAISSANCE = "recon"
     SCANNING = "scanning"
     ENUMERATION = "enumeration"
@@ -23,6 +24,7 @@ class AttackPhase(Enum):
 @dataclass
 class AttackStep:
     """Single step in an attack tree."""
+
     phase: AttackPhase
     tool_name: str
     target: str
@@ -36,6 +38,7 @@ class AttackStep:
 @dataclass
 class AttackTree:
     """Strategic plan for penetration testing."""
+
     target: str
     objective: str
     steps: List[AttackStep] = field(default_factory=list)
@@ -47,6 +50,7 @@ class AttackTree:
 @dataclass
 class AgentThought:
     """Chain of Thought logging entry."""
+
     step: int
     timestamp: float
     context: str

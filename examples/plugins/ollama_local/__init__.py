@@ -61,11 +61,13 @@ def register(api) -> None:
             The assistant's response text
         """
         try:
-            payload = json.dumps({
-                "model": model,
-                "messages": messages,
-                "stream": False,
-            }).encode("utf-8")
+            payload = json.dumps(
+                {
+                    "model": model,
+                    "messages": messages,
+                    "stream": False,
+                }
+            ).encode("utf-8")
             req = urllib.request.Request(
                 f"{DEFAULT_OLLAMA_URL}/api/chat",
                 data=payload,

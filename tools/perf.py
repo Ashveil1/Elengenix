@@ -3,17 +3,19 @@ perf.py — Elengenix Performance Utilities
 Smart caching, async batch processing, timing, profiling.
 Version: 1.0.0
 """
+
 from __future__ import annotations
-import time
+
 import asyncio
-import hashlib
-import logging
 import functools
+import hashlib
 import json
-from pathlib import Path
-from typing import Any, Callable, Optional, Dict, List, Tuple
-from dataclasses import dataclass, field
+import logging
+import time
 from collections import OrderedDict
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 logger = logging.getLogger("elengenix.perf")
 
@@ -21,6 +23,7 @@ logger = logging.getLogger("elengenix.perf")
 # ═══════════════════════════════════════════════════════════════════════════
 # 1. SMART CACHE — TTL + LRU
 # ═══════════════════════════════════════════════════════════════════════════
+
 
 @dataclass
 class CacheEntry:
@@ -88,11 +91,12 @@ class SmartCache:
 
 # Global shared caches
 _HTTP_CACHE = SmartCache(max_size=512, default_ttl=300)  # 5 min for HTTP responses
-_AI_CACHE = SmartCache(max_size=128, default_ttl=1800)    # 30 min for AI responses
+_AI_CACHE = SmartCache(max_size=128, default_ttl=1800)  # 30 min for AI responses
 
 
 def cached(cache: SmartCache, key_fn: Optional[Callable] = None, ttl: Optional[float] = None):
     """Decorator for caching function results."""
+
     def decorator(func):
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
@@ -107,13 +111,16 @@ def cached(cache: SmartCache, key_fn: Optional[Callable] = None, ttl: Optional[f
             if result is not None:
                 cache.set(key, result, ttl)
             return result
+
         return wrapper
+
     return decorator
 
 
 # ═══════════════════════════════════════════════════════════════════════════
 # 2. ASYNC BATCH — Parallel with concurrency limit
 # ═══════════════════════════════════════════════════════════════════════════
+
 
 class AsyncBatcher:
     """Process async tasks in parallel with concurrency limit and progress."""
@@ -145,6 +152,7 @@ class AsyncBatcher:
 # 3. TIMING & PROFILING
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 @dataclass
 class TimingResult:
     name: str
@@ -157,7 +165,12 @@ class TimingResult:
 class Timer:
     """Context manager for timing code blocks."""
 
-    def __init__(self, name: str = "operation", logger_obj: Optional[logging.Logger] = None, metadata: Optional[Dict] = None):
+    def __init__(
+        self,
+        name: str = "operation",
+        logger_obj: Optional[logging.Logger] = None,
+        metadata: Optional[Dict] = None,
+    ):
         self.name = name
         self.logger = logger_obj or logger
         self.metadata = metadata or {}
@@ -187,12 +200,15 @@ class Timer:
 
 def timeit(name: str = "fn"):
     """Decorator to time function execution."""
+
     def decorator(func):
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
             with Timer(name=f"{func.__name__}.{name}"):
                 return func(*args, **kwargs)
+
         return wrapper
+
     return decorator
 
 
@@ -200,11 +216,13 @@ def timeit(name: str = "fn"):
 # 4. HTTP CLIENT — Connection pooling + cache
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 class FastHTTP:
     """HTTP client with connection pooling and caching."""
 
     def __init__(self, timeout: float = 10.0, max_connections: int = 50, use_cache: bool = True):
         import urllib3
+
         urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
         self.timeout = timeout
         self.max_connections = max_connections
@@ -216,6 +234,7 @@ class FastHTTP:
             import requests
             from requests.adapters import HTTPAdapter
             from urllib3.util.retry import Retry
+
             s = requests.Session()
             retries = Retry(total=2, backoff_factor=0.1, status_forcelist=[429, 500, 502, 503, 504])
             adapter = HTTPAdapter(max_retries=retries, pool_maxsize=self.max_connections)
@@ -254,11 +273,18 @@ class FastHTTP:
 # 5. STREAMING AGGREGATOR — Process findings as they come
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 class StreamingAggregator:
     """Aggregate findings in real-time with severity counts and risk score."""
 
     def __init__(self):
-        self.by_severity: Dict[str, int] = {"Critical": 0, "High": 0, "Medium": 0, "Low": 0, "Informational": 0}
+        self.by_severity: Dict[str, int] = {
+            "Critical": 0,
+            "High": 0,
+            "Medium": 0,
+            "Low": 0,
+            "Informational": 0,
+        }
         self.findings: List[Dict] = []
         self.risk_score: float = 0.0
         self.start_time = time.time()
@@ -290,7 +316,14 @@ class StreamingAggregator:
 
 
 __all__ = [
-    "SmartCache", "cached", "_HTTP_CACHE", "_AI_CACHE",
-    "AsyncBatcher", "Timer", "timeit", "TimingResult",
-    "FastHTTP", "StreamingAggregator",
+    "SmartCache",
+    "cached",
+    "_HTTP_CACHE",
+    "_AI_CACHE",
+    "AsyncBatcher",
+    "Timer",
+    "timeit",
+    "TimingResult",
+    "FastHTTP",
+    "StreamingAggregator",
 ]

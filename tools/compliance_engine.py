@@ -6,7 +6,7 @@ Generates professional reports ready for auditors and CISO review.
 
 Standards supported:
 - PCI DSS v4.0 (12 requirements, 324 controls)
-- SOC 2 (5 trust service criteria)  
+- SOC 2 (5 trust service criteria)
 - ISO 27001 (14 domains, 114 controls)
 - NIST CSF (5 functions, 23 categories)
 - OWASP Top 10 (2021)
@@ -23,7 +23,7 @@ import textwrap
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, List, Any, Optional
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger("elengenix.compliance")
 
@@ -31,9 +31,11 @@ logger = logging.getLogger("elengenix.compliance")
 # Control Definitions
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class Control:
     """A single compliance control/requirement."""
+
     id: str
     title: str
     description: str
@@ -55,6 +57,7 @@ class Control:
 @dataclass
 class ControlResult:
     """Result of checking a control against scan findings."""
+
     control: Control
     status: str = "not_tested"  # pass, fail, not_tested, error
     evidence: List[str] = field(default_factory=list)
@@ -75,6 +78,7 @@ class ControlResult:
 # ---------------------------------------------------------------------------
 # Compliance Standard Definitions
 # ---------------------------------------------------------------------------
+
 
 class ComplianceStandard:
     """Base class for compliance standards."""
@@ -115,21 +119,81 @@ class PCI_DSS(ComplianceStandard):
         super().__init__(
             name="PCI DSS",
             version="4.0",
-            description="Payment Card Industry Data Security Standard"
+            description="Payment Card Industry Data Security Standard",
         )
 
     def _init_controls(self) -> None:
         self.controls = [
-            Control("1.1", "Firewall Configuration", "Install and maintain firewall configuration", "Network Security", "critical"),
-            Control("2.1", "Secure Config", "Change vendor defaults and secure configurations", "Configuration", "critical"),
-            Control("3.1", "Protect Stored Data", "Protect stored cardholder data", "Data Protection", "critical"),
-            Control("4.1", "Encrypt Transmission", "Encrypt cardholder data over open networks", "Encryption", "critical"),
-            Control("5.1", "Anti-Malware", "Protect systems against malware", "Malware Protection", "high"),
-            Control("6.1", "Secure Development", "Develop and maintain secure systems", "Development", "high"),
-            Control("6.2", "Vulnerability Management", "Address vulnerabilities promptly", "Vulnerability Management", "critical"),
-            Control("7.1", "Access Control", "Restrict access to cardholder data", "Access Control", "high"),
-            Control("8.1", "Authentication", "Identify and authenticate users", "Authentication", "critical"),
-            Control("9.1", "Physical Security", "Restrict physical access", "Physical Security", "medium"),
+            Control(
+                "1.1",
+                "Firewall Configuration",
+                "Install and maintain firewall configuration",
+                "Network Security",
+                "critical",
+            ),
+            Control(
+                "2.1",
+                "Secure Config",
+                "Change vendor defaults and secure configurations",
+                "Configuration",
+                "critical",
+            ),
+            Control(
+                "3.1",
+                "Protect Stored Data",
+                "Protect stored cardholder data",
+                "Data Protection",
+                "critical",
+            ),
+            Control(
+                "4.1",
+                "Encrypt Transmission",
+                "Encrypt cardholder data over open networks",
+                "Encryption",
+                "critical",
+            ),
+            Control(
+                "5.1",
+                "Anti-Malware",
+                "Protect systems against malware",
+                "Malware Protection",
+                "high",
+            ),
+            Control(
+                "6.1",
+                "Secure Development",
+                "Develop and maintain secure systems",
+                "Development",
+                "high",
+            ),
+            Control(
+                "6.2",
+                "Vulnerability Management",
+                "Address vulnerabilities promptly",
+                "Vulnerability Management",
+                "critical",
+            ),
+            Control(
+                "7.1",
+                "Access Control",
+                "Restrict access to cardholder data",
+                "Access Control",
+                "high",
+            ),
+            Control(
+                "8.1",
+                "Authentication",
+                "Identify and authenticate users",
+                "Authentication",
+                "critical",
+            ),
+            Control(
+                "9.1",
+                "Physical Security",
+                "Restrict physical access",
+                "Physical Security",
+                "medium",
+            ),
             Control("10.1", "Logging", "Track and monitor access", "Monitoring", "high"),
             Control("11.1", "Testing", "Regularly test security systems", "Testing", "critical"),
             Control("12.1", "Policy", "Maintain security policy", "Governance", "medium"),
@@ -143,22 +207,62 @@ class SOC2(ComplianceStandard):
         super().__init__(
             name="SOC 2",
             version="2.0",
-            description="Service Organization Control 2 Trust Services Criteria"
+            description="Service Organization Control 2 Trust Services Criteria",
         )
 
     def _init_controls(self) -> None:
         self.controls = [
-            Control("CC1", "Control Environment", "Organization demonstrates commitment to integrity", "Control Environment", "high"),
-            Control("CC2", "Communication", "Communication of security responsibilities", "Communication", "high"),
-            Control("CC3", "Risk Assessment", "Identifies and analyzes security risks", "Risk Management", "critical"),
+            Control(
+                "CC1",
+                "Control Environment",
+                "Organization demonstrates commitment to integrity",
+                "Control Environment",
+                "high",
+            ),
+            Control(
+                "CC2",
+                "Communication",
+                "Communication of security responsibilities",
+                "Communication",
+                "high",
+            ),
+            Control(
+                "CC3",
+                "Risk Assessment",
+                "Identifies and analyzes security risks",
+                "Risk Management",
+                "critical",
+            ),
             Control("CC4", "Monitoring", "Monitors internal controls", "Monitoring", "high"),
-            Control("CC5", "Control Activities", "Selects and develops control activities", "Controls", "high"),
-            Control("CC6", "Access Control", "Restricts logical access", "Access Control", "critical"),
+            Control(
+                "CC5",
+                "Control Activities",
+                "Selects and develops control activities",
+                "Controls",
+                "high",
+            ),
+            Control(
+                "CC6", "Access Control", "Restricts logical access", "Access Control", "critical"
+            ),
             Control("CC7", "System Operations", "Manages system operations", "Operations", "high"),
             Control("A1", "Availability", "Maintains system availability", "Availability", "high"),
-            Control("C1", "Confidentiality", "Protects confidential information", "Confidentiality", "critical"),
-            Control("PI1", "Processing Integrity", "Ensures processing is complete and accurate", "Integrity", "high"),
-            Control("P1", "Privacy", "Addresses personal information collection", "Privacy", "critical"),
+            Control(
+                "C1",
+                "Confidentiality",
+                "Protects confidential information",
+                "Confidentiality",
+                "critical",
+            ),
+            Control(
+                "PI1",
+                "Processing Integrity",
+                "Ensures processing is complete and accurate",
+                "Integrity",
+                "high",
+            ),
+            Control(
+                "P1", "Privacy", "Addresses personal information collection", "Privacy", "critical"
+            ),
         ]
 
 
@@ -169,22 +273,74 @@ class ISO27001(ComplianceStandard):
         super().__init__(
             name="ISO 27001",
             version="2022",
-            description="ISO/IEC 27001 Information Security Management"
+            description="ISO/IEC 27001 Information Security Management",
         )
 
     def _init_controls(self) -> None:
         self.controls = [
-            Control("A5", "Information Security Policies", "Management direction for security", "Policies", "high"),
-            Control("A6", "Organization of Security", "Internal organization and roles", "Organization", "high"),
-            Control("A7", "Human Resource Security", "Security in employment lifecycle", "HR", "medium"),
-            Control("A8", "Asset Management", "Inventory and classification of assets", "Assets", "high"),
-            Control("A9", "Access Control", "Access to information and systems", "Access Control", "critical"),
+            Control(
+                "A5",
+                "Information Security Policies",
+                "Management direction for security",
+                "Policies",
+                "high",
+            ),
+            Control(
+                "A6",
+                "Organization of Security",
+                "Internal organization and roles",
+                "Organization",
+                "high",
+            ),
+            Control(
+                "A7", "Human Resource Security", "Security in employment lifecycle", "HR", "medium"
+            ),
+            Control(
+                "A8", "Asset Management", "Inventory and classification of assets", "Assets", "high"
+            ),
+            Control(
+                "A9",
+                "Access Control",
+                "Access to information and systems",
+                "Access Control",
+                "critical",
+            ),
             Control("A10", "Cryptography", "Encryption and key management", "Cryptography", "high"),
-            Control("A12", "Operations Security", "Secure operations and change management", "Operations", "high"),
-            Control("A13", "Communications Security", "Network security and information transfer", "Network Security", "high"),
-            Control("A14", "System Acquisition", "Security in development and procurement", "Development", "high"),
-            Control("A16", "Incident Management", "Security incident handling", "Incident Response", "critical"),
-            Control("A18", "Compliance", "Compliance with legal and regulatory requirements", "Compliance", "high"),
+            Control(
+                "A12",
+                "Operations Security",
+                "Secure operations and change management",
+                "Operations",
+                "high",
+            ),
+            Control(
+                "A13",
+                "Communications Security",
+                "Network security and information transfer",
+                "Network Security",
+                "high",
+            ),
+            Control(
+                "A14",
+                "System Acquisition",
+                "Security in development and procurement",
+                "Development",
+                "high",
+            ),
+            Control(
+                "A16",
+                "Incident Management",
+                "Security incident handling",
+                "Incident Response",
+                "critical",
+            ),
+            Control(
+                "A18",
+                "Compliance",
+                "Compliance with legal and regulatory requirements",
+                "Compliance",
+                "high",
+            ),
         ]
 
 
@@ -195,20 +351,66 @@ class OWASP_Top10(ComplianceStandard):
         super().__init__(
             name="OWASP Top 10",
             version="2021",
-            description="OWASP Top 10 Web Application Security Risks"
+            description="OWASP Top 10 Web Application Security Risks",
         )
 
     def _init_controls(self) -> None:
         self.controls = [
-            Control("A01", "Broken Access Control", "Failures in access control enforcement", "Access Control", "critical"),
-            Control("A02", "Cryptographic Failures", "Failures in data protection", "Cryptography", "critical"),
-            Control("A03", "Injection", "SQL, NoSQL, OS, and LDAP injection", "Injection", "critical"),
-            Control("A04", "Insecure Design", "Design-level security flaws", "Architecture", "high"),
-            Control("A05", "Security Misconfiguration", "Improper configuration", "Configuration", "high"),
-            Control("A06", "Vulnerable Components", "Using known vulnerable components", "Supply Chain", "high"),
-            Control("A07", "Auth Failures", "Authentication and identification failures", "Authentication", "critical"),
-            Control("A08", "Data Integrity Failures", "Software and data integrity failures", "Integrity", "high"),
-            Control("A09", "Logging Failures", "Insufficient logging and monitoring", "Monitoring", "medium"),
+            Control(
+                "A01",
+                "Broken Access Control",
+                "Failures in access control enforcement",
+                "Access Control",
+                "critical",
+            ),
+            Control(
+                "A02",
+                "Cryptographic Failures",
+                "Failures in data protection",
+                "Cryptography",
+                "critical",
+            ),
+            Control(
+                "A03", "Injection", "SQL, NoSQL, OS, and LDAP injection", "Injection", "critical"
+            ),
+            Control(
+                "A04", "Insecure Design", "Design-level security flaws", "Architecture", "high"
+            ),
+            Control(
+                "A05",
+                "Security Misconfiguration",
+                "Improper configuration",
+                "Configuration",
+                "high",
+            ),
+            Control(
+                "A06",
+                "Vulnerable Components",
+                "Using known vulnerable components",
+                "Supply Chain",
+                "high",
+            ),
+            Control(
+                "A07",
+                "Auth Failures",
+                "Authentication and identification failures",
+                "Authentication",
+                "critical",
+            ),
+            Control(
+                "A08",
+                "Data Integrity Failures",
+                "Software and data integrity failures",
+                "Integrity",
+                "high",
+            ),
+            Control(
+                "A09",
+                "Logging Failures",
+                "Insufficient logging and monitoring",
+                "Monitoring",
+                "medium",
+            ),
             Control("A10", "SSRF", "Server-Side Request Forgery", "Server Security", "high"),
         ]
 
@@ -216,6 +418,7 @@ class OWASP_Top10(ComplianceStandard):
 # ---------------------------------------------------------------------------
 # Compliance Engine
 # ---------------------------------------------------------------------------
+
 
 class ComplianceEngine:
     """Enterprise compliance assessment engine.
@@ -243,8 +446,9 @@ class ComplianceEngine:
         key = name.lower().replace(" ", "_")
         return self.standards.get(key)
 
-    def assess(self, findings: List[Dict[str, Any]], 
-               standard_name: str = "pci_dss") -> Dict[str, Any]:
+    def assess(
+        self, findings: List[Dict[str, Any]], standard_name: str = "pci_dss"
+    ) -> Dict[str, Any]:
         """Assess findings against a compliance standard.
 
         Args:
@@ -282,8 +486,9 @@ class ComplianceEngine:
         errors = sum(1 for r in control_results if r.status == "error")
 
         compliance_pct = round(passed / max(1, total) * 100, 1)
-        critical_failures = sum(1 for r in control_results 
-                                if r.status == "fail" and r.control.severity == "critical")
+        critical_failures = sum(
+            1 for r in control_results if r.status == "fail" and r.control.severity == "critical"
+        )
 
         return {
             "standard": standard.to_dict(),
@@ -296,17 +501,21 @@ class ComplianceEngine:
             "errors": errors,
             "compliance_pct": compliance_pct,
             "critical_failures": critical_failures,
-            "risk_level": "Critical" if critical_failures > 0 
-                         else "High" if failed > 5 
-                         else "Medium" if failed > 2 
-                         else "Low",
+            "risk_level": (
+                "Critical"
+                if critical_failures > 0
+                else "High"
+                if failed > 5
+                else "Medium"
+                if failed > 2
+                else "Low"
+            ),
             "controls": [r.to_dict() for r in control_results],
             "findings_by_severity": self._count_severities(findings),
             "findings_by_type": self._count_types(findings),
         }
 
-    def _evaluate_control(self, control: Control, 
-                          findings: List[Dict[str, Any]]) -> ControlResult:
+    def _evaluate_control(self, control: Control, findings: List[Dict[str, Any]]) -> ControlResult:
         """Evaluate a single control against findings."""
         result = ControlResult(control=control)
         relevant = self._find_relevant_findings(control, findings)
@@ -323,13 +532,16 @@ class ComplianceEngine:
             return result
 
         # Check for critical/high severity findings
-        critical_count = sum(1 for f in relevant 
-                            if f.get("severity", "").lower() in ("critical", "high"))
+        critical_count = sum(
+            1 for f in relevant if f.get("severity", "").lower() in ("critical", "high")
+        )
         if critical_count > 0:
             result.status = "fail"
             result.evidence = [f"{critical_count} critical/high findings found"]
             for f in relevant[:5]:
-                result.evidence.append(f"  - {f.get('title', 'Finding')} ({f.get('severity', 'N/A')})")
+                result.evidence.append(
+                    f"  - {f.get('title', 'Finding')} ({f.get('severity', 'N/A')})"
+                )
             result.notes = f"Failed: {critical_count} critical/high severity issues"
             return result
 
@@ -340,8 +552,9 @@ class ComplianceEngine:
 
         return result
 
-    def _find_relevant_findings(self, control: Control, 
-                                findings: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def _find_relevant_findings(
+        self, control: Control, findings: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
         """Find findings relevant to a given control."""
         cid = control.id.lower()
         relevant = []
@@ -400,8 +613,9 @@ class ComplianceEngine:
 
     # ── Report Generation ────────────────────────────────────────────────
 
-    def generate_report(self, assessment: Dict[str, Any], 
-                         output_path: str, format: str = "html") -> str:
+    def generate_report(
+        self, assessment: Dict[str, Any], output_path: str, format: str = "html"
+    ) -> str:
         """Generate a professional compliance report.
 
         Args:
@@ -433,8 +647,12 @@ class ComplianceEngine:
 
         rows = ""
         for cr in controls:
-            status_color = {"pass": "#44cc44", "fail": "#ff4444", 
-                          "not_tested": "#888888", "error": "#ff8844"}
+            status_color = {
+                "pass": "#44cc44",
+                "fail": "#ff4444",
+                "not_tested": "#888888",
+                "error": "#ff8844",
+            }
             color = status_color.get(cr["status"], "#888")
             rows += f"""
             <tr>
@@ -450,8 +668,13 @@ class ComplianceEngine:
         for level in ["critical", "high", "medium", "low", "info"]:
             count = sev.get(level, 0)
             pct = count / max(1, assessment.get("total_findings", 1)) * 100
-            color_map = {"critical": "#ff4444", "high": "#ff8844", 
-                        "medium": "#ffcc44", "low": "#44cc44", "info": "#888"}
+            color_map = {
+                "critical": "#ff4444",
+                "high": "#ff8844",
+                "medium": "#ffcc44",
+                "low": "#44cc44",
+                "info": "#888",
+            }
             sev_bars += f"""
             <div style="margin:4px 0">
                 <div style="display:flex;justify-content:space-between;font-size:12px">
@@ -528,8 +751,10 @@ class ComplianceEngine:
 # CLI Helper
 # ---------------------------------------------------------------------------
 
-def assess_compliance(findings_path: str, standard: str = "pci_dss",
-                       output_path: Optional[str] = None) -> Dict[str, Any]:
+
+def assess_compliance(
+    findings_path: str, standard: str = "pci_dss", output_path: Optional[str] = None
+) -> Dict[str, Any]:
     """Run compliance assessment from a findings JSON file.
 
     Args:
@@ -556,5 +781,12 @@ def assess_compliance(findings_path: str, standard: str = "pci_dss",
     return assessment
 
 
-__all__ = ["ComplianceEngine", "ComplianceStandard", "assess_compliance",
-           "PCI_DSS", "SOC2", "ISO27001", "OWASP_Top10"]
+__all__ = [
+    "ComplianceEngine",
+    "ComplianceStandard",
+    "assess_compliance",
+    "PCI_DSS",
+    "SOC2",
+    "ISO27001",
+    "OWASP_Top10",
+]

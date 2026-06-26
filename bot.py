@@ -18,54 +18,53 @@ Requires:
     TELEGRAM_BOT_TOKEN in .env or config.yaml
 """
 
-import logging
-import yaml
-import os
 import asyncio
+import logging
+import os
 import re
 import stat
 import time
 from collections import defaultdict, deque
-from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
 
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import (
- ApplicationBuilder,
- ContextTypes,
- CommandHandler,
- CallbackQueryHandler,
-)
+import yaml
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram.ext import ApplicationBuilder, CallbackQueryHandler, CommandHandler, ContextTypes
+
 from agent_brain import ElengenixAgent
 from tools.user_preferences import (
- init_db,
- get_preferences,
- save_preferences,
- add_favorite_target,
- remove_favorite_target,
- toggle_notification
+    add_favorite_target,
+    get_preferences,
+    init_db,
+    remove_favorite_target,
+    save_preferences,
+    toggle_notification,
 )
 
-# Logging Setup 
+# Logging Setup
 logging.basicConfig(
- format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
- level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    level=logging.INFO,
 )
 logger = logging.getLogger(__name__)
 
-# Config Security Check 
+# Config Security Check
 CONFIG_PATH = Path(__file__).parent / "config.yaml"
+
 
 def check_config_security(path: Path):
     """Check file permissions (chmod 600) for security."""
-    if not path.exists(): return
+    if not path.exists():
+        return
     mode = path.stat().st_mode
     # Warn if readable by others (Group or World)
     if mode & (stat.S_IRGRP | stat.S_IROTH):
         logger.warning(f"[WARN] {path.name} has loose permissions: {oct(mode)}")
         logger.warning("[WARN] Run: chmod 600 config.yaml to protect your secrets")
 
-# Load Config 
+
+# Load Config
 try:
     with open(CONFIG_PATH, "r") as f:
         config = yaml.safe_load(f)
@@ -74,11 +73,12 @@ except Exception as e:
     logger.error(f"Config error: {e}")
     raise SystemExit(1)
 
-# Rate Limiting Setup 
+# Rate Limiting Setup
 # Max 3 commands per 60 seconds per user
 RATE_LIMIT = 3
 RATE_WINDOW = 60
 user_requests = defaultdict(deque)
+
 
 def check_rate_limit(user_id: int) -> bool:
     now = time.time()
@@ -89,20 +89,22 @@ def check_rate_limit(user_id: int) -> bool:
     user_requests[user_id].append(now)
     return True
 
-# Domain Validation 
+
+# Domain Validation
 def is_valid_domain(target: str) -> bool:
     """Strictly validate domain format to prevent injection and internal scans."""
     clean_target = target.replace("http://", "").replace("https://", "").split("/")[0]
     # Standard domain regex
-    pattern = r'^[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z]{2,})+$'
+    pattern = r"^[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z]{2,})+$"
     if not re.match(pattern, clean_target):
         return False
     # Block local/private address space
-    if clean_target.lower() in ['localhost', '127.0.0.1'] or clean_target.endswith('.local'):
+    if clean_target.lower() in ["localhost", "127.0.0.1"] or clean_target.endswith(".local"):
         return False
     return True
 
-# Global State 
+
+# Global State
 executor = ThreadPoolExecutor(max_workers=4)
 
 try:
@@ -118,10 +120,12 @@ except Exception as e:
     logger.warning(f"AI Agent failed to load: {e} (Continuing in tool-only mode)")
     agent = None
 
-# Helpers 
+
+# Helpers
 async def run_in_thread(func, *args):
     loop = asyncio.get_running_loop()
     return await loop.run_in_executor(executor, func, *args)
+
 
 async def safe_reply(update: Update, text: str, parse_mode: str = "Markdown"):
     """Failsafe reply helper."""
@@ -134,19 +138,21 @@ async def safe_reply(update: Update, text: str, parse_mode: str = "Markdown"):
     except Exception:
         await update.effective_chat.send_message(text, parse_mode=None)
 
-# Command Handlers 
+
+# Command Handlers
+
 
 async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     chat_id = update.effective_chat.id
     pref = get_preferences(user_id)
-    
+
     # Auto-detect and save chat_id on first interaction only
     if not os.environ.get("TELEGRAM_CHAT_ID"):
         os.environ["TELEGRAM_CHAT_ID"] = str(chat_id)
         # Also save to .env for persistence
         logger.info(f"Chat ID auto-detected: {chat_id}")
-    
+
     welcome = (
         "*Elengenix Bot 1.0.0*\n\n"
         f"Your Chat ID: `{chat_id}`\n\n"
@@ -169,19 +175,25 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "`/delfav <target>` -- Remove from favorites\n\n"
         f"Notifications: {'Enabled' if pref.notifications_enabled else 'Disabled'}"
     )
-    
+
     keyboard = [
-        [InlineKeyboardButton("Settings", callback_data="show_settings"),
-         InlineKeyboardButton("Favorites", callback_data="show_favorites")],
-        [InlineKeyboardButton("Bounty", callback_data="run_bounty"),
-         InlineKeyboardButton("Programs", callback_data="run_programs")]
+        [
+            InlineKeyboardButton("Settings", callback_data="show_settings"),
+            InlineKeyboardButton("Favorites", callback_data="show_favorites"),
+        ],
+        [
+            InlineKeyboardButton("Bounty", callback_data="run_bounty"),
+            InlineKeyboardButton("Programs", callback_data="run_programs"),
+        ],
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    
+
     await safe_reply(update, welcome, reply_markup=reply_markup)
+
 
 async def cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     import shutil
+
     tools = ["subfinder", "httpx", "nuclei", "katana"]
     lines = ["*System Health Checklist:*\n"]
     for tool in tools:
@@ -190,6 +202,7 @@ async def cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
         lines.append(f"{status} `{tool}`")
     lines.append(f"\nAI Agent: {'[OK] Online' if agent else '[FAIL] Offline'}")
     await safe_reply(update, "\n".join(lines))
+
 
 async def cmd_scan(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
@@ -206,17 +219,19 @@ async def cmd_scan(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await safe_reply(update, "*Security Error:* Invalid domain or unauthorized scope.")
         return
 
-    await safe_reply(update, f"*Scan Initiated:* `{target}`\nRunning parallel recon and analysis...")
+    await safe_reply(
+        update, f"*Scan Initiated:* `{target}`\nRunning parallel recon and analysis..."
+    )
 
     try:
         from orchestrator import run_standard_scan
+
         # 10-Minute Timeout Protection
-        result = await asyncio.wait_for(
-            run_in_thread(run_standard_scan, target),
-            timeout=600
-        )
+        result = await asyncio.wait_for(run_in_thread(run_standard_scan, target), timeout=600)
         if result:
-            await safe_reply(update, f"*Scan Complete:* `{target}`\nReports saved to cloud/local storage.")
+            await safe_reply(
+                update, f"*Scan Complete:* `{target}`\nReports saved to cloud/local storage."
+            )
         else:
             await safe_reply(update, f"Scan finished for `{target}` with no critical findings.")
     except asyncio.TimeoutError:
@@ -224,6 +239,7 @@ async def cmd_scan(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         logger.error(f"Scan error: {e}")
         await safe_reply(update, f"*System Error:* `{str(e)[:100]}`")
+
 
 async def cmd_ask(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not agent:
@@ -240,17 +256,22 @@ async def cmd_ask(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Race-Condition Safe Callback
     def bot_callback(msg: str):
-        asyncio.create_task(context.bot.send_message(chat_id=chat_id, text=f"{msg}", parse_mode="Markdown"))
+        asyncio.create_task(
+            context.bot.send_message(chat_id=chat_id, text=f"{msg}", parse_mode="Markdown")
+        )
 
     try:
         # Check for smart scan mode via env var
         smart_scan = os.environ.get("ELENGENIX_SMART_SCAN", "") == "1"
-        response = await run_in_thread(agent.process_query, query, bot_callback, use_smart_scan=smart_scan)
+        response = await run_in_thread(
+            agent.process_query, query, bot_callback, use_smart_scan=smart_scan
+        )
         if response:
             await safe_reply(update, f"*Agent Findings:*\n\n{response[:3800]}")
     except Exception as e:
         logger.error(f"AI error: {e}")
         await safe_reply(update, f"*AI Error:* `{str(e)[:100]}`")
+
 
 async def cmd_bounty(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Start autonomous bounty hunt."""
@@ -290,6 +311,7 @@ async def cmd_bounty(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.error(f"Bounty discovery error: {e}")
         await safe_reply(update, f"Error: {str(e)[:100]}")
 
+
 async def cmd_mission(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Start autonomous scanning mission."""
     from tools.smart_scanner import SmartScanner
@@ -318,12 +340,13 @@ async def cmd_mission(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         await safe_reply(update, message)
 
-        if results['status'] == 'paused':
+        if results["status"] == "paused":
             await safe_reply(update, f"Resume with: `/resume {results['mission_id']}`")
 
     except Exception as e:
         logger.error(f"Mission error: {e}")
         await safe_reply(update, f"Error: {str(e)[:100]}")
+
 
 async def cmd_mission_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Check mission status."""
@@ -342,12 +365,14 @@ async def cmd_mission_status(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
         status = scanner.get_status()
         from tools.telegram_bridge import TelegramBridge
+
         bridge = TelegramBridge()
         await bridge.notify_mission_status(mission_id, status)
 
     except Exception as e:
         logger.error(f"Status error: {e}")
         await safe_reply(update, f"Error: {str(e)[:100]}")
+
 
 async def cmd_pause(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Pause a running mission."""
@@ -370,6 +395,7 @@ async def cmd_pause(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         logger.error(f"Pause error: {e}")
         await safe_reply(update, f"Error: {str(e)[:100]}")
+
 
 async def cmd_resume(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Resume a paused mission."""
@@ -400,6 +426,7 @@ async def cmd_resume(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.error(f"Resume error: {e}")
         await safe_reply(update, f"Error: {str(e)[:100]}")
 
+
 async def cmd_findings(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """View mission findings with rich formatting."""
 
@@ -415,7 +442,7 @@ async def cmd_findings(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await safe_reply(update, f"Mission not found: `{mission_id}`")
             return
 
-        findings = scanner.findings if hasattr(scanner, 'findings') else []
+        findings = scanner.findings if hasattr(scanner, "findings") else []
 
         if not findings:
             await safe_reply(update, f"*Findings for {mission_id}*\n\nNo findings yet.")
@@ -459,6 +486,7 @@ async def cmd_findings(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.error(f"Findings error: {e}")
         await safe_reply(update, f"Error: {str(e)[:100]}")
 
+
 async def cmd_programs(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """List top bug bounty programs."""
 
@@ -488,17 +516,43 @@ async def cmd_programs(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.error(f"Programs error: {e}")
         await safe_reply(update, f"Error: {str(e)[:100]}")
 
+
 async def cmd_settings(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Show user settings with inline buttons."""
     user_id = update.effective_user.id
     pref = get_preferences(user_id)
 
     keyboard = [
-        [InlineKeyboardButton(f"Notifications: {'ON' if pref.notifications_enabled else 'OFF'}", callback_data=f"toggle_notif_all")],
-        [InlineKeyboardButton(f"Mission Start: {'ON' if pref.notify_mission_start else 'OFF'}", callback_data=f"toggle_notif_mission_start")],
-        [InlineKeyboardButton(f"Mission Complete: {'ON' if pref.notify_mission_complete else 'OFF'}", callback_data=f"toggle_notif_mission_complete")],
-        [InlineKeyboardButton(f"Findings: {'ON' if pref.notify_findings else 'OFF'}", callback_data=f"toggle_notif_findings")],
-        [InlineKeyboardButton(f"Warnings: {'ON' if pref.notify_warnings else 'OFF'}", callback_data=f"toggle_notif_warnings")],
+        [
+            InlineKeyboardButton(
+                f"Notifications: {'ON' if pref.notifications_enabled else 'OFF'}",
+                callback_data=f"toggle_notif_all",
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                f"Mission Start: {'ON' if pref.notify_mission_start else 'OFF'}",
+                callback_data=f"toggle_notif_mission_start",
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                f"Mission Complete: {'ON' if pref.notify_mission_complete else 'OFF'}",
+                callback_data=f"toggle_notif_mission_complete",
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                f"Findings: {'ON' if pref.notify_findings else 'OFF'}",
+                callback_data=f"toggle_notif_findings",
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                f"Warnings: {'ON' if pref.notify_warnings else 'OFF'}",
+                callback_data=f"toggle_notif_warnings",
+            )
+        ],
         [InlineKeyboardButton("Favorites", callback_data="show_favorites")],
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -510,8 +564,9 @@ async def cmd_settings(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"Language: {pref.language}\n"
         f"Theme: {pref.theme}\n\n"
         f"Tap buttons to change settings",
-        reply_markup=reply_markup
+        reply_markup=reply_markup,
     )
+
 
 async def cmd_favorites(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Show favorite targets."""
@@ -529,6 +584,7 @@ async def cmd_favorites(update: Update, context: ContextTypes.DEFAULT_TYPE):
     lines.append("\nUse `/delfav <target>` to remove.")
     await safe_reply(update, "\n".join(lines))
 
+
 async def cmd_addfav(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Add target to favorites."""
     if not context.args:
@@ -543,7 +599,10 @@ async def cmd_addfav(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     pref = add_favorite_target(user_id, target)
-    await safe_reply(update, f"Added `{target}` to favorites.\n\nTotal: {len(pref.favorite_targets)}")
+    await safe_reply(
+        update, f"Added `{target}` to favorites.\n\nTotal: {len(pref.favorite_targets)}"
+    )
+
 
 async def cmd_delfav(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Remove target from favorites."""
@@ -555,7 +614,10 @@ async def cmd_delfav(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
 
     pref = remove_favorite_target(user_id, target)
-    await safe_reply(update, f"Removed `{target}` from favorites.\n\nTotal: {len(pref.favorite_targets)}")
+    await safe_reply(
+        update, f"Removed `{target}` from favorites.\n\nTotal: {len(pref.favorite_targets)}"
+    )
+
 
 async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle inline button callbacks."""
@@ -582,30 +644,45 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await cmd_settings(update, context)
 
     elif data == "toggle_notif_mission_start":
-        pref = toggle_notification(user_id, "mission_start", not get_preferences(user_id).notify_mission_start)
+        pref = toggle_notification(
+            user_id, "mission_start", not get_preferences(user_id).notify_mission_start
+        )
         await safe_reply(update, f"Mission Start: {'ON' if pref.notify_mission_start else 'OFF'}")
         await cmd_settings(update, context)
 
     elif data == "toggle_notif_mission_complete":
-        pref = toggle_notification(user_id, "mission_complete", not get_preferences(user_id).notify_mission_complete)
-        await safe_reply(update, f"Mission Complete: {'ON' if pref.notify_mission_complete else 'OFF'}")
+        pref = toggle_notification(
+            user_id, "mission_complete", not get_preferences(user_id).notify_mission_complete
+        )
+        await safe_reply(
+            update, f"Mission Complete: {'ON' if pref.notify_mission_complete else 'OFF'}"
+        )
         await cmd_settings(update, context)
 
     elif data == "toggle_notif_findings":
-        pref = toggle_notification(user_id, "findings", not get_preferences(user_id).notify_findings)
+        pref = toggle_notification(
+            user_id, "findings", not get_preferences(user_id).notify_findings
+        )
         await safe_reply(update, f"Findings: {'ON' if pref.notify_findings else 'OFF'}")
         await cmd_settings(update, context)
 
     elif data == "toggle_notif_warnings":
-        pref = toggle_notification(user_id, "warnings", not get_preferences(user_id).notify_warnings)
+        pref = toggle_notification(
+            user_id, "warnings", not get_preferences(user_id).notify_warnings
+        )
         await safe_reply(update, f"Warnings: {'ON' if pref.notify_warnings else 'OFF'}")
         await cmd_settings(update, context)
 
-# Main 
+
+# Main
 def main():
     # Environment Variable Support (10/10 Standard)
-    token = os.getenv("TELEGRAM_BOT_TOKEN") or config.get("telegram", {}).get("token") or config.get("telegram", {}).get("bot_token")
-    
+    token = (
+        os.getenv("TELEGRAM_BOT_TOKEN")
+        or config.get("telegram", {}).get("token")
+        or config.get("telegram", {}).get("bot_token")
+    )
+
     if not token or "YOUR" in str(token):
         logger.error("Missing TELEGRAM_BOT_TOKEN in ENV or config.yaml")
         return
@@ -626,19 +703,20 @@ def main():
     app.add_handler(CommandHandler("favorites", cmd_favorites))
     app.add_handler(CommandHandler("addfav", cmd_addfav))
     app.add_handler(CommandHandler("delfav", cmd_delfav))
-    
+
     app.add_handler(CommandHandler("b", cmd_bounty))
     app.add_handler(CommandHandler("m", cmd_mission))
     app.add_handler(CommandHandler("s", cmd_scan))
     app.add_handler(CommandHandler("p", cmd_pause))
     app.add_handler(CommandHandler("r", cmd_resume))
     app.add_handler(CommandHandler("f", cmd_findings))
-    
+
     app.add_handler(CallbackQueryHandler(button_callback))
 
     logger.info("[START] Elengenix Bot is now operational")
     logger.info("Send /start to your bot to auto-detect your Chat ID")
     app.run_polling(drop_pending_updates=True)
 
+
 if __name__ == "__main__":
- main()
+    main()

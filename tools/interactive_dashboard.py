@@ -31,6 +31,7 @@ logger = logging.getLogger("elengenix.interactive_dashboard")
 @dataclass
 class DashboardWidget:
     """Dashboard widget configuration."""
+
     widget_id: str
     widget_type: str  # chart, table, metric, timeline
     title: str
@@ -322,7 +323,7 @@ class InteractiveDashboardEnhancer:
     .metrics-grid {
         grid-template-columns: repeat(2, 1fr);
     }
-    
+
     .chart-canvas {
         height: 200px;
     }
@@ -377,58 +378,58 @@ class SimpleChart {
         this.options = options;
         this.draw();
     }
-    
+
     draw() {
         const ctx = this.ctx;
         const width = this.canvas.width = this.canvas.offsetWidth;
         const height = this.canvas.height = this.canvas.offsetHeight;
-        
+
         ctx.clearRect(0, 0, width, height);
-        
+
         if (this.type === 'doughnut') {
             this.drawDoughnut(ctx, width, height);
         } else if (this.type === 'bar') {
             this.drawBar(ctx, width, height);
         }
     }
-    
+
     drawDoughnut(ctx, width, height) {
         const centerX = width / 2;
         const centerY = height / 2;
         const radius = Math.min(width, height) / 3;
         const innerRadius = radius * 0.6;
-        
+
         let total = this.data.reduce((sum, item) => sum + item.value, 0);
         let currentAngle = -Math.PI / 2;
-        
+
         this.data.forEach(item => {
             const sliceAngle = (item.value / total) * Math.PI * 2;
-            
+
             ctx.beginPath();
             ctx.arc(centerX, centerY, radius, currentAngle, currentAngle + sliceAngle);
             ctx.arc(centerX, centerY, innerRadius, currentAngle + sliceAngle, currentAngle, true);
             ctx.closePath();
             ctx.fillStyle = item.color;
             ctx.fill();
-            
+
             currentAngle += sliceAngle;
         });
     }
-    
+
     drawBar(ctx, width, height) {
         const padding = 40;
         const chartWidth = width - padding * 2;
         const chartHeight = height - padding * 2;
         const barWidth = chartWidth / this.data.length * 0.6;
         const spacing = chartWidth / this.data.length * 0.4;
-        
+
         let max = Math.max(...this.data.map(d => d.value));
-        
+
         this.data.forEach((item, i) => {
             const barHeight = (item.value / max) * chartHeight;
             const x = padding + i * (barWidth + spacing) + spacing / 2;
             const y = height - padding - barHeight;
-            
+
             ctx.fillStyle = item.color;
             ctx.fillRect(x, y, barWidth, barHeight);
         });
@@ -444,19 +445,19 @@ class FindingsTable {
         this.sortDirection = 'asc';
         this.render();
     }
-    
+
     render() {
         let html = '<table class="data-table"><thead><tr>';
-        
+
         const columns = ['Type', 'Severity', 'Target', 'Confidence'];
         columns.forEach(col => {
             const sorted = this.sortColumn === col;
             const direction = sorted ? `sorted-${this.sortDirection}` : 'sortable';
             html += `<th class="${direction}" onclick="table.sort('${col}')">${col}</th>`;
         });
-        
+
         html += '</tr></thead><tbody>';
-        
+
         this.data.forEach(finding => {
             html += `<tr class="severity-${finding.severity}">`;
             html += `<td>${finding.type}</td>`;
@@ -465,11 +466,11 @@ class FindingsTable {
             html += `<td>${finding.confidence}%</td>`;
             html += '</tr>';
         });
-        
+
         html += '</tbody></table>';
         this.element.innerHTML = html;
     }
-    
+
     sort(column) {
         if (this.sortColumn === column) {
             this.sortDirection = this.sortDirection === 'asc' ? 'desc' : 'asc';
@@ -477,19 +478,19 @@ class FindingsTable {
             this.sortColumn = column;
             this.sortDirection = 'asc';
         }
-        
+
         this.data.sort((a, b) => {
             let valA = a[column.toLowerCase()];
             let valB = b[column.toLowerCase()];
-            
+
             if (typeof valA === 'string') valA = valA.toLowerCase();
             if (typeof valB === 'string') valB = valB.toLowerCase();
-            
+
             if (valA < valB) return this.sortDirection === 'asc' ? -1 : 1;
             if (valA > valB) return this.sortDirection === 'asc' ? 1 : -1;
             return 0;
         });
-        
+
         this.render();
     }
 }
@@ -501,11 +502,11 @@ class LiveUpdater {
         this.callbacks = [];
         this.start();
     }
-    
+
     start() {
         setInterval(() => this.fetchUpdates(), this.interval);
     }
-    
+
     fetchUpdates() {
         fetch('/api/findings?limit=100')
             .then(r => r.json())
@@ -514,7 +515,7 @@ class LiveUpdater {
             })
             .catch(e => console.error('Update failed:', e));
     }
-    
+
     onUpdate(callback) {
         this.callbacks.push(callback);
     }
@@ -533,7 +534,7 @@ function exportToJSON(data, filename) {
 
 function convertToCSV(data) {
     if (!data || !data.length) return '';
-    
+
     const headers = Object.keys(data[0]);
     const rows = data.map(obj => headers.map(h => JSON.stringify(obj[h] || '')).join(','));
     return [headers.join(','), ...rows].join('\\n');
@@ -553,17 +554,17 @@ function downloadFile(content, filename, mimeType) {
 document.addEventListener('DOMContentLoaded', () => {
     // Start live updates
     const updater = new LiveUpdater(5000);
-    
+
     updater.onUpdate(findings => {
         // Update stats
         updateStats(findings);
-        
+
         // Update charts if visible
         if (window.severityChart) {
             updateSeverityChart(findings);
         }
     });
-    
+
     // Initialize charts
     initCharts();
 });
@@ -573,7 +574,7 @@ function updateStats(findings) {
     findings.forEach(f => {
         if (stats[f.severity] !== undefined) stats[f.severity]++;
     });
-    
+
     document.getElementById('stat-critical').textContent = stats.critical;
     document.getElementById('stat-high').textContent = stats.high;
     document.getElementById('stat-medium').textContent = stats.medium;
@@ -583,7 +584,7 @@ function updateStats(findings) {
 function initCharts() {
     const canvas = document.getElementById('severity-chart');
     if (!canvas) return;
-    
+
     // Fetch stats and draw
     fetch('/api/stats')
         .then(r => r.json())
@@ -603,19 +604,18 @@ function updateSeverityChart(findings) {
     findings.forEach(f => {
         if (stats[f.severity] !== undefined) stats[f.severity]++;
     });
-    
+
     const data = [
         { value: stats.critical, color: '#f85149' },
         { value: stats.high, color: '#f0883e' },
         { value: stats.medium, color: '#d29922' },
         { value: stats.low, color: '#3fb950' },
     ];
-    
+
     window.severityChart.data = data;
     window.severityChart.draw();
 }
 """
-
 
 
 class InteractiveDashboard:
@@ -632,22 +632,22 @@ class InteractiveDashboard:
 
     def run(self):
         """Start the dashboard server and block."""
-        from tools.dashboard_server import DashboardServer, DashboardHandler
-        from ui_components import print_info, print_success, print_error
-        
+        from tools.dashboard_server import DashboardHandler, DashboardServer
+        from ui_components import print_error, print_info, print_success
+
         mission_state = None  # Dashboard starts without a specific mission
 
         try:
             print_info(f"Initializing Interactive Dashboard on {self.host}:{self.port}")
             self.server = DashboardServer((self.host, self.port), DashboardHandler, mission_state)
             self.enhancer = InteractiveDashboardEnhancer(self.server)
-            
+
             # Inject enhanced HTML/CSS/JS into the handler via the server if possible
             # For simplicity, we just use the enhanced server as is
-            
+
             print_success(f"Dashboard is live! Visit http://{self.host}:{self.port}")
             print_info("Press Ctrl+C to shut down.")
-            
+
             self.server.serve_forever()
         except KeyboardInterrupt:
             print_info("Dashboard shutting down...")
@@ -660,6 +660,7 @@ class InteractiveDashboard:
 def create_sample_findings_for_demo() -> List[Dict[str, Any]]:
     """Create sample findings for dashboard demo."""
     from datetime import datetime
+
     return [
         {
             "id": "f1",
@@ -689,4 +690,3 @@ def create_sample_findings_for_demo() -> List[Dict[str, Any]]:
             "timestamp": datetime.now().isoformat(),
         },
     ]
-

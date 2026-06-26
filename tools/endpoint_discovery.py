@@ -9,6 +9,7 @@ methods/parameters.
 This is the missing piece that turns "probe root URL" into "scan the actual
 attack surface".
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -27,6 +28,7 @@ logger = logging.getLogger("elengenix.discovery")
 @dataclass
 class Endpoint:
     """A discovered HTTP endpoint with metadata."""
+
     url: str
     method: str = "GET"
     params: Dict[str, Any] = field(default_factory=dict)  # query/body params
@@ -38,35 +40,94 @@ class Endpoint:
 # Common paths to probe — if a path returns 200, it's likely an endpoint
 COMMON_PATHS = [
     # API roots
-    "/api", "/api/v1", "/api/v2", "/v1", "/v2",
+    "/api",
+    "/api/v1",
+    "/api/v2",
+    "/v1",
+    "/v2",
     # Auth
-    "/login", "/logout", "/register", "/signup", "/auth", "/auth/login",
-    "/oauth", "/oauth/token", "/token", "/api/token", "/api/auth",
+    "/login",
+    "/logout",
+    "/register",
+    "/signup",
+    "/auth",
+    "/auth/login",
+    "/oauth",
+    "/oauth/token",
+    "/token",
+    "/api/token",
+    "/api/auth",
     # User / profile
-    "/user", "/users", "/api/user", "/api/users", "/me", "/profile",
-    "/api/user/1", "/api/me",
+    "/user",
+    "/users",
+    "/api/user",
+    "/api/users",
+    "/me",
+    "/profile",
+    "/api/user/1",
+    "/api/me",
     # Search / data
-    "/search", "/api/search", "/query", "/api/query", "/find",
+    "/search",
+    "/api/search",
+    "/query",
+    "/api/query",
+    "/find",
     # CRUD
-    "/items", "/products", "/posts", "/comments", "/messages",
-    "/api/items", "/api/posts", "/api/comments",
+    "/items",
+    "/products",
+    "/posts",
+    "/comments",
+    "/messages",
+    "/api/items",
+    "/api/posts",
+    "/api/comments",
     # Admin
-    "/admin", "/admin/login", "/dashboard", "/manage",
+    "/admin",
+    "/admin/login",
+    "/dashboard",
+    "/manage",
     # File ops
-    "/upload", "/download", "/file", "/files", "/static", "/assets",
-    "/api/upload", "/api/download",
+    "/upload",
+    "/download",
+    "/file",
+    "/files",
+    "/static",
+    "/assets",
+    "/api/upload",
+    "/api/download",
     # GraphQL / introspection
-    "/graphql", "/api/graphql", "/graphiql", "/gql", "/query",
+    "/graphql",
+    "/api/graphql",
+    "/graphiql",
+    "/gql",
+    "/query",
     # Common vuln paths
-    "/render", "/template", "/preview", "/exec", "/eval",
-    "/merge", "/api/merge", "/api/jwt/verify", "/api/jwt/issue",
+    "/render",
+    "/template",
+    "/preview",
+    "/exec",
+    "/eval",
+    "/merge",
+    "/api/merge",
+    "/api/jwt/verify",
+    "/api/jwt/issue",
     "/api/coupon/redeem",
     # Docs
-    "/docs", "/swagger", "/openapi.json", "/redoc", "/.well-known/openid-configuration",
+    "/docs",
+    "/swagger",
+    "/openapi.json",
+    "/redoc",
+    "/.well-known/openid-configuration",
     "/jwks.json",
     # Debug
-    "/debug", "/debug/vars", "/trace", "/actuator", "/health", "/status",
-    "/version", "/info",
+    "/debug",
+    "/debug/vars",
+    "/trace",
+    "/actuator",
+    "/health",
+    "/status",
+    "/version",
+    "/info",
 ]
 
 
@@ -103,7 +164,9 @@ class EndpointDiscovery:
     async def discover(self) -> List[Endpoint]:
         """Main entry: discover all endpoints."""
         endpoints: List[Endpoint] = []
-        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=self.timeout)) as session:
+        async with aiohttp.ClientSession(
+            timeout=aiohttp.ClientTimeout(total=self.timeout)
+        ) as session:
             self.session = session
 
             # Step 1: read root
@@ -135,8 +198,7 @@ class EndpointDiscovery:
                     return eps
                 ct = r.headers.get("content-type", "")
                 body = await r.text()
-                eps.append(Endpoint(url=self.target, method="GET",
-                                    content_type=ct, source="root"))
+                eps.append(Endpoint(url=self.target, method="GET", content_type=ct, source="root"))
 
                 if "json" in ct:
                     try:
@@ -152,24 +214,30 @@ class EndpointDiscovery:
                                         # Try to extract method + path
                                         ep = self._parse_endpoint_hint(item)
                                         if ep:
-                                            eps.append(Endpoint(
-                                                url=urljoin(self.target + "/", ep["path"].lstrip("/")),
-                                                method=ep.get("method", "GET"),
-                                                params=ep.get("params", {}),
-                                                content_type="application/json",
-                                                source="root_hint",
-                                            ))
+                                            eps.append(
+                                                Endpoint(
+                                                    url=urljoin(
+                                                        self.target + "/", ep["path"].lstrip("/")
+                                                    ),
+                                                    method=ep.get("method", "GET"),
+                                                    params=ep.get("params", {}),
+                                                    content_type="application/json",
+                                                    source="root_hint",
+                                                )
+                                            )
                                     elif isinstance(item, dict):
                                         # Object form: {"path": "/x", "method": "POST"}
                                         path = item.get("path") or item.get("url")
                                         if path:
                                             full = urljoin(self.target + "/", str(path).lstrip("/"))
-                                            eps.append(Endpoint(
-                                                url=full,
-                                                method=item.get("method", "GET").upper(),
-                                                content_type="application/json",
-                                                source="root_hint",
-                                            ))
+                                            eps.append(
+                                                Endpoint(
+                                                    url=full,
+                                                    method=item.get("method", "GET").upper(),
+                                                    content_type="application/json",
+                                                    source="root_hint",
+                                                )
+                                            )
         except Exception as e:
             logger.debug("root discovery failed: %s", e)
         return eps
@@ -199,11 +267,29 @@ class EndpointDiscovery:
 
         # Endpoints likely to accept POST
         POST_LIKELY = {
-            "/login", "/logout", "/register", "/signup", "/auth/login",
-            "/auth", "/oauth/token", "/token", "/api/token", "/api/auth",
-            "/register", "/signup", "/users", "/api/users", "/comments",
-            "/posts", "/messages", "/api/comments", "/api/posts",
-            "/api/merge", "/api/coupon/redeem", "/upload", "/api/upload",
+            "/login",
+            "/logout",
+            "/register",
+            "/signup",
+            "/auth/login",
+            "/auth",
+            "/oauth/token",
+            "/token",
+            "/api/token",
+            "/api/auth",
+            "/register",
+            "/signup",
+            "/users",
+            "/api/users",
+            "/comments",
+            "/posts",
+            "/messages",
+            "/api/comments",
+            "/api/posts",
+            "/api/merge",
+            "/api/coupon/redeem",
+            "/upload",
+            "/api/upload",
         }
 
         async def probe(path: str) -> List[Endpoint]:
@@ -221,14 +307,16 @@ class EndpointDiscovery:
                         if path in POST_LIKELY or r.status == 405:
                             methods_to_try.append("POST")
                         for method in methods_to_try:
-                            found.append(Endpoint(
-                                url=url,
-                                method=method,
-                                content_type=ct,
-                                params=params,
-                                requires_auth=(r.status in (401, 403)),
-                                source="common_path",
-                            ))
+                            found.append(
+                                Endpoint(
+                                    url=url,
+                                    method=method,
+                                    content_type=ct,
+                                    params=params,
+                                    requires_auth=(r.status in (401, 403)),
+                                    source="common_path",
+                                )
+                            )
             except Exception:
                 return found
             return found

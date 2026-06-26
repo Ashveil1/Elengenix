@@ -56,6 +56,7 @@ class PatternSeverity:
 @dataclass
 class DangerousPatternHit:
     """One match of a dangerous pattern."""
+
     pattern_id: str
     severity: str
     line: int
@@ -67,6 +68,7 @@ class DangerousPatternHit:
 @dataclass
 class SafetyReport:
     """Result of static analysis of a code snippet."""
+
     is_safe: bool
     hits: List[DangerousPatternHit] = field(default_factory=list)
     syntax_error: Optional[str] = None
@@ -95,36 +97,78 @@ class SafetyReport:
 
 # Dangerous builtin / function names that should be flagged
 _DANGEROUS_BUILTINS: Set[str] = {
-    "exec", "eval", "compile", "__import__", "getattr", "setattr",
-    "delattr", "globals", "locals", "vars",
+    "exec",
+    "eval",
+    "compile",
+    "__import__",
+    "getattr",
+    "setattr",
+    "delattr",
+    "globals",
+    "locals",
+    "vars",
 }
 
 # Dangerous stdlib modules
 _DANGEROUS_MODULES: Set[str] = {
-    "os", "subprocess", "ctypes", "ctypes.util", "socket", "ssl",
-    "multiprocessing", "threading", "_thread", "pty", "fcntl",
-    "resource", "pwd", "grp", "spwd", "crypt",
-    "requests", "httpx", "urllib3", "aiohttp",
+    "os",
+    "subprocess",
+    "ctypes",
+    "ctypes.util",
+    "socket",
+    "ssl",
+    "multiprocessing",
+    "threading",
+    "_thread",
+    "pty",
+    "fcntl",
+    "resource",
+    "pwd",
+    "grp",
+    "spwd",
+    "crypt",
+    "requests",
+    "httpx",
+    "urllib3",
+    "aiohttp",
 }
 
 # Filesystem write functions
 _FILESYSTEM_WRITE_FUNCS: Set[str] = {
     "open",  # checked with mode
-    "os.remove", "os.unlink", "os.rmdir", "os.removedirs",
-    "shutil.rmtree", "shutil.move",
-    "pathlib.Path.unlink", "pathlib.Path.rmdir",
-    "pathlib.Path.write_text", "pathlib.Path.write_bytes",
-    "tempfile.mkstemp", "tempfile.NamedTemporaryFile",
+    "os.remove",
+    "os.unlink",
+    "os.rmdir",
+    "os.removedirs",
+    "shutil.rmtree",
+    "shutil.move",
+    "pathlib.Path.unlink",
+    "pathlib.Path.rmdir",
+    "pathlib.Path.write_text",
+    "pathlib.Path.write_bytes",
+    "tempfile.mkstemp",
+    "tempfile.NamedTemporaryFile",
 }
 
 # Network call functions
 _NETWORK_FUNCS: Set[str] = {
-    "socket.socket", "socket.create_connection", "socket.getaddrinfo",
-    "urllib.request.urlopen", "urllib.request.urlretrieve",
-    "http.client.HTTPConnection", "http.client.HTTPSConnection",
-    "ftplib.FTP", "smtplib.SMTP", "telnetlib.Telnet",
-    "requests.get", "requests.post", "requests.put", "requests.delete",
-    "requests.head", "requests.patch", "requests.request",
+    "socket.socket",
+    "socket.create_connection",
+    "socket.getaddrinfo",
+    "urllib.request.urlopen",
+    "urllib.request.urlretrieve",
+    "http.client.HTTPConnection",
+    "http.client.HTTPSConnection",
+    "ftplib.FTP",
+    "smtplib.SMTP",
+    "telnetlib.Telnet",
+    "requests.get",
+    "requests.post",
+    "requests.put",
+    "requests.delete",
+    "requests.head",
+    "requests.patch",
+    "requests.request",
 }
 
 
@@ -199,8 +243,11 @@ class RealDangerousPatternDetector:
             self._check_call(node, report)
         elif isinstance(node, ast.Attribute):
             # __dunder__ access is a classic sandbox escape
-            if node.attr.startswith("__") and node.attr.endswith("__") \
-                    and node.attr not in {"__init__", "__name__", "__doc__", "__class__", "__dict__"}:
+            if (
+                node.attr.startswith("__")
+                and node.attr.endswith("__")
+                and node.attr not in {"__init__", "__name__", "__doc__", "__class__", "__dict__"}
+            ):
                 self._hit(
                     report,
                     "dunder_access",
@@ -271,7 +318,9 @@ class RealDangerousPatternDetector:
         for arg in node.args:
             if isinstance(arg, ast.Constant) and isinstance(arg.value, str):
                 s = arg.value.lower()
-                if any(token in s for token in ("/dev/tcp/", "nc -e", "bash -i", "rm -rf /", "mkfifo")):
+                if any(
+                    token in s for token in ("/dev/tcp/", "nc -e", "bash -i", "rm -rf /", "mkfifo")
+                ):
                     self._hit(
                         report,
                         "shell_token",
@@ -306,14 +355,16 @@ class RealDangerousPatternDetector:
         snippet = ast.unparse(node) if hasattr(ast, "unparse") else "<node>"
         if len(snippet) > 120:
             snippet = snippet[:120] + "..."
-        report.hits.append(DangerousPatternHit(
-            pattern_id=pattern_id,
-            severity=severity,
-            line=getattr(node, "lineno", 0),
-            col=getattr(node, "col_offset", 0),
-            description=description,
-            snippet=snippet,
-        ))
+        report.hits.append(
+            DangerousPatternHit(
+                pattern_id=pattern_id,
+                severity=severity,
+                line=getattr(node, "lineno", 0),
+                col=getattr(node, "col_offset", 0),
+                description=description,
+                snippet=snippet,
+            )
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -324,6 +375,7 @@ class RealDangerousPatternDetector:
 @dataclass
 class SandboxConfig:
     """Configuration for a sandboxed execution."""
+
     timeout_seconds: int = 30
     memory_limit_mb: int = 512
     cpu_time_seconds: int = 20
@@ -338,6 +390,7 @@ class SandboxConfig:
 @dataclass
 class SandboxResult:
     """Result of running code in a SubprocessSandbox."""
+
     success: bool
     returncode: int
     stdout: str
@@ -478,10 +531,7 @@ class SubprocessSandbox:
                 success=False,
                 returncode=-1,
                 stdout="",
-                stderr=(
-                    "Refused: critical safety violations detected.\n"
-                    + report.summary()
-                ),
+                stderr=("Refused: critical safety violations detected.\n" + report.summary()),
                 duration_seconds=0.0,
                 error="critical_violations",
             )

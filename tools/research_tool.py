@@ -7,8 +7,8 @@ tools/research_tool.py — OSINT Web Research Tool
 - Returns structured result dicts
 """
 
-import os
 import logging
+import os
 import random
 import time
 from typing import Dict, List
@@ -17,12 +17,14 @@ import requests
 
 try:
     import trafilatura
+
     _HAS_TRAFILATURA = True
 except ImportError:
     _HAS_TRAFILATURA = False
 
 try:
     from googlesearch import search
+
     _HAS_GOOGLESEARCH = True
 except ImportError:
     _HAS_GOOGLESEARCH = False
@@ -80,11 +82,13 @@ def _search_tavily(query: str, num_results: int, api_key: str) -> List[Dict]:
         data = resp.json()
         results = []
         for r in data.get("results", []):
-            results.append({
-                "url": r.get("url", ""),
-                "title": r.get("title", ""),
-                "content": r.get("content") or r.get("snippet", ""),
-            })
+            results.append(
+                {
+                    "url": r.get("url", ""),
+                    "title": r.get("title", ""),
+                    "content": r.get("content") or r.get("snippet", ""),
+                }
+            )
         return results
     except Exception as e:
         logger.error(f"Tavily search error: {e}")
@@ -107,15 +111,18 @@ def _search_duckduckgo(query: str, num_results: int) -> List[Dict]:
     """
     try:
         from duckduckgo_search import DDGS
+
         logger.info(f"Searching DuckDuckGo for: {query}")
         results = []
         with DDGS() as ddgs:
             for r in ddgs.text(query, max_results=num_results):
-                results.append({
-                    "url": r.get("href", ""),
-                    "title": r.get("title", "Web Result"),
-                    "content": r.get("body", ""),
-                })
+                results.append(
+                    {
+                        "url": r.get("href", ""),
+                        "title": r.get("title", "Web Result"),
+                        "content": r.get("body", ""),
+                    }
+                )
         return results
     except ImportError:
         logger.warning("[WARN] duckduckgo-search not installed. Run: pip install duckduckgo-search")
@@ -272,12 +279,14 @@ def research_target(
 
             if summarize:
                 if res.get("content") and len(res["content"]) > 500:
-                    results.append({
-                        "url": url,
-                        "text": res["content"][:_MAX_TEXT],
-                        "chars": len(res["content"]),
-                        "error": "",
-                    })
+                    results.append(
+                        {
+                            "url": url,
+                            "text": res["content"][:_MAX_TEXT],
+                            "chars": len(res["content"]),
+                            "error": "",
+                        }
+                    )
                 else:
                     data = extract_and_summarize(url)
                     results.append(data)

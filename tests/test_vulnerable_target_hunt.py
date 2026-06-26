@@ -5,6 +5,7 @@ End-to-end tests against the deliberately vulnerable Flask target.
 These tests require the vulnerable target to be running on port 5555.
 They verify that the hunt engine actually finds real vulnerabilities.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -37,7 +38,7 @@ def _is_target_running(port: int = 5555) -> bool:
 pytestmark = pytest.mark.skipif(
     not _is_target_running(),
     reason="Vulnerable target not running on 127.0.0.1:5555. "
-           "Start it with: cd tests/vulnerable_target && PORT=5555 python3 app.py"
+    "Start it with: cd tests/vulnerable_target && PORT=5555 python3 app.py",
 )
 
 
@@ -49,6 +50,7 @@ def target_url():
 def test_endpoint_discovery_finds_vulns(target_url):
     """Endpoint discovery must find vuln-related paths."""
     from tools.endpoint_discovery import EndpointDiscovery
+
     disc = EndpointDiscovery(target=target_url, timeout=5.0)
 
     async def go():
@@ -69,6 +71,7 @@ def test_endpoint_discovery_finds_vulns(target_url):
 def test_endpoint_discovery_finds_post_methods(target_url):
     """Discovery should find POST methods for vuln endpoints."""
     from tools.endpoint_discovery import EndpointDiscovery
+
     disc = EndpointDiscovery(target=target_url, timeout=5.0)
 
     async def go():
@@ -237,10 +240,13 @@ def test_hunt_engine_finds_vulns(target_url):
     engine = HuntEngine(target=target_url, quiet=True)
     report = engine.hunt_sync()
 
-    live_findings = [f for f in report.findings
-                     if f.severity != "Informational"
-                     and "CANDIDATE" not in f.title.upper()
-                     and (f.url or f.details)]
+    live_findings = [
+        f
+        for f in report.findings
+        if f.severity != "Informational"
+        and "CANDIDATE" not in f.title.upper()
+        and (f.url or f.details)
+    ]
 
     assert len(live_findings) >= 5, (
         f"Expected >=5 live vulns, got {len(live_findings)}: "
@@ -257,9 +263,11 @@ def test_hunt_engine_produces_evidence(target_url):
     engine = HuntEngine(target=target_url, quiet=True)
     report = engine.hunt_sync()
 
-    live = [f for f in report.findings
-            if f.severity != "Informational"
-            and "CANDIDATE" not in f.title.upper()]
+    live = [
+        f
+        for f in report.findings
+        if f.severity != "Informational" and "CANDIDATE" not in f.title.upper()
+    ]
 
     for f in live:
         # Must have evidence
@@ -280,9 +288,9 @@ def test_hunt_engine_chains_detected(target_url):
 
     # Should find JWT alg=none + IDOR → chain auth_bypass_then_idor
     chain_types = [c.get("chain_type") for c in report.chains]
-    assert "auth_bypass_then_idor" in chain_types, (
-        f"Expected auth_bypass_then_idor chain, got: {chain_types}"
-    )
+    assert (
+        "auth_bypass_then_idor" in chain_types
+    ), f"Expected auth_bypass_then_idor chain, got: {chain_types}"
 
 
 def test_hunt_engine_distinguishes_live_vs_static(target_url):
@@ -292,20 +300,21 @@ def test_hunt_engine_distinguishes_live_vs_static(target_url):
     engine = HuntEngine(target=target_url, quiet=True)
     report = engine.hunt_sync()
 
-    live = [f for f in report.findings
-            if f.severity != "Informational"
-            and "CANDIDATE" not in f.title.upper()
-            and (f.url or f.details)]
-    static = [f for f in report.findings
-              if "CANDIDATE" in f.title.upper()]
+    live = [
+        f
+        for f in report.findings
+        if f.severity != "Informational"
+        and "CANDIDATE" not in f.title.upper()
+        and (f.url or f.details)
+    ]
+    static = [f for f in report.findings if "CANDIDATE" in f.title.upper()]
 
     assert len(live) >= 5, "Not enough live findings"
     assert len(static) >= 1, "Static candidates should be present"
     # LIVE count should be HIGHER than the static candidates' severity weight
     # (i.e., not all severity comes from fake candidates)
     live_severity = sum(
-        {"Critical": 25, "High": 12, "Medium": 5, "Low": 2}.get(f.severity, 0)
-        for f in live
+        {"Critical": 25, "High": 12, "Medium": 5, "Low": 2}.get(f.severity, 0) for f in live
     )
     assert live_severity >= 50, f"Live severity score too low: {live_severity}"
 
@@ -321,8 +330,7 @@ def test_hunt_engine_authenticates_users(target_url):
     auth_findings = [f for f in report.findings if f.category == "auth_session"]
     assert len(auth_findings) >= 1, "No authentication successful"
     # Should find at least 2 users (alice, bob, admin all exist)
-    usernames = {f.evidence.get("username") for f in auth_findings
-                 if isinstance(f.evidence, dict)}
+    usernames = {f.evidence.get("username") for f in auth_findings if isinstance(f.evidence, dict)}
     assert len(usernames) >= 2, f"Only got users: {usernames}"
 
 

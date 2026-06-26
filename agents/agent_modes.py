@@ -15,12 +15,12 @@ import traceback
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
-from tools.governance import Governance
-from tools.mission_state import MissionState, GraphNode, GraphEdge
-from tools.cvss_calculator import CVSSCalculator
 from tools.cve_database import get_cve_database
-from tools.vector_memory import remember
+from tools.cvss_calculator import CVSSCalculator
+from tools.governance import Governance
+from tools.mission_state import GraphEdge, GraphNode, MissionState
 from tools.tool_registry import ToolResult
+from tools.vector_memory import remember
 
 logger = logging.getLogger("elengenix.agent.modes")
 
@@ -116,8 +116,8 @@ class ModeProcessor:
         Returns:
             Response string.
         """
-        from agents.hybrid_agent import HybridAgent
         from agents.agent_helpers import _extract_target_from_text
+        from agents.hybrid_agent import HybridAgent
 
         logger.info(f"Hybrid mode started: target={target}, intent={user_input[:100]}")
 
@@ -185,9 +185,7 @@ class ModeProcessor:
         # Save report
         if result and target:
             safe_name = re.sub(r"[^a-zA-Z0-9.-]", "_", target)[:40]
-            report_path = (
-                Path("reports") / f"hybrid_{safe_name}_{int(time.time())}.md"
-            )
+            report_path = Path("reports") / f"hybrid_{safe_name}_{int(time.time())}.md"
             report_path.parent.mkdir(parents=True, exist_ok=True)
             report_path.write_text(result, encoding="utf-8")
 

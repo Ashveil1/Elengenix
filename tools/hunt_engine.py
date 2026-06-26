@@ -11,13 +11,14 @@ Runs the full Elengenix stack in optimal order:
 
 Produces a single unified report with deduplicated, correlated findings.
 """
+
 from __future__ import annotations
 
 import asyncio
 import json
 import logging
 import time
-from dataclasses import dataclass, field, asdict
+from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
@@ -37,16 +38,17 @@ class Severity(Enum):
 @dataclass
 class HuntFinding:
     """Unified finding from any source."""
-    phase: str            # recon | smart | zero_day | logic
-    category: str         # e.g. "jwt_confusion", "race_condition", "xss"
-    severity: str         # Critical | High | Medium | Low | Informational
+
+    phase: str  # recon | smart | zero_day | logic
+    category: str  # e.g. "jwt_confusion", "race_condition", "xss"
+    severity: str  # Critical | High | Medium | Low | Informational
     title: str
     details: str = ""
     url: str = ""
     evidence: Dict[str, Any] = field(default_factory=dict)
     cvss: float = 0.0
     cve_id: Optional[str] = None
-    detector: str = ""    # class name that produced this
+    detector: str = ""  # class name that produced this
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
@@ -55,8 +57,9 @@ class HuntFinding:
 @dataclass
 class HuntPhase:
     """Result of one phase of the hunt."""
+
     name: str
-    status: str           # pending | running | done | failed | skipped
+    status: str  # pending | running | done | failed | skipped
     duration: float = 0.0
     findings: int = 0
     error: str = ""
@@ -65,6 +68,7 @@ class HuntPhase:
 @dataclass
 class HuntReport:
     """Complete hunt report - single source of truth."""
+
     target: str
     started_at: str
     finished_at: str = ""
@@ -93,6 +97,7 @@ class HuntReport:
 # PHASE RUNNERS
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 async def _run_phase_recon(target: str) -> List[HuntFinding]:
     """Phase 1: Recon — discover endpoints via root + common paths.
 
@@ -102,56 +107,65 @@ async def _run_phase_recon(target: str) -> List[HuntFinding]:
     findings: List[HuntFinding] = []
     try:
         from tools.endpoint_discovery import EndpointDiscovery
+
         discovery = EndpointDiscovery(target=target, timeout=5.0)
         endpoints = await discovery.discover()
         for ep in endpoints:
             label = f"Discovered {ep.method} {ep.url}"
             if ep.requires_auth:
                 label += " [auth required]"
-            findings.append(HuntFinding(
-                phase="recon",
-                category="endpoint",
-                severity="Informational",
-                title=label,
-                url=ep.url,
-                evidence={"method": ep.method, "params": ep.params, "source": ep.source},
-                detector="EndpointDiscovery",
-            ))
+            findings.append(
+                HuntFinding(
+                    phase="recon",
+                    category="endpoint",
+                    severity="Informational",
+                    title=label,
+                    url=ep.url,
+                    evidence={"method": ep.method, "params": ep.params, "source": ep.source},
+                    detector="EndpointDiscovery",
+                )
+            )
         # Stash endpoints for targeted attacks phase
         _endpoint_cache[target] = endpoints
 
         # Phase 1b: Authentication
         import aiohttp
+
         async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=10)) as session:
             from tools.auth_session import discover_and_login
+
             auths = await discover_and_login(session, target, endpoints)
             _auth_cache[target] = auths
             for auth in auths:
-                findings.append(HuntFinding(
-                    phase="recon",
-                    category="auth_session",
-                    severity="Informational",
-                    title=f"Authenticated as '{auth.username}' via {auth.authenticated_via}",
-                    url=auth.authenticated_via,
-                    evidence={
-                        "username": auth.username,
-                        "cookies": list(auth.cookies.keys()),
-                        "has_jwt": bool(auth.jwt_token),
-                        "evidence": auth.evidence,
-                    },
-                    detector="AuthSession",
-                ))
+                findings.append(
+                    HuntFinding(
+                        phase="recon",
+                        category="auth_session",
+                        severity="Informational",
+                        title=f"Authenticated as '{auth.username}' via {auth.authenticated_via}",
+                        url=auth.authenticated_via,
+                        evidence={
+                            "username": auth.username,
+                            "cookies": list(auth.cookies.keys()),
+                            "has_jwt": bool(auth.jwt_token),
+                            "evidence": auth.evidence,
+                        },
+                        detector="AuthSession",
+                    )
+                )
     except Exception as e:
         logger.debug("recon phase error: %s", e)
-        findings.append(HuntFinding(
-            phase="recon",
-            category="baseline",
-            severity="Informational",
-            title=f"Recon attempted for {target}",
-            details=str(e)[:200],
-            url=f"http://{target}",
-            detector="EndpointDiscovery",
-        ))
+        findings.append(
+            HuntFinding(
+                phase="recon",
+                category="baseline",
+                severity="Informational",
+                title=f"Recon attempted for {target}",
+                details=str(e)[:200],
+                url=f"http://{target}",
+                detector="EndpointDiscovery",
+            )
+        )
     return findings
 
 
@@ -174,6 +188,7 @@ async def _run_phase_smart(target: str) -> List[HuntFinding]:
         # Discover on-demand if recon wasn't run
         try:
             from tools.endpoint_discovery import EndpointDiscovery
+
             discovery = EndpointDiscovery(target=target, timeout=5.0)
             endpoints = await discovery.discover()
             _endpoint_cache[target] = endpoints
@@ -184,6 +199,7 @@ async def _run_phase_smart(target: str) -> List[HuntFinding]:
     # Run targeted attacks
     try:
         from tools.targeted_attacks import run_targeted_attacks
+
         auths = _auth_cache.get(target, [])
         confirmed = await run_targeted_attacks(endpoints, concurrency=5, auth_sessions=auths)
     except Exception as e:
@@ -192,22 +208,24 @@ async def _run_phase_smart(target: str) -> List[HuntFinding]:
 
     # Convert to HuntFindings
     for c in confirmed:
-        findings.append(HuntFinding(
-            phase="smart",
-            category=c.category,
-            severity=c.severity,
-            title=c.title,
-            details=f"Evidence: {c.evidence}",
-            url=c.endpoint_url,
-            evidence={
-                "payload": c.payload[:200],
-                "response_snippet": c.response_snippet[:500],
-                "status_code": c.status_code,
-                "confidence": c.confidence,
-                "detector": c.detector,
-            },
-            detector=c.detector,
-        ))
+        findings.append(
+            HuntFinding(
+                phase="smart",
+                category=c.category,
+                severity=c.severity,
+                title=c.title,
+                details=f"Evidence: {c.evidence}",
+                url=c.endpoint_url,
+                evidence={
+                    "payload": c.payload[:200],
+                    "response_snippet": c.response_snippet[:500],
+                    "status_code": c.status_code,
+                    "confidence": c.confidence,
+                    "detector": c.detector,
+                },
+                detector=c.detector,
+            )
+        )
 
     return findings
 
@@ -221,34 +239,50 @@ async def _run_phase_zero_day(target: str) -> List[HuntFinding]:
     """
     findings: List[HuntFinding] = []
     try:
-        from tools.zero_day_heuristics import ZeroDayEngine, ScanConfig
+        from tools.zero_day_heuristics import ScanConfig, ZeroDayEngine
+
         engine = ZeroDayEngine(config=ScanConfig())
         raw = await engine.scan(target)
         for f in raw:
             is_static = (getattr(f, "metadata", {}) or {}).get("static", False)
             sev_raw = getattr(f.severity, "value", str(f.severity))
             sev_norm = sev_raw.capitalize() if isinstance(sev_raw, str) else "Medium"
-            sev_map = {"critical": "Critical", "high": "High", "medium": "Medium",
-                       "low": "Low", "informational": "Informational"}
-            sev_norm = sev_map.get(sev_raw.lower() if isinstance(sev_raw, str) else "medium", "Medium")
+            sev_map = {
+                "critical": "Critical",
+                "high": "High",
+                "medium": "Medium",
+                "low": "Low",
+                "informational": "Informational",
+            }
+            sev_norm = sev_map.get(
+                sev_raw.lower() if isinstance(sev_raw, str) else "medium", "Medium"
+            )
 
             # HONESTY: Static candidates are NOT confirmed vulnerabilities.
             # Demote to Informational so they don't inflate the risk score.
             if is_static:
                 sev_norm = "Informational"
 
-            evidence = getattr(f, "evidence", {}) if isinstance(getattr(f, "evidence", {}), dict) else {}
-            findings.append(HuntFinding(
-                phase="zero_day",
-                category=getattr(f, "vuln_class", f.__class__.__name__).value if hasattr(getattr(f, "vuln_class", None), "value") else f.__class__.__name__,
-                severity=sev_norm,
-                title=getattr(f, "title", str(f))[:200],
-                details=getattr(f, "details", "")[:500],
-                url=getattr(f, "url", "") or getattr(f, "endpoint", ""),
-                evidence=evidence,
-                cvss=getattr(f, "cvss", 0.0),
-                detector=f.__class__.__name__,
-            ))
+            evidence = (
+                getattr(f, "evidence", {}) if isinstance(getattr(f, "evidence", {}), dict) else {}
+            )
+            findings.append(
+                HuntFinding(
+                    phase="zero_day",
+                    category=(
+                        getattr(f, "vuln_class", f.__class__.__name__).value
+                        if hasattr(getattr(f, "vuln_class", None), "value")
+                        else f.__class__.__name__
+                    ),
+                    severity=sev_norm,
+                    title=getattr(f, "title", str(f))[:200],
+                    details=getattr(f, "details", "")[:500],
+                    url=getattr(f, "url", "") or getattr(f, "endpoint", ""),
+                    evidence=evidence,
+                    cvss=getattr(f, "cvss", 0.0),
+                    detector=f.__class__.__name__,
+                )
+            )
     except Exception as e:
         logger.warning("zero-day phase failed: %s", e)
     return findings
@@ -261,48 +295,54 @@ async def _run_phase_logic(target: str) -> List[HuntFinding]:
     """
     findings: List[HuntFinding] = []
     try:
-        from tools.logic_flaw_engine import LogicFlawEngine, LogicFlawConfig
+        from tools.logic_flaw_engine import LogicFlawConfig, LogicFlawEngine
+
         engine = LogicFlawEngine(config=LogicFlawConfig())
         raw = await engine.analyze(target, endpoints=[])
         for f in raw:
             sev = f.severity if isinstance(f.severity, str) else f.severity.value
-            findings.append(HuntFinding(
-                phase="logic",
-                category=f.__class__.__name__,
-                severity=sev,
-                title=f.title[:200],
-                details=f.details[:500] if hasattr(f, "details") else "",
-                url=f.endpoint if hasattr(f, "endpoint") else "",
-                evidence={"score": getattr(f, "score", 0)},
-                detector=f.__class__.__name__,
-            ))
+            findings.append(
+                HuntFinding(
+                    phase="logic",
+                    category=f.__class__.__name__,
+                    severity=sev,
+                    title=f.title[:200],
+                    details=f.details[:500] if hasattr(f, "details") else "",
+                    url=f.endpoint if hasattr(f, "endpoint") else "",
+                    evidence={"score": getattr(f, "score", 0)},
+                    detector=f.__class__.__name__,
+                )
+            )
     except Exception as e:
         logger.warning("logic phase failed: %s", e)
 
     # NEW: Scan dependencies for CVEs (NVD)
     try:
         from tools.nvd_cve import get_nvd
+
         nvd = get_nvd()
         # Look at the target's project if local, or use known tech stack
         target_deps = _detect_target_dependencies(target)
         cves = nvd.lookup_dependencies(target_deps)
         for cve in cves:
-            findings.append(HuntFinding(
-                phase="logic",
-                category="nvd_cve",
-                severity=cve.severity,
-                title=f"{cve.cve_id}: {cve.description[:150]}",
-                details=f"Affected: {', '.join(cve.affected_products)}\nFixed in: {cve.fixed_in}\nExploit available: {cve.exploit_available}",
-                url=target,
-                evidence={
-                    "cve_id": cve.cve_id,
-                    "cvss_v3": cve.cvss_v3,
-                    "exploit_available": cve.exploit_available,
-                    "fixed_in": cve.fixed_in,
-                    "references": cve.references,
-                },
-                detector="NVDDatabase",
-            ))
+            findings.append(
+                HuntFinding(
+                    phase="logic",
+                    category="nvd_cve",
+                    severity=cve.severity,
+                    title=f"{cve.cve_id}: {cve.description[:150]}",
+                    details=f"Affected: {', '.join(cve.affected_products)}\nFixed in: {cve.fixed_in}\nExploit available: {cve.exploit_available}",
+                    url=target,
+                    evidence={
+                        "cve_id": cve.cve_id,
+                        "cvss_v3": cve.cvss_v3,
+                        "exploit_available": cve.exploit_available,
+                        "fixed_in": cve.fixed_in,
+                        "references": cve.references,
+                    },
+                    detector="NVDDatabase",
+                )
+            )
     except Exception as e:
         logger.debug("NVD phase skipped: %s", e)
 
@@ -323,6 +363,7 @@ def _detect_target_dependencies(target: str) -> List[Tuple[str, str]]:
             req_file = target_path / "requirements.txt"
             if req_file.exists():
                 import re
+
                 for line in req_file.read_text().splitlines():
                     line = line.strip()
                     if not line or line.startswith("#") or line.startswith("-"):
@@ -341,7 +382,11 @@ def _detect_target_dependencies(target: str) -> List[Tuple[str, str]]:
 # ═══════════════════════════════════════════════════════════════════════════
 
 _SEVERITY_WEIGHTS = {
-    "Critical": 25, "High": 12, "Medium": 5, "Low": 2, "Informational": 0,
+    "Critical": 25,
+    "High": 12,
+    "Medium": 5,
+    "Low": 2,
+    "Informational": 0,
 }
 
 
@@ -371,9 +416,11 @@ def compute_risk_score(findings: List[HuntFinding]) -> Tuple[float, str]:
         return 0.0, "None"  # HONEST: nothing was found
 
     # Bonus for cross-phase live findings
-    phases = {f.phase for f in findings
-              if f.severity != "Informational"
-              and "CANDIDATE" not in f.title.upper()}
+    phases = {
+        f.phase
+        for f in findings
+        if f.severity != "Informational" and "CANDIDATE" not in f.title.upper()
+    }
     if len(phases) >= 3:
         score += 10
 
@@ -400,11 +447,14 @@ def correlate_chains(findings: List[HuntFinding]) -> List[Dict[str, Any]]:
     chains: List[Dict[str, Any]] = []
 
     # Filter to LIVE findings only
-    live = [f for f in findings
-            if f.severity != "Informational"
-            and "CANDIDATE" not in f.title.upper()
-            and "not tested" not in f.title.lower()
-            and (f.url or f.details)]
+    live = [
+        f
+        for f in findings
+        if f.severity != "Informational"
+        and "CANDIDATE" not in f.title.upper()
+        and "not tested" not in f.title.lower()
+        and (f.url or f.details)
+    ]
     if not live:
         return chains
 
@@ -419,37 +469,52 @@ def correlate_chains(findings: List[HuntFinding]) -> List[Dict[str, Any]]:
         if len(fs) >= 2:
             sev_score = sum(_SEVERITY_WEIGHTS.get(f.severity, 0) for f in fs)
             if sev_score >= 12:
-                chains.append({
-                    "url": url,
-                    "findings": [f.title for f in fs],
-                    "categories": [f.category for f in fs],
-                    "combined_severity_score": sev_score,
-                    "chain_type": "same_url_multi_finding",
-                })
+                chains.append(
+                    {
+                        "url": url,
+                        "findings": [f.title for f in fs],
+                        "categories": [f.category for f in fs],
+                        "combined_severity_score": sev_score,
+                        "chain_type": "same_url_multi_finding",
+                    }
+                )
 
     # Known chain patterns (only across LIVE findings)
     jwt = [f for f in live if "jwt" in f.category.lower() or "jwt" in f.title.lower()]
-    bola = [f for f in live if f.category.lower() in ("bola", "idor")
-            or "idor" in f.title.lower() or "bola" in f.title.lower()]
+    bola = [
+        f
+        for f in live
+        if f.category.lower() in ("bola", "idor")
+        or "idor" in f.title.lower()
+        or "bola" in f.title.lower()
+    ]
     if jwt and bola:
-        chains.append({
-            "url": "(cross-endpoint)",
-            "findings": [jwt[0].title, bola[0].title],
-            "categories": ["jwt_confusion", "bola"],
-            "chain_type": "auth_bypass_then_idor",
-            "combined_severity_score": _SEVERITY_WEIGHTS.get(jwt[0].severity, 0) + _SEVERITY_WEIGHTS.get(bola[0].severity, 0) + 20,
-        })
+        chains.append(
+            {
+                "url": "(cross-endpoint)",
+                "findings": [jwt[0].title, bola[0].title],
+                "categories": ["jwt_confusion", "bola"],
+                "chain_type": "auth_bypass_then_idor",
+                "combined_severity_score": _SEVERITY_WEIGHTS.get(jwt[0].severity, 0)
+                + _SEVERITY_WEIGHTS.get(bola[0].severity, 0)
+                + 20,
+            }
+        )
 
     race = [f for f in live if "race" in f.category.lower() or "race" in f.title.lower()]
     sm = [f for f in live if "state" in f.category.lower()]
     if race and sm:
-        chains.append({
-            "url": "(cross-endpoint)",
-            "findings": [race[0].title, sm[0].title],
-            "categories": ["race_condition", "state_machine"],
-            "chain_type": "race_then_state_bypass",
-            "combined_severity_score": _SEVERITY_WEIGHTS.get(race[0].severity, 0) + _SEVERITY_WEIGHTS.get(sm[0].severity, 0) + 15,
-        })
+        chains.append(
+            {
+                "url": "(cross-endpoint)",
+                "findings": [race[0].title, sm[0].title],
+                "categories": ["race_condition", "state_machine"],
+                "chain_type": "race_then_state_bypass",
+                "combined_severity_score": _SEVERITY_WEIGHTS.get(race[0].severity, 0)
+                + _SEVERITY_WEIGHTS.get(sm[0].severity, 0)
+                + 15,
+            }
+        )
 
     return chains
 
@@ -458,7 +523,10 @@ def correlate_chains(findings: List[HuntFinding]) -> List[Dict[str, Any]]:
 # MAIN ORCHESTRATOR
 # ═══════════════════════════════════════════════════════════════════════════
 
-async def _run_phase_correlation_inner(report: HuntReport, target: str, all_findings: List[HuntFinding]) -> List[HuntFinding]:
+
+async def _run_phase_correlation_inner(
+    report: HuntReport, target: str, all_findings: List[HuntFinding]
+) -> List[HuntFinding]:
     """Phase 5: Correlation, scoring, exploitation, and AI analysis.
 
     Steps:
@@ -473,6 +541,7 @@ async def _run_phase_correlation_inner(report: HuntReport, target: str, all_find
     # ACTUAL EXPLOITATION - produce proof-of-concept for each finding
     try:
         from tools.exploitation import run_exploitation
+
         auth_session = None
         # Use first auth session if available
         auths = _auth_cache.get(target, [])
@@ -480,10 +549,13 @@ async def _run_phase_correlation_inner(report: HuntReport, target: str, all_find
             auth_session = auths[0]
 
         # Only exploit LIVE findings (not static candidates)
-        live_for_exploit = [f for f in all_findings
-                           if f.severity in ("Critical", "High")
-                           and "CANDIDATE" not in f.title.upper()
-                           and (f.url or f.details)]
+        live_for_exploit = [
+            f
+            for f in all_findings
+            if f.severity in ("Critical", "High")
+            and "CANDIDATE" not in f.title.upper()
+            and (f.url or f.details)
+        ]
         exploits = await run_exploitation(target, live_for_exploit, auth_session=auth_session)
         for finding, proof in exploits:
             # Initialize evidence dict if needed
@@ -507,12 +579,10 @@ async def _run_phase_correlation_inner(report: HuntReport, target: str, all_find
 
     # AI enhancement (optional — skip if AI unavailable)
     try:
-        from tools.llm_reasoning import (
-            is_ai_available, generate_executive_summary,
-        )
+        from tools.llm_reasoning import generate_executive_summary, is_ai_available
+
         if is_ai_available() and len(all_findings) >= 3:
-            findings_dicts = [f.to_dict() for f in all_findings
-                             if f.severity != "Informational"]
+            findings_dicts = [f.to_dict() for f in all_findings if f.severity != "Informational"]
             if findings_dicts:
                 summary = generate_executive_summary(target, findings_dicts)
                 if summary:
@@ -537,8 +607,9 @@ class HuntEngine:
         report = HuntEngine(target="example.com").hunt_sync()
     """
 
-    def __init__(self, target: str, *, skip_phases: Optional[List[str]] = None,
-                 quiet: bool = False) -> None:
+    def __init__(
+        self, target: str, *, skip_phases: Optional[List[str]] = None, quiet: bool = False
+    ) -> None:
         self.target = self._normalize_target(target)
         self.skip_phases = set(skip_phases or [])
         self.quiet = quiet
@@ -553,7 +624,7 @@ class HuntEngine:
         t = target.strip()
         for prefix in ("https://", "http://"):
             if t.startswith(prefix):
-                t = t[len(prefix):]
+                t = t[len(prefix) :]
                 break
         t = t.rstrip("/")
         return t
@@ -561,6 +632,7 @@ class HuntEngine:
     def _log(self, msg: str) -> None:
         if not self.quiet:
             print(msg)
+
     async def _run_phase(self, name: str, coro_factory) -> List[HuntFinding]:
         """Run one phase with timing and error handling.
 
@@ -583,7 +655,9 @@ class HuntEngine:
             phase.status = "done"
             phase.findings = len(findings)
             phase.duration = time.time() - start
-            self._log(f"  [{name.upper():11s}] done  ({phase.duration:.1f}s, {len(findings)} findings)")
+            self._log(
+                f"  [{name.upper():11s}] done  ({phase.duration:.1f}s, {len(findings)} findings)"
+            )
             return findings
         except Exception as e:
             phase.status = "failed"
@@ -592,7 +666,6 @@ class HuntEngine:
             self._log(f"  [{name.upper():11s}] failed ({e})")
             logger.exception("phase %s failed", name)
             return []
-
 
     async def hunt(self) -> HuntReport:
         """Execute the full hunt pipeline."""
@@ -655,6 +728,7 @@ class HuntEngine:
 # REPORT FORMATTERS
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 def report_to_console(report: HuntReport) -> str:
     """Format report as a beautiful plain-text console summary.
 
@@ -672,17 +746,24 @@ def report_to_console(report: HuntReport) -> str:
     lines.append(f"  Duration:  {report.total_duration:.1f}s")
 
     # Count honest categories
-    live_findings = [f for f in report.findings
-                     if f.severity != "Informational"
-                     and "CANDIDATE" not in f.title.upper()
-                     and "not tested" not in f.title.lower()
-                     and (f.url or f.details)]
-    static_candidates = [f for f in report.findings
-                         if "CANDIDATE" in f.title.upper()
-                         or "not tested" in f.title.lower()]
+    live_findings = [
+        f
+        for f in report.findings
+        if f.severity != "Informational"
+        and "CANDIDATE" not in f.title.upper()
+        and "not tested" not in f.title.lower()
+        and (f.url or f.details)
+    ]
+    static_candidates = [
+        f
+        for f in report.findings
+        if "CANDIDATE" in f.title.upper() or "not tested" in f.title.lower()
+    ]
     info_findings = [f for f in report.findings if f.severity == "Informational"]
 
-    lines.append(f"  LIVE vulnerabilities:  {len(live_findings)}  (server actually probed & confirmed)")
+    lines.append(
+        f"  LIVE vulnerabilities:  {len(live_findings)}  (server actually probed & confirmed)"
+    )
     lines.append(f"  Static candidates:     {len(static_candidates)}  (forged tokens, NOT tested)")
     lines.append(f"  Informational:         {len(info_findings)}  (recon/probe metadata)")
     lines.append(f"  Risk score:            {report.risk_score}/100 ({report.risk_level})")
@@ -745,7 +826,9 @@ def report_to_console(report: HuntReport) -> str:
             if url_short:
                 lines.append(f"             at: {url_short}")
             # Show PoC proof if available
-            poc = (f.evidence or {}).get("proof_of_concept") if isinstance(f.evidence, dict) else None
+            poc = (
+                (f.evidence or {}).get("proof_of_concept") if isinstance(f.evidence, dict) else None
+            )
             if poc and poc.get("impact"):
                 lines.append(f"             >> PoC: {poc['impact'][:150]}")
             lines.append(f"             phase: {f.phase}  detector: {f.detector}")
@@ -811,6 +894,7 @@ def save_report(report: HuntReport, out_dir: Optional[Path] = None) -> Path:
 # CLI ENTRY
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 async def hunt(target: str, save: bool = True, quiet: bool = False) -> HuntReport:
     """Top-level hunt function."""
     engine = HuntEngine(target=target, quiet=quiet)
@@ -824,6 +908,7 @@ async def hunt(target: str, save: bool = True, quiet: bool = False) -> HuntRepor
 
 if __name__ == "__main__":
     import sys
+
     target = sys.argv[1] if len(sys.argv) > 1 else "httpbin.org"
     report = asyncio.run(hunt(target))
     print(report_to_console(report))

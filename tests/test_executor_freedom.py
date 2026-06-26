@@ -24,18 +24,18 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from agents.agent_executor import (
+    _prompt_approval,
     execute_install_tool,
     execute_shell_command,
     execute_tool,
     execute_write_script,
-    _prompt_approval,
     handle_ask_user,
 )
 from tools.governance import Governance
 from tools.universal_executor import UniversalExecutor
 
-
 # ── Fixtures ──────────────────────────────────────────────────────────────────
+
 
 @pytest.fixture()
 def gov() -> Governance:
@@ -50,6 +50,7 @@ def gov_no_approval() -> Governance:
 
 
 # ── write_script ──────────────────────────────────────────────────────────────
+
 
 class TestWriteScript:
     """Tests for execute_write_script()."""
@@ -117,24 +118,31 @@ class TestWriteScript:
 
     def test_alias_script_resolves(self, gov: Governance):
         """Alias 'script' must map to 'write_script'."""
-        result = execute_tool({
-            "action": "script",
-            "filename": "alias_script.py",
-            "code": 'print("ALIAS_OK")',
-        }, gov)
+        result = execute_tool(
+            {
+                "action": "script",
+                "filename": "alias_script.py",
+                "code": 'print("ALIAS_OK")',
+            },
+            gov,
+        )
         assert "ALIAS_OK" in result
 
     def test_alias_write_and_run_resolves(self, gov: Governance):
         """Alias 'write_and_run' must map to 'write_script'."""
-        result = execute_tool({
-            "action": "write_and_run",
-            "filename": "alias_war.py",
-            "code": 'print("WAR_OK")',
-        }, gov)
+        result = execute_tool(
+            {
+                "action": "write_and_run",
+                "filename": "alias_war.py",
+                "code": 'print("WAR_OK")',
+            },
+            gov,
+        )
         assert "WAR_OK" in result
 
 
 # ── install_tool ──────────────────────────────────────────────────────────────
+
 
 class TestInstallTool:
     """Tests for execute_install_tool()."""
@@ -145,7 +153,13 @@ class TestInstallTool:
 
         def fake_exec(cmd, timeout=300, cwd=None):
             captured.append(cmd)
-            return {"success": True, "stdout": f"Installed: {cmd}", "stderr": "", "exit_code": 0, "error": ""}
+            return {
+                "success": True,
+                "stdout": f"Installed: {cmd}",
+                "stderr": "",
+                "exit_code": 0,
+                "error": "",
+            }
 
         monkeypatch.setattr("agents.agent_executor.execute_safely", fake_exec)
         return captured
@@ -231,6 +245,7 @@ class TestInstallTool:
 
 # ── Governance integration ────────────────────────────────────────────────────
 
+
 class TestGovernanceIntegration:
     """Verify that Governance gates work correctly with the executor."""
 
@@ -261,7 +276,13 @@ class TestGovernanceIntegration:
         monkeypatch.setattr("agents.agent_executor._prompt_approval", lambda **_: (True, False))
         monkeypatch.setattr(
             "agents.agent_executor.execute_safely",
-            lambda cmd, **_: {"success": True, "stdout": "APPROVED_RUN", "stderr": "", "exit_code": 0, "error": ""}
+            lambda cmd, **_: {
+                "success": True,
+                "stdout": "APPROVED_RUN",
+                "stderr": "",
+                "exit_code": 0,
+                "error": "",
+            },
         )
         result = execute_shell_command("pip install mytool", gov, purpose="Test")
         assert "APPROVED_RUN" in result
@@ -271,7 +292,13 @@ class TestGovernanceIntegration:
         monkeypatch.setattr("agents.agent_executor._prompt_approval", lambda **_: (True, True))
         monkeypatch.setattr(
             "agents.agent_executor.execute_safely",
-            lambda cmd, **_: {"success": True, "stdout": "AUTO_RUN", "stderr": "", "exit_code": 0, "error": ""}
+            lambda cmd, **_: {
+                "success": True,
+                "stdout": "AUTO_RUN",
+                "stderr": "",
+                "exit_code": 0,
+                "error": "",
+            },
         )
         assert gov.auto_approve_privileged is False
         result = execute_shell_command("pip install x", gov, purpose="Test")
@@ -284,11 +311,17 @@ class TestGovernanceIntegration:
         prompt_called = []
         monkeypatch.setattr(
             "agents.agent_executor._prompt_approval",
-            lambda **_: prompt_called.append(True) or (True, False)
+            lambda **_: prompt_called.append(True) or (True, False),
         )
         monkeypatch.setattr(
             "agents.agent_executor.execute_safely",
-            lambda cmd, **_: {"success": True, "stdout": "BYPASSED", "stderr": "", "exit_code": 0, "error": ""}
+            lambda cmd, **_: {
+                "success": True,
+                "stdout": "BYPASSED",
+                "stderr": "",
+                "exit_code": 0,
+                "error": "",
+            },
         )
         result = execute_shell_command("pip install anothertool", gov)
         # Prompt should NOT have been called because governance already allows
@@ -301,7 +334,8 @@ class TestGovernanceIntegration:
         called = []
         monkeypatch.setattr(
             "agents.agent_executor.execute_safely",
-            lambda cmd, **_: called.append(cmd) or {"success": True, "stdout": "BAD", "stderr": "", "exit_code": 0, "error": ""}
+            lambda cmd, **_: called.append(cmd)
+            or {"success": True, "stdout": "BAD", "stderr": "", "exit_code": 0, "error": ""},
         )
         result = execute_shell_command("rm -rf /", gov)
         assert not called
@@ -356,6 +390,7 @@ class TestUniversalExecutorGovernance:
 
 # ── _prompt_approval ──────────────────────────────────────────────────────────
 
+
 class TestPromptApproval:
     """Unit tests for the approval UI helper.
 
@@ -368,8 +403,7 @@ class TestPromptApproval:
 
     def test_returns_deny_when_user_types_n(self):
         """Typing 'n' must return (False, False)."""
-        with patch("ui_components.console"), \
-             patch("builtins.input", return_value="n"):
+        with patch("ui_components.console"), patch("builtins.input", return_value="n"):
             approved, enable_auto = _prompt_approval(
                 cmd="pip install evil",
                 risk_level="PRIVILEGED",
@@ -381,8 +415,7 @@ class TestPromptApproval:
 
     def test_returns_allow_when_user_types_y(self):
         """Typing 'y' must return (True, False) — allow this command only."""
-        with patch("ui_components.console"), \
-             patch("builtins.input", return_value="y"):
+        with patch("ui_components.console"), patch("builtins.input", return_value="y"):
             approved, enable_auto = _prompt_approval(
                 cmd="sudo apt install nmap",
                 risk_level="PRIVILEGED",
@@ -393,8 +426,7 @@ class TestPromptApproval:
 
     def test_returns_allow_auto_when_user_types_a(self):
         """Typing 'a' must return (True, True) — allow + enable session auto-approve."""
-        with patch("ui_components.console"), \
-             patch("builtins.input", return_value="a"):
+        with patch("ui_components.console"), patch("builtins.input", return_value="a"):
             approved, enable_auto = _prompt_approval(
                 cmd="cargo install feroxbuster",
                 risk_level="PRIVILEGED",
@@ -405,8 +437,7 @@ class TestPromptApproval:
 
     def test_returns_deny_on_eof(self):
         """If input() raises EOFError (non-interactive), must safely return (False, False)."""
-        with patch("ui_components.console"), \
-             patch("builtins.input", side_effect=EOFError):
+        with patch("ui_components.console"), patch("builtins.input", side_effect=EOFError):
             approved, enable_auto = _prompt_approval(
                 cmd="pip install x",
                 risk_level="PRIVILEGED",
@@ -417,13 +448,13 @@ class TestPromptApproval:
     def test_unknown_input_defaults_to_deny(self):
         """Any input that is not y/Y/a/A must default to deny."""
         for bad_input in ["yes", "allow", "", "q", "1", "no"]:
-            with patch("ui_components.console"), \
-                 patch("builtins.input", return_value=bad_input):
+            with patch("ui_components.console"), patch("builtins.input", return_value=bad_input):
                 approved, _ = _prompt_approval(cmd="pip install x", risk_level="PRIVILEGED")
             assert approved is False, f"Expected deny for input={bad_input!r}"
 
 
 # ── Action alias table completeness ──────────────────────────────────────────
+
 
 class TestActionAliases:
     """Verify alias table completeness for all new actions."""
@@ -431,11 +462,14 @@ class TestActionAliases:
     @pytest.mark.parametrize("alias", ["write_and_run", "write_and_exec", "script"])
     def test_write_script_aliases(self, alias: str, gov: Governance):
         """All write_script aliases should successfully execute a Python script."""
-        result = execute_tool({
-            "action": alias,
-            "filename": f"alias_{alias}.py",
-            "code": f'print("{alias.upper()}_ALIAS_OK")',
-        }, gov)
+        result = execute_tool(
+            {
+                "action": alias,
+                "filename": f"alias_{alias}.py",
+                "code": f'print("{alias.upper()}_ALIAS_OK")',
+            },
+            gov,
+        )
         assert f"{alias.upper()}_ALIAS_OK" in result
 
     @pytest.mark.parametrize("alias", ["install", "install_package", "install_binary"])
@@ -444,7 +478,8 @@ class TestActionAliases:
         captured: list[str] = []
         monkeypatch.setattr(
             "agents.agent_executor.execute_safely",
-            lambda cmd, **_: captured.append(cmd) or {"success": True, "stdout": "OK", "stderr": "", "exit_code": 0, "error": ""}
+            lambda cmd, **_: captured.append(cmd)
+            or {"success": True, "stdout": "OK", "stderr": "", "exit_code": 0, "error": ""},
         )
         execute_tool({"action": alias, "name": "testpkg", "manager": "pip"}, gov_no_approval)
         assert any("pip install testpkg" in c for c in captured)

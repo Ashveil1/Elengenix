@@ -20,7 +20,7 @@ import time
 from collections import defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Any, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 logger = logging.getLogger("elengenix.ml_filter")
 
@@ -28,9 +28,11 @@ logger = logging.getLogger("elengenix.ml_filter")
 # Finding Classification
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class FindingProfile:
     """Learned profile of a finding type for false positive scoring."""
+
     pattern_id: str
     total_seen: int = 0
     total_suppressed: int = 0
@@ -47,7 +49,9 @@ class FindingProfile:
             return 1.0
         return 1.0 - (self.total_suppressed / self.total_seen)
 
-    def update(self, suppressed: bool, confidence: float = 1.0, url: str = "", param: str = "") -> None:
+    def update(
+        self, suppressed: bool, confidence: float = 1.0, url: str = "", param: str = ""
+    ) -> None:
         self.total_seen += 1
         if suppressed:
             self.total_suppressed += 1
@@ -64,6 +68,7 @@ class FindingProfile:
 # ---------------------------------------------------------------------------
 # ML Filter Engine
 # ---------------------------------------------------------------------------
+
 
 class MLFilter:
     """False positive filter using heuristic Bayesian scoring.
@@ -287,12 +292,14 @@ class MLFilter:
             url=finding.get("url", ""),
             param=finding.get("param", ""),
         )
-        self.suppression_history.append({
-            "pattern_id": pattern_id,
-            "reason": reason,
-            "timestamp": time.time(),
-            "finding_title": finding.get("title", ""),
-        })
+        self.suppression_history.append(
+            {
+                "pattern_id": pattern_id,
+                "reason": reason,
+                "timestamp": time.time(),
+                "finding_title": finding.get("title", ""),
+            }
+        )
         # Trim history
         if len(self.suppression_history) > 1000:
             self.suppression_history = self.suppression_history[-500:]
@@ -310,9 +317,12 @@ class MLFilter:
         )
         self._save_profiles()
 
-    def filter_findings(self, findings: List[Dict[str, Any]], 
-                        min_confidence: float = 0.3, 
-                        auto_suppress: bool = True) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+    def filter_findings(
+        self,
+        findings: List[Dict[str, Any]],
+        min_confidence: float = 0.3,
+        auto_suppress: bool = True,
+    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
         """Filter findings by ML confidence.
 
         Args:
@@ -359,8 +369,10 @@ class MLFilter:
 # Standalone CLI Filter
 # ---------------------------------------------------------------------------
 
-def filter_scan_results(findings_path: str, output_path: Optional[str] = None,
-                        min_confidence: float = 0.3) -> Dict[str, Any]:
+
+def filter_scan_results(
+    findings_path: str, output_path: Optional[str] = None, min_confidence: float = 0.3
+) -> Dict[str, Any]:
     """Process a findings JSON file through the ML filter.
 
     Args:

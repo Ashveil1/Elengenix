@@ -3,6 +3,7 @@
 Tests for the new semantic fuzzer: PayloadDatabase, GrammarFuzzer,
 ContextualMutator, SmartPayloadGenerator.
 """
+
 from __future__ import annotations
 
 import sys
@@ -33,7 +34,19 @@ def test_payload_database_categories():
     """All advertised categories should exist."""
     db = PayloadDatabase()
     cats = set(db.categories())
-    for expected in ("xss", "sqli", "ssrf", "lfi", "rce", "xxe", "redir", "cmdin", "path", "jwt", "url"):
+    for expected in (
+        "xss",
+        "sqli",
+        "ssrf",
+        "lfi",
+        "rce",
+        "xxe",
+        "redir",
+        "cmdin",
+        "path",
+        "jwt",
+        "url",
+    ):
         assert expected in cats, f"missing category: {expected}"
 
 
@@ -48,7 +61,9 @@ def test_payload_database_lookup_by_category():
 def test_payload_database_lookup_by_sink():
     db = PayloadDatabase()
     string_sinks = db.by_sink("string", category="sqli")
-    assert len(string_sinks) >= 5, f"expected several SQLi string-sink payloads, got {len(string_sinks)}"
+    assert (
+        len(string_sinks) >= 5
+    ), f"expected several SQLi string-sink payloads, got {len(string_sinks)}"
     for entry in string_sinks:
         assert "string" in entry[3]
 
@@ -115,9 +130,7 @@ def test_contextual_mutator_picks_for_xss_html():
 
 def test_contextual_mutator_picks_for_sqli_string_single_quote():
     cm = ContextualMutator()
-    ctx = InjectionContext(
-        category="sqli", sinks=["string"], quote_style="single-quote"
-    )
+    ctx = InjectionContext(category="sqli", sinks=["string"], quote_style="single-quote")
     cands = cm.candidates(ctx)
     assert len(cands) >= 3
     # Most should contain a single quote
@@ -201,7 +214,16 @@ def test_backward_compat_payloadmutator():
     # at least one urlencoded variant
     assert any("%" in v.payload for v in out), "expected urlencoded variant"
     # at least one case-toggle variant
-    assert any(v.payload != "<script>alert(1)</script>" and "Script" in v.payload or "SCRIPT" in v.payload or "sCrIpT" in v.payload for v in out) or True  # soft check
+    assert (
+        any(
+            v.payload != "<script>alert(1)</script>"
+            and "Script" in v.payload
+            or "SCRIPT" in v.payload
+            or "sCrIpT" in v.payload
+            for v in out
+        )
+        or True
+    )  # soft check
 
 
 def test_all_payloads_aggregate_is_consistent():
@@ -213,4 +235,5 @@ def test_all_payloads_aggregate_is_consistent():
 if __name__ == "__main__":
     # Allow running as a script: python -m tests.test_semantic_fuzzer
     import pytest
+
     sys.exit(pytest.main([__file__, "-v"]))

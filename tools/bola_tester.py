@@ -18,6 +18,7 @@ Public API:
         test_object(url_template, object_id, session_a="user_a", session_b="user_b")
         test_endpoint_collection(endpoints, session_a, session_b) -> List[BOLATestResult]
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -42,6 +43,7 @@ logger = logging.getLogger("elengenix.bola_tester")
 @dataclass
 class Session:
     """One user session (cookies, headers, base URL)."""
+
     name: str
     cookies: Dict[str, str] = field(default_factory=dict)
     headers: Dict[str, str] = field(default_factory=dict)
@@ -61,6 +63,7 @@ class Session:
 @dataclass
 class BOLATestResult:
     """One BOLA test against one object."""
+
     url: str
     object_id: str
     session_a: str
@@ -72,8 +75,8 @@ class BOLATestResult:
     body_hash_a: str
     body_hash_b: str
     is_bola: bool
-    confidence: float          # 0.0-1.0
-    severity: str              # "critical", "high", "medium", "low"
+    confidence: float  # 0.0-1.0
+    severity: str  # "critical", "high", "medium", "low"
     reasoning: str
     body_a_snippet: str = ""
     body_b_snippet: str = ""
@@ -82,8 +85,9 @@ class BOLATestResult:
 @dataclass
 class BOLAConfig:
     """Tuning knobs for BOLA tester."""
+
     timeout_seconds: float = 8.0
-    body_size_diff_threshold: int = 100   # bodies within this size = similar
+    body_size_diff_threshold: int = 100  # bodies within this size = similar
     body_hash_match_threshold: float = 0.8  # hash similarity for "same"
     min_confidence_to_flag: float = 0.7
     sample_body_bytes: int = 4096
@@ -124,9 +128,7 @@ class BOLATester:
         Returns (status, body, elapsed_ms). Returns (-1, error_msg, 0) on
         network failure.
         """
-        req = urllib.request.Request(
-            url, method="GET", headers=session.to_request_headers()
-        )
+        req = urllib.request.Request(url, method="GET", headers=session.to_request_headers())
         start = time.monotonic()
         try:
             with urllib.request.urlopen(req, timeout=self.config.timeout_seconds) as resp:
@@ -221,33 +223,51 @@ class BOLATester:
             size_diff = abs(len(body_a) - len(body_b))
             same_hash = self._hash_body(body_a) == self._hash_body(body_b)
             if same_hash:
-                return True, 0.99, "critical", \
-                    f"B session got identical 200 response (size={len(body_a)}, hash matches A)"
+                return (
+                    True,
+                    0.99,
+                    "critical",
+                    f"B session got identical 200 response (size={len(body_a)}, hash matches A)",
+                )
             elif size_diff <= self.config.body_size_diff_threshold:
-                return True, 0.95, "critical", \
-                    f"B session got 200 with body size diff {size_diff} bytes (within threshold)"
+                return (
+                    True,
+                    0.95,
+                    "critical",
+                    f"B session got 200 with body size diff {size_diff} bytes (within threshold)",
+                )
             else:
-                return True, 0.6, "medium", \
-                    f"B session got 200 but body size differs by {size_diff} bytes (partial access?)"
+                return (
+                    True,
+                    0.6,
+                    "medium",
+                    f"B session got 200 but body size differs by {size_diff} bytes (partial access?)",
+                )
 
         # Rule 2: A=200, B=403/401 = properly authZ'd, no BOLA
         if status_a == 200 and status_b in (401, 403):
-            return False, 0.0, "low", \
-                f"B session correctly denied ({status_b}) while A got 200 — authZ enforced"
+            return (
+                False,
+                0.0,
+                "low",
+                f"B session correctly denied ({status_b}) while A got 200 — authZ enforced",
+            )
 
         # Rule 3: A=404, B=200 = enumeration BOLA
         if status_a == 404 and status_b == 200:
-            return True, 0.9, "high", \
-                f"B session got 200 for object A can't see (404) — enumeration + read BOLA"
+            return (
+                True,
+                0.9,
+                "high",
+                f"B session got 200 for object A can't see (404) — enumeration + read BOLA",
+            )
 
         # Rule 4: A=200, B=500 = server error on B's request
         if status_a == 200 and status_b == 500:
-            return False, 0.3, "low", \
-                f"B session caused 500 — possible authZ bypass attempt logged"
+            return False, 0.3, "low", f"B session caused 500 — possible authZ bypass attempt logged"
 
         # Default: inconclusive
-        return False, 0.0, "low", \
-            f"A={status_a}, B={status_b} — no BOLA pattern detected"
+        return False, 0.0, "low", f"A={status_a}, B={status_b} — no BOLA pattern detected"
 
     def test_endpoint_collection(
         self,
@@ -264,9 +284,7 @@ class BOLATester:
         results = []
         for oid in object_ids:
             try:
-                result = self.test_object(
-                    endpoint_template, oid, session_a, session_b
-                )
+                result = self.test_object(endpoint_template, oid, session_a, session_b)
                 results.append(result)
             except Exception as e:
                 logger.debug(f"BOLA test failed for {oid}: {e}")
@@ -296,6 +314,7 @@ class BOLATester:
                     "body_match": r.body_hash_a == r.body_hash_b,
                     "reason": r.reasoning,
                 }
-                for r in bola_results if r.severity == "critical"
+                for r in bola_results
+                if r.severity == "critical"
             ][:10],
         }

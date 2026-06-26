@@ -25,9 +25,11 @@ logger = logging.getLogger("elengenix.mission_state")
 
 _DB_PATH = Path(__file__).parent.parent / "data" / "mission_state.db"
 
+
 def _db_path() -> Path:
- _DB_PATH.parent.mkdir(parents=True, exist_ok=True)
- return _DB_PATH
+    _DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    return _DB_PATH
+
 
 @contextmanager
 def _get_conn() -> Generator[sqlite3.Connection, None, None]:
@@ -40,6 +42,7 @@ def _get_conn() -> Generator[sqlite3.Connection, None, None]:
         raise
     finally:
         conn.close()
+
 
 def init_db() -> None:
     with _get_conn() as conn:
@@ -133,28 +136,34 @@ def init_db() -> None:
             """
         )
 
+
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
+
 
 def _j(obj: Any) -> str:
     return json.dumps(obj, ensure_ascii=False)
 
+
 def _uj(s: str) -> Any:
     return json.loads(s) if s else None
 
+
 @dataclass
 class GraphNode:
- node_id: str
- node_type: str
- props: Dict[str, Any] = field(default_factory=dict)
+    node_id: str
+    node_type: str
+    props: Dict[str, Any] = field(default_factory=dict)
+
 
 @dataclass
 class GraphEdge:
- edge_id: str
- src_id: str
- dst_id: str
- edge_type: str
- props: Dict[str, Any] = field(default_factory=dict)
+    edge_id: str
+    src_id: str
+    dst_id: str
+    edge_type: str
+    props: Dict[str, Any] = field(default_factory=dict)
+
 
 class MissionState:
     def __init__(self, mission_id: str, target: str, objective: str):
@@ -181,7 +190,7 @@ class MissionState:
         with _get_conn() as conn:
             conn.execute(
                 """
-                UPDATE missions 
+                UPDATE missions
                 SET status = 'paused', paused_at = ?, updated_at = ?
                 WHERE mission_id = ?
                 """,
@@ -194,7 +203,7 @@ class MissionState:
         with _get_conn() as conn:
             conn.execute(
                 """
-                UPDATE missions 
+                UPDATE missions
                 SET status = 'running', resumed_at = ?, updated_at = ?
                 WHERE mission_id = ?
                 """,
@@ -207,7 +216,7 @@ class MissionState:
             if phase_index is not None:
                 conn.execute(
                     """
-                    UPDATE missions 
+                    UPDATE missions
                     SET current_phase = ?, phase_index = ?, updated_at = ?
                     WHERE mission_id = ?
                     """,
@@ -216,7 +225,7 @@ class MissionState:
             else:
                 conn.execute(
                     """
-                    UPDATE missions 
+                    UPDATE missions
                     SET current_phase = ?, updated_at = ?
                     WHERE mission_id = ?
                     """,
@@ -228,7 +237,7 @@ class MissionState:
         with _get_conn() as conn:
             conn.execute(
                 """
-                UPDATE missions 
+                UPDATE missions
                 SET tokens_used = tokens_used + ?, updated_at = ?
                 WHERE mission_id = ?
                 """,
@@ -240,7 +249,7 @@ class MissionState:
         with _get_conn() as conn:
             conn.execute(
                 """
-                UPDATE missions 
+                UPDATE missions
                 SET findings_count = findings_count + 1, updated_at = ?
                 WHERE mission_id = ?
                 """,
@@ -257,7 +266,7 @@ class MissionState:
                 """,
                 (self.mission_id,),
             ).fetchone()
-        
+
             if row:
                 return {
                     "status": row[0],
@@ -434,10 +443,7 @@ class MissionState:
                 "mission_id": self.mission_id,
                 "target": self.target,
                 "objective": self.objective,
-                "nodes": [
-                    {"id": n[0], "type": n[1], "props": _uj(n[2])}
-                    for n in nodes
-                ],
+                "nodes": [{"id": n[0], "type": n[1], "props": _uj(n[2])} for n in nodes],
                 "edges": [
                     {"id": e[0], "src": e[1], "dst": e[2], "type": e[3], "props": _uj(e[4])}
                     for e in edges
@@ -465,6 +471,7 @@ class MissionState:
                     for h in hyps
                 ],
             }
+
 
 def open_mission(mission_id: str) -> Optional[MissionState]:
     init_db()

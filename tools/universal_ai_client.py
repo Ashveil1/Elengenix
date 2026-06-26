@@ -31,6 +31,7 @@ from typing import Any, Dict, Generator, List, Optional
 # Auto-load .env so API keys are available without manual setup
 try:
     from dotenv import load_dotenv
+
     _ENV_PATH = Path(__file__).resolve().parent.parent / ".env"
     if _ENV_PATH.exists():
         load_dotenv(_ENV_PATH, override=False)
@@ -41,6 +42,7 @@ except ImportError:
 # Fallback: requests (synchronous, always available).
 try:
     import httpx as _httpx
+
     HTTPX_AVAILABLE = True
 except ImportError:
     _httpx = None  # type: ignore[assignment]
@@ -54,6 +56,7 @@ logger = logging.getLogger("elengenix.universal_ai")
 @dataclass
 class AIMessage:
     """Standardized message format."""
+
     role: str  # system, user, assistant, tool
     content: str
     metadata: Optional[Dict[str, Any]] = None
@@ -62,6 +65,7 @@ class AIMessage:
 @dataclass
 class AIResponse:
     """Standardized response format."""
+
     content: str
     model: str
     usage: Dict[str, int]
@@ -207,13 +211,17 @@ class UniversalAIClient:
 
         # Session for connection pooling
         self.session = requests.Session()
-        self.session.headers.update({
-            "Content-Type": "application/json",
-        })
+        self.session.headers.update(
+            {
+                "Content-Type": "application/json",
+            }
+        )
         if self.api_key:
-            self.session.headers.update({
-                "Authorization": f"Bearer {self.api_key}",
-            })
+            self.session.headers.update(
+                {
+                    "Authorization": f"Bearer {self.api_key}",
+                }
+            )
 
         # Rate Limiting configuration
         env_rpm_key = f"RPM_{self.model.upper()}"
@@ -274,13 +282,13 @@ class UniversalAIClient:
     ) -> AIResponse:
         """
         Send chat completion request.
-        
+
         Args:
             messages: List of messages (system, user, assistant)
             temperature: Sampling temperature (0-2)
             max_tokens: Maximum tokens to generate
             stream: Whether to stream the response
-        
+
         Returns:
             AIResponse with content and metadata
         """
@@ -288,16 +296,12 @@ class UniversalAIClient:
         elapsed = time.time() - self.last_request_time
         if elapsed < self.min_delay:
             time.sleep(self.min_delay - elapsed)
-            
-        self.last_request_time = time.time()
-        
-        # Format messages for API
-        formatted_messages = [
-            {"role": m.role, "content": m.content}
-            for m in messages
-        ]
 
-        
+        self.last_request_time = time.time()
+
+        # Format messages for API
+        formatted_messages = [{"role": m.role, "content": m.content} for m in messages]
+
         # Build request payload (OpenAI format)
         payload = {
             "model": self.model,
@@ -306,13 +310,14 @@ class UniversalAIClient:
             "max_tokens": max_tokens,
             "stream": stream,
         }
-        
+
         # NVIDIA-specific parameters (e.g., for reasoning models)
         if self.provider == "nvidia":
             import os
+
             param_mode = os.getenv("NVIDIA_PARAM_MODE", "auto")
             model_lower = self.model.lower()
-            
+
             if param_mode == "nemotron" or (param_mode == "auto" and "nemotron" in model_lower):
                 payload["chat_template_kwargs"] = {"enable_thinking": True}
                 payload["reasoning_budget"] = min(max_tokens, 16384)
@@ -320,23 +325,23 @@ class UniversalAIClient:
                 payload["chat_template_kwargs"] = {"thinking": False}
             elif param_mode == "enable":
                 payload["chat_template_kwargs"] = {"thinking": True}
-        
+
         # Handle custom formats (Anthropic, etc.)
         if self.custom_format:
             return self._call_custom_api(payload, stream)
-        
+
         # Standard OpenAI-compatible API call
         return self._call_openai_api(payload, stream)
 
     def _call_openai_api(self, payload: Dict, stream: bool) -> AIResponse:
         """Call OpenAI-compatible API."""
-        url = self.base_url.rstrip('/') + '/chat/completions'
-        
+        url = self.base_url.rstrip("/") + "/chat/completions"
+
         for attempt in range(self.max_retries):
             try:
                 if stream:
                     return self._stream_response(url, payload)
-                
+
                 resp = self.session.post(
                     url,
                     json=payload,
@@ -344,39 +349,41 @@ class UniversalAIClient:
                 )
                 resp.raise_for_status()
                 data = resp.json()
-                
+
                 # Parse response
                 choice = data["choices"][0]
                 content = choice["message"]["content"]
-                
+
                 return AIResponse(
                     content=content,
                     model=data.get("model", self.model),
-                    usage=data.get("usage", {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}),
+                    usage=data.get(
+                        "usage", {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+                    ),
                     raw_response=data,
                 )
-                
+
             except requests.exceptions.HTTPError as e:
                 if e.response.status_code == 401:
                     logger.error("Authentication failed - check API key")
                     raise
                 elif attempt < self.max_retries - 1:
-                    time.sleep(2 ** attempt)  # Exponential backoff
+                    time.sleep(2**attempt)  # Exponential backoff
                     continue
                 raise
             except Exception:
                 if attempt < self.max_retries - 1:
-                    time.sleep(2 ** attempt)
+                    time.sleep(2**attempt)
                     continue
                 raise
-        
+
         raise RuntimeError("Max retries exceeded")
 
     def _call_custom_api(self, payload: Dict, stream: bool) -> AIResponse:
         """Handle custom API formats (Anthropic, etc.)."""
         if self.provider == "anthropic":
             return self._call_anthropic(payload, stream)
-        
+
         # Add more custom handlers here
         raise NotImplementedError(f"Custom format for {self.provider} not implemented")
 
@@ -409,7 +416,9 @@ class UniversalAIClient:
 
         for attempt in range(self.max_retries):
             try:
-                resp = self.session.post(url, json=anthropic_payload, headers=headers, timeout=self.timeout)
+                resp = self.session.post(
+                    url, json=anthropic_payload, headers=headers, timeout=self.timeout
+                )
                 resp.raise_for_status()
                 data = resp.json()
 
@@ -419,7 +428,8 @@ class UniversalAIClient:
                     usage={
                         "prompt_tokens": data["usage"]["input_tokens"],
                         "completion_tokens": data["usage"]["output_tokens"],
-                        "total_tokens": data["usage"]["input_tokens"] + data["usage"]["output_tokens"],
+                        "total_tokens": data["usage"]["input_tokens"]
+                        + data["usage"]["output_tokens"],
                     },
                     raw_response=data,
                 )
@@ -428,13 +438,13 @@ class UniversalAIClient:
                     logger.error("Authentication failed - check API key")
                     raise
                 elif attempt < self.max_retries - 1:
-                    time.sleep(2 ** attempt)
+                    time.sleep(2**attempt)
                     continue
                 raise
             except requests.exceptions.RequestException as e:
                 logger.debug(f"API request failed (attempt {attempt+1}): {e}")
                 if attempt < self.max_retries - 1:
-                    time.sleep(2 ** attempt)
+                    time.sleep(2**attempt)
                     continue
                 raise
 
@@ -443,20 +453,20 @@ class UniversalAIClient:
     def _stream_response(self, url: str, payload: Dict) -> Generator[str, None, None]:
         """Stream response from API."""
         payload["stream"] = True
-        
+
         with self.session.post(url, json=payload, timeout=self.timeout, stream=True) as resp:
             resp.raise_for_status()
-            
+
             for line in resp.iter_lines():
                 if not line:
                     continue
-                    
+
                 line = line.decode("utf-8")
                 if line.startswith("data: "):
                     data = line[6:]  # Remove "data: " prefix
                     if data == "[DONE]":
                         break
-                    
+
                     try:
                         chunk = json.loads(data)
                         delta = chunk["choices"][0].get("delta", {})
@@ -477,10 +487,7 @@ class UniversalAIClient:
         Otherwise the synchronous ``requests`` call is offloaded to a
         thread pool so the caller's event loop is not blocked.
         """
-        formatted_messages = [
-            {"role": m.role, "content": m.content}
-            for m in messages
-        ]
+        formatted_messages = [{"role": m.role, "content": m.content} for m in messages]
         payload = {
             "model": self.model,
             "messages": formatted_messages,
@@ -528,13 +535,15 @@ class UniversalAIClient:
                 return AIResponse(
                     content=choice["message"]["content"],
                     model=data.get("model", self.model),
-                    usage=data.get("usage", {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}),
+                    usage=data.get(
+                        "usage", {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+                    ),
                     raw_response=data,
                 )
 
             except Exception as e:
                 if attempt < self.max_retries - 1:
-                    wait = 2 ** attempt
+                    wait = 2**attempt
                     logger.debug(f"httpx attempt {attempt+1} failed: {e}, retrying in {wait}s")
                     await asyncio.sleep(wait)
                     continue
@@ -543,11 +552,11 @@ class UniversalAIClient:
     def simple_chat(self, user_message: str, system_prompt: Optional[str] = None) -> str:
         """
         Simple one-shot chat (non-streaming).
-        
+
         Args:
             user_message: User's message
             system_prompt: Optional system prompt
-        
+
         Returns:
             AI response as string
         """
@@ -555,7 +564,7 @@ class UniversalAIClient:
         if system_prompt:
             messages.append(AIMessage(role="system", content=system_prompt))
         messages.append(AIMessage(role="user", content=user_message))
-        
+
         response = self.chat(messages)
         return response.content
 
@@ -569,7 +578,11 @@ class UniversalAIClient:
         """
         if not self.base_url:
             return False
-        if self.provider == "ollama" or self.base_url.startswith("http://localhost") or self.base_url.startswith("http://127.0.0.1"):
+        if (
+            self.provider == "ollama"
+            or self.base_url.startswith("http://localhost")
+            or self.base_url.startswith("http://127.0.0.1")
+        ):
             # Local provider — must actually be reachable
             return self._ping_local()
         if not self.api_key:
@@ -586,13 +599,14 @@ class UniversalAIClient:
         if hasattr(self, "_ping_ok"):
             return self._ping_ok
         from urllib.parse import urlparse
+
         parsed = urlparse(self.base_url)
         host = parsed.hostname or "localhost"
         port = parsed.port or (443 if parsed.scheme == "https" else 80)
         # Try HTTP GET /v1/models first (OpenAI convention)
         try:
             r = requests.get(
-                self.base_url.rstrip('/') + '/models',
+                self.base_url.rstrip("/") + "/models",
                 timeout=timeout,
             )
             self._ping_ok = r.status_code < 500
@@ -602,6 +616,7 @@ class UniversalAIClient:
         # Fallback: raw TCP connect
         try:
             import socket
+
             with socket.create_connection((host, port), timeout=timeout):
                 self._ping_ok = True
                 return True
@@ -614,19 +629,24 @@ class UniversalAIClient:
         try:
             # Special handling for Anthropic (don't support /models well)
             if self.provider == "anthropic":
-                return [self.model, "claude-3-7-sonnet-latest", "claude-3-5-sonnet-latest", "claude-3-opus-latest"]
+                return [
+                    self.model,
+                    "claude-3-7-sonnet-latest",
+                    "claude-3-5-sonnet-latest",
+                    "claude-3-opus-latest",
+                ]
 
-            url = self.base_url.rstrip('/') + '/models'
+            url = self.base_url.rstrip("/") + "/models"
             headers = {
                 "Authorization": f"Bearer {self.api_key}",
                 "Content-Type": "application/json",
             }
-            
+
             resp = requests.get(url, headers=headers, timeout=5)
             if resp.status_code == 200:
                 data = resp.json()
                 models = []
-                
+
                 if isinstance(data, dict) and "data" in data:
                     for item in data["data"]:
                         if isinstance(item, dict) and "id" in item:
@@ -637,18 +657,25 @@ class UniversalAIClient:
                             models.append(item)
                         elif isinstance(item, dict) and "id" in item:
                             models.append(item["id"])
-                
+
                 # Filter chat/instruct models
                 chat_models = []
-                exclude_keywords = ["embedding", "whisper", "tts", "dall-e", "moderation", "vision-preview"]
+                exclude_keywords = [
+                    "embedding",
+                    "whisper",
+                    "tts",
+                    "dall-e",
+                    "moderation",
+                    "vision-preview",
+                ]
                 for m in models:
                     if not any(kw in m.lower() for kw in exclude_keywords):
                         chat_models.append(m)
-                
+
                 return sorted(chat_models) if chat_models else [self.model]
         except Exception as e:
             logger.debug(f"Failed to fetch remote models for {self.provider}: {e}")
-            
+
         return [self.model]
 
     def get_status(self) -> Dict[str, Any]:
@@ -679,9 +706,12 @@ class AIClientManager:
             self.preferred_order = list(preferred_order)
         else:
             # Single source of truth: config.yaml > ACTIVE_AI_PROVIDER env > hardcoded
-            from tools.ai_config import get_provider_order, get_active_provider
+            from tools.ai_config import get_active_provider, get_provider_order
+
             self.preferred_order = get_provider_order()
-            logger.info(f"Provider order from config.yaml: {self.preferred_order[:3]}... (active={get_active_provider()})")
+            logger.info(
+                f"Provider order from config.yaml: {self.preferred_order[:3]}... (active={get_active_provider()})"
+            )
 
         self.clients: Dict[str, UniversalAIClient] = {}
         self.active_client: Optional[UniversalAIClient] = None
@@ -705,13 +735,13 @@ class AIClientManager:
         """Chat with fallback."""
         if not self.active_client:
             raise RuntimeError("No AI provider available. Check your API keys.")
-        
+
         # Try active client first
         try:
             return self.active_client.chat(messages, **kwargs)
         except Exception as e:
             logger.warning(f"{self.active_client.provider} failed: {e}")
-        
+
         # Fallback to other clients
         for provider, client in self.clients.items():
             if client == self.active_client:
@@ -722,7 +752,7 @@ class AIClientManager:
             except Exception as e:
                 logger.warning(f"{provider} failed: {e}")
                 continue
-        
+
         raise RuntimeError("All AI providers failed")
 
     def simple_chat(self, message: str, system_prompt: Optional[str] = None) -> str:
@@ -731,7 +761,7 @@ class AIClientManager:
         if system_prompt:
             messages.append(AIMessage(role="system", content=system_prompt))
         messages.append(AIMessage(role="user", content=message))
-        
+
         response = self.chat(messages)
         return response.content
 
@@ -745,17 +775,17 @@ class AIClientManager:
         # Temporarily silence logs to avoid cluttering during discovery
         original_level = logger.level
         logger.setLevel(logging.WARNING)
-        
+
         for p_name in sorted(list(UniversalAIClient.PROVIDER_CONFIGS.keys())):
             try:
                 temp_client = UniversalAIClient(provider=p_name)
                 status = temp_client.get_status()
                 # Check if it's currently the active one
-                status["active"] = (self.active_client and self.active_client.provider == p_name)
+                status["active"] = self.active_client and self.active_client.provider == p_name
                 status_list.append(status)
             except Exception:
                 continue
-        
+
         logger.setLevel(original_level)
         return status_list
 

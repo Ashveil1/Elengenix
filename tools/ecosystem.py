@@ -38,12 +38,13 @@ import os
 import re
 import sys
 import time
-import yaml
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Protocol, Tuple, Union
+
+import yaml
 
 logger = logging.getLogger("elengenix.ecosystem")
 
@@ -64,40 +65,43 @@ PLUGIN_PATH_ENV = "ELENGENIX_PLUGIN_PATH"
 
 class PluginState(str, Enum):
     """Plugin lifecycle states."""
-    DISCOVERED = "discovered"   # Found on disk, not yet loaded
-    LOADING = "loading"         # Import in progress
-    LOADED = "loaded"           # register(api) called successfully
-    ACTIVE = "active"           # Running, registered handlers in place
-    FAILED = "failed"           # Load error or runtime error
-    DISABLED = "disabled"       # User-disabled via manifest
-    UNLOADING = "unloading"     # Cleanup in progress
+
+    DISCOVERED = "discovered"  # Found on disk, not yet loaded
+    LOADING = "loading"  # Import in progress
+    LOADED = "loaded"  # register(api) called successfully
+    ACTIVE = "active"  # Running, registered handlers in place
+    FAILED = "failed"  # Load error or runtime error
+    DISABLED = "disabled"  # User-disabled via manifest
+    UNLOADING = "unloading"  # Cleanup in progress
 
 
 class Capability(str, Enum):
     """Plugin capabilities — declared in manifest, enforced by loader."""
-    NETWORK = "network"               # Can make HTTP/network requests
-    FILESYSTEM = "filesystem"         # Can read/write filesystem outside sandbox
-    SUBPROCESS = "subprocess"         # Can spawn subprocesses
-    SECRETS = "secrets"               # Can access API keys / credentials
-    AI_API = "ai_api"                 # Can call AI providers
-    SUBFINDER = "subfinder"           # Needs subfinder binary
-    NUCLEI = "nuclei"                 # Needs nuclei binary
-    ELEVATED = "elevated"             # Needs root / privileged access
+
+    NETWORK = "network"  # Can make HTTP/network requests
+    FILESYSTEM = "filesystem"  # Can read/write filesystem outside sandbox
+    SUBPROCESS = "subprocess"  # Can spawn subprocesses
+    SECRETS = "secrets"  # Can access API keys / credentials
+    AI_API = "ai_api"  # Can call AI providers
+    SUBFINDER = "subfinder"  # Needs subfinder binary
+    NUCLEI = "nuclei"  # Needs nuclei binary
+    ELEVATED = "elevated"  # Needs root / privileged access
 
 
 @dataclass
 class PluginManifest:
     """Parsed plugin.yaml / plugin.json metadata."""
-    name: str                                    # Unique slug, e.g. "shodan_recon"
-    version: str                                 # Semver, e.g. "1.2.3"
-    author: str = ""                             # Author name/email
-    description: str = ""                        # One-line summary
-    sdk_version: str = SDK_VERSION               # Required SDK version
-    api_level: int = SDK_API_LEVEL               # Required API level
-    entry_point: str = "__init__.py"             # Python file with register(api)
+
+    name: str  # Unique slug, e.g. "shodan_recon"
+    version: str  # Semver, e.g. "1.2.3"
+    author: str = ""  # Author name/email
+    description: str = ""  # One-line summary
+    sdk_version: str = SDK_VERSION  # Required SDK version
+    api_level: int = SDK_API_LEVEL  # Required API level
+    entry_point: str = "__init__.py"  # Python file with register(api)
     capabilities: List[Capability] = field(default_factory=list)
     dependencies: List[str] = field(default_factory=list)  # pip packages
-    enabled: bool = True                         # False = skip loading
+    enabled: bool = True  # False = skip loading
     tags: List[str] = field(default_factory=list)
     homepage: str = ""
     license: str = ""
@@ -113,7 +117,10 @@ class PluginManifest:
                 sdk_major, sdk_minor, _ = sdk_version.split(".")[:3]
                 plg_major, plg_minor, _ = self.sdk_version.split(".")[:3]
                 if sdk_major != plg_major:
-                    return False, f"SDK major mismatch: plugin={self.sdk_version}, host={sdk_version}"
+                    return (
+                        False,
+                        f"SDK major mismatch: plugin={self.sdk_version}, host={sdk_version}",
+                    )
                 if int(sdk_minor) < int(plg_minor):
                     return False, f"Plugin needs SDK >= {self.sdk_version}, host has {sdk_version}"
             except (ValueError, IndexError):
@@ -140,6 +147,7 @@ class PluginManifest:
 @dataclass
 class PluginInfo:
     """Runtime info about a loaded plugin."""
+
     manifest: PluginManifest
     path: Path
     state: PluginState = PluginState.DISCOVERED
@@ -174,6 +182,7 @@ class PluginInfo:
 
 class ToolResult(dict):
     """Standard tool result — plugins should return this from custom tools."""
+
     def __init__(
         self,
         success: bool = True,
@@ -233,7 +242,9 @@ class PluginAPI:
             tags: Tags for categorization (recon, fuzz, exploit, etc.)
         """
         if not name or not re.match(r"^[a-z][a-z0-9_]{1,63}$", name):
-            raise ValueError(f"Invalid tool name: {name!r} (must be lowercase, underscore, 2-64 chars)")
+            raise ValueError(
+                f"Invalid tool name: {name!r} (must be lowercase, underscore, 2-64 chars)"
+            )
         if not callable(func):
             raise TypeError(f"Tool {name!r} function is not callable")
         full_name = f"{self._info.name}.{name}"
@@ -344,7 +355,7 @@ class PluginHost:
     def __init__(self, search_paths: Optional[List[Path]] = None):
         self._plugins: Dict[str, PluginInfo] = {}
         self._tools: Dict[str, Tuple[Callable, str, List[str]]] = {}  # name -> (func, desc, tags)
-        self._commands: Dict[str, Tuple[CommandFunc, str, str]] = {}   # name -> (func, desc, usage)
+        self._commands: Dict[str, Tuple[CommandFunc, str, str]] = {}  # name -> (func, desc, usage)
         self._ai_providers: Dict[str, Tuple[Callable, Optional[Callable]]] = {}
         self._hooks: List[Tuple[int, str, FindingHook]] = []  # sorted by priority
         self._search_paths: List[Path] = search_paths or list(DEFAULT_PLUGIN_PATHS)
@@ -462,7 +473,9 @@ class PluginHost:
 
         info.state = PluginState.ACTIVE
         info.load_time = time.time()
-        logger.info("Loaded plugin: %s (v%s by %s)", manifest.name, manifest.version, manifest.author)
+        logger.info(
+            "Loaded plugin: %s (v%s by %s)", manifest.name, manifest.version, manifest.author
+        )
         return info
 
     def _parse_manifest(self, path: Path) -> Optional[PluginManifest]:
@@ -479,6 +492,7 @@ class PluginHost:
                 return None
         elif json_path.exists():
             import json
+
             try:
                 with open(json_path, "r", encoding="utf-8") as f:
                     data = json.load(f)
@@ -488,7 +502,11 @@ class PluginHost:
         if not data:
             return None
         # Normalize capabilities to enum
-        caps = [Capability(c) for c in data.get("capabilities", []) if c in [x.value for x in Capability]]
+        caps = [
+            Capability(c)
+            for c in data.get("capabilities", [])
+            if c in [x.value for x in Capability]
+        ]
         return PluginManifest(
             name=data.get("name", path.name),
             version=str(data.get("version", "0.1.0")),
@@ -518,7 +536,9 @@ class PluginHost:
             raise ValueError(f"Command already registered: {full_name}")
         self._commands[full_name] = (func, desc, usage)
 
-    def _register_ai_provider(self, name: str, chat_func: Callable, list_models_func: Optional[Callable]) -> None:
+    def _register_ai_provider(
+        self, name: str, chat_func: Callable, list_models_func: Optional[Callable]
+    ) -> None:
         if name in self._ai_providers:
             logger.warning("AI provider %s already exists, overriding (plugin-provided)", name)
         self._ai_providers[name] = (chat_func, list_models_func)
@@ -591,7 +611,9 @@ class PluginHost:
                     logger.debug("Hook %s dropped finding", name)
                     return None
                 if not isinstance(result, dict):
-                    logger.warning("Hook %s returned non-dict (%s), keeping original", name, type(result))
+                    logger.warning(
+                        "Hook %s returned non-dict (%s), keeping original", name, type(result)
+                    )
                     continue
                 current = result
             except Exception as e:  # noqa: BLE001
@@ -644,9 +666,15 @@ class PluginHost:
     def stats(self) -> Dict[str, Any]:
         return {
             "total_plugins": len(self._plugins),
-            "active_plugins": sum(1 for p in self._plugins.values() if p.state == PluginState.ACTIVE),
-            "failed_plugins": sum(1 for p in self._plugins.values() if p.state == PluginState.FAILED),
-            "disabled_plugins": sum(1 for p in self._plugins.values() if p.state == PluginState.DISABLED),
+            "active_plugins": sum(
+                1 for p in self._plugins.values() if p.state == PluginState.ACTIVE
+            ),
+            "failed_plugins": sum(
+                1 for p in self._plugins.values() if p.state == PluginState.FAILED
+            ),
+            "disabled_plugins": sum(
+                1 for p in self._plugins.values() if p.state == PluginState.DISABLED
+            ),
             "total_tools": len(self._tools),
             "total_commands": len(self._commands),
             "total_ai_providers": len(self._ai_providers),

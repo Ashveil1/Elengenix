@@ -13,11 +13,11 @@ from pathlib import Path
 from typing import Any, Callable, Optional
 from urllib.parse import urlparse
 
-from tools.vector_memory import remember
-from tools.tool_registry import ToolResult
-from tools.mission_state import MissionState, GraphNode, GraphEdge
-from tools.governance import Governance, GateDecision
 from live_display import display_in_chat_mode
+from tools.governance import GateDecision, Governance
+from tools.mission_state import GraphEdge, GraphNode, MissionState
+from tools.tool_registry import ToolResult
+from tools.vector_memory import remember
 
 logger = logging.getLogger("elengenix.analysis_pipeline")
 
@@ -109,7 +109,9 @@ class AnalysisPipeline:
         try:
             from tools.agent_bola_bridge import AgentBOLABridge, extract_headers_from_mission_state
 
-            headers_a, headers_b = extract_headers_from_mission_state(mission_state.snapshot(max_items=20))
+            headers_a, headers_b = extract_headers_from_mission_state(
+                mission_state.snapshot(max_items=20)
+            )
 
             # ── Fallback: unauthenticated BOLA surface probe ──────────────────
             # When no auth headers are available (most sessions) we still run a
@@ -153,7 +155,9 @@ class AnalysisPipeline:
                         rationale="User approved BOLA plan",
                     )
                 summary = bridge.execute_plan(mission_state, plan)
-                display_in_chat_mode(f"BOLA test complete: {summary.get('findings_count', 0)} findings", "result")
+                display_in_chat_mode(
+                    f"BOLA test complete: {summary.get('findings_count', 0)} findings", "result"
+                )
         except Exception as e:
             logger.debug(f"BOLA bridge integration failed: {e}")
 
@@ -177,13 +181,12 @@ class AnalysisPipeline:
 
             # Only probe when the current tool result has web endpoints or subdomains
             has_web_findings = any(
-                f.get("url") or f.get("subdomain") or f.get("host")
-                for f in result.findings
+                f.get("url") or f.get("subdomain") or f.get("host") for f in result.findings
             )
             if not has_web_findings and not target:
                 return
 
-            from tools.autonomous_agent import _exec_bola_probe, AgentAction, AgentState
+            from tools.autonomous_agent import AgentAction, AgentState, _exec_bola_probe
 
             bola_gate = self.governance.gate(
                 mission_id=mission_key,
@@ -226,8 +229,6 @@ class AnalysisPipeline:
         except Exception as e:
             logger.debug(f"BOLA surface probe failed: {e}")
 
-
-
     def _run_payload_mutation(
         self,
         result: ToolResult,
@@ -248,6 +249,7 @@ class AnalysisPipeline:
                 if self.smart_payload_generator is not None:
                     try:
                         from tools.payload_mutation import InjectionContext
+
                         ctx = InjectionContext(
                             category="xss",
                             sinks=["html", "attr", "url"],
@@ -310,7 +312,9 @@ class AnalysisPipeline:
                 furl = finding.get("url", "")
                 if not furl or not (furl.startswith("http://") or furl.startswith("https://")):
                     continue
-                base_payload = finding.get("payload") or finding.get("evidence") or "<script>alert(1)</script>"
+                base_payload = (
+                    finding.get("payload") or finding.get("evidence") or "<script>alert(1)</script>"
+                )
                 if not isinstance(base_payload, str):
                     continue
 
@@ -422,7 +426,10 @@ class AnalysisPipeline:
                     callback=callback,
                 )
                 if recon_gate.allowed:
-                    display_in_chat_mode(f"[Recon] Deep asset correlation available for {len(domains_found)} domains", "info")
+                    display_in_chat_mode(
+                        f"[Recon] Deep asset correlation available for {len(domains_found)} domains",
+                        "info",
+                    )
         except Exception as e:
             logger.debug(f"Smart recon integration failed: {e}")
 
@@ -527,7 +534,7 @@ class AnalysisPipeline:
     ) -> None:
         try:
             from tools.soc_analyzer import SOCAnalyzer
-            from tools.threat_intel import ThreatIntelDB, Enricher
+            from tools.threat_intel import Enricher, ThreatIntelDB
 
             ti_db = ThreatIntelDB()
             analyzer = SOCAnalyzer(ioc_db={})
@@ -577,7 +584,10 @@ class AnalysisPipeline:
                                 "source_finding": finding,
                             },
                         )
-                        display_in_chat_mode(f"[SOC] Detection rule generated for {finding.get('type')} finding", "info")
+                        display_in_chat_mode(
+                            f"[SOC] Detection rule generated for {finding.get('type')} finding",
+                            "info",
+                        )
         except Exception as e:
             logger.debug(f"SOC analyzer integration failed: {e}")
 
@@ -596,7 +606,9 @@ class AnalysisPipeline:
                 return
 
             code_extensions = {".py", ".js", ".java", ".go"}
-            has_code = any(f.suffix in code_extensions for f in target_path.rglob("*") if f.is_file())
+            has_code = any(
+                f.suffix in code_extensions for f in target_path.rglob("*") if f.is_file()
+            )
             if not has_code:
                 return
 
@@ -625,7 +637,10 @@ class AnalysisPipeline:
                             confidence=0.8,
                             evidence=vuln,
                         )
-                    display_in_chat_mode(f"[SAST] Found {sast_report['total_vulnerabilities']} code vulnerabilities", "warning")
+                    display_in_chat_mode(
+                        f"[SAST] Found {sast_report['total_vulnerabilities']} code vulnerabilities",
+                        "warning",
+                    )
         except Exception as e:
             logger.debug(f"SAST integration failed: {e}")
 
@@ -676,7 +691,10 @@ class AnalysisPipeline:
                             confidence=0.85,
                             evidence=finding,
                         )
-                    display_in_chat_mode(f"[Cloud] Found {cloud_report['total_findings']} misconfigurations", "warning")
+                    display_in_chat_mode(
+                        f"[Cloud] Found {cloud_report['total_findings']} misconfigurations",
+                        "warning",
+                    )
         except Exception as e:
             logger.debug(f"Cloud scanner integration failed: {e}")
 
@@ -717,7 +735,10 @@ class AnalysisPipeline:
                 )
 
                 if proto_gate.allowed or proto_gate.decision == "needs_approval":
-                    display_in_chat_mode("[Protocol] IoT/ICS protocol detected - consider manual protocol analysis", "info")
+                    display_in_chat_mode(
+                        "[Protocol] IoT/ICS protocol detected - consider manual protocol analysis",
+                        "info",
+                    )
                     mission_state.upsert_hypothesis(
                         hyp_id=f"iot_protocol:{target}",
                         title="IoT/ICS Protocol Testing Required",
@@ -742,14 +763,16 @@ class AnalysisPipeline:
 
             all_findings = []
             for fact in all_facts:
-                all_findings.append({
-                    "finding_id": fact.get("fact_id", ""),
-                    "type": fact.get("category", "finding"),
-                    "severity": fact.get("evidence", {}).get("severity", "medium"),
-                    "target": fact.get("statement", "")[:100],
-                    "description": fact.get("statement", ""),
-                    "confidence": fact.get("confidence", 0.5),
-                })
+                all_findings.append(
+                    {
+                        "finding_id": fact.get("fact_id", ""),
+                        "type": fact.get("category", "finding"),
+                        "severity": fact.get("evidence", {}).get("severity", "medium"),
+                        "target": fact.get("statement", "")[:100],
+                        "description": fact.get("statement", ""),
+                        "confidence": fact.get("confidence", 0.5),
+                    }
+                )
 
             if len(all_findings) >= 3:
                 finding_types = set(f.get("type", "") for f in all_findings)

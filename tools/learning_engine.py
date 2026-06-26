@@ -25,6 +25,7 @@ Public API:
         suggest_payloads(vuln_class, n=10) -> List[str]
         get_stats() -> Dict
 """
+
 from __future__ import annotations
 
 import json
@@ -33,7 +34,7 @@ import math
 import sqlite3
 import time
 from collections import defaultdict
-from dataclasses import dataclass, field, asdict
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
 
@@ -48,14 +49,15 @@ logger = logging.getLogger("elengenix.learning_engine")
 @dataclass
 class ExploitRecord:
     """One past exploit attempt + result."""
+
     target: str
-    tech_stack: List[str]              # ["php", "mysql", "wordpress"]
-    vuln_class: str                   # "sqli", "xss", "rce", etc.
-    tool: str                         # "sqlmap", "nuclei", "dalfox"
-    payload: str                      # the payload that worked
-    success: bool                     # did it actually find the vuln?
-    confidence: float = 0.5           # 0.0-1.0, AI/heuristic confidence
-    severity: str = "unknown"         # "low", "medium", "high", "critical"
+    tech_stack: List[str]  # ["php", "mysql", "wordpress"]
+    vuln_class: str  # "sqli", "xss", "rce", etc.
+    tool: str  # "sqlmap", "nuclei", "dalfox"
+    payload: str  # the payload that worked
+    success: bool  # did it actually find the vuln?
+    confidence: float = 0.5  # 0.0-1.0, AI/heuristic confidence
+    severity: str = "unknown"  # "low", "medium", "high", "critical"
     timestamp: float = 0.0
     notes: str = ""
 
@@ -85,9 +87,11 @@ class LearningEngine:
         self._chroma_collection = None
         if use_chroma:
             try:
-                import chromadb
                 # Disable telemetry to avoid background threads
                 import os
+
+                import chromadb
+
                 os.environ.setdefault("ANONYMIZED_TELEMETRY", "False")
                 # Use bypass embedding to avoid downloading 79MB ONNX model
                 # We rely on SQL ranking for the heavy lifting; ChromaDB
@@ -95,9 +99,7 @@ class LearningEngine:
                 chroma_path = chroma_path or Path("data/chroma_learning")
                 chroma_path.mkdir(parents=True, exist_ok=True)
                 settings = chromadb.Settings(anonymized_telemetry=False)
-                client = chromadb.PersistentClient(
-                    path=str(chroma_path), settings=settings
-                )
+                client = chromadb.PersistentClient(path=str(chroma_path), settings=settings)
                 self._chroma_collection = client.get_or_create_collection(
                     name="exploits",
                     metadata={"description": "Past exploit records (text-only, no model)"},
@@ -108,7 +110,8 @@ class LearningEngine:
 
     def _init_schema(self) -> None:
         cur = self._conn.cursor()
-        cur.executescript("""
+        cur.executescript(
+            """
             CREATE TABLE IF NOT EXISTS exploits (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 target TEXT NOT NULL,
@@ -126,7 +129,8 @@ class LearningEngine:
                 ON exploits(vuln_class, success);
             CREATE INDEX IF NOT EXISTS idx_exploits_tool
                 ON exploits(tool, vuln_class);
-        """)
+        """
+        )
         self._conn.commit()
 
     # ── Remembering ──
@@ -253,7 +257,9 @@ class LearningEngine:
                     for cid in chroma_results["ids"][0]:
                         exploit_id = int(cid.replace("exploit_", ""))
                         cur2 = self._conn.cursor()
-                        row = cur2.execute("SELECT * FROM exploits WHERE id=?", (exploit_id,)).fetchone()
+                        row = cur2.execute(
+                            "SELECT * FROM exploits WHERE id=?", (exploit_id,)
+                        ).fetchone()
                         if row and row["id"] not in seen_ids:
                             seen_ids.add(row["id"])
                             results.append(self._row_to_record(row))
@@ -299,7 +305,8 @@ class LearningEngine:
                 params.append(f'%"{tech}"%')
         where = " AND ".join(conditions) if conditions else "1=1"
 
-        rows = cur.execute(f"""
+        rows = cur.execute(
+            f"""
             SELECT tool,
                    SUM(success) * 1.0 / COUNT(*) as success_rate,
                    COUNT(*) as sample_size
@@ -309,7 +316,9 @@ class LearningEngine:
             HAVING sample_size >= 1
             ORDER BY success_rate DESC, sample_size DESC
             LIMIT ?
-        """, params + [limit]).fetchall()
+        """,
+            params + [limit],
+        ).fetchall()
 
         return [(r["tool"], r["success_rate"], r["sample_size"]) for r in rows]
 
@@ -319,14 +328,17 @@ class LearningEngine:
         Returns most-frequent successful payloads, sorted by frequency.
         """
         cur = self._conn.cursor()
-        rows = cur.execute("""
+        rows = cur.execute(
+            """
             SELECT payload, COUNT(*) as freq, AVG(confidence) as avg_conf
             FROM exploits
             WHERE vuln_class = ? AND success = 1 AND payload IS NOT NULL
             GROUP BY payload
             ORDER BY freq DESC, avg_conf DESC
             LIMIT ?
-        """, (vuln_class, n)).fetchall()
+        """,
+            (vuln_class, n),
+        ).fetchall()
         return [r["payload"] for r in rows]
 
     def get_stats(self) -> Dict[str, Any]:
@@ -334,30 +346,30 @@ class LearningEngine:
         cur = self._conn.cursor()
         total = cur.execute("SELECT COUNT(*) FROM exploits").fetchone()[0]
         successful = cur.execute("SELECT COUNT(*) FROM exploits WHERE success=1").fetchone()[0]
-        by_vuln = cur.execute("""
+        by_vuln = cur.execute(
+            """
             SELECT vuln_class, COUNT(*) as cnt, SUM(success) as succ
             FROM exploits
             GROUP BY vuln_class
             ORDER BY cnt DESC
-        """).fetchall()
-        by_tool = cur.execute("""
+        """
+        ).fetchall()
+        by_tool = cur.execute(
+            """
             SELECT tool, COUNT(*) as cnt, SUM(success) as succ
             FROM exploits
             GROUP BY tool
             ORDER BY cnt DESC
-        """).fetchall()
+        """
+        ).fetchall()
         return {
             "total_records": total,
             "successful_records": successful,
             "success_rate": round(successful / max(total, 1), 3),
             "by_vuln_class": {
-                r["vuln_class"]: {"total": r["cnt"], "success": r["succ"]}
-                for r in by_vuln
+                r["vuln_class"]: {"total": r["cnt"], "success": r["succ"]} for r in by_vuln
             },
-            "by_tool": {
-                r["tool"]: {"total": r["cnt"], "success": r["succ"]}
-                for r in by_tool
-            },
+            "by_tool": {r["tool"]: {"total": r["cnt"], "success": r["succ"]} for r in by_tool},
             "chroma_enabled": self._chroma_collection is not None,
         }
 

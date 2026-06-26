@@ -21,7 +21,7 @@ from __future__ import annotations
 import json
 import logging
 import sqlite3
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -36,9 +36,10 @@ def init_db() -> None:
     conn = sqlite3.connect(str(_DB_PATH), timeout=10)
     try:
         conn.execute("PRAGMA journal_mode=WAL")
-        
+
         # IOCs table
-        conn.execute("""
+        conn.execute(
+            """
             CREATE TABLE IF NOT EXISTS iocs (
                 ioc_value TEXT PRIMARY KEY,
                 ioc_type TEXT NOT NULL,
@@ -50,14 +51,16 @@ def init_db() -> None:
                 description TEXT,
                 metadata_json TEXT
             )
-        """)
-        
+        """
+        )
+
         conn.execute("CREATE INDEX IF NOT EXISTS idx_ioc_type ON iocs(ioc_type)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_threat_type ON iocs(threat_type)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_last_seen ON iocs(last_seen)")
-        
+
         # Matches table (alerts matched against IOCs)
-        conn.execute("""
+        conn.execute(
+            """
             CREATE TABLE IF NOT EXISTS ioc_matches (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 ioc_value TEXT NOT NULL,
@@ -65,8 +68,9 @@ def init_db() -> None:
                 match_time TEXT NOT NULL,
                 context TEXT
             )
-        """)
-        
+        """
+        )
+
         conn.commit()
     finally:
         conn.close()
@@ -84,15 +88,13 @@ class ThreatIntelDB:
         try:
             if ioc_type:
                 row = conn.execute(
-                    "SELECT * FROM iocs WHERE ioc_value = ? AND ioc_type = ?",
-                    (ioc_value, ioc_type)
+                    "SELECT * FROM iocs WHERE ioc_value = ? AND ioc_type = ?", (ioc_value, ioc_type)
                 ).fetchone()
             else:
                 row = conn.execute(
-                    "SELECT * FROM iocs WHERE ioc_value = ?",
-                    (ioc_value,)
+                    "SELECT * FROM iocs WHERE ioc_value = ?", (ioc_value,)
                 ).fetchone()
-                
+
             if row:
                 return {
                     "value": row[0],
@@ -125,26 +127,35 @@ class ThreatIntelDB:
         try:
             # Check if exists
             existing = conn.execute(
-                "SELECT first_seen FROM iocs WHERE ioc_value = ?",
-                (ioc_value,)
+                "SELECT first_seen FROM iocs WHERE ioc_value = ?", (ioc_value,)
             ).fetchone()
-            
+
             if existing:
                 # Update last_seen
                 conn.execute(
-                    """UPDATE iocs 
-                       SET last_seen = ?, confidence = MAX(confidence, ?), 
+                    """UPDATE iocs
+                       SET last_seen = ?, confidence = MAX(confidence, ?),
                            description = COALESCE(?, description)
                        WHERE ioc_value = ?""",
-                    (now, confidence, description, ioc_value)
+                    (now, confidence, description, ioc_value),
                 )
             else:
                 # Insert new
                 conn.execute(
-                    """INSERT INTO iocs 
+                    """INSERT INTO iocs
                        (ioc_value, ioc_type, threat_type, confidence, first_seen, last_seen, source, description, metadata_json)
                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                    (ioc_value, ioc_type, threat_type, confidence, now, now, source, description, json.dumps(metadata or {}))
+                    (
+                        ioc_value,
+                        ioc_type,
+                        threat_type,
+                        confidence,
+                        now,
+                        now,
+                        source,
+                        description,
+                        json.dumps(metadata or {}),
+                    ),
                 )
             conn.commit()
             return True
@@ -167,9 +178,9 @@ class ThreatIntelDB:
         try:
             rows = conn.execute(
                 "SELECT * FROM iocs WHERE ioc_type = ? ORDER BY last_seen DESC LIMIT ?",
-                (ioc_type, limit)
+                (ioc_type, limit),
             ).fetchall()
-            
+
             return [
                 {
                     "value": r[0],
@@ -192,10 +203,9 @@ class ThreatIntelDB:
         conn = sqlite3.connect(str(_DB_PATH), timeout=10)
         try:
             rows = conn.execute(
-                "SELECT * FROM iocs WHERE last_seen > ? ORDER BY last_seen DESC",
-                (since,)
+                "SELECT * FROM iocs WHERE last_seen > ? ORDER BY last_seen DESC", (since,)
             ).fetchall()
-            
+
             return [
                 {
                     "value": r[0],
@@ -213,27 +223,59 @@ class ThreatIntelDB:
         """Add common/builtin IOCs for testing."""
         builtin_iocs = [
             # Common C2 ports (indicators of potential C2 activity)
-            ("4444", "port", "metasploit_default", 30, "builtin", "Metasploit default handler port"),
+            (
+                "4444",
+                "port",
+                "metasploit_default",
+                30,
+                "builtin",
+                "Metasploit default handler port",
+            ),
             ("5555", "port", "suspicious", 20, "builtin", "Often used for reverse shells"),
             ("6666", "port", "irc_c2", 40, "builtin", "Common IRC C2 port"),
             ("9999", "port", "suspicious", 20, "builtin", "Often used for backdoors"),
-            
             # Common malicious user agents
-            ("python-requests", "user_agent", "automated_tool", 10, "builtin", "Python requests library"),
+            (
+                "python-requests",
+                "user_agent",
+                "automated_tool",
+                10,
+                "builtin",
+                "Python requests library",
+            ),
             ("curl", "user_agent", "automated_tool", 10, "builtin", "curl tool"),
             ("wget", "user_agent", "automated_tool", 10, "builtin", "wget tool"),
             ("masscan", "user_agent", "scanner", 80, "builtin", "Masscan port scanner"),
             ("nmap", "user_agent", "scanner", 80, "builtin", "Nmap scanner"),
             ("sqlmap", "user_agent", "attack_tool", 90, "builtin", "SQL injection tool"),
-            
             # Suspicious process names
             ("mimikatz", "process", "credential_theft", 95, "builtin", "Credential dumping tool"),
-            ("procdump", "process", "credential_theft", 70, "builtin", "Can be used for LSASS dumping"),
+            (
+                "procdump",
+                "process",
+                "credential_theft",
+                70,
+                "builtin",
+                "Can be used for LSASS dumping",
+            ),
             ("rundll32", "process", "suspicious", 30, "builtin", "Often used for LOLBAS attacks"),
             ("certutil", "process", "suspicious", 30, "builtin", "Can download and execute code"),
-            ("powershell -enc", "command", "suspicious", 40, "builtin", "Encoded PowerShell command"),
-            ("powershell -ep bypass", "command", "suspicious", 50, "builtin", "Execution policy bypass"),
-            
+            (
+                "powershell -enc",
+                "command",
+                "suspicious",
+                40,
+                "builtin",
+                "Encoded PowerShell command",
+            ),
+            (
+                "powershell -ep bypass",
+                "command",
+                "suspicious",
+                50,
+                "builtin",
+                "Execution policy bypass",
+            ),
             # File extensions commonly used by malware
             (".exe", "extension", "executable", 5, "builtin", "Executable file"),
             (".dll", "extension", "executable", 5, "builtin", "Dynamic library"),
@@ -241,29 +283,36 @@ class ThreatIntelDB:
             (".bat", "extension", "script", 10, "builtin", "Batch script"),
             (".vbs", "extension", "script", 15, "builtin", "VBScript - often malicious"),
             (".js", "extension", "script", 10, "builtin", "JavaScript"),
-            (".hta", "extension", "suspicious", 40, "builtin", "HTML Application - often malicious"),
+            (
+                ".hta",
+                "extension",
+                "suspicious",
+                40,
+                "builtin",
+                "HTML Application - often malicious",
+            ),
             (".iso", "extension", "suspicious", 30, "builtin", "ISO image - recent malware vector"),
         ]
-        
+
         added = 0
         for ioc in builtin_iocs:
             if self.add_ioc(*ioc):
                 added += 1
-                
+
         return added
 
 
 class Enricher:
     """Enrich alerts and findings with threat intel context."""
-    
+
     def __init__(self, ti_db: Optional[ThreatIntelDB] = None):
         self.ti_db = ti_db or ThreatIntelDB()
-    
+
     def enrich_finding(self, finding: Dict[str, Any]) -> Dict[str, Any]:
         """Enrich a security finding with threat intel."""
         enriched = finding.copy()
         ioc_hits = []
-        
+
         # Check various fields for IOCs
         checks = [
             ("ip", finding.get("src_ip") or finding.get("source_ip")),
@@ -273,20 +322,20 @@ class Enricher:
             ("url", finding.get("url")),
             ("process", finding.get("process") or finding.get("proc_name")),
         ]
-        
+
         for ioc_type, value in checks:
             if value:
                 result = self.ti_db.lookup(value, ioc_type)
                 if result:
                     ioc_hits.append(result)
-        
+
         if ioc_hits:
             enriched["threat_intel"] = {
                 "ioc_matches": ioc_hits,
                 "max_confidence": max(h["confidence"] for h in ioc_hits),
                 "sources": list(set(h["source"] for h in ioc_hits if h.get("source"))),
             }
-        
+
         return enriched
 
 

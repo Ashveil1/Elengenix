@@ -49,7 +49,11 @@ def execute_safely(
         }
     """
     error_result = lambda msg: {
-        "success": False, "stdout": "", "stderr": "", "exit_code": -1, "error": msg
+        "success": False,
+        "stdout": "",
+        "stderr": "",
+        "exit_code": -1,
+        "error": msg,
     }
 
     if not command_str or not command_str.strip():
@@ -61,7 +65,9 @@ def execute_safely(
         print(f"\n[THOUGHT] Agent is executing a system-level action")
         print(f"[COMMAND] {command_str}")
         if "sudo " in command_str:
-            print(f"[RUN]     Privileged action (sudo) requested. Please provide your password if prompted:\n")
+            print(
+                f"[RUN]     Privileged action (sudo) requested. Please provide your password if prompted:\n"
+            )
     try:
         result = subprocess.run(
             command_str,
@@ -72,11 +78,11 @@ def execute_safely(
             cwd=cwd,
         )
         return {
-            "success":   result.returncode == 0,
-            "stdout":    result.stdout[:MAX_OUTPUT],
-            "stderr":    result.stderr[:MAX_OUTPUT],
+            "success": result.returncode == 0,
+            "stdout": result.stdout[:MAX_OUTPUT],
+            "stderr": result.stderr[:MAX_OUTPUT],
             "exit_code": result.returncode,
-            "error":     "",
+            "error": "",
         }
     except subprocess.TimeoutExpired:
         return error_result(f"Command timed out after {timeout}s.")

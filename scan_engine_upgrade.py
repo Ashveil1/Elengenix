@@ -3,22 +3,20 @@
 Integrates with `file_relationship_mapper` to run intelligent scans based on
 code relationships, cache state across runs, and correlate findings.
 """
+
 from __future__ import annotations
 
 import asyncio
-import json
-import time as time_module
-from pathlib import Path
-from dataclasses import dataclass, field, asdict
-from typing import Dict, List, Set, Optional, Tuple, Any
 import hashlib
+import json
 import logging
+import time as time_module
+from dataclasses import asdict, dataclass, field
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Set, Tuple
 
-from file_relationship_mapper import (
-    FileRelationshipGraph,
-    get_scan_recommendations,
-)
-from tools.tool_registry import registry, ToolResult, ToolCategory
+from file_relationship_mapper import FileRelationshipGraph, get_scan_recommendations
+from tools.tool_registry import ToolCategory, ToolResult, registry
 from ui_components import console
 
 logger = logging.getLogger("scan_engine_upgrade")
@@ -33,7 +31,7 @@ STATE_DIR.mkdir(parents=True, exist_ok=True)
 @dataclass
 class ScanState:
     """Persistent scan state across runs.
-    
+
     Attributes:
         target: The scanned target
         scan_id: Unique identifier for this scan session
@@ -46,6 +44,7 @@ class ScanState:
         findings: Flat list of all findings from all tools
         metadata: Additional scan metadata (config, args, etc.)
     """
+
     target: str
     scan_id: str = ""
     start_time: float = 0.0
@@ -56,15 +55,15 @@ class ScanState:
     results: Dict[str, ToolResult] = field(default_factory=dict)
     findings: List[Dict[str, Any]] = field(default_factory=list)
     metadata: Dict[str, Any] = field(default_factory=dict)
-    
+
     def __post_init__(self):
         if not self.scan_id:
-            self.scan_id = hashlib.md5(
-                f"{self.target}:{time_module.time()}".encode()
-            ).hexdigest()[:12]
+            self.scan_id = hashlib.md5(f"{self.target}:{time_module.time()}".encode()).hexdigest()[
+                :12
+            ]
         if not self.start_time:
             self.start_time = time_module.time()
-    
+
     def mark_complete(self, tool_name: str, result: ToolResult) -> None:
         self.completed_tools.add(tool_name)
         self.pending_tools.discard(tool_name)
@@ -73,15 +72,15 @@ class ScanState:
             self.findings.extend(result.findings)
         if not result.success:
             self.failed_tools.add(tool_name)
-    
+
     def is_complete(self) -> bool:
         return len(self.pending_tools) == 0
-    
+
     @property
     def duration(self) -> float:
         end = self.end_time or time_module.time()
         return end - self.start_time
-    
+
     def to_dict(self) -> dict:
         """Serialize state to a plain dict (for JSON)."""
         d = asdict(self)
@@ -98,14 +97,14 @@ class ScanState:
             for name, r in self.results.items()
         }
         return d
-    
+
     def save(self) -> None:
         """Save state to disk."""
         state_file = STATE_DIR / f"{self.scan_id}.json"
         with open(state_file, "w") as f:
             json.dump(self.to_dict(), f, indent=2, default=str)
         logger.debug(f"[ScanState] Saved to {state_file}")
-    
+
     @classmethod
     def load(cls, scan_id: str) -> Optional["ScanState"]:
         """Load state from disk."""
@@ -130,15 +129,15 @@ class ScanState:
 
 class ParallelRunner:
     """Manages parallel execution of scan tools with dependency awareness.
-    
+
     Uses the FileRelationshipGraph to determine which tools can run in
     parallel and which must wait for others to complete.
     """
-    
+
     def __init__(self, max_concurrency: int = 5):
         self.max_concurrency = max_concurrency
         self.semaphore = asyncio.Semaphore(max_concurrency)
-        
+
     async def run_tool(self, tool_name: str, target: str, report_dir: Path) -> ToolResult:
         """Run a single tool with semaphore control.
 
@@ -157,16 +156,12 @@ class ParallelRunner:
             # Bug fix: BaseTool.execute signature is (target, report_dir, semaphore, **kwargs).
             # Previous version called with 2 args and crashed with TypeError.
             return await tool.execute(target, report_dir, self.semaphore)
-    
+
     async def run_in_parallel(
-        self,
-        tools: List[str],
-        target: str,
-        report_dir: Path,
-        state: ScanState
+        self, tools: List[str], target: str, report_dir: Path, state: ScanState
     ) -> List[ToolResult]:
         """Run multiple tools in parallel with dependency awareness.
-        
+
         Args:
             tools: List of tool names to run
             target: Scan target
@@ -175,28 +170,25 @@ class ParallelRunner:
         """
         results = []
         tasks = {}
-        
+
         for tool_name in tools:
             if tool_name in state.completed_tools:
                 logger.debug(f"[ParallelRunner] Skipping already-completed {tool_name}")
                 continue
-            
+
             state.pending_tools.add(tool_name)
-            
+
             async def task_for_tool(tn=tool_name):
                 result = await self.run_tool(tn, target, report_dir)
                 state.mark_complete(tn, result)
                 state.save()
                 return result
-            
+
             tasks[tool_name] = asyncio.create_task(task_for_tool())
-        
+
         if tasks:
-            done, pending = await asyncio.wait(
-                tasks.values(),
-                return_when=asyncio.ALL_COMPLETED
-            )
-            
+            done, pending = await asyncio.wait(tasks.values(), return_when=asyncio.ALL_COMPLETED)
+
             for task in done:
                 try:
                     result = task.result()
@@ -204,37 +196,40 @@ class ParallelRunner:
                 except Exception as e:
                     logger.error(f"[ParallelRunner] Tool execution failed: {e}")
                     # Create a failure result. ToolResult requires (success, tool_name, category).
-                    results.append(ToolResult(
-                        success=False,
-                        tool_name="unknown",
-                        category=ToolCategory.UTILITY,
-                        error_message=str(e),
-                    ))
-        
+                    results.append(
+                        ToolResult(
+                            success=False,
+                            tool_name="unknown",
+                            category=ToolCategory.UTILITY,
+                            error_message=str(e),
+                        )
+                    )
+
         return results
 
 
 class FindingCorrelator:
     """Correlates findings from multiple tools to identify related issues.
-    
+
     Example: If subfinder finds a subdomain and nuclei finds a vulnerability
     on that subdomain, these findings are correlated.
     """
-    
+
     def __init__(self, findings: List[Dict[str, Any]]):
         self.findings = findings
         self.clusters: List[List[Dict[str, Any]]] = []
         self._build_clusters()
-    
+
     def _normalize_url(self, url: str) -> str:
         """Normalize a URL for comparison."""
         from urllib.parse import urlparse
+
         try:
             parsed = urlparse(url)
             return f"{parsed.netloc}{parsed.path}".lower().rstrip("/")
         except Exception:
             return url.lower()
-    
+
     def _findings_similar(self, a: Dict[str, Any], b: Dict[str, Any]) -> bool:
         """Check if two findings are likely related."""
         # Same URL/domain
@@ -242,44 +237,44 @@ class FindingCorrelator:
         url_b = self._normalize_url(b.get("url", ""))
         if url_a and url_b and url_a == url_b:
             return True
-        
+
         # Same target
         if a.get("target") and b.get("target") and a["target"] == b["target"]:
             return True
-        
+
         # Similar path/pattern
         path_a = a.get("path", "")
         path_b = b.get("path", "")
         if path_a and path_b and path_a == path_b:
             return True
-        
+
         return False
-    
+
     def _build_clusters(self) -> None:
         """Group related findings into clusters."""
         unclustered = self.findings.copy()
-        
+
         while unclustered:
             # Start a new cluster with the first finding
             current = unclustered.pop(0)
             cluster = [current]
-            
+
             # Find all related findings
             to_remove = []
             for i, finding in enumerate(unclustered):
                 if self._findings_similar(current, finding):
                     cluster.append(finding)
                     to_remove.append(i)
-            
+
             # Remove clustered findings from unclustered list
             for i in sorted(to_remove, reverse=True):
                 unclustered.pop(i)
-            
+
             self.clusters.append(cluster)
-    
+
     def get_clustered_report(self) -> List[Dict[str, Any]]:
         """Get a report of correlated findings.
-        
+
         Returns list of clusters, each with:
         - id: Cluster ID
         - primary_target: Main target/URL
@@ -291,46 +286,47 @@ class FindingCorrelator:
         for idx, cluster in enumerate(self.clusters):
             if not cluster:
                 continue
-            
+
             primary = cluster[0]
             tools = set(f.get("tool", "unknown") for f in cluster)
-            
+
             # Calculate combined severity
-            severity_scores = {
-                "Critical": 4, "High": 3, "Medium": 2, "Low": 1, "Informational": 0
-            }
+            severity_scores = {"Critical": 4, "High": 3, "Medium": 2, "Low": 1, "Informational": 0}
             severities = [f.get("severity", "Info").capitalize() for f in cluster]
-            max_score = max(
-                (severity_scores.get(s, 0) for s in severities),
-                default=0
-            )
+            max_score = max((severity_scores.get(s, 0) for s in severities), default=0)
             severity_label = {
-                4: "Critical", 3: "High", 2: "Medium", 1: "Low", 0: "Informational"
+                4: "Critical",
+                3: "High",
+                2: "Medium",
+                1: "Low",
+                0: "Informational",
             }.get(max_score, "Info")
-            
-            report.append({
-                "id": idx + 1,
-                "primary_target": primary.get("url", primary.get("target", "unknown")),
-                "findings": cluster,
-                "tool_count": len(tools),
-                "severity": severity_label,
-                "severity_score": max_score,
-            })
-        
+
+            report.append(
+                {
+                    "id": idx + 1,
+                    "primary_target": primary.get("url", primary.get("target", "unknown")),
+                    "findings": cluster,
+                    "tool_count": len(tools),
+                    "severity": severity_label,
+                    "severity_score": max_score,
+                }
+            )
+
         # Sort by severity score descending
         report.sort(key=lambda x: x["severity_score"], reverse=True)
         return report
-    
+
     def print_correlation_table(self) -> None:
         """Print a rich table of correlated findings."""
         clusters = self.get_clustered_report()
-        
+
         if not clusters:
             console.print("[dim]No correlated findings to display[/dim]")
             return
-        
+
         console.print("\n[bold #cc4444]Correlated Findings[/bold #cc4444]\n")
-        
+
         for cluster in clusters[:10]:  # Show top 10
             color_map = {
                 "Critical": "#cc4444",
@@ -340,19 +336,19 @@ class FindingCorrelator:
                 "Informational": "#444444",
             }
             color = color_map.get(cluster["severity"], "#888888")
-            
+
             console.print(
                 f"[{color}]Cluster #{cluster['id']}[/] | "
                 f"[{color}]{cluster['severity']}[/] | "
                 f"[{color}]{cluster['tool_count']} tools[/] | "
                 f"[{color}]{cluster['primary_target']}[/]"
             )
-            
+
             for f in cluster["findings"][:5]:  # Show up to 5 per cluster
                 tool = f.get("tool", "?")
                 type_ = f.get("type", "?")
                 console.print(f"  [dim]• {tool}: {type_}[/]")
-            
+
             if len(cluster["findings"]) > 5:
                 console.print(f"  [dim]... and {len(cluster['findings']) - 5} more[/]\n")
 
@@ -361,13 +357,13 @@ class SmartOrchestrator:
     """Intelligent orchestrator that combines FileRelationshipGraph with
     parallel scanning and finding correlation.
     """
-    
+
     def __init__(self, max_concurrency: int = 5):
         self.max_concurrency = max_concurrency
         self.parallel_runner = ParallelRunner(max_concurrency)
         self.file_graph: Optional[FileRelationshipGraph] = None
         self.state: Optional[ScanState] = None
-    
+
     def build_file_graph(self, project_root: Optional[Path] = None) -> FileRelationshipGraph:
         """Build the file relationship graph."""
         # Fall back to CWD if caller passes None
@@ -376,7 +372,7 @@ class SmartOrchestrator:
         return self.file_graph
         self.file_graph = FileRelationshipGraph(project_root).build()
         return self.file_graph
-    
+
     async def run_smart_scan(
         self,
         target: str,
@@ -384,10 +380,10 @@ class SmartOrchestrator:
         tools: Optional[List[str]] = None,
         rate_limit: int = 5,
         correlate: bool = True,
-        use_smart_chain: bool = True
+        use_smart_chain: bool = True,
     ) -> Tuple[ScanState, Optional[FindingCorrelator]]:
         """Run an intelligent scan with full orchestration.
-        
+
         Args:
             target: Target domain/IP
             report_dir: Where to save reports
@@ -395,7 +391,7 @@ class SmartOrchestrator:
             rate_limit: Max concurrent tools
             correlate: Whether to correlate findings
             use_smart_chain: Whether to use file relationship for tool selection
-        
+
         Returns:
             (ScanState, FindingCorrelator or None)
         """
@@ -407,47 +403,44 @@ class SmartOrchestrator:
             if recommended:
                 tools = recommended
                 logger.info(f"[SmartOrchestrator] Using smart tool chain: {tools}")
-        
+
         if not tools:
             # Fall back to registry recommendations
             tools = [t.metadata.name for t in registry.get_recommended_chain("web")]
-        
+
         # Initialize scan state
         self.state = ScanState(target=target)
         self.state.pending_tools = set(tools)
         self.state.save()
-        
+
         console.print(
             f"[red][RUN] Smart scan: {target} with {len(tools)} tools "
             f"(concurrency={rate_limit})[/red]"
         )
-        
+
         # Run tools in parallel
-        results = await self.parallel_runner.run_in_parallel(
-            tools, target, report_dir, self.state
-        )
-        
+        results = await self.parallel_runner.run_in_parallel(tools, target, report_dir, self.state)
+
         # Mark scan complete
         self.state.end_time = time_module.time()
         self.state.save()
-        
+
         # Calculate CVSS scores
         # (Reuse logic from orchestrator.py)
         from tools.cvss_calculator import CVSSCalculator
+
         calculator = CVSSCalculator(use_ai=False)
-        
+
         for result in results:
             for finding in result.findings:
-                calculator.calculate_from_tool_result(
-                    result.tool_name, finding, target
-                )
-        
+                calculator.calculate_from_tool_result(result.tool_name, finding, target)
+
         # Correlate findings if requested
         correlator = None
         if correlate and self.state.findings:
             correlator = FindingCorrelator(self.state.findings)
             clustered = correlator.get_clustered_report()
-            
+
             console.print(
                 f"\n[bold green][OK] Scan complete in {self.state.duration:.1f}s[/bold green]"
             )
@@ -456,12 +449,12 @@ class SmartOrchestrator:
                 f"{len(self.state.findings)} findings, "
                 f"{len(clustered)} clusters[/dim]"
             )
-            
+
             # Print correlation table
             correlator.print_correlation_table()
-        
+
         return self.state, correlator
-    
+
     def _get_changed_files(self) -> List[str]:
         """Detect recently changed files via git diff or mtime comparison.
 
@@ -477,7 +470,8 @@ class SmartOrchestrator:
             # Strategy 1: git diff against HEAD
             result = subprocess.run(
                 ["git", "diff", "--name-only", "HEAD"],
-                capture_output=True, text=True,
+                capture_output=True,
+                text=True,
                 timeout=10,
             )
             if result.returncode == 0:
@@ -488,7 +482,8 @@ class SmartOrchestrator:
             # Strategy 2: untracked / modified files
             result2 = subprocess.run(
                 ["git", "status", "--porcelain"],
-                capture_output=True, text=True,
+                capture_output=True,
+                text=True,
                 timeout=10,
             )
             if result2.returncode == 0:
@@ -518,6 +513,7 @@ class SmartOrchestrator:
             now = time_mod.time()
             day_ago = now - 86400
             from pathlib import Path as _Path
+
             repo_root = _Path(__file__).parent.parent
             changed = [
                 str(f.relative_to(repo_root))
@@ -541,7 +537,7 @@ def run_smart_scan_sync(
     report_dir: Path,
     tools: Optional[List[str]] = None,
     rate_limit: int = 5,
-    correlate: bool = True
+    correlate: bool = True,
 ) -> Tuple[ScanState, Optional[FindingCorrelator]]:
     """Synchronous wrapper for SmartOrchestrator.run_smart_scan().
 
@@ -551,7 +547,11 @@ def run_smart_scan_sync(
 
     async def _run():
         return await orchestrator.run_smart_scan(
-            target, report_dir, tools, rate_limit, correlate,
+            target,
+            report_dir,
+            tools,
+            rate_limit,
+            correlate,
         )
 
     loop = get_shared_loop()
@@ -566,4 +566,6 @@ if __name__ == "__main__":
     print("    from scan_engine_upgrade import SmartOrchestrator")
     print("    async def main():")
     print("        orchestrator = SmartOrchestrator()")
-    print("        _, correlator = await orchestrator.run_smart_scan('example.com', Path('reports'))")
+    print(
+        "        _, correlator = await orchestrator.run_smart_scan('example.com', Path('reports'))"
+    )

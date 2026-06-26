@@ -22,50 +22,98 @@ logger = logging.getLogger("elengenix.dashboard")
 
 # ── Textual imports (optional) ───────────────────────────────────────────
 try:
-    from textual.app import App, ComposeResult
-    from textual.containers import Container, Horizontal, Vertical
-    from textual.widgets import Static, RichLog, Header, Footer, Input, Button, DataTable
-    from textual.widget import Widget
-    from textual.reactive import reactive
-    from textual.binding import Binding
-    from textual.theme import Theme as TextualTheme
     from textual import work
+    from textual.app import App, ComposeResult
+    from textual.binding import Binding
+    from textual.containers import Container, Horizontal, Vertical
     from textual.message import Message
+    from textual.reactive import reactive
     from textual.screen import Screen
+    from textual.theme import Theme as TextualTheme
+    from textual.widget import Widget
+    from textual.widgets import Button, DataTable, Footer, Header, Input, RichLog, Static
+
     _HAS_TEXTUAL = True
 except ImportError:
     _HAS_TEXTUAL = False
+
     # Define stubs
-    class App: pass
-    class ComposeResult: pass
-    class Container: pass
-    class Horizontal: pass
-    class Vertical: pass
-    class Static: pass
-    class RichLog: pass
-    class Header: pass
-    class Footer: pass
-    class Input: pass
-    class Button: pass
-    class DataTable: pass
-    class Widget: pass
-    class Screen: pass
-    def work(f): return f
+    class App:
+        pass
+
+    class ComposeResult:
+        pass
+
+    class Container:
+        pass
+
+    class Horizontal:
+        pass
+
+    class Vertical:
+        pass
+
+    class Static:
+        pass
+
+    class RichLog:
+        pass
+
+    class Header:
+        pass
+
+    class Footer:
+        pass
+
+    class Input:
+        pass
+
+    class Button:
+        pass
+
+    class DataTable:
+        pass
+
+    class Widget:
+        pass
+
+    class Screen:
+        pass
+
+    def work(f):
+        return f
+
 
 # ── Import design system ─────────────────────────────────────────────────
 try:
     from tui_design import (
-        Theme, Severity, SPACING, RADIUS, DURATION, EASING,
-        MIDNIGHT_THEME, AURORA_THEME, BLOOD_MOON_THEME, SOLAR_THEME,
-        format_bytes, format_duration, format_number,
+        AURORA_THEME,
+        BLOOD_MOON_THEME,
+        DURATION,
+        EASING,
+        MIDNIGHT_THEME,
+        RADIUS,
+        SOLAR_THEME,
+        SPACING,
+        Severity,
+        Theme,
+        format_bytes,
+        format_duration,
+        format_number,
     )
+
     _HAS_DESIGN = True
 except ImportError:
     _HAS_DESIGN = False
+
     # Stubs
     class Severity:
-        CRITICAL = ("#ff3b30", "●"); HIGH = ("#ff9500", "●")
-        MEDIUM = ("#ffcc00", "●"); LOW = ("#34c759", "●"); INFO = ("#5ac8fa", "●")
+        CRITICAL = ("#ff3b30", "●")
+        HIGH = ("#ff9500", "●")
+        MEDIUM = ("#ffcc00", "●")
+        LOW = ("#34c759", "●")
+        INFO = ("#5ac8fa", "●")
+
 
 # ── Dashboard Colors ─────────────────────────────────────────────────────
 DARK_BG = "#0a0a0f"
@@ -86,12 +134,14 @@ if _HAS_TEXTUAL:
 
     class MetricCard(Static):
         """A single metric display card with label, value, and color."""
+
         value = reactive("0")
         label_text = reactive("")
         color = reactive(DARK_ACCENT)
 
         def render(self):
             from rich.text import Text
+
             t = Text()
             t.append(f"\n{self.label_text}\n", style="dim " + DARK_MUTED)
             t.append(f"{self.value}", style=f"bold {self.color} font-size:24px")
@@ -108,19 +158,29 @@ if _HAS_TEXTUAL:
 
     class ScanStatusCard(Static):
         """Shows current scan status with animated indicator."""
+
         status = reactive("idle")
         target_text = reactive("")
         findings_count = reactive(0)
 
         def render(self):
             from rich.text import Text
+
             t = Text()
-            status_icon = {"running": "[bold green]●[/]", "completed": "[bold blue]●[/]",
-                          "failed": "[bold red]●[/]", "idle": "[dim]○[/]"}
+            status_icon = {
+                "running": "[bold green]●[/]",
+                "completed": "[bold blue]●[/]",
+                "failed": "[bold red]●[/]",
+                "idle": "[dim]○[/]",
+            }
             icon = status_icon.get(self.status, "[dim]○[/]")
             t.append(f"\n{icon} Scan Status\n", style="bold white")
-            t.append(f"  {self.status.upper()}", style={"running": "green", "completed": "blue",
-                                                       "failed": "red", "idle": "dim"}.get(self.status, "dim"))
+            t.append(
+                f"  {self.status.upper()}",
+                style={"running": "green", "completed": "blue", "failed": "red", "idle": "dim"}.get(
+                    self.status, "dim"
+                ),
+            )
             if self.target_text:
                 t.append(f"\n  Target: {self.target_text}", style=DARK_MUTED)
             t.append(f"\n  Findings: {self.findings_count}", style="white")
@@ -142,19 +202,27 @@ if _HAS_TEXTUAL:
             self.styles.border = ("solid", DARK_BORDER)
             self.styles.height = "1fr"
             self.add_columns("Severity", "Type", "Title", "URL", "CVSS")
-            self.add_rows([
-                ["[red]CRITICAL[/]", "sqli", "SQL Injection in login", "/api/login", "9.3"],
-                ["[orange]HIGH[/]", "xss", "Stored XSS in profile", "/profile/name", "7.5"],
-                ["[yellow]MEDIUM[/]", "config", "Missing CORS headers", "/api/*", "5.0"],
-                ["[green]LOW[/]", "info", "Server version exposed", "/", "2.1"],
-            ])
+            self.add_rows(
+                [
+                    ["[red]CRITICAL[/]", "sqli", "SQL Injection in login", "/api/login", "9.3"],
+                    ["[orange]HIGH[/]", "xss", "Stored XSS in profile", "/profile/name", "7.5"],
+                    ["[yellow]MEDIUM[/]", "config", "Missing CORS headers", "/api/*", "5.0"],
+                    ["[green]LOW[/]", "info", "Server version exposed", "/", "2.1"],
+                ]
+            )
 
         def update_findings(self, findings: List[Dict[str, Any]]):
             self.clear()
             self.add_columns("Severity", "Type", "Title", "URL", "CVSS")
             for f in findings or []:
                 sev = (f.get("severity", "info") or "info").lower()
-                sev_colors = {"critical": "red", "high": "orange", "medium": "yellow", "low": "green", "info": "dim"}
+                sev_colors = {
+                    "critical": "red",
+                    "high": "orange",
+                    "medium": "yellow",
+                    "low": "green",
+                    "info": "dim",
+                }
                 color = sev_colors.get(sev, "dim")
                 self.add_row(
                     f"[{color}]{sev.upper()}[/]",
@@ -166,6 +234,7 @@ if _HAS_TEXTUAL:
 
     class LogPanel(RichLog):
         """Real-time scan log panel with auto-scroll."""
+
         def on_mount(self):
             self.styles.background = DARK_BORDER
             self.styles.border = ("solid", DARK_BORDER)
@@ -312,6 +381,7 @@ if _HAS_TEXTUAL:
             """Start a scan in a background thread."""
             try:
                 import asyncio
+
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
                 self.call_from_thread(self.log_panel.log, f"Scanning: {target}", "bold green")
@@ -319,8 +389,8 @@ if _HAS_TEXTUAL:
                 self.call_from_thread(self._update_metric, 0, "1", RED_ACCENT)
 
                 # Import and run orchestrator
-                from orchestrator import Orchestrator
                 from main import normalize_target
+                from orchestrator import Orchestrator
 
                 normalized = normalize_target(target)
                 orch = Orchestrator(normalized)
@@ -328,13 +398,21 @@ if _HAS_TEXTUAL:
                 # Run scan in phases
                 findings = loop.run_until_complete(orch.run_auto_scan())
 
-                self.call_from_thread(self.log_panel.log, f"Scan complete: {len(findings or [])} findings", "bold green")
-                self.call_from_thread(self._update_scan_status, "completed", target, len(findings or []))
+                self.call_from_thread(
+                    self.log_panel.log,
+                    f"Scan complete: {len(findings or [])} findings",
+                    "bold green",
+                )
+                self.call_from_thread(
+                    self._update_scan_status, "completed", target, len(findings or [])
+                )
                 self.call_from_thread(self._update_findings, findings or [])
                 self.call_from_thread(self._update_metric, 1, str(len(findings or [])), DARK_ACCENT)
 
                 # Count severity
-                critical = sum(1 for f in (findings or []) if f.get("severity", "").lower() == "critical")
+                critical = sum(
+                    1 for f in (findings or []) if f.get("severity", "").lower() == "critical"
+                )
                 high = sum(1 for f in (findings or []) if f.get("severity", "").lower() == "high")
                 self.call_from_thread(self._update_metric, 2, str(critical), RED_ACCENT)
                 self.call_from_thread(self._update_metric, 3, str(high), "#ff8844")
@@ -386,6 +464,7 @@ if _HAS_TEXTUAL:
 # LAUNCHER
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 def run_dashboard(target: Optional[str] = None) -> None:
     """Launch the Elenginx dashboard.
 
@@ -413,13 +492,14 @@ def run_with_target(target: str) -> None:
 
 # ── Simple CLI fallback if Textual not available ─────────────────────────
 
+
 def run_minimal():
     """Render a minimal live-updating dashboard in plain terminal."""
-    from rich.live import Live
-    from rich.table import Table
-    from rich.panel import Panel
-    from rich.layout import Layout
     from rich.console import Console
+    from rich.layout import Layout
+    from rich.live import Live
+    from rich.panel import Panel
+    from rich.table import Table
 
     console = Console()
     layout = Layout()
@@ -432,6 +512,7 @@ def run_minimal():
     with Live(layout, refresh_per_second=4, screen=True) as live:
         try:
             import signal
+
             signal.signal(signal.SIGINT, lambda s, f: exit(0))
             while True:
                 table = Table(title="Elenginx Security Monitor", border_style="dim")
@@ -440,7 +521,9 @@ def run_minimal():
                 table.add_row("Active Scans", "0")
                 table.add_row("Total Findings", "0")
                 table.add_row("Status", "[dim]Monitoring[/]")
-                layout["header"].update(Panel("Elenginx Security Monitor", style="bold white on #1a1a2e"))
+                layout["header"].update(
+                    Panel("Elenginx Security Monitor", style="bold white on #1a1a2e")
+                )
                 layout["body"].update(table)
                 layout["footer"].update(Panel("Press Ctrl+C to quit", style="dim"))
                 time.sleep(1)

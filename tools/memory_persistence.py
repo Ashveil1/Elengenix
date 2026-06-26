@@ -11,11 +11,11 @@ Table schema:
   messages: id, session_id, role, content, timestamp, token_count
 """
 
-import sqlite3
 import logging
+import sqlite3
 import threading
 from pathlib import Path
-from typing import List, Dict, Optional
+from typing import Dict, List, Optional
 
 logger = logging.getLogger("elengenix.memory")
 
@@ -53,7 +53,8 @@ class MemoryPersistence:
         """Create tables if not exist."""
         with sqlite3.connect(self.db_path) as conn:
             conn.execute("PRAGMA journal_mode=WAL")
-            conn.executescript("""
+            conn.executescript(
+                """
                 CREATE TABLE IF NOT EXISTS sessions (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     name TEXT NOT NULL DEFAULT 'default',
@@ -71,27 +72,30 @@ class MemoryPersistence:
                     token_count INTEGER DEFAULT 0,
                     FOREIGN KEY (session_id) REFERENCES sessions(id)
                 );
-                CREATE INDEX IF NOT EXISTS idx_messages_session 
+                CREATE INDEX IF NOT EXISTS idx_messages_session
                     ON messages(session_id, timestamp);
-            """)
+            """
+            )
             conn.commit()
 
-    def save_message(self, session_name: str, role: str, content: str,
-                     model_name: str = "", token_est: int = 0) -> int:
+    def save_message(
+        self, session_name: str, role: str, content: str, model_name: str = "", token_est: int = 0
+    ) -> int:
         """Save a single message to SQLite. Returns message id."""
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
             session_id = self._get_or_create_session(conn, session_name, model_name)
             cursor.execute(
                 "INSERT INTO messages (session_id, role, content, token_count) VALUES (?, ?, ?, ?)",
-                (session_id, role, content, token_est)
+                (session_id, role, content, token_est),
             )
             conn.commit()
             self._last_session_id = session_id
             return cursor.lastrowid
 
-    def save_conversation(self, session_name: str, conversation: List[Dict[str, str]],
-                            model_name: str = "") -> int:
+    def save_conversation(
+        self, session_name: str, conversation: List[Dict[str, str]], model_name: str = ""
+    ) -> int:
         """Save entire conversation (replaces existing messages for this session)."""
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
@@ -102,13 +106,16 @@ class MemoryPersistence:
                 role = msg.get("role", "")
                 content = msg.get("content", "")
                 from tools.token_counter import count_tokens
+
                 token_est = count_tokens(content)
                 total_tokens += token_est
                 cursor.execute(
                     "INSERT INTO messages (session_id, role, content, token_count) VALUES (?, ?, ?, ?)",
-                    (session_id, role, content, token_est)
+                    (session_id, role, content, token_est),
                 )
-            cursor.execute("UPDATE sessions SET updated_at = CURRENT_TIMESTAMP WHERE id = ?", (session_id,))
+            cursor.execute(
+                "UPDATE sessions SET updated_at = CURRENT_TIMESTAMP WHERE id = ?", (session_id,)
+            )
             conn.commit()
             self._last_session_id = session_id
             return total_tokens
@@ -117,19 +124,22 @@ class MemoryPersistence:
         """Load conversation for a session."""
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
-            cursor.execute("SELECT id FROM sessions WHERE name = ? ORDER BY updated_at DESC LIMIT 1", (session_name,))
+            cursor.execute(
+                "SELECT id FROM sessions WHERE name = ? ORDER BY updated_at DESC LIMIT 1",
+                (session_name,),
+            )
             row = cursor.fetchone()
             if not row:
                 return []
             session_id = row[0]
             self._last_session_id = session_id
             cursor.execute(
-                "SELECT role, content FROM messages WHERE session_id = ? ORDER BY id ASC", (session_id,)
+                "SELECT role, content FROM messages WHERE session_id = ? ORDER BY id ASC",
+                (session_id,),
             )
             return [{"role": r, "content": c} for r, c in cursor.fetchall()]
 
-    def get_context_status(self, session_name: str = "default",
-                            model_name: str = "") -> Dict:
+    def get_context_status(self, session_name: str = "default", model_name: str = "") -> Dict:
         """Returns {used_tokens, capacity, percent, is_near_full, is_critical}."""
         used = self.estimate_tokens(session_name)
         context = self._get_context_window(model_name)
@@ -149,13 +159,17 @@ class MemoryPersistence:
         if row:
             sid, existing_model = row[0], row[1]
             if model_name and model_name != existing_model:
-                cursor.execute("UPDATE sessions SET model_name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-                               (model_name, sid))
+                cursor.execute(
+                    "UPDATE sessions SET model_name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                    (model_name, sid),
+                )
                 conn.commit()
             return sid
         token_limit = self._get_context_window(model_name)
-        cursor.execute("INSERT INTO sessions (name, model_name, token_limit) VALUES (?, ?, ?)",
-                       (name, model_name, token_limit))
+        cursor.execute(
+            "INSERT INTO sessions (name, model_name, token_limit) VALUES (?, ?, ?)",
+            (name, model_name, token_limit),
+        )
         conn.commit()
         return cursor.lastrowid
 
@@ -172,7 +186,7 @@ class MemoryPersistence:
             cursor = conn.cursor()
             cursor.execute(
                 "SELECT IFNULL(SUM(token_count), 0) FROM messages m JOIN sessions s ON m.session_id = s.id WHERE s.name = ?",
-                (session_name,)
+                (session_name,),
             )
             return cursor.fetchone()[0]
 
@@ -189,12 +203,14 @@ class MemoryPersistence:
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT id, name, model_name, token_limit, created_at, updated_at,
                        (SELECT COUNT(*) FROM messages m WHERE m.session_id = s.id) as msg_count
                 FROM sessions s
                 ORDER BY updated_at DESC
-            """)
+            """
+            )
             return [dict(row) for row in cursor.fetchall()]
 
 
@@ -209,8 +225,9 @@ def get_memory_persistence() -> MemoryPersistence:
     return _memory
 
 
-def save_message(session_name: str, role: str, content: str,
-                 model_name: str = "", token_est: int = 0) -> int:
+def save_message(
+    session_name: str, role: str, content: str, model_name: str = "", token_est: int = 0
+) -> int:
     return get_memory_persistence().save_message(session_name, role, content, model_name, token_est)
 
 

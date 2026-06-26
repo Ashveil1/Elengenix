@@ -2,8 +2,9 @@
 tests/test_overlay.py — Tests for Settings Overlay (Ctrl+E Menu)
 """
 
-import pytest
 from unittest.mock import MagicMock
+
+import pytest
 
 
 class TestSettingsOverlay:
@@ -22,13 +23,16 @@ class TestSettingsOverlay:
 
     def test_init(self, mock_agent, mock_console):
         from tools.overlay_menu import SettingsOverlay
+
         overlay = SettingsOverlay(mock_agent, mock_console, target="test.com")
         assert overlay._current_layer == "main"
         assert len(overlay._agent_config) == 3
 
     def test_load_agent_config_empty(self, mock_agent, mock_console):
-        from tools.overlay_menu import SettingsOverlay
         import os
+
+        from tools.overlay_menu import SettingsOverlay
+
         old = os.environ.pop("ACTIVE_MODELS", None)
         overlay = SettingsOverlay(mock_agent, mock_console)
         assert overlay._agent_config[0]["provider"] == ""
@@ -36,8 +40,10 @@ class TestSettingsOverlay:
             os.environ["ACTIVE_MODELS"] = old
 
     def test_load_agent_config_with_models(self, mock_agent, mock_console):
-        from tools.overlay_menu import SettingsOverlay
         import os
+
+        from tools.overlay_menu import SettingsOverlay
+
         old = os.environ.get("ACTIVE_MODELS")
         os.environ["ACTIVE_MODELS"] = "nvidia/nemotron-3,gemini/flash,deepseek/chat"
         overlay = SettingsOverlay(mock_agent, mock_console)
@@ -50,12 +56,14 @@ class TestSettingsOverlay:
 
     def test_navigate_to_submenu(self, mock_agent, mock_console):
         from tools.overlay_menu import SettingsOverlay
+
         overlay = SettingsOverlay(mock_agent, mock_console)
         overlay._navigate_to("agent_setup")
         assert overlay._current_layer == "agent_setup"
 
     def test_go_back_from_submenu(self, mock_agent, mock_console):
         from tools.overlay_menu import SettingsOverlay
+
         overlay = SettingsOverlay(mock_agent, mock_console)
         overlay._navigate_to("agent_setup")
         overlay._go_back()
@@ -63,13 +71,16 @@ class TestSettingsOverlay:
 
     def test_go_back_from_main(self, mock_agent, mock_console):
         from tools.overlay_menu import SettingsOverlay
+
         overlay = SettingsOverlay(mock_agent, mock_console)
         result = overlay._go_back()
         assert result == "exit"
 
     def test_build_provider_items(self, mock_agent, mock_console):
-        from tools.overlay_menu import SettingsOverlay
         import os
+
+        from tools.overlay_menu import SettingsOverlay
+
         old = os.environ.get("GEMINI_API_KEY")
         os.environ["GEMINI_API_KEY"] = "sk-test123"
         overlay = SettingsOverlay(mock_agent, mock_console)
@@ -83,6 +94,7 @@ class TestSettingsOverlay:
 
     def test_build_rate_limits(self, mock_agent, mock_console):
         from tools.overlay_menu import SettingsOverlay
+
         overlay = SettingsOverlay(mock_agent, mock_console)
         items = overlay._build_rate_limit_items()
         # Should have 3 agents * (label + decrease + increase + spacer) + back = many
@@ -90,6 +102,7 @@ class TestSettingsOverlay:
 
     def test_rate_limit_increment(self, mock_agent, mock_console):
         from tools.overlay_menu import SettingsOverlay
+
         overlay = SettingsOverlay(mock_agent, mock_console)
         overlay._rate_limits[0]
         overlay._handle_enter()

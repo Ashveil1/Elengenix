@@ -11,6 +11,7 @@ Renders a full beautiful dashboard showing:
 
 Used by hunt command for final visualization.
 """
+
 from __future__ import annotations
 
 import sys
@@ -19,20 +20,18 @@ from typing import Any, Dict, List
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from rich import box
+from rich.align import Align
 from rich.console import Console
 from rich.layout import Layout
 from rich.panel import Panel
-from rich.text import Text
-from rich.align import Align
 from rich.table import Table
-from rich import box
+from rich.text import Text
 
-from tui.themes import get_theme, THEMES
-from tui.visualizations import (
-    SeverityChart, RiskGauge, VulnerabilityHeatmap,
-)
 from tui.dashboard import build_static_renderable
-from tui.welcome import build_welcome_renderable, MissionBriefing
+from tui.themes import THEMES, get_theme
+from tui.visualizations import RiskGauge, SeverityChart, VulnerabilityHeatmap
+from tui.welcome import MissionBriefing, build_welcome_renderable
 
 
 def _category_for_vuln(finding: Any) -> str:
@@ -103,11 +102,13 @@ def render_hunt_dashboard(
     ).render()
 
     metrics_table.add_row(gauge, sev_chart)
-    layout["metrics"].update(Panel(
-        metrics_table,
-        border_style=primary,
-        box=box.HEAVY,
-    ))
+    layout["metrics"].update(
+        Panel(
+            metrics_table,
+            border_style=primary,
+            box=box.HEAVY,
+        )
+    )
 
     # LEFT: Findings list (top critical/high)
     layout["left"].update(_render_findings_panel(findings, theme_name))
@@ -147,9 +148,12 @@ def _render_findings_panel(findings: List[Any], theme_name: str) -> Panel:
 
     # Sort by severity
     sev_order = {"Critical": 0, "High": 1, "Medium": 2, "Low": 3, "Informational": 4}
-    live = [f for f in findings
-            if (getattr(f, "severity", "Info") not in ("Informational",))
-            and "CANDIDATE" not in (getattr(f, "title", "") or "").upper()]
+    live = [
+        f
+        for f in findings
+        if (getattr(f, "severity", "Info") not in ("Informational",))
+        and "CANDIDATE" not in (getattr(f, "title", "") or "").upper()
+    ]
 
     def sev_key(f):
         s = getattr(f, "severity", "Informational")
@@ -193,9 +197,12 @@ def _render_top_findings(findings: List[Any], theme_name: str) -> Panel:
     text = theme.get("text", "#ffffff")
     muted = theme.get("muted", "#888888")
 
-    critical_high = [f for f in findings
-                     if (getattr(f, "severity", "") in ("Critical", "High"))
-                     and "CANDIDATE" not in (getattr(f, "title", "") or "").upper()][:8]
+    critical_high = [
+        f
+        for f in findings
+        if (getattr(f, "severity", "") in ("Critical", "High"))
+        and "CANDIDATE" not in (getattr(f, "title", "") or "").upper()
+    ][:8]
 
     if not critical_high:
         return Panel(
@@ -317,10 +324,10 @@ def show_hunt_results(target: str, report: Any, theme_name: str = "DEFAULT"):
     console.print(layout)
 
 
-
 # ═══════════════════════════════════════════════════════════════════════════
 # LAUNCHER (merged from launcher.py)
 # ═══════════════════════════════════════════════════════════════════════════
+
 
 def render_banner(theme_name="DEFAULT"):
     """Render Elengenix ASCII art banner with theme colors."""
@@ -412,9 +419,13 @@ def render_launcher_layout(theme_name="DEFAULT", target="", risk=0):
     )
 
     layout["banner"].update(Align.center(render_banner(theme_name), vertical="middle"))
-    layout["dashboard"].update(build_static_renderable(
-        theme_name=theme_name, risk=risk, target=target or "demo",
-    ))
+    layout["dashboard"].update(
+        build_static_renderable(
+            theme_name=theme_name,
+            risk=risk,
+            target=target or "demo",
+        )
+    )
     layout["status"].update(render_status_panel(target, theme_name))
     layout["commands"].update(render_command_panel(theme_name))
 
@@ -438,12 +449,14 @@ def run_launcher(target="", theme_name="DEFAULT"):
     console.clear()
     console.print(render_banner(theme_name))
 
-    mission = MissionBriefing(target=target or "no target set",
-                             scan_status="READY",
-                             ai_status="READY")
+    mission = MissionBriefing(
+        target=target or "no target set", scan_status="READY", ai_status="READY"
+    )
     console.print(build_welcome_renderable(mission=mission))
     console.print(render_launcher_layout(theme_name, target, risk=42))
 
-    console.print("\n[bold cyan]Available themes:[/bold cyan] " +
-                  ", ".join(f"[cyan]{t}[/cyan]" for t in THEMES.keys()))
+    console.print(
+        "\n[bold cyan]Available themes:[/bold cyan] "
+        + ", ".join(f"[cyan]{t}[/cyan]" for t in THEMES.keys())
+    )
     console.print("[dim]Run 'elengenix hunt <target>' to scan[/dim]")

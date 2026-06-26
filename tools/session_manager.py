@@ -33,9 +33,11 @@ SESSIONS_DIR = Path("data/sessions")
 
 def generate_session_id() -> str:
     """Generate a short readable session ID (e.g. k7x3p9m2)."""
-    import secrets, string
+    import secrets
+    import string
+
     alphabet = string.ascii_lowercase + string.digits
-    return ''.join(secrets.choice(alphabet) for _ in range(9))
+    return "".join(secrets.choice(alphabet) for _ in range(9))
 
 
 def _ensure_sessions_dir() -> Path:
@@ -47,6 +49,7 @@ def _ensure_sessions_dir() -> Path:
 @dataclass
 class SessionInfo:
     """Metadata about a saved session."""
+
     name: str
     created_at: str
     last_modified: str
@@ -60,6 +63,7 @@ class SessionInfo:
 @dataclass
 class LiveSessionState:
     """Runtime state for the active CLI session (not persisted)."""
+
     name: str = ""
     created_at: str = ""
     target: str = ""
@@ -82,7 +86,9 @@ class SessionManager:
         _ensure_sessions_dir()
         self.live: LiveSessionState = LiveSessionState()
 
-    def start_session(self, name: str = "", target: str = "", mode: str = "auto", model: str = "default") -> str:
+    def start_session(
+        self, name: str = "", target: str = "", mode: str = "auto", model: str = "default"
+    ) -> str:
         """Initialize a new live session with auto-generated name if none given.
 
         Args:
@@ -255,16 +261,18 @@ class SessionManager:
         for path in sorted(self.sessions_dir.glob("*.json")):
             try:
                 data = json.loads(path.read_text(encoding="utf-8"))
-                sessions.append(SessionInfo(
-                    name=data.get("name", path.stem),
-                    created_at=data.get("created_at", "unknown"),
-                    last_modified=data.get("last_modified", "unknown"),
-                    target=data.get("target", ""),
-                    turns=data.get("metadata", {}).get("turns", 0),
-                    mode=data.get("mode", "auto"),
-                    model=data.get("model", "default"),
-                    file_path=str(path),
-                ))
+                sessions.append(
+                    SessionInfo(
+                        name=data.get("name", path.stem),
+                        created_at=data.get("created_at", "unknown"),
+                        last_modified=data.get("last_modified", "unknown"),
+                        target=data.get("target", ""),
+                        turns=data.get("metadata", {}).get("turns", 0),
+                        mode=data.get("mode", "auto"),
+                        model=data.get("model", "default"),
+                        file_path=str(path),
+                    )
+                )
             except Exception as e:
                 logger.warning(f"Failed to read session {path}: {e}")
 

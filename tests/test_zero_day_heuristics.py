@@ -13,6 +13,7 @@ Run with::
     source venv/bin/activate
     python3 -m pytest tests/test_zero_day_heuristics.py -v
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -87,11 +88,20 @@ class _MockHandler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(str(exc).encode())
 
-    def do_GET(self): self._common()
-    def do_POST(self): self._common()
-    def do_PUT(self): self._common()
-    def do_PATCH(self): self._common()
-    def do_DELETE(self): self._common()
+    def do_GET(self):
+        self._common()
+
+    def do_POST(self):
+        self._common()
+
+    def do_PUT(self):
+        self._common()
+
+    def do_PATCH(self):
+        self._common()
+
+    def do_DELETE(self):
+        self._common()
 
 
 def _start_mock_server() -> Tuple[HTTPServer, str, threading.Thread]:
@@ -108,7 +118,9 @@ def _start_mock_server() -> Tuple[HTTPServer, str, threading.Thread]:
     return server, f"http://127.0.0.1:{port}", t
 
 
-def _register_route(method: str, path: str, handler: Callable[["BaseHTTPRequestHandler", Dict[str, Any]], None]) -> None:
+def _register_route(
+    method: str, path: str, handler: Callable[["BaseHTTPRequestHandler", Dict[str, Any]], None]
+) -> None:
     _MOCK_ROUTES[(method, path)] = handler
 
 
@@ -116,7 +128,12 @@ def _clear_routes() -> None:
     _MOCK_ROUTES.clear()
 
 
-def _respond(handler: "BaseHTTPRequestHandler", status: int, body: bytes, headers: Optional[Dict[str, str]] = None) -> None:
+def _respond(
+    handler: "BaseHTTPRequestHandler",
+    status: int,
+    body: bytes,
+    headers: Optional[Dict[str, str]] = None,
+) -> None:
     handler.send_response(status)
     handler.send_header("Content-Length", str(len(body)))
     handler.send_header("Content-Type", (headers or {}).get("Content-Type", "application/json"))
@@ -157,8 +174,8 @@ def _reset_routes():
 
 def test_finding_to_vuln_finding_minimal():
     """Finding.to_vuln_finding() should produce a valid VulnFinding."""
-    from tools.zero_day_heuristics import Finding, SeverityLevel
     from tools.vuln_engine import VulnClass
+    from tools.zero_day_heuristics import Finding, SeverityLevel
 
     f = Finding(
         detector="unit_test",
@@ -188,10 +205,8 @@ def test_finding_to_vuln_finding_minimal():
 
 def test_severity_cvss_floor_mapping():
     """Each severity bucket has a CVSS floor."""
-    from tools.zero_day_heuristics import (
-        SEVERITY_CVSS_FLOOR,
-        SeverityLevel,
-    )
+    from tools.zero_day_heuristics import SEVERITY_CVSS_FLOOR, SeverityLevel
+
     assert SEVERITY_CVSS_FLOOR[SeverityLevel.CRITICAL] >= 9.0
     assert SEVERITY_CVSS_FLOOR[SeverityLevel.HIGH] >= 7.0
     assert SEVERITY_CVSS_FLOOR[SeverityLevel.MEDIUM] >= 4.0
@@ -200,8 +215,8 @@ def test_severity_cvss_floor_mapping():
 
 def test_default_vectors_per_vuln_class():
     """Every VulnClass used in findings has a default CVSS vector."""
-    from tools.zero_day_heuristics import _default_vector_for
     from tools.vuln_engine import VulnClass
+    from tools.zero_day_heuristics import _default_vector_for
 
     classes = [
         VulnClass.PROTOTYPE_POLLUTION,
@@ -267,7 +282,12 @@ def test_prototype_pollution_stack_trace_detection(mock_server):
     def handler(h: BaseHTTPRequestHandler, ctx: Dict[str, Any]) -> None:
         body = ctx["body"].decode("utf-8", errors="replace")
         if "__proto__" in body:
-            _respond(h, 500, b"TypeError: Cannot set property 'x' of Object.prototype which has only a getter\n" * 4)
+            _respond(
+                h,
+                500,
+                b"TypeError: Cannot set property 'x' of Object.prototype which has only a getter\n"
+                * 4,
+            )
             return
         _respond(h, 200, b"ok")
 
@@ -291,7 +311,9 @@ def test_prototype_pollution_gadget_mention_upgrades_severity(mock_server):
     relevant = [f for f in findings if "canary" in f.title.lower()]
     assert relevant
     assert relevant[0].severity == SeverityLevel.HIGH
-    print(f"[OK] test_prototype_pollution_gadget_mention_upgrades_severity severity={relevant[0].severity.value}")
+    print(
+        f"[OK] test_prototype_pollution_gadget_mention_upgrades_severity severity={relevant[0].severity.value}"
+    )
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -427,6 +449,7 @@ def test_deserialization_dotnet_viewstate(mock_server):
     from tools.zero_day_heuristics import InsecureDeserializationDetector
 
     sample_viewstate = "__VIEWSTATE=" + base64.b64encode(b"X" * 128).decode()
+
     def handler(h: BaseHTTPRequestHandler, ctx: Dict[str, Any]) -> None:
         _respond(h, 200, sample_viewstate.encode())
 
@@ -596,9 +619,19 @@ def test_ssti_jinja2_reflection(mock_server):
         q = parse_qs(urlparse(path).query)
         marker = (q.get("q") or [""])[0]
         if marker == "{{7*7}}":
-            _respond(h, 200, b"<html><body>Result: 49</body></html>", headers={"Content-Type": "text/html"})
+            _respond(
+                h,
+                200,
+                b"<html><body>Result: 49</body></html>",
+                headers={"Content-Type": "text/html"},
+            )
             return
-        _respond(h, 200, b"<html><body>Result: blank</body></html>", headers={"Content-Type": "text/html"})
+        _respond(
+            h,
+            200,
+            b"<html><body>Result: blank</body></html>",
+            headers={"Content-Type": "text/html"},
+        )
 
     _register_route("GET", "/search", handler)
     det = SSTIDetector()
@@ -615,7 +648,12 @@ def test_ssti_stack_trace_signature(mock_server):
     from tools.zero_day_heuristics import SSTIDetector
 
     def handler(h: BaseHTTPRequestHandler, ctx: Dict[str, Any]) -> None:
-        _respond(h, 500, b"jinja2.exceptions.TemplateSyntaxError: unexpected end of template", headers={"Content-Type": "text/plain"})
+        _respond(
+            h,
+            500,
+            b"jinja2.exceptions.TemplateSyntaxError: unexpected end of template",
+            headers={"Content-Type": "text/plain"},
+        )
 
     _register_route("GET", "/render", handler)
     det = SSTIDetector()
@@ -630,7 +668,12 @@ def test_ssti_clean_no_findings(mock_server):
     from tools.zero_day_heuristics import SSTIDetector
 
     def handler(h: BaseHTTPRequestHandler, ctx: Dict[str, Any]) -> None:
-        _respond(h, 200, b"<html><body>Search results page</body></html>", headers={"Content-Type": "text/html"})
+        _respond(
+            h,
+            200,
+            b"<html><body>Search results page</body></html>",
+            headers={"Content-Type": "text/html"},
+        )
 
     _register_route("GET", "/clean", handler)
     det = SSTIDetector()
@@ -659,9 +702,24 @@ def test_graphql_introspection_enabled_flagged(mock_server):
                     "name": "User",
                     "kind": "OBJECT",
                     "fields": [
-                        {"name": "password", "isDeprecated": False, "args": [], "deprecationReason": ""},
-                        {"name": "email", "isDeprecated": False, "args": [], "deprecationReason": ""},
-                        {"name": "apiKey", "isDeprecated": True, "args": [], "deprecationReason": "Use token instead"},
+                        {
+                            "name": "password",
+                            "isDeprecated": False,
+                            "args": [],
+                            "deprecationReason": "",
+                        },
+                        {
+                            "name": "email",
+                            "isDeprecated": False,
+                            "args": [],
+                            "deprecationReason": "",
+                        },
+                        {
+                            "name": "apiKey",
+                            "isDeprecated": True,
+                            "args": [],
+                            "deprecationReason": "Use token instead",
+                        },
                     ],
                 },
             ],
@@ -676,7 +734,9 @@ def test_graphql_introspection_enabled_flagged(mock_server):
             payload = {}
         # Allow arrays as a top-level body.
         if isinstance(payload, list):
-            _respond(h, 200, json.dumps([{"data": {"__typename": "Query"}}] * len(payload)).encode())
+            _respond(
+                h, 200, json.dumps([{"data": {"__typename": "Query"}}] * len(payload)).encode()
+            )
             return
         if not isinstance(payload, dict):
             _respond(h, 200, b'{"data":null}')
@@ -753,9 +813,15 @@ def test_jwt_forge_all_attacks_present():
     det = JWTAlgorithmDetector()
     attacks = det.forge_tokens()
     for name in (
-        "alg_none", "alg_NONE", "alg_none_no_typ",
-        "kid_path_traversal", "kid_sql_injection", "kid_blank",
-        "jku_attack", "x5u_attack", "hs256_confusion",
+        "alg_none",
+        "alg_NONE",
+        "alg_none_no_typ",
+        "kid_path_traversal",
+        "kid_sql_injection",
+        "kid_blank",
+        "jku_attack",
+        "x5u_attack",
+        "hs256_confusion",
     ):
         assert name in attacks, f"missing attack {name}"
         assert _is_jwt(attacks[name]), f"attack {name} produced invalid JWT"
@@ -844,7 +910,9 @@ def test_smart_anomaly_baseline_then_5xx_anomaly(mock_server):
     _register_route("GET", "/anom", handler)
     det = SmartAnomalyDetector()
     findings = asyncio.run(det.detect(f"{mock_server}/anom", baseline_count=4))
-    assert any("500" in f.evidence or "server error" in f.evidence for f in findings), [f.evidence for f in findings]
+    assert any("500" in f.evidence or "server error" in f.evidence for f in findings), [
+        f.evidence for f in findings
+    ]
     print(f"[OK] test_smart_anomaly_baseline_then_5xx_anomaly findings={len(findings)}")
 
 
@@ -861,10 +929,7 @@ def test_smart_anomaly_no_findings_on_uniform(mock_server):
     findings = asyncio.run(det.detect(f"{mock_server}/uniform", baseline_count=5))
     # We accept timing-based noise under heavy CI load — only length/status
     # findings count for this negative test.
-    length_or_status = [
-        f for f in findings
-        if "length" in f.evidence or "status" in f.evidence
-    ]
+    length_or_status = [f for f in findings if "length" in f.evidence or "status" in f.evidence]
     assert length_or_status == [], [f.evidence for f in length_or_status]
     print(f"[OK] test_smart_anomaly_no_findings_on_uniform findings={len(findings)}")
 
@@ -876,25 +941,35 @@ def test_smart_anomaly_no_findings_on_uniform(mock_server):
 
 def test_finding_graph_chain_scoring():
     """Chain score should grow when findings are linked."""
-    from tools.zero_day_heuristics import (
-        Finding,
-        FindingGraph,
-        SeverityLevel,
-    )
     from tools.vuln_engine import VulnClass
+    from tools.zero_day_heuristics import Finding, FindingGraph, SeverityLevel
 
     g = FindingGraph()
     f1 = Finding(
-        detector="d1", title="Auth missing", severity=SeverityLevel.HIGH,
-        vuln_class=VulnClass.AUTH_BROKEN, url="http://x/a", method="GET",
+        detector="d1",
+        title="Auth missing",
+        severity=SeverityLevel.HIGH,
+        vuln_class=VulnClass.AUTH_BROKEN,
+        url="http://x/a",
+        method="GET",
     )
     f2 = Finding(
-        detector="d2", title="IDOR user data", severity=SeverityLevel.HIGH,
-        vuln_class=VulnClass.BROKEN_ACCESS, url="http://x/a", method="GET", parameter="id",
+        detector="d2",
+        title="IDOR user data",
+        severity=SeverityLevel.HIGH,
+        vuln_class=VulnClass.BROKEN_ACCESS,
+        url="http://x/a",
+        method="GET",
+        parameter="id",
     )
     f3 = Finding(
-        detector="d3", title="Mass assignment to admin", severity=SeverityLevel.CRITICAL,
-        vuln_class=VulnClass.BROKEN_ACCESS, url="http://x/a", method="POST", parameter="role",
+        detector="d3",
+        title="Mass assignment to admin",
+        severity=SeverityLevel.CRITICAL,
+        vuln_class=VulnClass.BROKEN_ACCESS,
+        url="http://x/a",
+        method="POST",
+        parameter="role",
     )
     n1 = g.add_finding(f1)
     n2 = g.add_finding(f2)
@@ -910,25 +985,33 @@ def test_finding_graph_chain_scoring():
 
 def test_finding_graph_chain_detection():
     """Three findings on same endpoint should be detected as a chain."""
-    from tools.zero_day_heuristics import (
-        Finding,
-        FindingGraph,
-        SeverityLevel,
-    )
     from tools.vuln_engine import VulnClass
+    from tools.zero_day_heuristics import Finding, FindingGraph, SeverityLevel
 
     g = FindingGraph()
     f1 = Finding(
-        detector="d1", title="Auth missing on API", severity=SeverityLevel.HIGH,
-        vuln_class=VulnClass.AUTH_BROKEN, url="http://x/api", method="GET",
+        detector="d1",
+        title="Auth missing on API",
+        severity=SeverityLevel.HIGH,
+        vuln_class=VulnClass.AUTH_BROKEN,
+        url="http://x/api",
+        method="GET",
     )
     f2 = Finding(
-        detector="d2", title="IDOR on user endpoint", severity=SeverityLevel.HIGH,
-        vuln_class=VulnClass.BROKEN_ACCESS, url="http://x/api", method="GET",
+        detector="d2",
+        title="IDOR on user endpoint",
+        severity=SeverityLevel.HIGH,
+        vuln_class=VulnClass.BROKEN_ACCESS,
+        url="http://x/api",
+        method="GET",
     )
     f3 = Finding(
-        detector="d3", title="Admin via mass assignment", severity=SeverityLevel.CRITICAL,
-        vuln_class=VulnClass.BROKEN_ACCESS, url="http://x/api", method="POST",
+        detector="d3",
+        title="Admin via mass assignment",
+        severity=SeverityLevel.CRITICAL,
+        vuln_class=VulnClass.BROKEN_ACCESS,
+        url="http://x/api",
+        method="POST",
     )
     for f in (f1, f2, f3):
         g.add_finding(f)
@@ -942,14 +1025,20 @@ def test_finding_graph_chain_detection():
 
 def test_finding_graph_no_chains_when_only_one_finding():
     """A single finding is not a chain."""
-    from tools.zero_day_heuristics import Finding, FindingGraph, SeverityLevel
     from tools.vuln_engine import VulnClass
+    from tools.zero_day_heuristics import Finding, FindingGraph, SeverityLevel
 
     g = FindingGraph()
-    g.add_finding(Finding(
-        detector="d", title="Solo", severity=SeverityLevel.LOW,
-        vuln_class=VulnClass.XSS, url="http://x/a", method="GET",
-    ))
+    g.add_finding(
+        Finding(
+            detector="d",
+            title="Solo",
+            severity=SeverityLevel.LOW,
+            vuln_class=VulnClass.XSS,
+            url="http://x/a",
+            method="GET",
+        )
+    )
     chains = g.detect_chains()
     assert chains == []
     print("[OK] test_finding_graph_no_chains_when_only_one_finding")
@@ -957,16 +1046,23 @@ def test_finding_graph_no_chains_when_only_one_finding():
 
 def test_finding_graph_render_smoke():
     """render() must include all nodes and edges."""
-    from tools.zero_day_heuristics import Finding, FindingGraph, SeverityLevel
     from tools.vuln_engine import VulnClass
+    from tools.zero_day_heuristics import Finding, FindingGraph, SeverityLevel
 
     g = FindingGraph()
     g.add_endpoint("http://x/a", "GET")
     g.add_parameter("ep:GET:http://x/a", "id")
-    g.add_finding(Finding(
-        detector="d", title="IDOR", severity=SeverityLevel.HIGH,
-        vuln_class=VulnClass.BROKEN_ACCESS, url="http://x/a", method="GET", parameter="id",
-    ))
+    g.add_finding(
+        Finding(
+            detector="d",
+            title="IDOR",
+            severity=SeverityLevel.HIGH,
+            vuln_class=VulnClass.BROKEN_ACCESS,
+            url="http://x/a",
+            method="GET",
+            parameter="id",
+        )
+    )
     rendered = g.render()
     assert "ep:GET:http://x/a" in rendered
     assert "param:ep:GET:http://x/a:id" in rendered
@@ -981,18 +1077,21 @@ def test_finding_graph_render_smoke():
 
 def test_engine_imports_and_constructs():
     """ZeroDayEngine should construct with default config."""
-    from tools.zero_day_heuristics import ZeroDayEngine, ScanConfig
-    engine = ZeroDayEngine(config=ScanConfig(
-        enable_prototype=True,
-        enable_mass_assignment=True,
-        enable_deserialization=False,
-        enable_smuggling=True,
-        enable_race=False,
-        enable_ssti=False,
-        enable_graphql=False,
-        enable_jwt=False,
-        enable_anomaly=False,
-    ))
+    from tools.zero_day_heuristics import ScanConfig, ZeroDayEngine
+
+    engine = ZeroDayEngine(
+        config=ScanConfig(
+            enable_prototype=True,
+            enable_mass_assignment=True,
+            enable_deserialization=False,
+            enable_smuggling=True,
+            enable_race=False,
+            enable_ssti=False,
+            enable_graphql=False,
+            enable_jwt=False,
+            enable_anomaly=False,
+        )
+    )
     try:
         assert "prototype" in engine._detectors
         assert "mass_assignment" in engine._detectors
@@ -1005,7 +1104,7 @@ def test_engine_imports_and_constructs():
 
 def test_engine_end_to_end(mock_server):
     """End-to-end run against a synthetic multi-detector target."""
-    from tools.zero_day_heuristics import ZeroDayEngine, ScanConfig
+    from tools.zero_day_heuristics import ScanConfig, ZeroDayEngine
 
     # Single endpoint that echoes payload back — exercises SSTI canary
     # and mass assignment reflection.
@@ -1051,8 +1150,8 @@ def test_engine_end_to_end(mock_server):
 
 def test_engine_scan_as_vulns_returns_vulnfindings(mock_server):
     """scan_as_vulns must return VulnFinding-compatible objects."""
-    from tools.zero_day_heuristics import ZeroDayEngine, ScanConfig
     from tools.vuln_engine import VulnFinding
+    from tools.zero_day_heuristics import ScanConfig, ZeroDayEngine
 
     def handler(h: BaseHTTPRequestHandler, ctx: Dict[str, Any]) -> None:
         # Differentiate baseline (no marker) from probe (with `{{7*7}}`) so
@@ -1067,10 +1166,16 @@ def test_engine_scan_as_vulns_returns_vulnfindings(mock_server):
 
     _register_route("GET", "/ssti", handler)
     config = ScanConfig(
-        enable_prototype=False, enable_mass_assignment=False,
-        enable_deserialization=False, enable_smuggling=False,
-        enable_race=False, enable_ssti=True, enable_graphql=False,
-        enable_jwt=False, enable_anomaly=False, timeout=3.0,
+        enable_prototype=False,
+        enable_mass_assignment=False,
+        enable_deserialization=False,
+        enable_smuggling=False,
+        enable_race=False,
+        enable_ssti=True,
+        enable_graphql=False,
+        enable_jwt=False,
+        enable_anomaly=False,
+        timeout=3.0,
     )
     engine = ZeroDayEngine(config=config)
     try:
@@ -1086,16 +1191,23 @@ def test_engine_scan_as_vulns_returns_vulnfindings(mock_server):
 
 def test_engine_deduplicates(mock_server):
     """Deduplication should remove duplicates introduced by overlapping detectors."""
-    from tools.zero_day_heuristics import ZeroDayEngine, ScanConfig
+    from tools.zero_day_heuristics import ScanConfig, ZeroDayEngine
 
     def handler(h: BaseHTTPRequestHandler, ctx: Dict[str, Any]) -> None:
         _respond(h, 200, b"Result: 49", headers={"Content-Type": "text/html"})
 
     _register_route("GET", "/dedup", handler)
     config = ScanConfig(
-        enable_ssti=True, enable_prototype=False, enable_mass_assignment=False,
-        enable_deserialization=False, enable_smuggling=False, enable_race=False,
-        enable_graphql=False, enable_jwt=False, enable_anomaly=False, timeout=3.0,
+        enable_ssti=True,
+        enable_prototype=False,
+        enable_mass_assignment=False,
+        enable_deserialization=False,
+        enable_smuggling=False,
+        enable_race=False,
+        enable_graphql=False,
+        enable_jwt=False,
+        enable_anomaly=False,
+        timeout=3.0,
     )
     engine = ZeroDayEngine(config=config)
     try:
@@ -1109,16 +1221,23 @@ def test_engine_deduplicates(mock_server):
 
 def test_engine_severity_ordering(mock_server):
     """Findings should be sorted critical-first by default."""
-    from tools.zero_day_heuristics import ZeroDayEngine, ScanConfig, SeverityLevel
+    from tools.zero_day_heuristics import ScanConfig, SeverityLevel, ZeroDayEngine
 
     def handler(h: BaseHTTPRequestHandler, ctx: Dict[str, Any]) -> None:
         _respond(h, 200, b"Result: 49", headers={"Content-Type": "text/html"})
 
     _register_route("GET", "/order", handler)
     config = ScanConfig(
-        enable_ssti=True, enable_prototype=False, enable_mass_assignment=False,
-        enable_deserialization=False, enable_smuggling=False, enable_race=False,
-        enable_graphql=False, enable_jwt=False, enable_anomaly=False, timeout=3.0,
+        enable_ssti=True,
+        enable_prototype=False,
+        enable_mass_assignment=False,
+        enable_deserialization=False,
+        enable_smuggling=False,
+        enable_race=False,
+        enable_graphql=False,
+        enable_jwt=False,
+        enable_anomaly=False,
+        timeout=3.0,
     )
     engine = ZeroDayEngine(config=config)
     try:
@@ -1133,16 +1252,23 @@ def test_engine_severity_ordering(mock_server):
 
 def test_engine_correlates_into_graph(mock_server):
     """Findings must be added to the engine's FindingGraph."""
-    from tools.zero_day_heuristics import ZeroDayEngine, ScanConfig
+    from tools.zero_day_heuristics import ScanConfig, ZeroDayEngine
 
     def handler(h: BaseHTTPRequestHandler, ctx: Dict[str, Any]) -> None:
         _respond(h, 200, b"Result: 49", headers={"Content-Type": "text/html"})
 
     _register_route("GET", "/graph", handler)
     config = ScanConfig(
-        enable_ssti=True, enable_prototype=False, enable_mass_assignment=False,
-        enable_deserialization=False, enable_smuggling=False, enable_race=False,
-        enable_graphql=False, enable_jwt=False, enable_anomaly=False, timeout=3.0,
+        enable_ssti=True,
+        enable_prototype=False,
+        enable_mass_assignment=False,
+        enable_deserialization=False,
+        enable_smuggling=False,
+        enable_race=False,
+        enable_graphql=False,
+        enable_jwt=False,
+        enable_anomaly=False,
+        timeout=3.0,
     )
     engine = ZeroDayEngine(config=config)
     try:
@@ -1150,16 +1276,16 @@ def test_engine_correlates_into_graph(mock_server):
     finally:
         engine.close()
     finding_nodes = [n for n in engine.graph.nodes.values() if n.kind == "finding"]
-    assert len(finding_nodes) == len(findings), (
-        f"graph has {len(finding_nodes)} findings but engine returned {len(findings)}"
-    )
+    assert len(finding_nodes) == len(
+        findings
+    ), f"graph has {len(finding_nodes)} findings but engine returned {len(findings)}"
     print(f"[OK] test_engine_correlates_into_graph nodes={len(finding_nodes)}")
 
 
 def test_engine_run_zero_day_scan_helper(mock_server):
     """Module-level run_zero_day_scan must produce VulnFindings."""
-    from tools.zero_day_heuristics import run_zero_day_scan
     from tools.vuln_engine import VulnFinding
+    from tools.zero_day_heuristics import run_zero_day_scan
 
     def handler(h: BaseHTTPRequestHandler, ctx: Dict[str, Any]) -> None:
         path = ctx["path"]
@@ -1171,19 +1297,21 @@ def test_engine_run_zero_day_scan_helper(mock_server):
         _respond(h, 200, b"Result: blank", headers={"Content-Type": "text/html"})
 
     _register_route("GET", "/helper", handler)
-    vulns = asyncio.run(run_zero_day_scan(
-        f"{mock_server}/helper",
-        enable_ssti=True,
-        enable_prototype=False,
-        enable_mass_assignment=False,
-        enable_deserialization=False,
-        enable_smuggling=False,
-        enable_race=False,
-        enable_graphql=False,
-        enable_jwt=False,
-        enable_anomaly=False,
-        timeout=3.0,
-    ))
+    vulns = asyncio.run(
+        run_zero_day_scan(
+            f"{mock_server}/helper",
+            enable_ssti=True,
+            enable_prototype=False,
+            enable_mass_assignment=False,
+            enable_deserialization=False,
+            enable_smuggling=False,
+            enable_race=False,
+            enable_graphql=False,
+            enable_jwt=False,
+            enable_anomaly=False,
+            timeout=3.0,
+        )
+    )
     assert vulns
     assert all(isinstance(v, VulnFinding) for v in vulns)
     print(f"[OK] test_engine_run_zero_day_scan_helper vulns={len(vulns)}")
@@ -1194,12 +1322,24 @@ def test_engine_signature_includes_all_exports():
     from tools import zero_day_heuristics as zd
 
     expected = {
-        "SeverityLevel", "SEVERITY_CVSS_FLOOR", "Finding", "HTTPClient",
-        "PrototypePollutionDetector", "MassAssignmentDetector",
-        "InsecureDeserializationDetector", "HTTPSmugglingDetector",
-        "RaceConditionDetector", "SSTIDetector", "GraphQLIntrospectionDetector",
-        "JWTAlgorithmDetector", "SmartAnomalyDetector", "FindingGraph",
-        "FindingNode", "FindingEdge", "ScanConfig", "ZeroDayEngine",
+        "SeverityLevel",
+        "SEVERITY_CVSS_FLOOR",
+        "Finding",
+        "HTTPClient",
+        "PrototypePollutionDetector",
+        "MassAssignmentDetector",
+        "InsecureDeserializationDetector",
+        "HTTPSmugglingDetector",
+        "RaceConditionDetector",
+        "SSTIDetector",
+        "GraphQLIntrospectionDetector",
+        "JWTAlgorithmDetector",
+        "SmartAnomalyDetector",
+        "FindingGraph",
+        "FindingNode",
+        "FindingEdge",
+        "ScanConfig",
+        "ZeroDayEngine",
         "run_zero_day_scan",
     }
     actual = set(zd.__all__)
@@ -1213,6 +1353,7 @@ def test_engine_signature_includes_all_exports():
 def test_engine_async_scan_signature():
     """ZeroDayEngine.scan must be a coroutine function."""
     from tools.zero_day_heuristics import ZeroDayEngine
+
     assert inspect.iscoroutinefunction(ZeroDayEngine.scan)
     assert inspect.iscoroutinefunction(ZeroDayEngine.scan_as_vulns)
     print("[OK] test_engine_async_scan_signature")
@@ -1222,9 +1363,11 @@ def test_engine_async_scan_signature():
 # HONEST LABELING TESTS — verify static findings are not falsely labeled
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 def test_jwt_static_findings_marked_as_candidates():
     """CRITICAL: Static JWT findings must be clearly marked as untested candidates."""
     from tools.zero_day_heuristics import JWTAlgorithmDetector
+
     det = JWTAlgorithmDetector()
     findings = det.detect()
     assert len(findings) > 0
@@ -1243,19 +1386,23 @@ def test_jwt_static_findings_marked_as_candidates():
 def test_jwt_endpoint_discovery():
     """Auto-discovery must probe common auth paths and find JWT-bearing responses."""
     import asyncio
-    from tools.zero_day_heuristics import ZeroDayEngine, ScanConfig
+
+    from tools.zero_day_heuristics import ScanConfig, ZeroDayEngine
+
     async def go():
         e = ZeroDayEngine(config=ScanConfig())
         endpoints = await e._discover_jwt_endpoints("httpbin.org")
         # httpbin has no JWT endpoints; expect 0
         assert isinstance(endpoints, list)
         assert len(endpoints) == 0
+
     asyncio.run(go())
 
 
 def test_jwt_looks_like_jwt_helper():
     """_looks_like_jwt must detect base64url.eyJ... patterns."""
     from tools.zero_day_heuristics import ZeroDayEngine
+
     valid = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c"
     assert ZeroDayEngine._looks_like_jwt(f"Bearer {valid}") is True
     assert ZeroDayEngine._looks_like_jwt(f'{{"token": "{valid}"}}') is True
@@ -1266,7 +1413,9 @@ def test_jwt_looks_like_jwt_helper():
 def test_zero_day_findings_have_honest_labels():
     """ZeroDayEngine.scan output must include honest 'CANDIDATE' labels for static findings."""
     import asyncio
-    from tools.zero_day_heuristics import ZeroDayEngine, ScanConfig
+
+    from tools.zero_day_heuristics import ScanConfig, ZeroDayEngine
+
     async def go():
         e = ZeroDayEngine(config=ScanConfig())
         findings = await e.scan("httpbin.org")
@@ -1275,6 +1424,7 @@ def test_zero_day_findings_have_honest_labels():
             for f in jwt_findings:
                 # Every JWT finding on httpbin (no JWT endpoints) must be labeled as candidate
                 assert "CANDIDATE" in f.title
+
     asyncio.run(go())
 
 

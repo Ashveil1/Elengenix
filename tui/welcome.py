@@ -27,13 +27,13 @@ from rich.padding import Padding
 from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
-
 from textual.containers import Container, Horizontal, Vertical
 from textual.reactive import reactive
 from textual.widget import Widget
 from textual.widgets import Static
 
 from ui_components import console as shared_console
+
 from .themes import THEMES, ThemeManager, get_manager, get_theme
 from .visualizations import SeverityChart
 
@@ -56,7 +56,7 @@ LOGO_LINES: List[str] = [
 
 def get_system_status() -> Dict[str, Any]:
     """Get system status information for the welcome screen.
-    
+
     Returns:
         Dictionary containing system status info.
     """
@@ -68,9 +68,10 @@ def get_system_status() -> Dict[str, Any]:
         "tools_installed": 0,
         "last_scan": "Never",
     }
-    
+
     try:
         import psutil
+
         status["cpu_percent"] = psutil.cpu_percent(interval=0.1)
         mem = psutil.virtual_memory()
         status["memory_percent"] = mem.percent
@@ -81,12 +82,14 @@ def get_system_status() -> Dict[str, Any]:
         pass
     except Exception:
         pass
-    
+
     # Count installed tools
     tools_dir = Path(__file__).parent.parent / "tools"
     if tools_dir.exists():
-        status["tools_installed"] = len(list(tools_dir.glob("*.py"))) - 2  # Exclude __init__.py and tool_registry.py
-    
+        status["tools_installed"] = (
+            len(list(tools_dir.glob("*.py"))) - 2
+        )  # Exclude __init__.py and tool_registry.py
+
     # Check last scan
     reports_dir = Path("reports")
     if reports_dir.exists():
@@ -94,7 +97,7 @@ def get_system_status() -> Dict[str, Any]:
         if scan_files:
             last_scan_time = os.path.getmtime(scan_files[0])
             status["last_scan"] = datetime.fromtimestamp(last_scan_time).strftime("%Y-%m-%d %H:%M")
-    
+
     return status
 
 
@@ -203,12 +206,37 @@ class MissionBriefing:
 
 
 QUICK_START_TILES: List[Dict[str, str]] = [
-    {"key": "S", "title": "START SCAN",     "desc": "Launch a full pipeline scan",  "action": "start_scan"},
-    {"key": "D", "title": "OPEN DASHBOARD", "desc": "Live threat & metrics view",   "action": "open_dashboard"},
-    {"key": "R", "title": "VIEW REPORTS",   "desc": "Browse past scan reports",     "action": "view_reports"},
-    {"key": "X", "title": "SETTINGS",       "desc": "Theme, providers, integrations", "action": "open_settings"},
-    {"key": "P", "title": "COMMAND PALETTE","desc": "Ctrl+Shift+P - every command", "action": "command_palette"},
-    {"key": "H", "title": "HELP",           "desc": "Show help and shortcuts",      "action": "show_help"},
+    {
+        "key": "S",
+        "title": "START SCAN",
+        "desc": "Launch a full pipeline scan",
+        "action": "start_scan",
+    },
+    {
+        "key": "D",
+        "title": "OPEN DASHBOARD",
+        "desc": "Live threat & metrics view",
+        "action": "open_dashboard",
+    },
+    {
+        "key": "R",
+        "title": "VIEW REPORTS",
+        "desc": "Browse past scan reports",
+        "action": "view_reports",
+    },
+    {
+        "key": "X",
+        "title": "SETTINGS",
+        "desc": "Theme, providers, integrations",
+        "action": "open_settings",
+    },
+    {
+        "key": "P",
+        "title": "COMMAND PALETTE",
+        "desc": "Ctrl+Shift+P - every command",
+        "action": "command_palette",
+    },
+    {"key": "H", "title": "HELP", "desc": "Show help and shortcuts", "action": "show_help"},
 ]
 
 
@@ -263,7 +291,7 @@ def render_system_status(
 ) -> Panel:
     """Render system status information as a Rich panel."""
     status = get_system_status()
-    
+
     table = Table(
         show_header=False,
         box=SIMPLE,
@@ -272,26 +300,26 @@ def render_system_status(
     )
     table.add_column("Metric", style=muted, width=12)
     table.add_column("Value", style=text_color)
-    
+
     # CPU status with color
     cpu = status["cpu_percent"]
     cpu_color = "#81C784" if cpu < 50 else "#ffb300" if cpu < 80 else "#ff5500"
     table.add_row("CPU", f"[{cpu_color}]{cpu:.1f}%[/{cpu_color}]")
-    
+
     # Memory status with color
     mem = status["memory_percent"]
     mem_color = "#81C784" if mem < 50 else "#ffb300" if mem < 80 else "#ff5500"
     table.add_row("Memory", f"[{mem_color}]{mem:.1f}%[/{mem_color}]")
-    
+
     # Disk status with color
     disk = status["disk_percent"]
     disk_color = "#81C784" if disk < 70 else "#ffb300" if disk < 90 else "#ff5500"
     table.add_row("Disk", f"[{disk_color}]{disk:.1f}%[/{disk_color}]")
-    
+
     table.add_row("Python", status["python_version"])
     table.add_row("Tools", f"{status['tools_installed']} installed")
     table.add_row("Last Scan", status["last_scan"])
-    
+
     return Panel(
         table,
         title="[bold]SYSTEM STATUS[/bold]",
@@ -317,12 +345,12 @@ class RecentActivity:
         """Append a new activity entry."""
         self.items.append({"when": when, "kind": kind, "message": message})
         if len(self.items) > self.max_items * 2:
-            self.items = self.items[-self.max_items:]
+            self.items = self.items[-self.max_items :]
 
     def render(self, primary: str = "#ff2222", muted: str = "#888888") -> Panel:
         """Render the activity list as a Rich panel."""
         rows: List[Text] = []
-        for it in self.items[-self.max_items:]:
+        for it in self.items[-self.max_items :]:
             line = Text()
             line.append(f" {it['when']:>8s} ", style=muted)
             line.append(f"{it['kind']:<10s} ", style=f"bold {primary}")

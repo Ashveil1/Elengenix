@@ -29,6 +29,7 @@ Public API:
         probe(url) -> WAFProbeResult
         suggest_evasion(waf_signature) -> List[str]
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -52,23 +53,25 @@ logger = logging.getLogger("elengenix.waf_detector")
 @dataclass
 class WAFSignature:
     """One WAF detection signature (block pattern + metadata)."""
-    name: str                           # "cloudflare", "aws_waf", etc.
-    block_status: int                   # typical block status
-    body_pattern: Optional[str]         # regex of typical block page
-    header_patterns: Dict[str, str]     # header -> regex
+
+    name: str  # "cloudflare", "aws_waf", etc.
+    block_status: int  # typical block status
+    body_pattern: Optional[str]  # regex of typical block page
+    header_patterns: Dict[str, str]  # header -> regex
     confidence_threshold: float = 0.7
 
 
 @dataclass
 class WAFProbeResult:
     """Result of probing a target for WAF presence."""
+
     target: str
     waf_detected: bool
-    waf_name: str                       # "cloudflare" / "none" / "unknown"
+    waf_name: str  # "cloudflare" / "none" / "unknown"
     confidence: float
-    blocked_payloads: List[str]         # which probes got blocked
-    passed_payloads: List[str]          # which probes passed (WAF bypassed)
-    signature_hits: List[str]           # which signatures matched
+    blocked_payloads: List[str]  # which probes got blocked
+    passed_payloads: List[str]  # which probes passed (WAF bypassed)
+    signature_hits: List[str]  # which signatures matched
     baseline_status: int
     suggested_evasions: List[str] = field(default_factory=list)
     raw_responses: Dict[str, Dict[str, Any]] = field(default_factory=dict)
@@ -139,8 +142,7 @@ WAF_SIGNATURES: List[WAFSignature] = [
     WAFSignature(
         name="barracuda",
         block_status=403,
-        body_pattern=r"(Barracuda|barra)"  # case-insensitive flag
-        ,
+        body_pattern=r"(Barracuda|barra)",  # case-insensitive flag
         header_patterns={},
         confidence_threshold=0.6,
     ),
@@ -229,17 +231,21 @@ class SmartWAFDetector:
             compiled = WAFSignature(
                 name=sig.name,
                 block_status=sig.block_status,
-                body_pattern=re.compile(sig.body_pattern, re.IGNORECASE) if sig.body_pattern else None,
-                header_patterns={k: re.compile(v, re.IGNORECASE) for k, v in sig.header_patterns.items()},
+                body_pattern=(
+                    re.compile(sig.body_pattern, re.IGNORECASE) if sig.body_pattern else None
+                ),
+                header_patterns={
+                    k: re.compile(v, re.IGNORECASE) for k, v in sig.header_patterns.items()
+                },
                 confidence_threshold=sig.confidence_threshold,
             )
             self._compiled_signatures.append(compiled)
 
     def _send(self, url: str) -> Dict[str, Any]:
         """Send a GET request, return response info."""
-        req = urllib.request.Request(url, method="GET", headers={
-            "User-Agent": "Elengenix-WAF-Probe/1.0"
-        })
+        req = urllib.request.Request(
+            url, method="GET", headers={"User-Agent": "Elengenix-WAF-Probe/1.0"}
+        )
         try:
             with urllib.request.urlopen(req, timeout=self.timeout) as resp:
                 raw = resp.read(4096)

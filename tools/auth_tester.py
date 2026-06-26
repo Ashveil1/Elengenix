@@ -20,6 +20,7 @@ from __future__ import annotations
 import base64
 import json
 import logging
+
 logger = logging.getLogger("elengenix.auth")
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
@@ -75,28 +76,32 @@ def analyze_jwt(token: str) -> List[AuthFinding]:
     # Check 1: Algorithm "none" vulnerability
     alg = header.get("alg", "").lower()
     if alg == "none":
-        findings.append(AuthFinding(
-            title="JWT 'alg: none' — Unauthenticated Token Accepted",
-            severity="critical",
-            description="Token uses 'alg': 'none' which means no signature verification. Anyone can forge tokens.",
-            evidence={"header": header, "attack": "alg:none"},
-            remediation="Never accept 'none' algorithm. Whitelist allowed algorithms server-side.",
-        ))
+        findings.append(
+            AuthFinding(
+                title="JWT 'alg: none' — Unauthenticated Token Accepted",
+                severity="critical",
+                description="Token uses 'alg': 'none' which means no signature verification. Anyone can forge tokens.",
+                evidence={"header": header, "attack": "alg:none"},
+                remediation="Never accept 'none' algorithm. Whitelist allowed algorithms server-side.",
+            )
+        )
 
     # Check 2: Algorithm confusion (RS256 -> HS256)
     if alg in ("hs256", "hs384", "hs512") and header.get("typ", "").lower() in ("jwt", ""):
         # Could be legitimate, but flag for review if RSA public key is known
-        findings.append(AuthFinding(
-            title="JWT uses HMAC algorithm — verify key confusion not possible",
-            severity="info",
-            description=(
-                "Token uses symmetric HMAC (HS256/HS384/HS512). If the server also exposes "
-                "an RSA public key, test for algorithm confusion: sign a forged token using "
-                "the public key as the HMAC secret."
-            ),
-            evidence={"header": header, "attack": "key_confusion"},
-            remediation="Use RS256 or ES256. Never mix symmetric and asymmetric algorithms.",
-        ))
+        findings.append(
+            AuthFinding(
+                title="JWT uses HMAC algorithm — verify key confusion not possible",
+                severity="info",
+                description=(
+                    "Token uses symmetric HMAC (HS256/HS384/HS512). If the server also exposes "
+                    "an RSA public key, test for algorithm confusion: sign a forged token using "
+                    "the public key as the HMAC secret."
+                ),
+                evidence={"header": header, "attack": "key_confusion"},
+                remediation="Use RS256 or ES256. Never mix symmetric and asymmetric algorithms.",
+            )
+        )
 
     # Check 3: Missing critical claims
     if payload:
@@ -112,42 +117,52 @@ def analyze_jwt(token: str) -> List[AuthFinding]:
                 missing.append(f"{claim}: {reason}")
 
         if missing:
-            findings.append(AuthFinding(
-                title=f"JWT missing critical claims: {', '.join(c for c in critical_claims if c not in (payload or {}))}",
-                severity="medium" if "exp" in [c.split(":")[0] for c in missing] else "low",
-                description="Missing claims:\n" + "\n".join(f"  - {m}" for m in missing),
-                evidence={"missing_claims": [c.split(":")[0] for c in missing], "payload_keys": list(payload.keys())},
-                remediation="Always include 'exp', 'iat', 'aud', 'iss' claims in JWTs.",
-            ))
+            findings.append(
+                AuthFinding(
+                    title=f"JWT missing critical claims: {', '.join(c for c in critical_claims if c not in (payload or {}))}",
+                    severity="medium" if "exp" in [c.split(":")[0] for c in missing] else "low",
+                    description="Missing claims:\n" + "\n".join(f"  - {m}" for m in missing),
+                    evidence={
+                        "missing_claims": [c.split(":")[0] for c in missing],
+                        "payload_keys": list(payload.keys()),
+                    },
+                    remediation="Always include 'exp', 'iat', 'aud', 'iss' claims in JWTs.",
+                )
+            )
 
         # Check 4: Sensitive data in payload
         sensitive_keys = {"password", "secret", "ssn", "credit_card", "api_key", "private_key"}
         found_sensitive = [k for k in payload if k.lower() in sensitive_keys]
         if found_sensitive:
-            findings.append(AuthFinding(
-                title=f"Sensitive data in JWT payload: {', '.join(found_sensitive)}",
-                severity="high",
-                description=f"JWT contains sensitive fields: {found_sensitive}. JWT is only base64-encoded, not encrypted.",
-                evidence={"sensitive_fields": found_sensitive},
-                remediation="Never store sensitive data in JWT. Use opaque tokens with server-side lookup.",
-            ))
+            findings.append(
+                AuthFinding(
+                    title=f"Sensitive data in JWT payload: {', '.join(found_sensitive)}",
+                    severity="high",
+                    description=f"JWT contains sensitive fields: {found_sensitive}. JWT is only base64-encoded, not encrypted.",
+                    evidence={"sensitive_fields": found_sensitive},
+                    remediation="Never store sensitive data in JWT. Use opaque tokens with server-side lookup.",
+                )
+            )
 
     # Check 5: JKU/X5U header injection
     for key in ["jku", "x5u", "jwk"]:
         if key in header:
-            findings.append(AuthFinding(
-                title=f"JWT uses {key.upper()} header — potential key injection",
-                severity="high",
-                description=f"Token header contains '{key}'. An attacker may be able to point this to a malicious key URL.",
-                evidence={"header": header, "injectable_key": key},
-                remediation="Whitelist allowed key URLs server-side. Avoid JKU/X5U headers.",
-            ))
+            findings.append(
+                AuthFinding(
+                    title=f"JWT uses {key.upper()} header — potential key injection",
+                    severity="high",
+                    description=f"Token header contains '{key}'. An attacker may be able to point this to a malicious key URL.",
+                    evidence={"header": header, "injectable_key": key},
+                    remediation="Whitelist allowed key URLs server-side. Avoid JKU/X5U headers.",
+                )
+            )
 
     return findings
 
 
-def test_oauth_misconfig(authorize_url: str, client_id: str,
-                         redirect_uri: str = "https://evil.com") -> List[AuthFinding]:
+def test_oauth_misconfig(
+    authorize_url: str, client_id: str, redirect_uri: str = "https://evil.com"
+) -> List[AuthFinding]:
     """
     Test OAuth 2.0 endpoints for common misconfigurations.
 
@@ -167,20 +182,23 @@ def test_oauth_misconfig(authorize_url: str, client_id: str,
             "response_type": "code",
             "scope": "openid profile email",
         }
-        r = requests.get(authorize_url, params=params, timeout=10,
-                         allow_redirects=False, verify=False)
+        r = requests.get(
+            authorize_url, params=params, timeout=10, allow_redirects=False, verify=False
+        )
 
         # If server accepts evil redirect_uri
         if r.status_code in (301, 302):
             location = r.headers.get("Location", "")
             if "evil.com" in location:
-                findings.append(AuthFinding(
-                    title="OAuth open redirect — arbitrary redirect_uri accepted",
-                    severity="high",
-                    description=f"Authorization server accepted redirect_uri={redirect_uri}. Attacker can steal auth codes.",
-                    evidence={"redirect_uri": redirect_uri, "location": location[:200]},
-                    remediation="Whitelist allowed redirect URIs. Exact match required.",
-                ))
+                findings.append(
+                    AuthFinding(
+                        title="OAuth open redirect — arbitrary redirect_uri accepted",
+                        severity="high",
+                        description=f"Authorization server accepted redirect_uri={redirect_uri}. Attacker can steal auth codes.",
+                        evidence={"redirect_uri": redirect_uri, "location": location[:200]},
+                        remediation="Whitelist allowed redirect URIs. Exact match required.",
+                    )
+                )
 
         # Check for state parameter enforcement
         params_no_state = {
@@ -188,16 +206,19 @@ def test_oauth_misconfig(authorize_url: str, client_id: str,
             "redirect_uri": "https://localhost/callback",
             "response_type": "code",
         }
-        r2 = requests.get(authorize_url, params=params_no_state, timeout=10,
-                          allow_redirects=False, verify=False)
+        r2 = requests.get(
+            authorize_url, params=params_no_state, timeout=10, allow_redirects=False, verify=False
+        )
         if r2.status_code == 200 or r2.status_code in (301, 302):
-            findings.append(AuthFinding(
-                title="OAuth state parameter may not be enforced",
-                severity="medium",
-                description="Authorization request without 'state' parameter was accepted. CSRF protection may be missing.",
-                evidence={"request": params_no_state, "status": r2.status_code},
-                remediation="Always require and validate 'state' parameter in OAuth flows.",
-            ))
+            findings.append(
+                AuthFinding(
+                    title="OAuth state parameter may not be enforced",
+                    severity="medium",
+                    description="Authorization request without 'state' parameter was accepted. CSRF protection may be missing.",
+                    evidence={"request": params_no_state, "status": r2.status_code},
+                    remediation="Always require and validate 'state' parameter in OAuth flows.",
+                )
+            )
 
     except Exception as e:
         logger.debug(f"OAuth test error: {e}")
@@ -205,9 +226,9 @@ def test_oauth_misconfig(authorize_url: str, client_id: str,
     return findings
 
 
-def test_session_management(base_url: str,
-                            cookies: Dict[str, str] = None,
-                            headers: Dict[str, str] = None) -> List[AuthFinding]:
+def test_session_management(
+    base_url: str, cookies: Dict[str, str] = None, headers: Dict[str, str] = None
+) -> List[AuthFinding]:
     """
     Test session management security.
 
@@ -219,8 +240,7 @@ def test_session_management(base_url: str,
     findings = []
 
     try:
-        r = requests.get(base_url, headers=headers, cookies=cookies,
-                         timeout=10, verify=False)
+        r = requests.get(base_url, headers=headers, cookies=cookies, timeout=10, verify=False)
 
         for cookie_name, cookie_value in (cookies or {}).items():
             # Check cookie from Set-Cookie headers in response
@@ -237,24 +257,27 @@ def test_session_management(base_url: str,
                     missing_flags.append("SameSite")
 
                 if missing_flags:
-                    findings.append(AuthFinding(
-                        title=f"Cookie '{cookie_name}' missing security flags: {', '.join(missing_flags)}",
-                        severity="medium" if "Secure" in missing_flags else "low",
-                        description=f"Session cookie lacks: {', '.join(missing_flags)}. This enables XSS/CSRF attacks.",
-                        evidence={"cookie": cookie_name, "missing": missing_flags},
-                        remediation=f"Set {', '.join(missing_flags)} flags on all session cookies.",
-                    ))
+                    findings.append(
+                        AuthFinding(
+                            title=f"Cookie '{cookie_name}' missing security flags: {', '.join(missing_flags)}",
+                            severity="medium" if "Secure" in missing_flags else "low",
+                            description=f"Session cookie lacks: {', '.join(missing_flags)}. This enables XSS/CSRF attacks.",
+                            evidence={"cookie": cookie_name, "missing": missing_flags},
+                            remediation=f"Set {', '.join(missing_flags)} flags on all session cookies.",
+                        )
+                    )
 
         # Check for session in URL
-        if any("sessionid" in str(v).lower() or "jsessionid" in str(v).lower()
-               for v in [r.url]):
-            findings.append(AuthFinding(
-                title="Session ID exposed in URL",
-                severity="high",
-                description="Session identifier found in URL. This leaks via Referer headers and browser history.",
-                evidence={"url": r.url[:200]},
-                remediation="Use cookies for session management, never URL parameters.",
-            ))
+        if any("sessionid" in str(v).lower() or "jsessionid" in str(v).lower() for v in [r.url]):
+            findings.append(
+                AuthFinding(
+                    title="Session ID exposed in URL",
+                    severity="high",
+                    description="Session identifier found in URL. This leaks via Referer headers and browser history.",
+                    evidence={"url": r.url[:200]},
+                    remediation="Use cookies for session management, never URL parameters.",
+                )
+            )
 
     except Exception as e:
         logger.debug(f"Session management test error: {e}")
@@ -262,8 +285,9 @@ def test_session_management(base_url: str,
     return findings
 
 
-def run_auth_tests(target: str, token: str = None,
-                   headers: Dict[str, str] = None) -> List[Dict[str, Any]]:
+def run_auth_tests(
+    target: str, token: str = None, headers: Dict[str, str] = None
+) -> List[Dict[str, Any]]:
     """
     Run all authentication/authorization tests.
 
@@ -289,15 +313,17 @@ def run_auth_tests(target: str, token: str = None,
     # Convert to standard finding format
     results = []
     for f in all_findings:
-        results.append({
-            "type": "auth_vulnerability",
-            "severity": f.severity,
-            "title": f.title,
-            "target": target,
-            "description": f.description,
-            "source": "auth_tester",
-            "remediation": f.remediation,
-            "evidence": f.evidence,
-        })
+        results.append(
+            {
+                "type": "auth_vulnerability",
+                "severity": f.severity,
+                "title": f.title,
+                "target": target,
+                "description": f.description,
+                "source": "auth_tester",
+                "remediation": f.remediation,
+                "evidence": f.evidence,
+            }
+        )
 
     return results

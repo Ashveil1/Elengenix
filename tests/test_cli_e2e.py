@@ -27,8 +27,8 @@ from pathlib import Path
 
 import pytest
 
-
 # ── Mock HTTP server ──────────────────────────────────────────────────────────
+
 
 class _MockHandler(BaseHTTPRequestHandler):
     """A minimal HTTP handler that mimics a real target."""
@@ -132,7 +132,8 @@ def _run_cli_scan(target: str, timeout_s: int = 180) -> tuple:
         env={**__import__("os").environ, "PYTHONUNBUFFERED": "1"},
     )
     import re
-    clean_output = re.sub(r'\x1b\[[0-9;]*m', '', proc.stdout + proc.stderr)
+
+    clean_output = re.sub(r"\x1b\[[0-9;]*m", "", proc.stdout + proc.stderr)
     return proc.returncode, clean_output
 
 
@@ -158,7 +159,11 @@ def _find_latest_report(target_clean: str) -> Path | None:
         return None
     prefix = f"scan_{target_clean}_"
     matches = sorted(
-        [f for f in reports.iterdir() if f.is_file() and f.name.startswith(prefix) and f.suffix == ".md"],
+        [
+            f
+            for f in reports.iterdir()
+            if f.is_file() and f.name.startswith(prefix) and f.suffix == ".md"
+        ],
         key=lambda f: f.name,
         reverse=True,
     )
@@ -180,12 +185,10 @@ def test_cli_e2e_against_httpbin(mock_server):
     # Note: rc can be 0 or non-zero depending on whether AI succeeds
     # We only require the process to exit (not hang) and produce output
     assert output, "subprocess produced no output"
-    assert "Phase 0: Elengenix Framework Pre-flight" in output, (
-        f"preflight phase did not run. Output:\n{output[-2000:]}"
-    )
-    assert "Pre-flight:" in output, (
-        f"preflight summary not printed. Output:\n{output[-2000:]}"
-    )
+    assert (
+        "Phase 0: Elengenix Framework Pre-flight" in output
+    ), f"preflight phase did not run. Output:\n{output[-2000:]}"
+    assert "Pre-flight:" in output, f"preflight summary not printed. Output:\n{output[-2000:]}"
 
     # Find preflight dir + findings
     preflight_dir = _find_latest_preflight(target_clean)
@@ -199,20 +202,18 @@ def test_cli_e2e_against_httpbin(mock_server):
     # Find types in findings
     types_found = {f.get("type") for f in findings}
     # httpbin should yield at least recon_http + ports + param_discovery
-    assert "recon_http" in types_found, (
-        f"recon_http finding missing. Types found: {types_found}"
-    )
+    assert "recon_http" in types_found, f"recon_http finding missing. Types found: {types_found}"
 
     # Find report
     report = _find_latest_report(target_clean)
     assert report is not None, f"no scan_*.md report found for {target_clean}"
     report_text = report.read_text()
-    assert "## Elengenix Framework Pre-flight Findings" in report_text, (
-        f"report missing preflight section. Report:\n{report_text[:2000]}"
-    )
-    assert "## AI Analysis" in report_text or "## AI Analysis (auto-generated" in report_text, (
-        f"report missing AI analysis section. Report:\n{report_text[:2000]}"
-    )
+    assert (
+        "## Elengenix Framework Pre-flight Findings" in report_text
+    ), f"report missing preflight section. Report:\n{report_text[:2000]}"
+    assert (
+        "## AI Analysis" in report_text or "## AI Analysis (auto-generated" in report_text
+    ), f"report missing AI analysis section. Report:\n{report_text[:2000]}"
     # When AI fails, the report should have the auto-generated section with
     # actionable next steps
     if "auto-generated" in report_text:
@@ -220,13 +221,13 @@ def test_cli_e2e_against_httpbin(mock_server):
         assert "Fix AI provider access" in report_text
 
     # Markdown table header
-    assert "| Severity | Type | Title |" in report_text, (
-        f"markdown table header missing in report. Report:\n{report_text[:2000]}"
-    )
+    assert (
+        "| Severity | Type | Title |" in report_text
+    ), f"markdown table header missing in report. Report:\n{report_text[:2000]}"
     # At least one row
-    assert "Low" in report_text or "Informational" in report_text, (
-        f"no findings rows in table. Report:\n{report_text[:2000]}"
-    )
+    assert (
+        "Low" in report_text or "Informational" in report_text
+    ), f"no findings rows in table. Report:\n{report_text[:2000]}"
 
 
 def test_cli_e2e_unreachable_target_does_not_hang():
@@ -244,7 +245,6 @@ def test_cli_e2e_unreachable_target_does_not_hang():
     # Either preflight ran (with 0 findings) or scan exited cleanly
     assert output, "no output from subprocess"
     # The scan should at least print Phase 0 or a clear security error
-    assert ("Phase 0" in output or "AI" in output or "FAIL" in output
-            or "SECURITY" in output), (
-        f"unhelpful output: {output[-500:]}"
-    )
+    assert (
+        "Phase 0" in output or "AI" in output or "FAIL" in output or "SECURITY" in output
+    ), f"unhelpful output: {output[-500:]}"

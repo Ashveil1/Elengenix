@@ -34,7 +34,9 @@ def run_subdomain_enum(domain: str, output_dir: str) -> str:
         try:
             result = subprocess.run(
                 ["subfinder", "-d", domain, "-silent"],
-                capture_output=True, text=True, timeout=120,
+                capture_output=True,
+                text=True,
+                timeout=120,
             )
             if result.stdout.strip():
                 raw_lines.extend(result.stdout.splitlines())
@@ -52,7 +54,9 @@ def run_subdomain_enum(domain: str, output_dir: str) -> str:
         try:
             result = subprocess.run(
                 ["waybackurls", domain],
-                capture_output=True, text=True, timeout=60,
+                capture_output=True,
+                text=True,
+                timeout=60,
             )
             for url in result.stdout.splitlines():
                 host = _extract_host(url)
@@ -66,7 +70,9 @@ def run_subdomain_enum(domain: str, output_dir: str) -> str:
         try:
             result = subprocess.run(
                 ["gau", "--subs", domain],
-                capture_output=True, text=True, timeout=60,
+                capture_output=True,
+                text=True,
+                timeout=60,
             )
             for url in result.stdout.splitlines():
                 host = _extract_host(url)
@@ -88,6 +94,7 @@ def run_subdomain_enum(domain: str, output_dir: str) -> str:
 def _extract_host(url: str) -> str:
     try:
         from urllib.parse import urlparse
+
         return urlparse(url).netloc.split(":")[0]
     except Exception:
         return ""
@@ -95,6 +102,7 @@ def _extract_host(url: str) -> str:
 
 if __name__ == "__main__":
     import sys
+
     if len(sys.argv) > 1:
         out = run_subdomain_enum(sys.argv[1], "reports/test_recon")
         print(f"Saved to: {out}")

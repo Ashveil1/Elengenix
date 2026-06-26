@@ -62,8 +62,9 @@ class BOLAHarness:
                 parsed = {}
         return r.status_code, text, parsed
 
-    def _request(self, method: str, path: str, headers: Dict[str, str],
-                 json_body: Dict[str, Any] = None) -> Tuple[int, str, Dict[str, Any]]:
+    def _request(
+        self, method: str, path: str, headers: Dict[str, str], json_body: Dict[str, Any] = None
+    ) -> Tuple[int, str, Dict[str, Any]]:
         """Send HTTP request with any method (GET, POST, PUT, DELETE, PATCH)."""
         self._sleep_rate_limit()
         url = urljoin(self.base_url, path.lstrip("/"))
@@ -91,7 +92,16 @@ class BOLAHarness:
         if isinstance(obj, dict):
             for k, v in obj.items():
                 lk = str(k).lower()
-                if lk in {"id", "user_id", "userid", "uid", "account_id", "accountid", "customer_id", "tenant_id"}:
+                if lk in {
+                    "id",
+                    "user_id",
+                    "userid",
+                    "uid",
+                    "account_id",
+                    "accountid",
+                    "customer_id",
+                    "tenant_id",
+                }:
                     if isinstance(v, (str, int)):
                         found[lk] = str(v)
                 # shallow recursion for common wrappers
@@ -99,7 +109,9 @@ class BOLAHarness:
                     found.update(self._extract_ids(v))
         return found
 
-    def discover_identities(self, headers_a: Dict[str, str], headers_b: Dict[str, str]) -> Tuple[Dict[str, str], Dict[str, str], List[str]]:
+    def discover_identities(
+        self, headers_a: Dict[str, str], headers_b: Dict[str, str]
+    ) -> Tuple[Dict[str, str], Dict[str, str], List[str]]:
         notes: List[str] = []
         candidates = [
             "/api/me",
@@ -236,7 +248,9 @@ class BOLAHarness:
                 )
 
         if not findings:
-            notes.append("No strong differential signals detected with common paths. Consider providing a known object endpoint pattern or add endpoint seeds.")
+            notes.append(
+                "No strong differential signals detected with common paths. Consider providing a known object endpoint pattern or add endpoint seeds."
+            )
 
         return BOLAResult(success=True, findings=findings, notes=notes)
 
@@ -271,7 +285,7 @@ class BOLAHarness:
                 return ""
             if s.startswith("http://") or s.startswith("https://"):
                 if s.startswith(self.base_url):
-                    return "/" + s[len(self.base_url):].lstrip("/")
+                    return "/" + s[len(self.base_url) :].lstrip("/")
                 return s
             return s if s.startswith("/") else "/" + s
 
@@ -309,8 +323,12 @@ class BOLAHarness:
             # If seed already contains an obvious numeric id, attempt to swap with other id (best-effort)
             if user_id_a and user_id_b and user_id_a != user_id_b:
                 if re.search(r"/\d+(?:/|$)", seed):
-                    expanded.append((re.sub(r"/\d+(?:/|$)", f"/{user_id_a}/", seed), "seed:numeric:self"))
-                    expanded.append((re.sub(r"/\d+(?:/|$)", f"/{user_id_b}/", seed), "seed:numeric:cross"))
+                    expanded.append(
+                        (re.sub(r"/\d+(?:/|$)", f"/{user_id_a}/", seed), "seed:numeric:self")
+                    )
+                    expanded.append(
+                        (re.sub(r"/\d+(?:/|$)", f"/{user_id_b}/", seed), "seed:numeric:cross")
+                    )
 
             for path, mode in expanded[:6]:
                 try:

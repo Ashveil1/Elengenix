@@ -21,7 +21,7 @@ import sys
 import tempfile
 import time
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -29,6 +29,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from tools.ecosystem import (
+    SDK_VERSION,
     BasePlugin,
     Capability,
     PluginAPI,
@@ -37,24 +38,11 @@ from tools.ecosystem import (
     PluginManifest,
     PluginState,
     ToolResult,
-    SDK_VERSION,
     get_host,
     reset_host,
 )
-from tools.marketplace import (
-    DEFAULT_INSTALL_DIR,
-    LOCAL_INDEX_CACHE,
-    Marketplace,
-    PluginEntry,
-)
-from tools.updater import (
-    CURRENT_VERSION,
-    ReleaseInfo,
-    Updater,
-    compare_versions,
-    parse_version,
-)
-
+from tools.marketplace import DEFAULT_INSTALL_DIR, LOCAL_INDEX_CACHE, Marketplace, PluginEntry
+from tools.updater import CURRENT_VERSION, ReleaseInfo, Updater, compare_versions, parse_version
 
 # ──────────────────────────────────────────────────────────────────────────
 # Fixtures
@@ -202,12 +190,14 @@ sdk_version: {SDK_VERSION}
         path = tmp_path / "p"
         path.mkdir()
         (path / "plugin.json").write_text(
-            json.dumps({
-                "name": "json_plugin",
-                "version": "2.0.0",
-                "author": "JSON Author",
-                "capabilities": ["network", "filesystem"],
-            }),
+            json.dumps(
+                {
+                    "name": "json_plugin",
+                    "version": "2.0.0",
+                    "author": "JSON Author",
+                    "capabilities": ["network", "filesystem"],
+                }
+            ),
             encoding="utf-8",
         )
         host = PluginHost(search_paths=[tmp_path])
@@ -257,8 +247,12 @@ sdk_version: {SDK_VERSION}
 
     def test_to_dict(self):
         m = PluginManifest(
-            name="x", version="1.0.0", author="me", description="desc",
-            capabilities=[Capability.NETWORK], tags=["t1"]
+            name="x",
+            version="1.0.0",
+            author="me",
+            description="desc",
+            capabilities=[Capability.NETWORK],
+            tags=["t1"],
         )
         d = m.to_dict()
         assert d["name"] == "x"
@@ -311,7 +305,9 @@ class TestPluginHost:
     def test_missing_register_function(self, tmp_path):
         path = tmp_path / "noreg"
         path.mkdir()
-        (path / "plugin.yaml").write_text(f"name: noreg\nversion: 1.0.0\nsdk_version: {SDK_VERSION}\n", encoding="utf-8")
+        (path / "plugin.yaml").write_text(
+            f"name: noreg\nversion: 1.0.0\nsdk_version: {SDK_VERSION}\n", encoding="utf-8"
+        )
         (path / "__init__.py").write_text("x = 1\n", encoding="utf-8")
         host = PluginHost(search_paths=[tmp_path])
         host.load_all()
@@ -389,7 +385,9 @@ class TestRegistrations:
         # Plugin with hook that returns None to drop
         p = tmp_path / "dropper"
         p.mkdir()
-        (p / "plugin.yaml").write_text(f"name: dropper\nversion: 1.0.0\nsdk_version: {SDK_VERSION}\n", encoding="utf-8")
+        (p / "plugin.yaml").write_text(
+            f"name: dropper\nversion: 1.0.0\nsdk_version: {SDK_VERSION}\n", encoding="utf-8"
+        )
         (p / "__init__.py").write_text(
             "def register(api): api.register_finding_hook('dropper', lambda f: None)",
             encoding="utf-8",
@@ -401,9 +399,11 @@ class TestRegistrations:
 
     def test_hook_exception_doesnt_break_pipeline(self, host_with_plugins):
         host_with_plugins.load_all()
+
         # Add a hook that raises
         def bad_hook(f):
             raise ValueError("intentional")
+
         host_with_plugins._register_finding_hook("bad", bad_hook, priority=5)
         # Should still return a finding (just with tag from good hook)
         result = host_with_plugins.run_finding_hooks({"title": "x"})
@@ -412,10 +412,13 @@ class TestRegistrations:
 
     def test_register_ai_provider(self, host_with_plugins):
         host_with_plugins.load_all()
+
         def chat(msgs, model):
             return "ok"
+
         def list_models():
             return ["m1", "m2"]
+
         host_with_plugins._register_ai_provider("test_provider", chat, list_models)
         assert "test_provider" in host_with_plugins.list_ai_providers()
         p = host_with_plugins.get_ai_provider("test_provider")
@@ -458,7 +461,9 @@ class TestHookOrdering:
     def test_hooks_run_in_priority_order(self, tmp_path):
         p = tmp_path / "order_test"
         p.mkdir()
-        (p / "plugin.yaml").write_text(f"name: order_test\nversion: 1.0.0\nsdk_version: {SDK_VERSION}\n", encoding="utf-8")
+        (p / "plugin.yaml").write_text(
+            f"name: order_test\nversion: 1.0.0\nsdk_version: {SDK_VERSION}\n", encoding="utf-8"
+        )
         (p / "__init__.py").write_text(
             """def register(api):
     api.register_finding_hook('high', lambda f: {**f, 'order': f.get('order', []) + ['high']}, priority=100)
@@ -580,10 +585,18 @@ class TestToolResult:
 class TestMarketplace:
     def test_parse_index(self):
         m = Marketplace()
-        text = json.dumps([
-            {"name": "a", "version": "1.0.0", "author": "alice", "downloads": 100, "verified": True},
-            {"name": "b", "version": "0.5.0", "author": "bob", "tags": ["recon"]},
-        ])
+        text = json.dumps(
+            [
+                {
+                    "name": "a",
+                    "version": "1.0.0",
+                    "author": "alice",
+                    "downloads": 100,
+                    "verified": True,
+                },
+                {"name": "b", "version": "0.5.0", "author": "bob", "tags": ["recon"]},
+            ]
+        )
         entries = m._parse_index(text)
         assert len(entries) == 2
         assert entries[0].name == "a"
@@ -605,7 +618,12 @@ class TestMarketplace:
     def test_search_with_query(self):
         m = Marketplace()
         m._index = [
-            PluginEntry(name="shodan_recon", version="1.0.0", description="Shodan integration", downloads=1000),
+            PluginEntry(
+                name="shodan_recon",
+                version="1.0.0",
+                description="Shodan integration",
+                downloads=1000,
+            ),
             PluginEntry(name="github_enum", version="1.0.0", description="GitHub recon"),
         ]
         results = m.search("shodan")

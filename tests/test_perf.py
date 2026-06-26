@@ -1,12 +1,19 @@
 """test_perf.py — Performance utilities tests."""
-import sys
+
 import asyncio
+import sys
 import time
+
 sys.path.insert(0, "/mnt/data/Elengenix")
 
 from tools.perf import (
-    SmartCache, cached, AsyncBatcher, Timer, timeit,
-    FastHTTP, StreamingAggregator,
+    AsyncBatcher,
+    FastHTTP,
+    SmartCache,
+    StreamingAggregator,
+    Timer,
+    cached,
+    timeit,
 )
 
 
@@ -31,7 +38,9 @@ def test_smart_cache_ttl():
 
 def test_smart_cache_lru():
     c = SmartCache(max_size=3)
-    c.set("a", 1); c.set("b", 2); c.set("c", 3)
+    c.set("a", 1)
+    c.set("b", 2)
+    c.set("c", 3)
     c.get("a")  # mark a as recent
     c.set("d", 4)  # should evict b
     assert c.get("a") == 1
@@ -55,11 +64,13 @@ def test_smart_cache_invalidate():
 def test_cached_decorator():
     c = SmartCache(default_ttl=60)
     call_count = 0
+
     @cached(c, key_fn=lambda x: f"key:{x}")
     def expensive(x):
         nonlocal call_count
         call_count += 1
         return x * 2
+
     assert expensive(5) == 10
     assert expensive(5) == 10  # cached
     assert call_count == 1
@@ -81,6 +92,7 @@ def test_timeit_decorator():
     def slow():
         time.sleep(0.02)
         return "done"
+
     result = slow()
     assert result == "done"
     print("[OK] test_timeit_decorator")
@@ -89,12 +101,15 @@ def test_timeit_decorator():
 def test_async_batcher():
     async def run():
         batcher = AsyncBatcher(concurrency=3, timeout=5)
+
         async def task(x):
             await asyncio.sleep(0.01)
             return x * 2
+
         results = await batcher.run_all([task(i) for i in range(10)])
         assert len(results) == 10
         return results
+
     results = asyncio.run(run())
     assert all(r is not None for r in results)
     print(f"[OK] test_async_batcher ({len(results)} tasks)")
@@ -122,7 +137,7 @@ def test_cache_stats():
     stats = c.stats()
     assert stats["hits"] == 2
     assert stats["misses"] == 1
-    assert stats["hit_rate"] == 2/3
+    assert stats["hit_rate"] == 2 / 3
     print(f"[OK] test_cache_stats (hit_rate={stats['hit_rate']:.2f})")
 
 

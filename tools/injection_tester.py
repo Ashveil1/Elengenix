@@ -15,9 +15,10 @@ Safety:
 
 import logging
 import uuid
-import requests
 from typing import Dict, List, Optional
-from urllib.parse import urlparse, urlencode, parse_qs, urlunparse
+from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
+
+import requests
 
 logger = logging.getLogger("elengenix.injection")
 
@@ -29,6 +30,7 @@ _UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
 # Payload Definitions
 # ─────────────────────────────────────────────────
 
+
 def _xss_payloads(canary: str) -> List[Dict]:
     """Generate XSS test payloads with unique canary."""
     return [
@@ -36,9 +38,12 @@ def _xss_payloads(canary: str) -> List[Dict]:
         {"payload": f'"><svg/onload={canary}>', "type": "svg_onload", "detect": canary},
         {"payload": f"javascript:{canary}", "type": "js_proto", "detect": canary},
         {"payload": f"'-{canary}-'", "type": "quote_break", "detect": canary},
-        {"payload": f'{canary}<script>', "type": "script_open", "detect": f"{canary}<script>"},
-        {"payload": f'{{{{constructor.constructor("return this")()}}}}{canary}',
-         "type": "prototype", "detect": canary},
+        {"payload": f"{canary}<script>", "type": "script_open", "detect": f"{canary}<script>"},
+        {
+            "payload": f'{{{{constructor.constructor("return this")()}}}}{canary}',
+            "type": "prototype",
+            "detect": canary,
+        },
     ]
 
 
@@ -46,19 +51,39 @@ def _sqli_payloads() -> List[Dict]:
     """Generate SQL injection test payloads (non-destructive)."""
     return [
         # Error-based detection
-        {"payload": "' OR '1'='1", "type": "or_true",
-         "errors": ["sql", "mysql", "syntax", "oracle", "postgresql", "sqlite",
-                     "unterminated", "quoted string", "ORA-", "PG::"]},
-        {"payload": "' OR '1'='2", "type": "or_false",
-         "errors": []},  # Used for boolean comparison
-        {"payload": "1' AND SLEEP(0)-- -", "type": "sleep_zero",
-         "errors": ["sql", "mysql", "syntax"]},
-        {"payload": "' UNION SELECT NULL--", "type": "union_null",
-         "errors": ["sql", "column", "union", "select"]},
-        {"payload": "1;SELECT 1", "type": "stacked",
-         "errors": ["sql", "syntax", "multiple"]},
-        {"payload": "' AND 1=CONVERT(int,(SELECT 1))--", "type": "convert",
-         "errors": ["convert", "cast", "type"]},
+        {
+            "payload": "' OR '1'='1",
+            "type": "or_true",
+            "errors": [
+                "sql",
+                "mysql",
+                "syntax",
+                "oracle",
+                "postgresql",
+                "sqlite",
+                "unterminated",
+                "quoted string",
+                "ORA-",
+                "PG::",
+            ],
+        },
+        {"payload": "' OR '1'='2", "type": "or_false", "errors": []},  # Used for boolean comparison
+        {
+            "payload": "1' AND SLEEP(0)-- -",
+            "type": "sleep_zero",
+            "errors": ["sql", "mysql", "syntax"],
+        },
+        {
+            "payload": "' UNION SELECT NULL--",
+            "type": "union_null",
+            "errors": ["sql", "column", "union", "select"],
+        },
+        {"payload": "1;SELECT 1", "type": "stacked", "errors": ["sql", "syntax", "multiple"]},
+        {
+            "payload": "' AND 1=CONVERT(int,(SELECT 1))--",
+            "type": "convert",
+            "errors": ["convert", "cast", "type"],
+        },
     ]
 
 
@@ -68,8 +93,11 @@ def _ssti_payloads() -> List[Dict]:
         {"payload": "{{7*7}}", "type": "jinja2_multiply", "detect": "49"},
         {"payload": "${7*7}", "type": "freemarker", "detect": "49"},
         {"payload": "#{7*7}", "type": "ruby_erb", "detect": "49"},
-        {"payload": "{{config}}", "type": "jinja2_config",
-         "detect_any": ["SECRET_KEY", "DEBUG", "Config", "config"]},
+        {
+            "payload": "{{config}}",
+            "type": "jinja2_config",
+            "detect_any": ["SECRET_KEY", "DEBUG", "Config", "config"],
+        },
         {"payload": "<%= 7*7 %>", "type": "erb_multiply", "detect": "49"},
     ]
 
@@ -77,16 +105,27 @@ def _ssti_payloads() -> List[Dict]:
 def _lfi_payloads() -> List[Dict]:
     """Generate LFI / Path Traversal payloads."""
     return [
-        {"payload": "../../../../etc/passwd", "type": "etc_passwd",
-         "detect_any": ["root:", "daemon:", "bin:", "/bin/bash", "/bin/sh"]},
-        {"payload": "....//....//....//etc/passwd", "type": "double_dot",
-         "detect_any": ["root:", "daemon:"]},
-        {"payload": "/etc/passwd%00", "type": "null_byte",
-         "detect_any": ["root:", "daemon:"]},
-        {"payload": "..\\..\\..\\..\\windows\\win.ini", "type": "win_ini",
-         "detect_any": ["[fonts]", "[extensions]", "for 16-bit"]},
-        {"payload": "php://filter/convert.base64-encode/resource=index", "type": "php_filter",
-         "detect_any": ["PD9waH", "PCFET0"]},  # Base64 of <?ph / <!DO
+        {
+            "payload": "../../../../etc/passwd",
+            "type": "etc_passwd",
+            "detect_any": ["root:", "daemon:", "bin:", "/bin/bash", "/bin/sh"],
+        },
+        {
+            "payload": "....//....//....//etc/passwd",
+            "type": "double_dot",
+            "detect_any": ["root:", "daemon:"],
+        },
+        {"payload": "/etc/passwd%00", "type": "null_byte", "detect_any": ["root:", "daemon:"]},
+        {
+            "payload": "..\\..\\..\\..\\windows\\win.ini",
+            "type": "win_ini",
+            "detect_any": ["[fonts]", "[extensions]", "for 16-bit"],
+        },
+        {
+            "payload": "php://filter/convert.base64-encode/resource=index",
+            "type": "php_filter",
+            "detect_any": ["PD9waH", "PCFET0"],
+        },  # Base64 of <?ph / <!DO
     ]
 
 
@@ -103,6 +142,7 @@ def _open_redirect_payloads() -> List[Dict]:
 # ─────────────────────────────────────────────────
 # Test Executors
 # ─────────────────────────────────────────────────
+
 
 def _make_session() -> requests.Session:
     s = requests.Session()
@@ -131,19 +171,21 @@ def test_xss(url: str, params: Optional[List[str]] = None) -> List[Dict]:
                 resp = session.get(test_url, timeout=_TIMEOUT, allow_redirects=False)
 
                 if p["detect"] in resp.text:
-                    findings.append({
-                        "title": f"Reflected XSS via '{param}' ({p['type']})",
-                        "description": (
-                            f"Parameter '{param}' reflects payload without sanitization.\n"
-                            f"Payload: {p['payload']}\n"
-                            f"URL: {test_url}"
-                        ),
-                        "severity": "high",
-                        "type": "xss",
-                        "param": param,
-                        "payload_type": p["type"],
-                        "url": test_url,
-                    })
+                    findings.append(
+                        {
+                            "title": f"Reflected XSS via '{param}' ({p['type']})",
+                            "description": (
+                                f"Parameter '{param}' reflects payload without sanitization.\n"
+                                f"Payload: {p['payload']}\n"
+                                f"URL: {test_url}"
+                            ),
+                            "severity": "high",
+                            "type": "xss",
+                            "param": param,
+                            "payload_type": p["type"],
+                            "url": test_url,
+                        }
+                    )
                     break  # One hit per param is enough
             except Exception:
                 continue
@@ -183,20 +225,22 @@ def test_sqli(url: str, params: Optional[List[str]] = None) -> List[Dict]:
                     body_lower = resp.text.lower()
                     for err_pattern in p["errors"]:
                         if err_pattern.lower() in body_lower:
-                            findings.append({
-                                "title": f"SQL Injection (error-based) via '{param}'",
-                                "description": (
-                                    f"SQL error detected in response when injecting '{param}'.\n"
-                                    f"Payload: {p['payload']}\n"
-                                    f"Error indicator: '{err_pattern}'\n"
-                                    f"URL: {test_url}"
-                                ),
-                                "severity": "critical",
-                                "type": "sqli",
-                                "param": param,
-                                "payload_type": p["type"],
-                                "url": test_url,
-                            })
+                            findings.append(
+                                {
+                                    "title": f"SQL Injection (error-based) via '{param}'",
+                                    "description": (
+                                        f"SQL error detected in response when injecting '{param}'.\n"
+                                        f"Payload: {p['payload']}\n"
+                                        f"Error indicator: '{err_pattern}'\n"
+                                        f"URL: {test_url}"
+                                    ),
+                                    "severity": "critical",
+                                    "type": "sqli",
+                                    "param": param,
+                                    "payload_type": p["type"],
+                                    "url": test_url,
+                                }
+                            )
                             break
 
                 # Boolean-based: compare OR true vs OR false
@@ -207,19 +251,21 @@ def test_sqli(url: str, params: Optional[List[str]] = None) -> List[Dict]:
                     false_len = len(false_resp.text)
 
                     if abs(true_len - false_len) > 100 and true_len != baseline_len:
-                        findings.append({
-                            "title": f"SQL Injection (boolean-based) via '{param}'",
-                            "description": (
-                                f"Significant response difference between true/false conditions.\n"
-                                f"TRUE payload length: {true_len}, FALSE: {false_len}, Baseline: {baseline_len}\n"
-                                f"URL: {test_url}"
-                            ),
-                            "severity": "critical",
-                            "type": "sqli",
-                            "param": param,
-                            "payload_type": "boolean",
-                            "url": test_url,
-                        })
+                        findings.append(
+                            {
+                                "title": f"SQL Injection (boolean-based) via '{param}'",
+                                "description": (
+                                    f"Significant response difference between true/false conditions.\n"
+                                    f"TRUE payload length: {true_len}, FALSE: {false_len}, Baseline: {baseline_len}\n"
+                                    f"URL: {test_url}"
+                                ),
+                                "severity": "critical",
+                                "type": "sqli",
+                                "param": param,
+                                "payload_type": "boolean",
+                                "url": test_url,
+                            }
+                        )
 
             except Exception:
                 continue
@@ -267,19 +313,21 @@ def test_ssti(url: str, params: Optional[List[str]] = None) -> List[Dict]:
                             break
 
                 if detected:
-                    findings.append({
-                        "title": f"SSTI ({p['type']}) via '{param}'",
-                        "description": (
-                            f"Server evaluated template expression in parameter '{param}'.\n"
-                            f"Payload: {p['payload']}\n"
-                            f"URL: {test_url}"
-                        ),
-                        "severity": "critical",
-                        "type": "ssti",
-                        "param": param,
-                        "payload_type": p["type"],
-                        "url": test_url,
-                    })
+                    findings.append(
+                        {
+                            "title": f"SSTI ({p['type']}) via '{param}'",
+                            "description": (
+                                f"Server evaluated template expression in parameter '{param}'.\n"
+                                f"Payload: {p['payload']}\n"
+                                f"URL: {test_url}"
+                            ),
+                            "severity": "critical",
+                            "type": "ssti",
+                            "param": param,
+                            "payload_type": p["type"],
+                            "url": test_url,
+                        }
+                    )
                     break
             except Exception:
                 continue
@@ -295,8 +343,11 @@ def test_lfi(url: str, params: Optional[List[str]] = None) -> List[Dict]:
 
     parsed = urlparse(url)
     existing_params = list(parse_qs(parsed.query).keys())
-    test_params = params or existing_params or ["file", "path", "page", "include",
-                                                  "template", "doc", "view", "load"]
+    test_params = (
+        params
+        or existing_params
+        or ["file", "path", "page", "include", "template", "doc", "view", "load"]
+    )
 
     payloads = _lfi_payloads()
 
@@ -308,20 +359,22 @@ def test_lfi(url: str, params: Optional[List[str]] = None) -> List[Dict]:
 
                 for indicator in p["detect_any"]:
                     if indicator in resp.text:
-                        findings.append({
-                            "title": f"LFI/Path Traversal via '{param}' ({p['type']})",
-                            "description": (
-                                f"Server returned sensitive file contents when traversing via '{param}'.\n"
-                                f"Payload: {p['payload']}\n"
-                                f"Indicator: '{indicator}' found in response.\n"
-                                f"URL: {test_url}"
-                            ),
-                            "severity": "critical",
-                            "type": "lfi",
-                            "param": param,
-                            "payload_type": p["type"],
-                            "url": test_url,
-                        })
+                        findings.append(
+                            {
+                                "title": f"LFI/Path Traversal via '{param}' ({p['type']})",
+                                "description": (
+                                    f"Server returned sensitive file contents when traversing via '{param}'.\n"
+                                    f"Payload: {p['payload']}\n"
+                                    f"Indicator: '{indicator}' found in response.\n"
+                                    f"URL: {test_url}"
+                                ),
+                                "severity": "critical",
+                                "type": "lfi",
+                                "param": param,
+                                "payload_type": p["type"],
+                                "url": test_url,
+                            }
+                        )
                         break
             except Exception:
                 continue
@@ -337,8 +390,11 @@ def test_open_redirect(url: str, params: Optional[List[str]] = None) -> List[Dic
 
     parsed = urlparse(url)
     existing_params = list(parse_qs(parsed.query).keys())
-    test_params = params or existing_params or ["redirect", "url", "next", "return",
-                                                  "returnTo", "goto", "continue", "callback"]
+    test_params = (
+        params
+        or existing_params
+        or ["redirect", "url", "next", "return", "returnTo", "goto", "continue", "callback"]
+    )
 
     payloads = _open_redirect_payloads()
 
@@ -351,20 +407,22 @@ def test_open_redirect(url: str, params: Optional[List[str]] = None) -> List[Dic
                 if resp.status_code in (301, 302, 303, 307, 308):
                     location = resp.headers.get("Location", "")
                     if "evil.com" in location:
-                        findings.append({
-                            "title": f"Open Redirect via '{param}' ({p['type']})",
-                            "description": (
-                                f"Server redirects to attacker-controlled domain.\n"
-                                f"Payload: {p['payload']}\n"
-                                f"Redirect Location: {location}\n"
-                                f"URL: {test_url}"
-                            ),
-                            "severity": "medium",
-                            "type": "open_redirect",
-                            "param": param,
-                            "payload_type": p["type"],
-                            "url": test_url,
-                        })
+                        findings.append(
+                            {
+                                "title": f"Open Redirect via '{param}' ({p['type']})",
+                                "description": (
+                                    f"Server redirects to attacker-controlled domain.\n"
+                                    f"Payload: {p['payload']}\n"
+                                    f"Redirect Location: {location}\n"
+                                    f"URL: {test_url}"
+                                ),
+                                "severity": "medium",
+                                "type": "open_redirect",
+                                "param": param,
+                                "payload_type": p["type"],
+                                "url": test_url,
+                            }
+                        )
                         break
             except Exception:
                 continue
@@ -377,6 +435,7 @@ def test_open_redirect(url: str, params: Optional[List[str]] = None) -> List[Dic
 # Helpers
 # ─────────────────────────────────────────────────
 
+
 def _inject_param(url: str, param: str, value: str) -> str:
     """Inject or replace a parameter value in a URL."""
     parsed = urlparse(url)
@@ -387,10 +446,9 @@ def _inject_param(url: str, param: str, value: str) -> str:
     flat = {k: v[0] if isinstance(v, list) else v for k, v in params.items()}
     new_query = urlencode(flat)
 
-    return urlunparse((
-        parsed.scheme, parsed.netloc, parsed.path,
-        parsed.params, new_query, parsed.fragment
-    ))
+    return urlunparse(
+        (parsed.scheme, parsed.netloc, parsed.path, parsed.params, new_query, parsed.fragment)
+    )
 
 
 def run_all_injection_tests(

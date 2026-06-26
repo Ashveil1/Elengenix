@@ -19,20 +19,22 @@ import ssl
 import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Dict, List, Any, Optional, Set, Tuple
-from urllib.parse import urlparse, urljoin
+from typing import Any, Dict, List, Optional, Set, Tuple
+from urllib.parse import urljoin, urlparse
 
 logger = logging.getLogger("elengenix.native_scanner")
 
 # ── Async HTTP (try various backends) ────────────────────────────────────
 try:
     import aiohttp
+
     _HAS_AIOHTTP = True
 except ImportError:
     _HAS_AIOHTTP = False
 
 try:
     import httpx
+
     _HAS_HTTPX = True
 except ImportError:
     _HAS_HTTPX = False
@@ -42,9 +44,11 @@ except ImportError:
 # DATA MODELS
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 @dataclass
 class ScanTarget:
     """A target to scan with its metadata."""
+
     url: str
     method: str = "GET"
     headers: Dict[str, str] = field(default_factory=dict)
@@ -58,6 +62,7 @@ class ScanTarget:
 @dataclass
 class ScanResult:
     """Result from scanning a single target."""
+
     url: str
     status_code: int = 0
     headers: Dict[str, str] = field(default_factory=dict)
@@ -89,6 +94,7 @@ class ScanResult:
 @dataclass
 class ScanSummary:
     """Summary of a complete scan session."""
+
     target: str
     start_time: float = 0.0
     end_time: float = 0.0
@@ -130,6 +136,7 @@ TECH_FINGERPRINTS: Dict[str, List[str]] = {
     "traefik": ["traefik", "Traefik"],
 }
 
+
 def fingerprint_tech(headers: Dict[str, str], body: str) -> List[str]:
     """Identify technology stack from HTTP response."""
     detected: List[str] = []
@@ -137,25 +144,26 @@ def fingerprint_tech(headers: Dict[str, str], body: str) -> List[str]:
     for k, v in headers.items():
         combined += f"{k}: {v}\n"
     combined += body[:10000]  # Only first 10KB for fingerprinting
-    
+
     combined_lower = combined.lower()
     for tech, signatures in TECH_FINGERPRINTS.items():
         for sig in signatures:
             if sig.lower() in combined_lower:
                 detected.append(tech)
                 break
-    
+
     # Server header
     server = headers.get("Server", headers.get("server", ""))
     if server and server not in detected:
         detected.append(server.split("/")[0].lower())
-    
+
     return list(set(detected))
 
 
 # ═══════════════════════════════════════════════════════════════════════════
 # ASYNC SCANNER CORE
 # ═══════════════════════════════════════════════════════════════════════════
+
 
 class NativeScanner:
     """Pure Python async scanner with connection pooling and parallel scanning.
@@ -208,7 +216,7 @@ class NativeScanner:
             except Exception as e:
                 result.error = str(e)
                 if attempt < self.max_retries:
-                    wait = (2 ** attempt) + random.random()
+                    wait = (2**attempt) + random.random()
                     await asyncio.sleep(wait)
                 else:
                     logger.debug(f"Failed to fetch {target.url}: {e}")
@@ -225,14 +233,19 @@ class NativeScanner:
             timeout=aiohttp.ClientTimeout(total=target.timeout),
         ) as session:
             async with session.request(
-                target.method, target.url, data=target.body,
-                ssl=False, allow_redirects=self.follow_redirects,
+                target.method,
+                target.url,
+                data=target.body,
+                ssl=False,
+                allow_redirects=self.follow_redirects,
             ) as resp:
                 result.status_code = resp.status
                 result.headers = dict(resp.headers)
                 body_text = await resp.text()
                 result.body = body_text[:50000]
-                result.content_type = resp.headers.get("Content-Type", resp.headers.get("content-type", ""))
+                result.content_type = resp.headers.get(
+                    "Content-Type", resp.headers.get("content-type", "")
+                )
                 result.content_length = len(result.body)
                 result.server = resp.headers.get("Server", resp.headers.get("server", ""))
                 result.tech_stack = fingerprint_tech(result.headers, result.body)
@@ -297,7 +310,7 @@ class NativeScanner:
                 return result
 
             header_part = response[:header_end].decode("utf-8", errors="replace")
-            body_part = response[header_end + 4:].decode("utf-8", errors="replace")
+            body_part = response[header_end + 4 :].decode("utf-8", errors="replace")
 
             # Parse status line
             lines = header_part.split("\r\n")
@@ -313,7 +326,9 @@ class NativeScanner:
                     result.headers[key.strip()] = val.strip()
 
             result.body = body_part[:50000]
-            result.content_type = result.headers.get("content-type", result.headers.get("Content-Type", ""))
+            result.content_type = result.headers.get(
+                "content-type", result.headers.get("Content-Type", "")
+            )
             result.content_length = len(result.body)
             result.server = result.headers.get("server", result.headers.get("Server", ""))
             result.tech_stack = fingerprint_tech(result.headers, result.body)
@@ -340,13 +355,14 @@ class NativeScanner:
 
     async def scan_targets(self, targets: List[ScanTarget]) -> List[ScanResult]:
         """Scan multiple targets in parallel with concurrency control."""
+
         async def _bounded_scan(target: ScanTarget) -> ScanResult:
             async with self._semaphore:
                 return await self._fetch(target)
 
         tasks = [asyncio.create_task(_bounded_scan(t)) for t in targets]
         results = await asyncio.gather(*tasks, return_exceptions=True)
-        
+
         final_results = []
         for r in results:
             if isinstance(r, Exception):
@@ -365,11 +381,25 @@ class NativeScanner:
 
         # Common paths to probe
         common_paths = [
-            "/", "/robots.txt", "/sitemap.xml", "/.well-known/security.txt",
-            "/admin", "/login", "/api", "/health", "/version",
-            "/wp-admin", "/wp-content", "/.env", "/.git/config",
-            "/swagger.json", "/api-docs", "/graphql",
-            "/backup", "/config", "/ phpinfo.php",
+            "/",
+            "/robots.txt",
+            "/sitemap.xml",
+            "/.well-known/security.txt",
+            "/admin",
+            "/login",
+            "/api",
+            "/health",
+            "/version",
+            "/wp-admin",
+            "/wp-content",
+            "/.env",
+            "/.git/config",
+            "/swagger.json",
+            "/api-docs",
+            "/graphql",
+            "/backup",
+            "/config",
+            "/ phpinfo.php",
         ]
 
         for path in common_paths:
@@ -418,6 +448,7 @@ class NativeScanner:
             ui_available = False
         if ui_available:
             from ui_components import print_info
+
             print_info(f"  [Native] Discovering URLs for {target}...")
         urls = await self.discover_urls(target)
         summary.total_urls = len(urls)
@@ -445,8 +476,11 @@ class NativeScanner:
 
         if ui_available:
             from ui_components import print_success
-            print_success(f"  [Native] Scan complete: {summary.alive_urls}/{summary.total_urls} alive, "
-                         f"{summary.total_findings} findings in {summary.duration:.1f}s")
+
+            print_success(
+                f"  [Native] Scan complete: {summary.alive_urls}/{summary.total_urls} alive, "
+                f"{summary.total_findings} findings in {summary.duration:.1f}s"
+            )
 
         return all_findings, summary
 
@@ -470,97 +504,113 @@ class NativeScanner:
             missing_headers.append("Strict-Transport-Security")
 
         if missing_headers:
-            findings.append({
-                "tool": "native_scanner",
-                "type": "missing_header",
-                "severity": "Low",
-                "url": result.url,
-                "title": f"Missing security headers ({len(missing_headers)})",
-                "details": f"Missing: {', '.join(missing_headers)}",
-                "headers": missing_headers,
-            })
+            findings.append(
+                {
+                    "tool": "native_scanner",
+                    "type": "missing_header",
+                    "severity": "Low",
+                    "url": result.url,
+                    "title": f"Missing security headers ({len(missing_headers)})",
+                    "details": f"Missing: {', '.join(missing_headers)}",
+                    "headers": missing_headers,
+                }
+            )
 
         # Check for server info disclosure
         if result.server:
-            findings.append({
-                "tool": "native_scanner",
-                "type": "info_disclosure",
-                "severity": "Info",
-                "url": result.url,
-                "title": f"Server header: {result.server}",
-                "details": f"Server: {result.server}",
-            })
+            findings.append(
+                {
+                    "tool": "native_scanner",
+                    "type": "info_disclosure",
+                    "severity": "Info",
+                    "url": result.url,
+                    "title": f"Server header: {result.server}",
+                    "details": f"Server: {result.server}",
+                }
+            )
 
         # Check for directory listing
         if result.status_code == 200 and not result.body:
-            findings.append({
-                "tool": "native_scanner",
-                "type": "directory_listing",
-                "severity": "Medium",
-                "url": result.url,
-                "title": "Possible directory listing",
-                "details": f"Empty response body at {result.url}",
-            })
+            findings.append(
+                {
+                    "tool": "native_scanner",
+                    "type": "directory_listing",
+                    "severity": "Medium",
+                    "url": result.url,
+                    "title": "Possible directory listing",
+                    "details": f"Empty response body at {result.url}",
+                }
+            )
 
         # Check for admin panels and sensitive files
         url_lower = result.url.lower()
         if any(p in url_lower for p in ["admin", "login", "wp-admin", "dashboard"]):
             if result.status_code == 200:
-                findings.append({
-                    "tool": "native_scanner",
-                    "type": "exposed_admin",
-                    "severity": "Medium",
-                    "url": result.url,
-                    "title": "Admin/Login panel exposed",
-                    "details": f"Status {result.status_code} at {result.url}",
-                })
+                findings.append(
+                    {
+                        "tool": "native_scanner",
+                        "type": "exposed_admin",
+                        "severity": "Medium",
+                        "url": result.url,
+                        "title": "Admin/Login panel exposed",
+                        "details": f"Status {result.status_code} at {result.url}",
+                    }
+                )
 
         # Check for .env / .git exposure
         if any(p in url_lower for p in [".env", ".git", "backup", "config"]):
             if result.status_code == 200 and len(result.body) > 10:
-                findings.append({
-                    "tool": "native_scanner",
-                    "type": "sensitive_file",
-                    "severity": "High",
-                    "url": result.url,
-                    "title": "Sensitive file exposed",
-                    "details": f"Sensitive file accessible: {result.url}",
-                })
+                findings.append(
+                    {
+                        "tool": "native_scanner",
+                        "type": "sensitive_file",
+                        "severity": "High",
+                        "url": result.url,
+                        "title": "Sensitive file exposed",
+                        "details": f"Sensitive file accessible: {result.url}",
+                    }
+                )
 
         # Check for PHP info disclosure
         if "phpinfo" in url_lower and result.status_code == 200:
-            findings.append({
-                "tool": "native_scanner",
-                "type": "phpinfo_disclosure",
-                "severity": "High",
-                "url": result.url,
-                "title": "PHP info exposed",
-                "details": "PHP info page is publicly accessible",
-            })
+            findings.append(
+                {
+                    "tool": "native_scanner",
+                    "type": "phpinfo_disclosure",
+                    "severity": "High",
+                    "url": result.url,
+                    "title": "PHP info exposed",
+                    "details": "PHP info page is publicly accessible",
+                }
+            )
 
         # Check for tech-specific findings
         for tech in result.tech_stack:
             if tech == "wordpress" and result.status_code == 200:
-                findings.append({
-                    "tool": "native_scanner",
-                    "type": "tech_detected",
-                    "severity": "Info",
-                    "url": result.url,
-                    "title": f"WordPress detected",
-                    "details": f"WordPress CMS at {result.url}",
-                })
+                findings.append(
+                    {
+                        "tool": "native_scanner",
+                        "type": "tech_detected",
+                        "severity": "Info",
+                        "url": result.url,
+                        "title": f"WordPress detected",
+                        "details": f"WordPress CMS at {result.url}",
+                    }
+                )
 
         # Check for CORS misconfiguration
         acao = headers_lower.get("access-control-allow-origin", "")
         if acao == "*":
-            findings.append({
-                "tool": "native_scanner",
-                "type": "cors_misconfig",
-                "severity": "Medium",
-                "url": result.url,
-                "title": "CORS wildcard origin",
-                "details": "Access-Control-Allow-Origin: * allows any site to read responses",
-            })
+            findings.append(
+                {
+                    "tool": "native_scanner",
+                    "type": "cors_misconfig",
+                    "severity": "Medium",
+                    "url": result.url,
+                    "title": "CORS wildcard origin",
+                    "details": "Access-Control-Allow-Origin: * allows any site to read responses",
+                }
+            )
 
         return findings
 
@@ -568,6 +618,7 @@ class NativeScanner:
 # ═══════════════════════════════════════════════════════════════════════════
 # CLI WRAPPER
 # ═══════════════════════════════════════════════════════════════════════════
+
 
 def run_native_scan(target: str, output_path: Optional[str] = None) -> Dict[str, Any]:
     """Run a native scan synchronously (for CLI usage).
@@ -579,6 +630,7 @@ def run_native_scan(target: str, output_path: Optional[str] = None) -> Dict[str,
     Returns:
         Scan results dict
     """
+
     async def _run():
         scanner = NativeScanner()
         findings, summary = await scanner.scan(target)
@@ -595,6 +647,7 @@ def run_native_scan(target: str, output_path: Optional[str] = None) -> Dict[str,
         }
 
     import asyncio
+
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     result = loop.run_until_complete(_run())
@@ -602,6 +655,7 @@ def run_native_scan(target: str, output_path: Optional[str] = None) -> Dict[str,
 
     if output_path:
         import json
+
         Path(output_path).parent.mkdir(parents=True, exist_ok=True)
         with open(output_path, "w") as f:
             json.dump(result, f, indent=2)
@@ -609,5 +663,11 @@ def run_native_scan(target: str, output_path: Optional[str] = None) -> Dict[str,
     return result
 
 
-__all__ = ["NativeScanner", "ScanTarget", "ScanResult", "ScanSummary", 
-           "run_native_scan", "fingerprint_tech"]
+__all__ = [
+    "NativeScanner",
+    "ScanTarget",
+    "ScanResult",
+    "ScanSummary",
+    "run_native_scan",
+    "fingerprint_tech",
+]

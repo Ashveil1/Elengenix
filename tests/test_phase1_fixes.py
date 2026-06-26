@@ -16,7 +16,6 @@ from pathlib import Path
 
 import pytest
 
-
 # ── Fix 1: SmartOrchestrator semaphore ─────────────────────────────────────
 # These tests run the actual async function, NOT the real subfinder binary,
 # to keep the test suite fast and avoid network dependencies. We use a
@@ -30,7 +29,14 @@ def test_parallel_runner_run_tool_passes_semaphore(tmp_path: Path):
     TypeError because BaseTool.execute() requires (target, report_dir, semaphore).
     """
     from scan_engine_upgrade import ParallelRunner
-    from tools.tool_registry import BaseTool, ToolMetadata, ToolResult, ToolCategory, ToolPriority, ToolRegistry
+    from tools.tool_registry import (
+        BaseTool,
+        ToolCategory,
+        ToolMetadata,
+        ToolPriority,
+        ToolRegistry,
+        ToolResult,
+    )
 
     # Register a mock tool that records its call args
     captured = {}
@@ -70,9 +76,7 @@ def test_parallel_runner_run_tool_passes_semaphore(tmp_path: Path):
         runner = ParallelRunner(max_concurrency=2)
         # runner.semaphore is set in __init__; access it to ensure creation
         _ = runner.semaphore
-        result = asyncio.run(
-            runner.run_tool("mock_tool", "test.example.com", tmp_path)
-        )
+        result = asyncio.run(runner.run_tool("mock_tool", "test.example.com", tmp_path))
 
         assert result.success is True
         assert captured.get("called") is True
@@ -91,7 +95,14 @@ def test_smart_orchestrator_does_not_crash_with_mock_tool(tmp_path: Path):
         TypeError: SubfinderTool.execute() missing 1 required positional argument: 'semaphore'
     """
     from scan_engine_upgrade import SmartOrchestrator
-    from tools.tool_registry import BaseTool, ToolMetadata, ToolResult, ToolCategory, ToolPriority, ToolRegistry
+    from tools.tool_registry import (
+        BaseTool,
+        ToolCategory,
+        ToolMetadata,
+        ToolPriority,
+        ToolRegistry,
+        ToolResult,
+    )
 
     class MockTool(BaseTool):
         async def execute(self, target, report_dir, semaphore, **kwargs):
@@ -140,18 +151,18 @@ def test_smart_orchestrator_does_not_crash_with_mock_tool(tmp_path: Path):
 def test_parallel_runner_run_tool_signature_has_semaphore():
     """Source-level check: the run_tool method must call execute with 3 args."""
     import inspect
+
     from scan_engine_upgrade import ParallelRunner
 
     source = inspect.getsource(ParallelRunner.run_tool)
     # Must pass self.semaphore to tool.execute
     assert "self.semaphore" in source, (
-        "ParallelRunner.run_tool() must pass self.semaphore to tool.execute(). "
-        "Bug regressed!"
+        "ParallelRunner.run_tool() must pass self.semaphore to tool.execute(). " "Bug regressed!"
     )
     # Must NOT call with only 2 args
-    assert "tool.execute(target, report_dir)" not in source, (
-        "Found the old 2-arg call signature — bug regressed!"
-    )
+    assert (
+        "tool.execute(target, report_dir)" not in source
+    ), "Found the old 2-arg call signature — bug regressed!"
 
 
 # ── Fix 2 (NEW): doctor() does NOT check third-party security tools ───────
@@ -165,16 +176,17 @@ def test_doctor_does_not_check_third_party_tools():
     from tools import doctor
 
     # GO_SECURITY_TOOLS constant must be removed
-    assert not hasattr(doctor, "GO_SECURITY_TOOLS"), (
-        "GO_SECURITY_TOOLS must be removed — Elengenix does not bundle third-party tools"
-    )
+    assert not hasattr(
+        doctor, "GO_SECURITY_TOOLS"
+    ), "GO_SECURITY_TOOLS must be removed — Elengenix does not bundle third-party tools"
 
     # The doctor source code must not import shutil.which or check binaries
     import inspect
+
     src = inspect.getsource(doctor)
-    assert "shutil.which" not in src, (
-        "doctor.py must not check external binaries — it only validates the framework itself"
-    )
+    assert (
+        "shutil.which" not in src
+    ), "doctor.py must not check external binaries — it only validates the framework itself"
     assert "GO_SECURITY_TOOLS" not in src
 
 
@@ -211,8 +223,12 @@ def test_cot_logger_creates_log_file(tmp_path: Path):
 
     logger = ChainOfThoughtLogger(log_dir=tmp_path)
     logger.set_target("test_target")
-    logger.log(step=0, context="ctx1", reasoning="reason1", action="act1", result="res1", confidence=0.5)
-    logger.log(step=1, context="ctx2", reasoning="reason2", action="act2", result="res2", confidence=0.7)
+    logger.log(
+        step=0, context="ctx1", reasoning="reason1", action="act1", result="res1", confidence=0.5
+    )
+    logger.log(
+        step=1, context="ctx2", reasoning="reason2", action="act2", result="res2", confidence=0.7
+    )
 
     path = logger.save_session("test_target")
     assert path is not None, "save_session() returned None but should return a Path"

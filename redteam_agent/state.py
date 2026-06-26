@@ -1,9 +1,10 @@
 import json
 from pathlib import Path
 
+
 class MissionState:
     """Manages the shared blackboard state for the redteam agents."""
-    
+
     def __init__(self, state_file: str = "logs/mission_state.json"):
         self.state_file = Path(state_file)
         self.state_file.parent.mkdir(parents=True, exist_ok=True)
@@ -16,7 +17,7 @@ class MissionState:
             "targets": [],
             "discovered_intel": {},
             "tasks": [],
-            "history": []
+            "history": [],
         }
 
     def load(self):
@@ -27,7 +28,9 @@ class MissionState:
                 self.reset()
 
     def save(self):
-        self.state_file.write_text(json.dumps(self.data, indent=2, ensure_ascii=False), encoding="utf-8")
+        self.state_file.write_text(
+            json.dumps(self.data, indent=2, ensure_ascii=False), encoding="utf-8"
+        )
 
     def update_objective(self, obj: str):
         self.data["objective"] = obj
@@ -51,30 +54,28 @@ class MissionState:
         self.save()
 
     def add_history(self, agent_role: str, action: str, result_summary: str):
-        self.data["history"].append({
-            "agent": agent_role,
-            "action": action,
-            "result": result_summary
-        })
+        self.data["history"].append(
+            {"agent": agent_role, "action": action, "result": result_summary}
+        )
         self.save()
 
     def get_summary_prompt(self) -> str:
         """Format the entire state blackboard into a clean string for the LLM context."""
         summary = []
         summary.append(f"Mission Objective: {self.data['objective']}")
-        
+
         summary.append("\n[Tasks]")
         if not self.data["tasks"]:
             summary.append("  (No tasks generated yet)")
         for i, t in enumerate(self.data["tasks"]):
             summary.append(f"  {i}. [{t['status'].upper()}] {t['description']}")
-            
+
         summary.append("\n[Discovered Intel]")
         if not self.data["discovered_intel"]:
             summary.append("  (No intelligence discovered yet)")
         for k, v in self.data["discovered_intel"].items():
             summary.append(f"  • {k}: {v}")
-            
+
         summary.append("\n[Command History (Recent)]")
         if not self.data["history"]:
             summary.append("  (No execution history yet)")
@@ -82,5 +83,5 @@ class MissionState:
         for h in self.data["history"][-10:]:
             summary.append(f"  - {h['agent']} executed: {h['action']}")
             summary.append(f"    -> Result: {h['result'].strip()}")
-            
+
         return "\n".join(summary)

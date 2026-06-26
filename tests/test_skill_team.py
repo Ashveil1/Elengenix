@@ -9,9 +9,10 @@ Tests:
 5. CLI commands: /install, /team, /skills (integration-like)
 """
 
-import shutil
-import pytest
 import os
+import shutil
+
+import pytest
 
 
 class TestSkillRegistry:
@@ -19,19 +20,22 @@ class TestSkillRegistry:
 
     def test_get_skill_registry_singleton(self):
         from tools.skill_registry import get_skill_registry
+
         r1 = get_skill_registry()
         r2 = get_skill_registry()
         assert r1 is r2
 
     def test_default_skills_loaded(self):
         from tools.skill_registry import get_skill_registry
+
         registry = get_skill_registry()
         assert "subfinder" in registry.skills
         assert "httpx" in registry.skills
         assert "nuclei" in registry.skills
 
     def test_availability_check(self):
-        from tools.skill_registry import get_skill_registry, SkillStatus
+        from tools.skill_registry import SkillStatus, get_skill_registry
+
         registry = get_skill_registry()
         for name, skill in registry.skills.items():
             if shutil.which(skill.binary_name):
@@ -41,6 +45,7 @@ class TestSkillRegistry:
 
     def test_recommend_for_scenario(self):
         from tools.skill_registry import get_skill_registry
+
         registry = get_skill_registry()
         # Recommend for XSS
         recommended = registry.recommend_for("XSS vulnerability detection")
@@ -50,6 +55,7 @@ class TestSkillRegistry:
 
     def test_skill_context_format(self):
         from tools.skill_registry import get_skill_registry
+
         registry = get_skill_registry()
         context = registry.get_skill_context()
         assert "=== AVAILABLE TOOLS/SKILLS ===" in context
@@ -57,6 +63,7 @@ class TestSkillRegistry:
 
     def test_to_dict(self):
         from tools.skill_registry import get_skill_registry
+
         registry = get_skill_registry()
         data = registry.to_dict()
         assert "available" in data
@@ -70,11 +77,12 @@ class TestInstallRequest:
 
     def test_install_request_creation(self):
         from tools.install_request import InstallRequest
+
         req = InstallRequest(
             tool_name="test-tool",
             description="A test tool",
             install_command="echo install",
-            reason="Need for testing"
+            reason="Need for testing",
         )
         assert req.tool_name == "test-tool"
         assert not req.confirmed
@@ -82,12 +90,14 @@ class TestInstallRequest:
 
     def test_install_manager_singleton(self):
         from tools.install_request import get_install_manager
+
         m1 = get_install_manager()
         m2 = get_install_manager()
         assert m1 is m2
 
     def test_request_and_pending(self):
         from tools.install_request import get_install_manager
+
         manager = get_install_manager()
         # Reset state
         manager.requests.clear()
@@ -99,6 +109,7 @@ class TestInstallRequest:
 
     def test_format_pending_empty(self):
         from tools.install_request import get_install_manager
+
         manager = get_install_manager()
         manager.requests.clear()
         assert manager.format_pending_for_display() == ""
@@ -107,16 +118,19 @@ class TestInstallRequest:
 class TestAgentSkillIntegration:
     """Test that ElengenixAgent integrates skill registry into prompts."""
 
-    @pytest.mark.skipif(not shutil.which("subfinder") or not os.environ.get("HWOOK"),
-                        reason="Requires agent init")
+    @pytest.mark.skipif(
+        not shutil.which("subfinder") or not os.environ.get("HWOOK"), reason="Requires agent init"
+    )
     def test_agent_has_skill_registry(self):
         from agent_brain import ElengenixAgent
+
         agent = ElengenixAgent()
         assert agent.skill_registry is not None
 
     def test_base_prompt_includes_skills(self):
         # Light-weight test: verify context includes skill markers
         from tools.skill_registry import get_skill_registry
+
         registry = get_skill_registry()
         context = registry.get_skill_context()
         assert "AVAILABLE TOOLS/SKILLS" in context
@@ -124,6 +138,7 @@ class TestAgentSkillIntegration:
 
     def test_recommend_tools_for_scenario(self):
         from tools.skill_registry import recommend_tools_for_scenario
+
         results = recommend_tools_for_scenario("subdomain enumeration and XSS")
         assert len(results) > 0
         names = [r.name for r in results]
@@ -134,8 +149,10 @@ class TestTeamAegisSkillAwareness:
     """Test Team Aegis includes tool awareness in prompts."""
 
     def test_team_available_tools_formatting(self):
-        from tools.multi_agent import TeamAegis
         import unittest.mock as mock
+
+        from tools.multi_agent import TeamAegis
+
         # Mock 2 clients
         mock_client = mock.MagicMock()
         mock_client.provider = "test"
@@ -146,8 +163,10 @@ class TestTeamAegisSkillAwareness:
         assert "available" in tools_text.lower() or "missing" in tools_text.lower()
 
     def test_agent_prompt_contains_tools(self):
-        from tools.multi_agent import TeamAegis
         import unittest.mock as mock
+
+        from tools.multi_agent import TeamAegis
+
         mock_client = mock.MagicMock()
         mock_client.provider = "test"
         mock_client.model = "test-model"
@@ -156,8 +175,10 @@ class TestTeamAegisSkillAwareness:
         assert "AVAILABLE TOOLS & SKILLS" in prompt
 
     def test_team_roles_assigned(self):
-        from tools.multi_agent import TeamAegis, AGENT_ROLES
         import unittest.mock as mock
+
+        from tools.multi_agent import AGENT_ROLES, TeamAegis
+
         mock_client = mock.MagicMock()
         mock_client.provider = "test"
         mock_client.model = "test-model"
@@ -168,12 +189,16 @@ class TestTeamAegisSkillAwareness:
 
     def test_run_round_with_skill_registry(self):
         """Test that run_round works with skill registry present."""
-        from tools.multi_agent import TeamAegis
         import unittest.mock as mock
+
+        from tools.multi_agent import TeamAegis
+
         mock_client = mock.MagicMock()
         mock_client.provider = "test"
         mock_client.model = "test-model"
-        mock_client.simple_chat.return_value = '{"discussion": "Testing", "action": {"type": "none"}}'
+        mock_client.simple_chat.return_value = (
+            '{"discussion": "Testing", "action": {"type": "none"}}'
+        )
         team = TeamAegis(clients=[mock_client, mock_client], target="test.target")
         result = team.run_round()
         assert isinstance(result, bool)
@@ -185,6 +210,7 @@ class TestCLICommands:
 
     def test_skills_command_output(self):
         from tools.skill_registry import get_skill_registry
+
         registry = get_skill_registry()
         available = registry.get_available_skills()
         missing = registry.get_missing_skills()
@@ -198,12 +224,14 @@ class TestCLICommands:
 
     def test_install_unknown_tool(self):
         from tools.skill_registry import get_skill_registry
+
         registry = get_skill_registry()
         skill = registry.skills.get("nonexistent_tool")
         assert skill is None
 
     def test_team_dashboard_formatting(self):
         import os
+
         os.environ["ACTIVE_MODELS"] = "gemini/gemini-2.0-flash,nvidia/nemotron-4-340b"
         models = os.environ["ACTIVE_MODELS"].split(",")
         assert len(models) == 2

@@ -11,9 +11,9 @@ import logging
 import shutil
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
+from enum import Enum
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Type, Union
-from enum import Enum
 
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
@@ -24,6 +24,7 @@ logger = logging.getLogger("elengenix.tools")
 
 class ToolCategory(Enum):
     """Classification of security tools by purpose."""
+
     RECON = "reconnaissance"
     SCANNER = "vulnerability_scanner"
     EXPLOITATION = "exploitation"
@@ -37,6 +38,7 @@ class ToolCategory(Enum):
 
 class ToolPriority(Enum):
     """Execution priority for tool ordering."""
+
     CRITICAL = 1
     HIGH = 2
     MEDIUM = 3
@@ -46,6 +48,7 @@ class ToolPriority(Enum):
 @dataclass
 class ToolResult:
     """Standardized result format for all tools."""
+
     success: bool
     tool_name: str
     category: ToolCategory
@@ -54,7 +57,7 @@ class ToolResult:
     execution_time: float = 0.0
     error_message: Optional[str] = None
     raw_output_file: Optional[Path] = None
-    
+
     def to_dict(self) -> Dict[str, Any]:
         return {
             "success": self.success,
@@ -70,6 +73,7 @@ class ToolResult:
 @dataclass
 class ToolMetadata:
     """Metadata for tool registration."""
+
     name: str
     category: ToolCategory
     priority: ToolPriority
@@ -83,60 +87,52 @@ class ToolMetadata:
 
 class BaseTool(ABC):
     """Abstract base class for all Elengenix tools."""
-    
+
     def __init__(self, metadata: ToolMetadata):
         self.metadata = metadata
         self._check_binary()
-    
+
     def _check_binary(self) -> bool:
         """Verify the tool binary is installed."""
         return shutil.which(self.metadata.binary_name) is not None
-    
+
     @property
     def is_available(self) -> bool:
         return self._check_binary()
-    
+
     @abstractmethod
     async def execute(
-        self, 
-        target: Union[str, List[str]], 
+        self,
+        target: Union[str, List[str]],
         report_dir: Path,
         semaphore: asyncio.Semaphore,
-        **kwargs
+        **kwargs,
     ) -> ToolResult:
         """Execute the tool and return standardized result."""
-    
+
     def _build_command(
-        self, 
-        target: Union[str, List[str]], 
-        output_file: Path,
-        extra_flags: List[str] = None
+        self, target: Union[str, List[str]], output_file: Path, extra_flags: List[str] = None
     ) -> List[str]:
         """Build command arguments. Override in subclasses."""
         raise NotImplementedError("Subclasses must implement _build_command")
-    
+
     async def _run_subprocess(
-        self, 
-        cmd: List[str], 
-        timeout: int = None,
-        semaphore: asyncio.Semaphore = None
+        self, cmd: List[str], timeout: int = None, semaphore: asyncio.Semaphore = None
     ) -> tuple:
         """Execute subprocess with optional semaphore.
-        
+
         Returns:
             Tuple of (stdout, stderr, return_code).
         """
+
         async def _exec():
             proc = None
             try:
                 proc = await asyncio.create_subprocess_exec(
-                    *cmd,
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE
+                    *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
                 )
                 stdout, stderr = await asyncio.wait_for(
-                    proc.communicate(), 
-                    timeout=timeout or self.metadata.timeout_seconds
+                    proc.communicate(), timeout=timeout or self.metadata.timeout_seconds
                 )
                 return stdout.decode(), stderr.decode(), proc.returncode
             except asyncio.TimeoutError:
@@ -147,7 +143,7 @@ class BaseTool(ABC):
                 return "", f"Binary not found: {cmd[0]}", 1
             except OSError as e:
                 return "", f"OS error: {e}", 1
-        
+
         if semaphore:
             async with semaphore:
                 return await _exec()
@@ -156,35 +152,35 @@ class BaseTool(ABC):
 
 class ToolRegistry:
     """Central registry for all security tools."""
-    
+
     _instance = None
     _tools: Dict[str, BaseTool] = {}
     _categories: Dict[ToolCategory, List[str]] = {}
-    
+
     def __new__(cls):
         if cls._instance is None:
             cls._instance = super().__new__(cls)
             cls._instance._initialized = False
         return cls._instance
-        
+
     def __init__(self):
         if not getattr(self, "_initialized", False):
             self._initialized = True
             self.load_dynamic_tools()
-    
+
     def register(self, tool: BaseTool) -> None:
         """Register a tool instance."""
         name = tool.metadata.name
         self._tools[name] = tool
-        
+
         category = tool.metadata.category
         if category not in self._categories:
             self._categories[category] = []
         if name not in self._categories[category]:
             self._categories[category].append(name)
-        
+
         logger.info(f"Registered tool: {name} ({category.value})")
-    
+
     def unregister(self, name: str) -> None:
         """Remove a tool from registry."""
         if name in self._tools:
@@ -195,11 +191,11 @@ class ToolRegistry:
         """Dynamically load and register AI-generated tools from the specified directory."""
         import importlib.util
         import sys
-        
+
         path = Path(ai_tools_dir).resolve()
         if not path.exists() or not path.is_dir():
             return
-            
+
         for py_file in path.glob("*.py"):
             try:
                 module_name = f"ai_generated.{py_file.stem}"
@@ -211,16 +207,16 @@ class ToolRegistry:
                     logger.info(f"Dynamically loaded AI tool module: {py_file.name}")
             except Exception as e:
                 logger.error(f"Failed to load dynamic tool {py_file.name}: {e}")
-    
+
     def get_tool(self, name: str) -> Optional[BaseTool]:
         """Get tool by name."""
         return self._tools.get(name)
-    
+
     def get_tools_by_category(self, category: ToolCategory) -> List[BaseTool]:
         """Get all tools in a category."""
         names = self._categories.get(category, [])
         return [self._tools[n] for n in names if n in self._tools]
-    
+
     def list_available_tools(self) -> Dict[str, Dict[str, Any]]:
         """List all registered tools with availability status."""
         return {
@@ -232,11 +228,8 @@ class ToolRegistry:
             }
             for name, tool in self._tools.items()
         }
-    
-    def get_recommended_chain(
-        self, 
-        target_type: str = "web"
-    ) -> List[BaseTool]:
+
+    def get_recommended_chain(self, target_type: str = "web") -> List[BaseTool]:
         """Get recommended tool execution chain based on target type."""
         chains = {
             "web": [
@@ -259,61 +252,63 @@ class ToolRegistry:
                 ToolCategory.SCANNER,
             ],
         }
-        
+
         result = []
         for category in chains.get(target_type, chains["web"]):
             tools = self.get_tools_by_category(category)
             # Sort by priority
             tools.sort(key=lambda t: t.metadata.priority.value)
             result.extend(tools)
-        
+
         return result
-    
+
     async def execute_chain(
         self,
         tools: List[BaseTool],
         target: str,
         report_dir: Path,
         rate_limit: int = 5,
-        progress_callback: Optional[Callable] = None
+        progress_callback: Optional[Callable] = None,
     ) -> List[ToolResult]:
         """Execute a chain of tools sequentially with rate limiting."""
         semaphore = asyncio.Semaphore(rate_limit)
         results = []
-        
+
         with Progress(
             SpinnerColumn(),
             TextColumn("[bold cyan]{task.description}"),
             console=console,
         ) as progress:
             task = progress.add_task("Executing tool chain...", total=len(tools))
-            
+
             for tool in tools:
                 if not tool.is_available:
                     logger.warning(f"Tool {tool.metadata.name} not available, skipping")
                     progress.advance(task)
                     continue
-                
+
                 progress.update(task, description=f"Running {tool.metadata.name}...")
-                
+
                 try:
                     result = await tool.execute(target, report_dir, semaphore)
                     results.append(result)
-                    
+
                     if progress_callback:
                         progress_callback(result)
-                        
+
                 except Exception as e:
                     logger.error(f"Tool {tool.metadata.name} failed: {e}")
-                    results.append(ToolResult(
-                        success=False,
-                        tool_name=tool.metadata.name,
-                        category=tool.metadata.category,
-                        error_message=str(e),
-                    ))
-                
+                    results.append(
+                        ToolResult(
+                            success=False,
+                            tool_name=tool.metadata.name,
+                            category=tool.metadata.category,
+                            error_message=str(e),
+                        )
+                    )
+
                 progress.advance(task)
-        
+
         return results
 
 
@@ -323,13 +318,15 @@ registry = ToolRegistry()
 
 def register_tool(metadata: ToolMetadata):
     """Decorator to register a tool class."""
+
     def decorator(cls: Type[BaseTool]):
         if not issubclass(cls, BaseTool):
             raise TypeError(f"{cls.__name__} must inherit from BaseTool")
-        
+
         tool_instance = cls(metadata)
         registry.register(tool_instance)
         return cls
+
     return decorator
 
 
@@ -342,14 +339,17 @@ def register_tool(metadata: ToolMetadata):
 # NATIVE PYTHON TOOL WRAPPERS
 # ═══════════════════════════════════════════════════════════════════════════════
 
-@register_tool(ToolMetadata(
-    name="waf_detector",
-    category=ToolCategory.SCANNER,
-    priority=ToolPriority.HIGH,
-    binary_name="python3",
-    description="Smart WAF detection via probe-based analysis",
-    timeout_seconds=120,
-))
+
+@register_tool(
+    ToolMetadata(
+        name="waf_detector",
+        category=ToolCategory.SCANNER,
+        priority=ToolPriority.HIGH,
+        binary_name="python3",
+        description="Smart WAF detection via probe-based analysis",
+        timeout_seconds=120,
+    )
+)
 class WAFDetectorTool(BaseTool):
     """Wrapper for the SmartWAFDetector native Python module."""
 
@@ -364,24 +364,28 @@ class WAFDetectorTool(BaseTool):
         **kwargs,
     ) -> ToolResult:
         import time
+
         start_time = time.time()
         base_url = target if isinstance(target, str) else target[0]
 
         try:
             from tools.waf_detector import SmartWAFDetector
+
             detector = SmartWAFDetector()
             result = detector.probe(base_url)
 
             findings = []
             if result.waf_detected:
-                findings.append({
-                    "type": "waf_detected",
-                    "waf_name": result.waf_name,
-                    "confidence": result.confidence,
-                    "blocked_payloads": result.blocked_payloads,
-                    "suggested_evasions": result.suggested_evasions,
-                    "url": base_url,
-                })
+                findings.append(
+                    {
+                        "type": "waf_detected",
+                        "waf_name": result.waf_name,
+                        "confidence": result.confidence,
+                        "blocked_payloads": result.blocked_payloads,
+                        "suggested_evasions": result.suggested_evasions,
+                        "url": base_url,
+                    }
+                )
 
             return ToolResult(
                 success=True,
@@ -401,14 +405,16 @@ class WAFDetectorTool(BaseTool):
             )
 
 
-@register_tool(ToolMetadata(
-    name="active_fuzzer",
-    category=ToolCategory.FUZZING,
-    priority=ToolPriority.HIGH,
-    binary_name="python3",
-    description="Active fuzzing with response delta scoring",
-    timeout_seconds=300,
-))
+@register_tool(
+    ToolMetadata(
+        name="active_fuzzer",
+        category=ToolCategory.FUZZING,
+        priority=ToolPriority.HIGH,
+        binary_name="python3",
+        description="Active fuzzing with response delta scoring",
+        timeout_seconds=300,
+    )
+)
 class ActiveFuzzerTool(BaseTool):
     """Wrapper for the ActiveFuzzer native Python module."""
 
@@ -423,24 +429,28 @@ class ActiveFuzzerTool(BaseTool):
         **kwargs,
     ) -> ToolResult:
         import time
+
         start_time = time.time()
         base_url = target if isinstance(target, str) else target[0]
 
         try:
             from tools.active_fuzzer import ActiveFuzzer
+
             fuzzer = ActiveFuzzer()
             results = fuzzer.fuzz(target=base_url, max_params=kwargs.get("max_params", 5))
 
             findings = []
             for r in results:
                 if r.get("vulnerable"):
-                    findings.append({
-                        "type": r.get("vuln_type", "unknown"),
-                        "url": r.get("url", base_url),
-                        "param": r.get("param", ""),
-                        "payload": r.get("payload", ""),
-                        "delta_score": r.get("delta_score", 0),
-                    })
+                    findings.append(
+                        {
+                            "type": r.get("vuln_type", "unknown"),
+                            "url": r.get("url", base_url),
+                            "param": r.get("param", ""),
+                            "payload": r.get("payload", ""),
+                            "delta_score": r.get("delta_score", 0),
+                        }
+                    )
 
             return ToolResult(
                 success=True,
@@ -460,14 +470,16 @@ class ActiveFuzzerTool(BaseTool):
             )
 
 
-@register_tool(ToolMetadata(
-    name="python_recon",
-    category=ToolCategory.RECON,
-    priority=ToolPriority.MEDIUM,
-    binary_name="python3",
-    description="Pure Python HTTP probe, directory discovery, and port scan",
-    timeout_seconds=180,
-))
+@register_tool(
+    ToolMetadata(
+        name="python_recon",
+        category=ToolCategory.RECON,
+        priority=ToolPriority.MEDIUM,
+        binary_name="python3",
+        description="Pure Python HTTP probe, directory discovery, and port scan",
+        timeout_seconds=180,
+    )
+)
 class PythonReconTool(BaseTool):
     """Wrapper for the PythonRecon native Python module."""
 
@@ -482,22 +494,26 @@ class PythonReconTool(BaseTool):
         **kwargs,
     ) -> ToolResult:
         import time
+
         start_time = time.time()
         base_url = target if isinstance(target, str) else target[0]
 
         try:
             from tools.python_recon import PythonRecon
+
             recon = PythonRecon()
             results = recon.run(base_url)
 
             findings = []
             for r in results:
-                findings.append({
-                    "type": r.get("type", "recon"),
-                    "url": r.get("url", base_url),
-                    "title": r.get("title", ""),
-                    "details": r.get("details", ""),
-                })
+                findings.append(
+                    {
+                        "type": r.get("type", "recon"),
+                        "url": r.get("url", base_url),
+                        "title": r.get("title", ""),
+                        "details": r.get("details", ""),
+                    }
+                )
 
             return ToolResult(
                 success=True,
@@ -521,14 +537,17 @@ class PythonReconTool(BaseTool):
 # ADVANCED SCANNING MODULES
 # ═══════════════════════════════════════════════════════════════════════════════
 
-@register_tool(ToolMetadata(
-    name="ssrf_scanner",
-    category=ToolCategory.SCANNER,
-    priority=ToolPriority.HIGH,
-    binary_name="python3",
-    description="Server-Side Request Forgery (SSRF) vulnerability scanner",
-    timeout_seconds=300,
-))
+
+@register_tool(
+    ToolMetadata(
+        name="ssrf_scanner",
+        category=ToolCategory.SCANNER,
+        priority=ToolPriority.HIGH,
+        binary_name="python3",
+        description="Server-Side Request Forgery (SSRF) vulnerability scanner",
+        timeout_seconds=300,
+    )
+)
 class SSRFScannerTool(BaseTool):
     """Wrapper for the SSRFScanner module."""
 
@@ -543,25 +562,29 @@ class SSRFScannerTool(BaseTool):
         **kwargs,
     ) -> ToolResult:
         import time
+
         start_time = time.time()
         base_url = target if isinstance(target, str) else target[0]
 
         try:
             from tools.ssrf_scanner import SSRFScanner
+
             scanner = SSRFScanner()
             result = scanner.scan(base_url)
 
             findings = []
             for r in result.results:
                 if r.vulnerable:
-                    findings.append({
-                        "type": "ssrf",
-                        "url": r.url,
-                        "param": r.param,
-                        "payload": r.payload,
-                        "evidence": r.evidence,
-                        "severity": r.severity,
-                    })
+                    findings.append(
+                        {
+                            "type": "ssrf",
+                            "url": r.url,
+                            "param": r.param,
+                            "payload": r.payload,
+                            "evidence": r.evidence,
+                            "severity": r.severity,
+                        }
+                    )
 
             return ToolResult(
                 success=True,
@@ -581,14 +604,16 @@ class SSRFScannerTool(BaseTool):
             )
 
 
-@register_tool(ToolMetadata(
-    name="ssti_scanner",
-    category=ToolCategory.SCANNER,
-    priority=ToolPriority.HIGH,
-    binary_name="python3",
-    description="Server-Side Template Injection (SSTI) vulnerability scanner",
-    timeout_seconds=300,
-))
+@register_tool(
+    ToolMetadata(
+        name="ssti_scanner",
+        category=ToolCategory.SCANNER,
+        priority=ToolPriority.HIGH,
+        binary_name="python3",
+        description="Server-Side Template Injection (SSTI) vulnerability scanner",
+        timeout_seconds=300,
+    )
+)
 class SSTIScannerTool(BaseTool):
     """Wrapper for the SSTIScanner module."""
 
@@ -603,26 +628,30 @@ class SSTIScannerTool(BaseTool):
         **kwargs,
     ) -> ToolResult:
         import time
+
         start_time = time.time()
         base_url = target if isinstance(target, str) else target[0]
 
         try:
             from tools.ssti_scanner import SSTIScanner
+
             scanner = SSTIScanner()
             result = scanner.scan(base_url)
 
             findings = []
             for r in result.results:
                 if r.vulnerable:
-                    findings.append({
-                        "type": "ssti",
-                        "url": r.url,
-                        "param": r.param,
-                        "engine": r.engine,
-                        "payload": r.payload,
-                        "evidence": r.evidence,
-                        "severity": r.severity,
-                    })
+                    findings.append(
+                        {
+                            "type": "ssti",
+                            "url": r.url,
+                            "param": r.param,
+                            "engine": r.engine,
+                            "payload": r.payload,
+                            "evidence": r.evidence,
+                            "severity": r.severity,
+                        }
+                    )
 
             return ToolResult(
                 success=True,
@@ -642,14 +671,16 @@ class SSTIScannerTool(BaseTool):
             )
 
 
-@register_tool(ToolMetadata(
-    name="xxe_scanner",
-    category=ToolCategory.SCANNER,
-    priority=ToolPriority.HIGH,
-    binary_name="python3",
-    description="XML External Entity (XXE) vulnerability scanner",
-    timeout_seconds=300,
-))
+@register_tool(
+    ToolMetadata(
+        name="xxe_scanner",
+        category=ToolCategory.SCANNER,
+        priority=ToolPriority.HIGH,
+        binary_name="python3",
+        description="XML External Entity (XXE) vulnerability scanner",
+        timeout_seconds=300,
+    )
+)
 class XXEScannerTool(BaseTool):
     """Wrapper for the XXEScanner module."""
 
@@ -664,25 +695,29 @@ class XXEScannerTool(BaseTool):
         **kwargs,
     ) -> ToolResult:
         import time
+
         start_time = time.time()
         base_url = target if isinstance(target, str) else target[0]
 
         try:
             from tools.xxe_scanner import XXEScanner
+
             scanner = XXEScanner()
             result = scanner.scan(base_url)
 
             findings = []
             for r in result.results:
                 if r.vulnerable:
-                    findings.append({
-                        "type": "xxe",
-                        "url": r.url,
-                        "payload_type": r.payload_type,
-                        "payload": r.payload,
-                        "evidence": r.evidence,
-                        "severity": r.severity,
-                    })
+                    findings.append(
+                        {
+                            "type": "xxe",
+                            "url": r.url,
+                            "payload_type": r.payload_type,
+                            "payload": r.payload,
+                            "evidence": r.evidence,
+                            "severity": r.severity,
+                        }
+                    )
 
             return ToolResult(
                 success=True,
@@ -702,14 +737,16 @@ class XXEScannerTool(BaseTool):
             )
 
 
-@register_tool(ToolMetadata(
-    name="deserialization_scanner",
-    category=ToolCategory.SCANNER,
-    priority=ToolPriority.HIGH,
-    binary_name="python3",
-    description="Insecure deserialization vulnerability scanner",
-    timeout_seconds=300,
-))
+@register_tool(
+    ToolMetadata(
+        name="deserialization_scanner",
+        category=ToolCategory.SCANNER,
+        priority=ToolPriority.HIGH,
+        binary_name="python3",
+        description="Insecure deserialization vulnerability scanner",
+        timeout_seconds=300,
+    )
+)
 class DeserializationScannerTool(BaseTool):
     """Wrapper for the DeserializationScanner module."""
 
@@ -724,26 +761,30 @@ class DeserializationScannerTool(BaseTool):
         **kwargs,
     ) -> ToolResult:
         import time
+
         start_time = time.time()
         base_url = target if isinstance(target, str) else target[0]
 
         try:
             from tools.deserialization_scanner import DeserializationScanner
+
             scanner = DeserializationScanner()
             result = scanner.scan(base_url)
 
             findings = []
             for r in result.results:
                 if r.vulnerable:
-                    findings.append({
-                        "type": "deserialization",
-                        "url": r.url,
-                        "param": r.param,
-                        "format": r.format_type,
-                        "payload": r.payload,
-                        "evidence": r.evidence,
-                        "severity": r.severity,
-                    })
+                    findings.append(
+                        {
+                            "type": "deserialization",
+                            "url": r.url,
+                            "param": r.param,
+                            "format": r.format_type,
+                            "payload": r.payload,
+                            "evidence": r.evidence,
+                            "severity": r.severity,
+                        }
+                    )
 
             return ToolResult(
                 success=True,
@@ -763,14 +804,16 @@ class DeserializationScannerTool(BaseTool):
             )
 
 
-@register_tool(ToolMetadata(
-    name="graphql_scanner",
-    category=ToolCategory.API,
-    priority=ToolPriority.HIGH,
-    binary_name="python3",
-    description="GraphQL API vulnerability scanner",
-    timeout_seconds=300,
-))
+@register_tool(
+    ToolMetadata(
+        name="graphql_scanner",
+        category=ToolCategory.API,
+        priority=ToolPriority.HIGH,
+        binary_name="python3",
+        description="GraphQL API vulnerability scanner",
+        timeout_seconds=300,
+    )
+)
 class GraphQLScannerTool(BaseTool):
     """Wrapper for the GraphQLScanner module."""
 
@@ -785,25 +828,29 @@ class GraphQLScannerTool(BaseTool):
         **kwargs,
     ) -> ToolResult:
         import time
+
         start_time = time.time()
         base_url = target if isinstance(target, str) else target[0]
 
         try:
             from tools.graphql_scanner import GraphQLScanner
+
             scanner = GraphQLScanner()
             result = scanner.scan(base_url)
 
             findings = []
             for r in result.results:
                 if r.vulnerable:
-                    findings.append({
-                        "type": "graphql",
-                        "url": r.url,
-                        "test_type": r.test_type,
-                        "evidence": r.evidence,
-                        "schema_info": r.schema_info,
-                        "severity": r.severity,
-                    })
+                    findings.append(
+                        {
+                            "type": "graphql",
+                            "url": r.url,
+                            "test_type": r.test_type,
+                            "evidence": r.evidence,
+                            "schema_info": r.schema_info,
+                            "severity": r.severity,
+                        }
+                    )
 
             return ToolResult(
                 success=True,
@@ -823,14 +870,16 @@ class GraphQLScannerTool(BaseTool):
             )
 
 
-@register_tool(ToolMetadata(
-    name="race_condition_tester",
-    category=ToolCategory.SCANNER,
-    priority=ToolPriority.HIGH,
-    binary_name="python3",
-    description="Race condition vulnerability tester",
-    timeout_seconds=300,
-))
+@register_tool(
+    ToolMetadata(
+        name="race_condition_tester",
+        category=ToolCategory.SCANNER,
+        priority=ToolPriority.HIGH,
+        binary_name="python3",
+        description="Race condition vulnerability tester",
+        timeout_seconds=300,
+    )
+)
 class RaceConditionTesterTool(BaseTool):
     """Wrapper for the RaceConditionTester module."""
 
@@ -845,24 +894,28 @@ class RaceConditionTesterTool(BaseTool):
         **kwargs,
     ) -> ToolResult:
         import time
+
         start_time = time.time()
         base_url = target if isinstance(target, str) else target[0]
 
         try:
             from tools.race_condition_tester import RaceConditionTester
+
             tester = RaceConditionTester()
             result = tester.test_endpoint(base_url)
 
             findings = []
             for r in result.results:
                 if r.vulnerable:
-                    findings.append({
-                        "type": "race_condition",
-                        "test_type": r.test_type,
-                        "endpoint": r.endpoint,
-                        "evidence": r.evidence,
-                        "severity": r.severity,
-                    })
+                    findings.append(
+                        {
+                            "type": "race_condition",
+                            "test_type": r.test_type,
+                            "endpoint": r.endpoint,
+                            "evidence": r.evidence,
+                            "severity": r.severity,
+                        }
+                    )
 
             return ToolResult(
                 success=True,
@@ -882,14 +935,16 @@ class RaceConditionTesterTool(BaseTool):
             )
 
 
-@register_tool(ToolMetadata(
-    name="api_schema_diff",
-    category=ToolCategory.API,
-    priority=ToolPriority.MEDIUM,
-    binary_name="python3",
-    description="API schema comparison and drift detection",
-    timeout_seconds=120,
-))
+@register_tool(
+    ToolMetadata(
+        name="api_schema_diff",
+        category=ToolCategory.API,
+        priority=ToolPriority.MEDIUM,
+        binary_name="python3",
+        description="API schema comparison and drift detection",
+        timeout_seconds=120,
+    )
+)
 class APISchemaDiffTool(BaseTool):
     """Wrapper for the APISchemaDiffer module."""
 
@@ -904,13 +959,15 @@ class APISchemaDiffTool(BaseTool):
         **kwargs,
     ) -> ToolResult:
         import time
+
         start_time = time.time()
         base_url = target if isinstance(target, str) else target[0]
 
         try:
             from tools.api_schema_diff import APISchemaDiffer
+
             differ = APISchemaDiffer()
-            
+
             # Try to fetch schema from common endpoints
             schema_url = f"{base_url.rstrip('/')}/openapi.json"
             result = differ.compare_urls(
@@ -920,21 +977,25 @@ class APISchemaDiffTool(BaseTool):
 
             findings = []
             for ep in result.added_endpoints:
-                findings.append({
-                    "type": "schema_added",
-                    "path": ep.path,
-                    "method": ep.method,
-                    "details": ep.details,
-                    "severity": "Informational",
-                })
+                findings.append(
+                    {
+                        "type": "schema_added",
+                        "path": ep.path,
+                        "method": ep.method,
+                        "details": ep.details,
+                        "severity": "Informational",
+                    }
+                )
             for ep in result.removed_endpoints:
-                findings.append({
-                    "type": "schema_removed",
-                    "path": ep.path,
-                    "method": ep.method,
-                    "details": ep.details,
-                    "severity": "Medium",
-                })
+                findings.append(
+                    {
+                        "type": "schema_removed",
+                        "path": ep.path,
+                        "method": ep.method,
+                        "details": ep.details,
+                        "severity": "Medium",
+                    }
+                )
 
             return ToolResult(
                 success=True,
@@ -954,14 +1015,16 @@ class APISchemaDiffTool(BaseTool):
             )
 
 
-@register_tool(ToolMetadata(
-    name="supply_chain_analyzer",
-    category=ToolCategory.SCANNER,
-    priority=ToolPriority.MEDIUM,
-    binary_name="python3",
-    description="Software supply chain vulnerability analyzer",
-    timeout_seconds=120,
-))
+@register_tool(
+    ToolMetadata(
+        name="supply_chain_analyzer",
+        category=ToolCategory.SCANNER,
+        priority=ToolPriority.MEDIUM,
+        binary_name="python3",
+        description="Software supply chain vulnerability analyzer",
+        timeout_seconds=120,
+    )
+)
 class SupplyChainAnalyzerTool(BaseTool):
     """Wrapper for the SupplyChainAnalyzer module."""
 
@@ -976,34 +1039,42 @@ class SupplyChainAnalyzerTool(BaseTool):
         **kwargs,
     ) -> ToolResult:
         import time
+
         start_time = time.time()
         base_path = target if isinstance(target, str) else target[0]
 
         try:
             from tools.supply_chain_analyzer import SupplyChainAnalyzer
+
             analyzer = SupplyChainAnalyzer()
             result = analyzer.analyze_directory(base_path)
 
             findings = []
             for pkg in result.suspicious_packages:
-                findings.append({
-                    "type": "suspicious_package",
-                    "package": pkg,
-                    "severity": "High",
-                })
+                findings.append(
+                    {
+                        "type": "suspicious_package",
+                        "package": pkg,
+                        "severity": "High",
+                    }
+                )
             for src, dest in result.typosquatting_detected:
-                findings.append({
-                    "type": "typosquatting",
-                    "package": src,
-                    "similar_to": dest,
-                    "severity": "High",
-                })
+                findings.append(
+                    {
+                        "type": "typosquatting",
+                        "package": src,
+                        "similar_to": dest,
+                        "severity": "High",
+                    }
+                )
             for pkg in result.unpinned_versions[:10]:  # Limit to first 10
-                findings.append({
-                    "type": "unpinned_version",
-                    "package": pkg,
-                    "severity": "Low",
-                })
+                findings.append(
+                    {
+                        "type": "unpinned_version",
+                        "package": pkg,
+                        "severity": "Low",
+                    }
+                )
 
             return ToolResult(
                 success=True,
@@ -1023,14 +1094,16 @@ class SupplyChainAnalyzerTool(BaseTool):
             )
 
 
-@register_tool(ToolMetadata(
-    name="logic_flaw_engine",
-    category=ToolCategory.SCANNER,
-    priority=ToolPriority.HIGH,
-    binary_name="python3",
-    description="Business logic vulnerability analyzer",
-    timeout_seconds=300,
-))
+@register_tool(
+    ToolMetadata(
+        name="logic_flaw_engine",
+        category=ToolCategory.SCANNER,
+        priority=ToolPriority.HIGH,
+        binary_name="python3",
+        description="Business logic vulnerability analyzer",
+        timeout_seconds=300,
+    )
+)
 class LogicFlawEngineTool(BaseTool):
     """Wrapper for the LogicFlawEngine module."""
 
@@ -1045,25 +1118,29 @@ class LogicFlawEngineTool(BaseTool):
         **kwargs,
     ) -> ToolResult:
         import time
+
         start_time = time.time()
         base_url = target if isinstance(target, str) else target[0]
 
         try:
             from tools.logic_flaw_engine import LogicFlawEngine
+
             engine = LogicFlawEngine()
             result = engine.analyze_endpoint(base_url)
 
             findings = []
             for flaw in result.flaws:
-                findings.append({
-                    "type": "logic_flaw",
-                    "flaw_type": flaw.flaw_type,
-                    "endpoint": flaw.endpoint,
-                    "description": flaw.description,
-                    "evidence": flaw.evidence,
-                    "severity": flaw.severity,
-                    "remediation": flaw.remediation,
-                })
+                findings.append(
+                    {
+                        "type": "logic_flaw",
+                        "flaw_type": flaw.flaw_type,
+                        "endpoint": flaw.endpoint,
+                        "description": flaw.description,
+                        "evidence": flaw.evidence,
+                        "severity": flaw.severity,
+                        "remediation": flaw.remediation,
+                    }
+                )
 
             return ToolResult(
                 success=True,
@@ -1083,14 +1160,16 @@ class LogicFlawEngineTool(BaseTool):
             )
 
 
-@register_tool(ToolMetadata(
-    name="cors_checker",
-    category=ToolCategory.SCANNER,
-    priority=ToolPriority.MEDIUM,
-    binary_name="python3",
-    description="CORS misconfiguration tester",
-    timeout_seconds=120,
-))
+@register_tool(
+    ToolMetadata(
+        name="cors_checker",
+        category=ToolCategory.SCANNER,
+        priority=ToolPriority.MEDIUM,
+        binary_name="python3",
+        description="CORS misconfiguration tester",
+        timeout_seconds=120,
+    )
+)
 class CORSCheckerTool(BaseTool):
     """Wrapper for the CORSChecker module."""
 
@@ -1105,24 +1184,28 @@ class CORSCheckerTool(BaseTool):
         **kwargs,
     ) -> ToolResult:
         import time
+
         start_time = time.time()
         base_url = target if isinstance(target, str) else target[0]
 
         try:
             from tools.cors_checker import CORSChecker
+
             checker = CORSChecker()
             result = checker.check(base_url)
 
             findings = []
             for r in result.results:
                 if r.vulnerable:
-                    findings.append({
-                        "type": "cors_misconfiguration",
-                        "test_type": r.test_type,
-                        "origin": r.origin,
-                        "evidence": r.evidence,
-                        "severity": r.severity,
-                    })
+                    findings.append(
+                        {
+                            "type": "cors_misconfiguration",
+                            "test_type": r.test_type,
+                            "origin": r.origin,
+                            "evidence": r.evidence,
+                            "severity": r.severity,
+                        }
+                    )
 
             return ToolResult(
                 success=True,
@@ -1142,14 +1225,16 @@ class CORSCheckerTool(BaseTool):
             )
 
 
-@register_tool(ToolMetadata(
-    name="jwt_tester",
-    category=ToolCategory.SCANNER,
-    priority=ToolPriority.HIGH,
-    binary_name="python3",
-    description="JWT security vulnerability tester",
-    timeout_seconds=300,
-))
+@register_tool(
+    ToolMetadata(
+        name="jwt_tester",
+        category=ToolCategory.SCANNER,
+        priority=ToolPriority.HIGH,
+        binary_name="python3",
+        description="JWT security vulnerability tester",
+        timeout_seconds=300,
+    )
+)
 class JWTTesterTool(BaseTool):
     """Wrapper for the JWTTester module."""
 
@@ -1164,13 +1249,15 @@ class JWTTesterTool(BaseTool):
         **kwargs,
     ) -> ToolResult:
         import time
+
         start_time = time.time()
         base_url = target if isinstance(target, str) else target[0]
 
         try:
-            from tools.jwt_tester import JWTTester, JWTScanResult
+            from tools.jwt_tester import JWTScanResult, JWTTester
+
             tester = JWTTester()
-            
+
             # Try to get token from kwargs
             token = kwargs.get("token", "")
             if token:
@@ -1181,12 +1268,14 @@ class JWTTesterTool(BaseTool):
             findings = []
             for r in result.results:
                 if r.vulnerable:
-                    findings.append({
-                        "type": "jwt_vulnerability",
-                        "test_type": r.test_type,
-                        "evidence": r.evidence,
-                        "severity": r.severity,
-                    })
+                    findings.append(
+                        {
+                            "type": "jwt_vulnerability",
+                            "test_type": r.test_type,
+                            "evidence": r.evidence,
+                            "severity": r.severity,
+                        }
+                    )
 
             return ToolResult(
                 success=True,
@@ -1209,6 +1298,7 @@ class JWTTesterTool(BaseTool):
 # ═══════════════════════════════════════════════════════════════════════════════
 # AUTO-DISCOVERY
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 def auto_discover_tools() -> List[str]:
     """Auto-discover and import all tool modules in tools/ directory.

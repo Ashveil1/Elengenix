@@ -28,6 +28,7 @@ logger = logging.getLogger("elengenix.xxe_scanner")
 @dataclass
 class XXEResult:
     """Result of a single XXE test."""
+
     url: str
     payload_type: str
     payload: str
@@ -41,6 +42,7 @@ class XXEResult:
 @dataclass
 class XXEScanResult:
     """Full XXE scan results."""
+
     target: str
     results: List[XXEResult] = field(default_factory=list)
     total_tests: int = 0
@@ -69,7 +71,6 @@ XXE_PAYLOADS = [
         "root:",
         "Basic XXE file read",
     ),
-    
     # Basic XXE - read /etc/hostname
     (
         "hostname_read",
@@ -77,7 +78,6 @@ XXE_PAYLOADS = [
         "",
         "Hostname read",
     ),
-    
     # Windows XXE
     (
         "windows_file_read",
@@ -85,7 +85,6 @@ XXE_PAYLOADS = [
         "[fonts]",
         "Windows file read",
     ),
-    
     # Blind XXE via error
     (
         "error_based",
@@ -93,7 +92,6 @@ XXE_PAYLOADS = [
         "No such file",
         "Error-based XXE",
     ),
-    
     # XInclude attack
     (
         "xinclude",
@@ -101,7 +99,6 @@ XXE_PAYLOADS = [
         "root:",
         "XInclude file read",
     ),
-    
     # SSRF via XXE
     (
         "ssrf",
@@ -109,7 +106,6 @@ XXE_PAYLOADS = [
         "ami-id",
         "SSRF via XXE",
     ),
-    
     # Parameter entity
     (
         "parameter_entity",
@@ -133,32 +129,32 @@ XML_CONTENT_TYPES = [
 
 class XXEScanner:
     """XXE vulnerability scanner.
-    
+
     Tests input endpoints for XML External Entity injection by
     sending payloads that attempt to read local files or trigger
     outbound requests.
-    
+
     Example:
         scanner = XXEScanner()
         result = scanner.scan("https://example.com/api/xml")
         if result.is_vulnerable:
             print("XXE vulnerability found!")
     """
-    
+
     def __init__(
         self,
         timeout: float = 10.0,
         verify_ssl: bool = False,
     ):
         """Initialize the XXE scanner.
-        
+
         Args:
             timeout: Request timeout in seconds.
             verify_ssl: Whether to verify SSL certificates.
         """
         self.timeout = timeout
         self.verify_ssl = verify_ssl
-    
+
     def scan(
         self,
         target_url: str,
@@ -166,31 +162,31 @@ class XXEScanner:
         headers: Optional[Dict[str, str]] = None,
     ) -> XXEScanResult:
         """Scan a URL for XXE vulnerabilities.
-        
+
         Args:
             target_url: The URL to test.
             method: HTTP method to use.
             headers: Additional headers to send.
-            
+
         Returns:
             XXEScanResult with all test results.
         """
         import requests
-        
+
         start_time = time.time()
         result = XXEScanResult(target=target_url)
-        
+
         default_headers = {
             "Content-Type": "application/xml",
             "User-Agent": "Elengenix-XXE-Scanner/1.0",
         }
         if headers:
             default_headers.update(headers)
-        
+
         # Test each payload
         for payload_type, payload, expected, description in XXE_PAYLOADS:
             result.total_tests += 1
-            
+
             try:
                 response = requests.request(
                     method=method,
@@ -200,9 +196,9 @@ class XXEScanner:
                     timeout=self.timeout,
                     verify=self.verify_ssl,
                 )
-                
+
                 response_text = response.text[:10000]
-                
+
                 # Check for evidence
                 if expected and expected in response_text:
                     # Extract the file content if possible
@@ -212,7 +208,7 @@ class XXEScanner:
                         match = re.search(r"root:.*?(\n|$)", response_text)
                         if match:
                             file_content = match.group(0)
-                    
+
                     xxe_result = XXEResult(
                         url=target_url,
                         payload_type=payload_type,
@@ -225,7 +221,7 @@ class XXEScanner:
                     )
                     result.results.append(xxe_result)
                     logger.info(f"XXE found: {description}")
-                
+
                 # Check for error messages that indicate XXE processing
                 error_patterns = [
                     r"xml parsing error",
@@ -237,37 +233,37 @@ class XXEScanner:
                     if re.search(pattern, response_text, re.IGNORECASE):
                         logger.debug(f"XXE error pattern detected: {pattern}")
                         break
-            
+
             except requests.exceptions.Timeout:
                 logger.debug(f"Timeout for {payload_type}")
             except Exception as e:
                 logger.debug(f"Error testing {payload_type}: {e}")
-        
+
         result.duration = time.time() - start_time
         return result
-    
+
     def scan_json_endpoint(
         self,
         target_url: str,
         json_data: Dict[str, Any],
     ) -> XXEScanResult:
         """Test if a JSON endpoint accepts XML input.
-        
+
         Some endpoints accept both JSON and XML. This method tests
         if switching to XML input enables XXE.
-        
+
         Args:
             target_url: The URL to test.
             json_data: Sample JSON data to convert to XML.
-            
+
         Returns:
             XXEScanResult with all test results.
         """
         import requests
-        
+
         start_time = time.time()
         result = XXEScanResult(target=target_url)
-        
+
         # Convert JSON to simple XML
         def json_to_xml(data: Any, root_tag: str = "root") -> str:
             xml = f'<?xml version="1.0" encoding="UTF-8"?><{root_tag}>'
@@ -284,18 +280,18 @@ class XXEScanner:
                 xml += str(data)
             xml += f"</{root_tag}>"
             return xml
-        
+
         # Test with content-type override
         content_types = [
             "application/xml",
             "text/xml",
             "application/soap+xml",
         ]
-        
+
         for content_type in content_types:
             for payload_type, payload, expected, description in XXE_PAYLOADS[:3]:  # Test first 3
                 result.total_tests += 1
-                
+
                 try:
                     response = requests.post(
                         target_url,
@@ -307,9 +303,9 @@ class XXEScanner:
                         timeout=self.timeout,
                         verify=self.verify_ssl,
                     )
-                    
+
                     response_text = response.text[:10000]
-                    
+
                     if expected and expected in response_text:
                         xxe_result = XXEResult(
                             url=target_url,
@@ -323,9 +319,9 @@ class XXEScanner:
                         result.results.append(xxe_result)
                         logger.info(f"XXE found via {content_type}")
                         break
-                
+
                 except Exception as e:
                     logger.debug(f"Error: {e}")
-        
+
         result.duration = time.time() - start_time
         return result

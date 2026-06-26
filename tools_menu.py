@@ -6,16 +6,16 @@ tools_menu.py — Elengenix Production-Hardened Arsenal Menu
 - Timeout and Signal Awareness
 """
 
-import sys
-import subprocess
 import logging
 import re
+import subprocess
+import sys
 from pathlib import Path
-from typing import List, Dict
-
+from typing import Dict, List
 
 # Import shared UI utilities (used by _run_tool and show_tools_menu)
-from ui_components import print_error, console as ui_console
+from ui_components import console as ui_console
+from ui_components import print_error
 
 # ── Setup ───────────────────────────────────────────────────
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
@@ -25,36 +25,89 @@ console = ui_console
 # ── Security Configuration ───────────────────────────────────
 FORBIDDEN_CHARS = set(";|&`$()><\\'\" \t\n\r")
 
+
 def _validate_target(target: str) -> bool:
     """Rigorous domain/IP validation to prevent injection."""
-    if not target or not target.strip(): return False
+    if not target or not target.strip():
+        return False
     target = target.strip()
-    
+
     if any(c in target for c in FORBIDDEN_CHARS) or ".." in target:
         return False
-    
-    if len(target) > 253: return False
-    
+
+    if len(target) > 253:
+        return False
+
     domain_pattern = r"^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$"
     ip_pattern = r"^\d{1,3}(\.\d{1,3}){3}$"
-    
+
     return bool(re.match(domain_pattern, target) or re.match(ip_pattern, target))
+
 
 # ── Tool Registry ─────────────────────────────────────────────
 TOOLS: List[Dict[str, str]] = [
-    {"name": "OMNI-SCAN (Full Chaos)", "file": "omni_scan.py", "desc": "End-to-end hunting: Dorking -> Recon -> API -> Nuclei"},
-    {"name": "Recon & Discovery", "file": "base_recon.py", "desc": "Subdomain enumeration + HTTP probes (Subfinder/httpx)"},
-    {"name": "Vulnerability Scanner", "file": "base_scanner.py", "desc": "Targeted Nuclei scan with custom templates"},
-    {"name": "API Hunter", "file": "api_finder.py", "desc": "Discover Swagger, OpenAPI, and hidden API routes"},
-    {"name": "SAST Static Scan", "file": "sast_engine.py", "desc": "Deep code analysis for Python, JS, Go, and Java"},
-    {"name": "Cloud/IaC Reviewer", "file": "cloud_scanner.py", "desc": "Scan Terraform, Kubernetes, and AWS configs"},
-    {"name": "Mobile API Fuzzer", "file": "mobile_api_tester.py", "desc": "Analyze and fuzz mobile application endpoints"},
-    {"name": "SOC Log Analyzer", "file": "soc_analyzer.py", "desc": "Intelligence analysis for security logs and SIEM exports"},
-    {"name": "JS Secrets Analyzer", "file": "js_analyzer.py", "desc": "Extract tokens and paths from JS files"},
-    {"name": "Hidden Param Miner", "file": "param_miner.py", "desc": "Fuzz URL parameters for hidden vulnerabilities"},
-    {"name": "Smart Google Dorking", "file": "dork_miner.py", "desc": "Search for exposed files and logs via Google"},
-    {"name": "AI Web Research", "file": "research_tool.py", "desc": "Autonomous technical research on specific vectors"},
+    {
+        "name": "OMNI-SCAN (Full Chaos)",
+        "file": "omni_scan.py",
+        "desc": "End-to-end hunting: Dorking -> Recon -> API -> Nuclei",
+    },
+    {
+        "name": "Recon & Discovery",
+        "file": "base_recon.py",
+        "desc": "Subdomain enumeration + HTTP probes (Subfinder/httpx)",
+    },
+    {
+        "name": "Vulnerability Scanner",
+        "file": "base_scanner.py",
+        "desc": "Targeted Nuclei scan with custom templates",
+    },
+    {
+        "name": "API Hunter",
+        "file": "api_finder.py",
+        "desc": "Discover Swagger, OpenAPI, and hidden API routes",
+    },
+    {
+        "name": "SAST Static Scan",
+        "file": "sast_engine.py",
+        "desc": "Deep code analysis for Python, JS, Go, and Java",
+    },
+    {
+        "name": "Cloud/IaC Reviewer",
+        "file": "cloud_scanner.py",
+        "desc": "Scan Terraform, Kubernetes, and AWS configs",
+    },
+    {
+        "name": "Mobile API Fuzzer",
+        "file": "mobile_api_tester.py",
+        "desc": "Analyze and fuzz mobile application endpoints",
+    },
+    {
+        "name": "SOC Log Analyzer",
+        "file": "soc_analyzer.py",
+        "desc": "Intelligence analysis for security logs and SIEM exports",
+    },
+    {
+        "name": "JS Secrets Analyzer",
+        "file": "js_analyzer.py",
+        "desc": "Extract tokens and paths from JS files",
+    },
+    {
+        "name": "Hidden Param Miner",
+        "file": "param_miner.py",
+        "desc": "Fuzz URL parameters for hidden vulnerabilities",
+    },
+    {
+        "name": "Smart Google Dorking",
+        "file": "dork_miner.py",
+        "desc": "Search for exposed files and logs via Google",
+    },
+    {
+        "name": "AI Web Research",
+        "file": "research_tool.py",
+        "desc": "Autonomous technical research on specific vectors",
+    },
 ]
+
 
 def _run_tool(tool_file: str, target: str) -> int:
     """Executes a tool securely with isolation and timeout."""
@@ -68,8 +121,9 @@ def _run_tool(tool_file: str, target: str) -> int:
 
     try:
         from ui_components import console
+
         console.print(f"[dim]Running with 10min timeout. Press Ctrl+C to cancel.[/dim]\n")
-        
+
         # Use current sys.executable to maintain virtual environment
         result = subprocess.run(
             [sys.executable, str(script_path), target],
@@ -80,7 +134,7 @@ def _run_tool(tool_file: str, target: str) -> int:
             stderr=sys.stderr,
         )
         return result.returncode
-        
+
     except subprocess.TimeoutExpired:
         print_error("Process timed out after 10 minutes")
         return 124
@@ -91,10 +145,17 @@ def _run_tool(tool_file: str, target: str) -> int:
         logger.error(f"Execution Error ({tool_file}): {e}")
         return 1
 
+
 def show_tools_menu():
     """Main Interactive Arsenal Loop."""
-    from ui_components import show_arsenal_banner, create_tools_table, prompt_target, print_error, console
-    
+    from ui_components import (
+        console,
+        create_tools_table,
+        print_error,
+        prompt_target,
+        show_arsenal_banner,
+    )
+
     while True:
         console.clear()
         show_arsenal_banner()
@@ -105,7 +166,8 @@ def show_tools_menu():
 
         try:
             choice = input("Select Vector [0-{}]: ".format(len(TOOLS))).strip()
-            if choice == "0": return
+            if choice == "0":
+                return
             if not choice.isdigit() or not (1 <= int(choice) <= len(TOOLS)):
                 console.print("[red] Invalid selection.[/red]\n")
                 continue
@@ -113,7 +175,7 @@ def show_tools_menu():
             selected = TOOLS[int(choice) - 1]
             console.print(f"\n[bold red]{selected['name']}[/bold red]")
             target = prompt_target()
-            
+
             if not _validate_target(target):
                 print_error("Security Violation: Target format not allowed")
                 console.input("\n[dim]Press Enter to continue...[/dim]")
@@ -121,13 +183,15 @@ def show_tools_menu():
 
             console.print(f"\n[red]Deploying {selected['name']} on {target}...[/red]\n")
             _run_tool(selected["file"], target)
-            
+
             from ui_components import confirm
+
             if not confirm("\nRun another mission?", default=True):
                 break
 
         except (KeyboardInterrupt, EOFError):
             break
+
 
 if __name__ == "__main__":
     show_tools_menu()

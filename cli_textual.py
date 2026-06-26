@@ -4,29 +4,28 @@ Monochrome theme — Black & White minimalist hacker aesthetic.
 
 from __future__ import annotations
 
+import logging
 import math
 import os
 import random
 import sys
 import time
-import logging
 import warnings
 from pathlib import Path
 
 warnings.filterwarnings("ignore", category=FutureWarning)
 
-from textual.app import App, ComposeResult
-from textual.theme import Theme
-from textual.geometry import Spacing
-from textual.containers import Container, Horizontal, Vertical
-from textual.widgets import Static, RichLog, Input
-from textual.widget import Widget
-from textual import work
-from textual.binding import Binding
-
-from rich.text import Text
-from rich.panel import Panel
 from rich.markdown import Markdown
+from rich.panel import Panel
+from rich.text import Text
+from textual import work
+from textual.app import App, ComposeResult
+from textual.binding import Binding
+from textual.containers import Container, Horizontal, Vertical
+from textual.geometry import Spacing
+from textual.theme import Theme
+from textual.widget import Widget
+from textual.widgets import Input, RichLog, Static
 
 from agent import get_agent
 from agents.tui_game import ObbyGame
@@ -37,40 +36,56 @@ logging.basicConfig(level=logging.WARNING, format="%(asctime)s - %(levelname)s -
 logger = logging.getLogger("elengenix.cli_textual")
 
 # ── DUAL THEME: CHILL (white) ──────────────────────────────────────────
-BASE    = "#000000"
-MANTLE  = "#111111"
-CRUST   = "#0d0d0d"
+BASE = "#000000"
+MANTLE = "#111111"
+CRUST = "#0d0d0d"
 SURFACE = "#1a1a1a"
-TEXT    = "#ffffff"
-WHITE   = "#ffffff"
-MUTED   = "#555555"
-DIM     = "#444444"
-GRAY    = "#888888"
+TEXT = "#ffffff"
+WHITE = "#ffffff"
+MUTED = "#555555"
+DIM = "#444444"
+GRAY = "#888888"
 
 # ── DUAL THEME: HUNT (red accent only — same background as CHILL) ────
-H_BASE    = BASE
-H_MANTLE  = MANTLE
-H_CRUST   = CRUST
+H_BASE = BASE
+H_MANTLE = MANTLE
+H_CRUST = CRUST
 H_SURFACE = SURFACE
-H_TEXT    = TEXT
-H_MUTED   = MUTED
-H_DIM     = DIM
-H_GRAY    = GRAY
-H_RED     = "#ff2222"
-H_BRIGHT  = "#ff5555"
+H_TEXT = TEXT
+H_MUTED = MUTED
+H_DIM = DIM
+H_GRAY = GRAY
+H_RED = "#ff2222"
+H_BRIGHT = "#ff5555"
 
-AGENT_NAMES  = {1: "Elengix 1", 2: "Elengix 2", 3: "Elengix 3"}
+AGENT_NAMES = {1: "Elengix 1", 2: "Elengix 2", 3: "Elengix 3"}
 AGENT_COLORS = {1: WHITE, 2: GRAY, 3: MUTED}
 
 CHILL_COLORS = {
-    "BASE": BASE, "MANTLE": MANTLE, "CRUST": CRUST, "SURFACE": SURFACE,
-    "TEXT": TEXT, "MUTED": MUTED, "DIM": DIM, "GRAY": GRAY,
-    "WHITE": TEXT, "BORDER": DIM, "ACCENT": TEXT,
+    "BASE": BASE,
+    "MANTLE": MANTLE,
+    "CRUST": CRUST,
+    "SURFACE": SURFACE,
+    "TEXT": TEXT,
+    "MUTED": MUTED,
+    "DIM": DIM,
+    "GRAY": GRAY,
+    "WHITE": TEXT,
+    "BORDER": DIM,
+    "ACCENT": TEXT,
 }
 HUNT_COLORS = {
-    "BASE": H_BASE, "MANTLE": H_MANTLE, "CRUST": H_CRUST, "SURFACE": H_SURFACE,
-    "TEXT": H_TEXT, "MUTED": H_MUTED, "DIM": H_DIM, "GRAY": H_GRAY,
-    "WHITE": H_RED, "BORDER": H_DIM, "ACCENT": H_BRIGHT,
+    "BASE": H_BASE,
+    "MANTLE": H_MANTLE,
+    "CRUST": H_CRUST,
+    "SURFACE": H_SURFACE,
+    "TEXT": H_TEXT,
+    "MUTED": H_MUTED,
+    "DIM": H_DIM,
+    "GRAY": H_GRAY,
+    "WHITE": H_RED,
+    "BORDER": H_DIM,
+    "ACCENT": H_BRIGHT,
 }
 
 ASCII_BANNER = """\
@@ -128,19 +143,19 @@ class Sidebar(Container):
     def refresh_data(self, **kw) -> None:
         self._data.update(kw)
         d = self._data
-        status   = d.get("status", "ready")
-        mode     = d.get("mode", "auto")
-        models   = d.get("models", [])
-        session  = d.get("session", "new")
-        turns    = d.get("turns", 0)
-        tokens   = d.get("tokens", 0)
-        limit    = d.get("limit", 128000)
+        status = d.get("status", "ready")
+        mode = d.get("mode", "auto")
+        models = d.get("models", [])
+        session = d.get("session", "new")
+        turns = d.get("turns", 0)
+        tokens = d.get("tokens", 0)
+        limit = d.get("limit", 128000)
         thinking = d.get("thinking", False)
-        target   = d.get("target", "")
-        team     = d.get("team", 0)
+        target = d.get("target", "")
+        team = d.get("team", 0)
         findings = d.get("findings", 0)
         tools_run = d.get("tools_run", 0)
-        talk_to  = d.get("talk_to", "all")
+        talk_to = d.get("talk_to", "all")
         game_active = d.get("game_active", False)
         game_frame = d.get("game_frame", "")
 
@@ -170,10 +185,10 @@ class Sidebar(Container):
                 name = AGENT_NAMES.get(talk_to, f"#{talk_to}")
                 talk_tag = f"\n  [dim]▶ {name}[/]"
 
-            pct   = min(100, int((tokens / limit) * 100)) if limit > 0 else 0
+            pct = min(100, int((tokens / limit) * 100)) if limit > 0 else 0
             bar_w = 24
             filled = int((pct / 100) * bar_w)
-            bar  = f"[white]{'█' * filled}[/][dim]{'█' * (bar_w - filled)}[/]"
+            bar = f"[white]{'█' * filled}[/][dim]{'█' * (bar_w - filled)}[/]"
 
             target_line = f"\n  [white]{target[:28]}[/]" if target else f"\n  [dim]none[/]"
 
@@ -200,8 +215,7 @@ class Sidebar(Container):
                 f"[white]SCAN[/]\n"
                 f"  [dim]Tools:[/] {tools_run}  [dim]Findings:[/] {findings}\n"
                 f"[dim]─" + "─" * 28 + "[/]\n"
-                f"[white]MODELS[/]\n"
-                + "\n".join(model_lines) + "\n"
+                f"[white]MODELS[/]\n" + "\n".join(model_lines) + "\n"
                 f"[dim]─" + "─" * 28 + "[/]\n"
                 f"[white]CONTEXT[/]\n"
                 f"  {bar}\n"
@@ -221,6 +235,7 @@ class Sidebar(Container):
 # ── Thinking Animation ─────────────────────────────────────────────────
 class ThinkingWidget(Static):
     """Animated thinking indicator — driven by 30fps master tick (no own timer)."""
+
     DEFAULT_CSS = f"""ThinkingWidget {{ height: 1; padding: 0 1 0 5; color: {WHITE}; display: none; }}
     ThinkingWidget.visible {{ display: block; }}"""
 
@@ -239,33 +254,46 @@ class ThinkingWidget(Static):
 # ── Animation Overlay Widgets ──────────────────────────────────────────
 class Scanline(Static):
     """Horizontal wipe bar — positioned via margin top."""
+
     DEFAULT_CSS = """
     Scanline { layer: overlay; width: 100%; height: 1; display: none; }
     """
 
+
 class GlitchFlash(Static):
     """Full-screen flash overlay."""
+
     DEFAULT_CSS = """
     GlitchFlash { layer: overlay; width: 100%; height: 100%; display: none; }
     """
 
+
 GLITCH_CHARS = "!@#$%^&*<>?╳░▒▓│┤╡╢╖╕╣║╗╝╜╛┐└┴┬├─┼╞╟╚╔╩╦╠═╬╧╨╤╥╙╘╒╓╫╪┘┌"
+
 
 def _lerp(a: float, b: float, t: float) -> float:
     return a + (b - a) * max(0.0, min(1.0, t))
 
+
 def _lerp_color(c1: str, c2: str, t: float) -> str:
     t = max(0.0, min(1.0, t))
-    r1, g1, b1 = int(c1[1:3],16), int(c1[3:5],16), int(c1[5:7],16)
-    r2, g2, b2 = int(c2[1:3],16), int(c2[3:5],16), int(c2[5:7],16)
+    r1, g1, b1 = int(c1[1:3], 16), int(c1[3:5], 16), int(c1[5:7], 16)
+    r2, g2, b2 = int(c2[1:3], 16), int(c2[3:5], 16), int(c2[5:7], 16)
     return f"#{int(_lerp(r1,r2,t)):02x}{int(_lerp(g1,g2,t)):02x}{int(_lerp(b2,b1,t)):02x}"
+
 
 # ── Status & Progress Bars ─────────────────────────────────────────────
 class StatusBar(Static):
-    DEFAULT_CSS = f"""StatusBar {{ height: 1; padding: 0 1; background: {CRUST}; color: {MUTED}; }}"""
+    DEFAULT_CSS = (
+        f"""StatusBar {{ height: 1; padding: 0 1; background: {CRUST}; color: {MUTED}; }}"""
+    )
 
     def show_action(self, cmd: str, risk: str = "SAFE") -> None:
-        tag = {"SAFE": "", "PRIVILEGED": "[dim]▶ PRIV[/]", "DESTRUCTIVE": "[white]▶ BLOCKED[/]"}.get(risk, "")
+        tag = {
+            "SAFE": "",
+            "PRIVILEGED": "[dim]▶ PRIV[/]",
+            "DESTRUCTIVE": "[white]▶ BLOCKED[/]",
+        }.get(risk, "")
         self.update(f"{tag}  [dim]{cmd[:75]}[/]" if tag else f"[dim]{cmd[:80]}[/]")
 
     def show_message(self, msg: str) -> None:
@@ -273,14 +301,19 @@ class StatusBar(Static):
 
 
 class ProgressBar(Static):
-    DEFAULT_CSS = f"""ProgressBar {{ height: 1; padding: 0 1; background: {MANTLE}; display: none; }}"""
+    DEFAULT_CSS = (
+        f"""ProgressBar {{ height: 1; padding: 0 1; background: {MANTLE}; display: none; }}"""
+    )
 
     def show_scan(self, tool: str, cur: int, total: int, findings: int) -> None:
         self.update("")  # animated by smooth progress in _animate_frame
         self.show()
 
-    def show(self) -> None: self.add_class("visible")
-    def hide(self) -> None: self.remove_class("visible")
+    def show(self) -> None:
+        self.add_class("visible")
+
+    def hide(self) -> None:
+        self.remove_class("visible")
 
 
 # ── Settings Overlay ────────────────────────────────────────────────────
@@ -289,6 +322,7 @@ CUSTOM_URL_INPUT_CSS = """
 #custom_url_row.visible { display: block; }
 #custom_url_input { height: 3; border: none; background: #111111; color: #ffffff; padding: 0 1; }
 """
+
 
 class SettingsOverlayWidget(Widget, can_focus=True):
     DEFAULT_CSS = f"""
@@ -316,10 +350,12 @@ class SettingsOverlayWidget(Widget, can_focus=True):
     def _reload(self) -> None:
         try:
             from tools.overlay_menu import SettingsOverlay
+
             # Wait for agent to be ready (max 3 seconds)
             agent = getattr(self.app, "_agent", None)
             if agent is None:
                 import time as _time
+
                 deadline = _time.monotonic() + 3.0
                 while _time.monotonic() < deadline:
                     agent = getattr(self.app, "_agent", None)
@@ -338,10 +374,13 @@ class SettingsOverlayWidget(Widget, can_focus=True):
             w.update(Panel("[dim]Unavailable. Esc to close.[/]", border_style=DIM))
 
     def show(self) -> None:
-        self._reload(); self._redraw(); self.add_class("visible")
+        self._reload()
+        self._redraw()
+        self.add_class("visible")
         try:
             self.app.query_one("#user_input", Input).disabled = True
-        except Exception: pass
+        except Exception:
+            pass
         self.app.set_timer(0.0, lambda: self.focus())
 
     def hide(self) -> None:
@@ -349,26 +388,41 @@ class SettingsOverlayWidget(Widget, can_focus=True):
         self.query_one("#custom_url_row").remove_class("visible")
         try:
             inp = self.app.query_one("#user_input", Input)
-            inp.disabled = False; inp.focus()
-        except Exception: pass
+            inp.disabled = False
+            inp.focus()
+        except Exception:
+            pass
 
     def on_key(self, event) -> None:
-        if not self.has_class("visible"): return
+        if not self.has_class("visible"):
+            return
         if self.query_one("#custom_url_row").has_class("visible"):
-            if event.key == "escape": self.hide()
+            if event.key == "escape":
+                self.hide()
             return
         key = event.key
-        cmap = {"escape": "\x1b", "enter": "\r", "up": "\x1b[A", "down": "\x1b[B", "left": "\x1b[D", "right": "\x1b[C"}
+        cmap = {
+            "escape": "\x1b",
+            "enter": "\r",
+            "up": "\x1b[A",
+            "down": "\x1b[B",
+            "left": "\x1b[D",
+            "right": "\x1b[C",
+        }
         char = cmap.get(key, event.character or "")
-        if not char: return
+        if not char:
+            return
         event.stop()
         r = self._overlay.handle_char(char) if self._overlay else "exit"
-        if r == "exit": self.hide()
-        elif r == "show_custom_url": self._show_custom_url()
+        if r == "exit":
+            self.hide()
+        elif r == "show_custom_url":
+            self._show_custom_url()
         elif r and r.startswith("load_session:"):
             sid = r.split(":", 1)[1]
             self.hide()
-            if hasattr(self.app, "_load_session_by_id"): self.app._load_session_by_id(sid)
+            if hasattr(self.app, "_load_session_by_id"):
+                self.app._load_session_by_id(sid)
         elif r and r.startswith("saved"):
             self.app._chat_write_system("[dim]Settings saved. Reloading agent...[/]")
             # Extract active models if provided
@@ -380,7 +434,8 @@ class SettingsOverlayWidget(Widget, can_focus=True):
             self.app._load_agent()
             self.hide()
         elif r == "error":
-            self.app._chat_write_system("[dim]Settings failed.[/]"); self.hide()
+            self.app._chat_write_system("[dim]Settings failed.[/]")
+            self.hide()
         else:
             self.query_one("#custom_url_row").remove_class("visible")
             self._redraw()
@@ -390,15 +445,18 @@ class SettingsOverlayWidget(Widget, can_focus=True):
         row = self.query_one("#custom_url_row")
         row.add_class("visible")
         inp = self.query_one("#custom_url_input", Input)
-        inp.value = ""; inp.focus()
+        inp.value = ""
+        inp.focus()
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
-        if event.input.id != "custom_url_input": return
+        if event.input.id != "custom_url_input":
+            return
         val = event.value.strip()
         if not val or not self._overlay:
             self.query_one("#custom_url_row").remove_class("visible")
             self._redraw()
-            self.app.set_timer(0.0, lambda: self.focus()); return
+            self.app.set_timer(0.0, lambda: self.focus())
+            return
         step = getattr(self._overlay, "_custom_step", "")
         inp = self.query_one("#custom_url_input", Input)
         if step == "apikey":
@@ -408,8 +466,12 @@ class SettingsOverlayWidget(Widget, can_focus=True):
             self.app.set_timer(0.0, lambda: self.focus())
         elif step == "model":
             url = getattr(self._overlay, "_custom_url", "")
-            if url: os.environ["CUSTOM_API_BASE"] = url
-            self._overlay._agent_config[self._overlay._agent_idx] = {"provider": "custom", "model": val}
+            if url:
+                os.environ["CUSTOM_API_BASE"] = url
+            self._overlay._agent_config[self._overlay._agent_idx] = {
+                "provider": "custom",
+                "model": val,
+            }
             self._overlay._save_and_apply()
             self._overlay._custom_step = ""
             self.query_one("#custom_url_row").remove_class("visible")
@@ -511,21 +573,21 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
 
     def __init__(self, target: str = "", mode: str = "CHILL", session_id: str = "", **kwargs):
         super().__init__(**kwargs)
-        self.target        = target
-        self.mode          = mode
-        self.thinking      = False
-        self._load_sid     = session_id
-        self.session_name  = session_id or ""
-        self.turn_count    = 0
-        self.tools_run     = 0
-        self.findings      = 0
+        self.target = target
+        self.mode = mode
+        self.thinking = False
+        self._load_sid = session_id
+        self.session_name = session_id or ""
+        self.turn_count = 0
+        self.tools_run = 0
+        self.findings = 0
         self.history: list[str] = []
-        self.history_idx   = -1
-        self._processing   = False
-        self._agent        = None
-        self._talk_to      = "all"
-        self._team_active  = False
-        self._session_mgr  = None
+        self.history_idx = -1
+        self._processing = False
+        self._agent = None
+        self._talk_to = "all"
+        self._team_active = False
+        self._session_mgr = None
         self._pending_session = None
         self._cached_chat: RichLog | None = None
         self._cached_sidebar: Sidebar | None = None
@@ -566,7 +628,14 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
         with Horizontal(id="main_row"):
             with Vertical(id="chat_col"):
                 yield Static("", id="banner", markup=True)
-                yield RichLog(id="chat_area", highlight=True, markup=True, wrap=True, auto_scroll=True, max_lines=2000)
+                yield RichLog(
+                    id="chat_area",
+                    highlight=True,
+                    markup=True,
+                    wrap=True,
+                    auto_scroll=True,
+                    max_lines=2000,
+                )
                 yield ThinkingWidget(id="thinking_bar")
                 yield ProgressBar(id="progress_bar")
                 yield StatusBar(id="status_bar")
@@ -584,6 +653,7 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
         self.query_one("#banner", Static).update("")
         try:
             from tools.session_manager import SessionManager
+
             self._session_mgr = SessionManager()
             if self._load_sid:
                 self._pending_session = self._session_mgr.resume_session(self._load_sid)
@@ -595,23 +665,46 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
                 else:
                     self._chat_write_system(f"Session not found: {self._load_sid}")
                     self._load_sid = ""
-        except Exception: pass
+        except Exception:
+            pass
         self._update_sidebar()
         self.set_focus(self.query_one("#user_input", Input))
         self._load_agent()
         self._run_boot_sequence()
 
         # Register custom themes and apply CHILL
-        self.register_theme(Theme(
-            name="chill", primary=WHITE, secondary=GRAY, accent=WHITE,
-            background=BASE, surface=MANTLE, panel=CRUST, foreground=TEXT,
-            error=WHITE, success=WHITE, warning=WHITE, dark=True,
-        ))
-        self.register_theme(Theme(
-            name="hunt", primary=H_RED, secondary=H_RED, accent=H_BRIGHT,
-            background=BASE, surface=MANTLE, panel=CRUST, foreground=H_RED,
-            error=H_RED, success=H_RED, warning=H_BRIGHT, dark=True,
-        ))
+        self.register_theme(
+            Theme(
+                name="chill",
+                primary=WHITE,
+                secondary=GRAY,
+                accent=WHITE,
+                background=BASE,
+                surface=MANTLE,
+                panel=CRUST,
+                foreground=TEXT,
+                error=WHITE,
+                success=WHITE,
+                warning=WHITE,
+                dark=True,
+            )
+        )
+        self.register_theme(
+            Theme(
+                name="hunt",
+                primary=H_RED,
+                secondary=H_RED,
+                accent=H_BRIGHT,
+                background=BASE,
+                surface=MANTLE,
+                panel=CRUST,
+                foreground=H_RED,
+                error=H_RED,
+                success=H_RED,
+                warning=H_BRIGHT,
+                dark=True,
+            )
+        )
         self.theme = "chill"
 
         # ── 30fps animation timers ──────────────────────────────────────
@@ -629,6 +722,7 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
                 _ = self._agent.governance
                 if hasattr(self, "_pending_session") and self._pending_session:
                     from tools.session_manager import SessionManager
+
                     SessionManager().resume_session(self._load_sid, agent=self._agent)
                     self._pending_session = None
                     self.call_from_thread(self._replay_history)
@@ -640,13 +734,18 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
             logging.getLogger().setLevel(logging.INFO)
 
     def _ensure_session(self) -> str:
-        if self.session_name: return self.session_name
+        if self.session_name:
+            return self.session_name
         from tools.session_manager import generate_session_id
+
         self.session_name = generate_session_id()
         try:
             if self._session_mgr:
-                self._session_mgr.start_session(name=self.session_name, target=self.target, mode=self.mode)
-        except Exception: pass
+                self._session_mgr.start_session(
+                    name=self.session_name, target=self.target, mode=self.mode
+                )
+        except Exception:
+            pass
         self._update_sidebar()
         return self.session_name
 
@@ -694,13 +793,17 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
 
         # Smooth progress bar tick
         if hasattr(self, "_progress_total") and self._progress_total > 0:
-            self._smooth_progress += (self._progress_cur / max(self._progress_total, 1) - self._smooth_progress) * 0.3
+            self._smooth_progress += (
+                self._progress_cur / max(self._progress_total, 1) - self._smooth_progress
+            ) * 0.3
             try:
                 pb = self.query_one("#progress_bar", ProgressBar)
                 w = 30
                 filled = int(self._smooth_progress * w)
                 bar = f"[white]{'█' * filled}[/][dim]{'█' * (w - filled)}[/]"
-                pb.update(f"  {bar}  {self._progress_tool}  [dim]({self._progress_cur}/{self._progress_total})[/]  {self._progress_findings} findings")
+                pb.update(
+                    f"  {bar}  {self._progress_tool}  [dim]({self._progress_cur}/{self._progress_total})[/]  {self._progress_findings} findings"
+                )
             except Exception:
                 pass
 
@@ -726,7 +829,12 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
 
         # Token counter (bigger jumps)
         if self._displayed_tokens < self._target_tokens:
-            self._displayed_tokens = min(self._displayed_tokens + int((self._target_tokens - self._displayed_tokens) * 0.2) + 1, self._target_tokens)
+            self._displayed_tokens = min(
+                self._displayed_tokens
+                + int((self._target_tokens - self._displayed_tokens) * 0.2)
+                + 1,
+                self._target_tokens,
+            )
             changed = True
 
         if changed:
@@ -812,14 +920,14 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
         try:
             self.query_one("#scanline", Scanline).styles.display = "none"
             self.query_one("#glitch", GlitchFlash).styles.display = "none"
-        except Exception: pass
+        except Exception:
+            pass
         self._trans = False
         self._trans_frame = 0
         self.mode = self._trans_next
         self.theme = "hunt" if self._trans_next == "HUNT" else "chill"
         self._update_banner()
         self._update_sidebar()
-
 
     def _chat(self) -> RichLog:
         if self._cached_chat is None:
@@ -844,12 +952,12 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
         lines = ASCII_BANNER.strip().split("\n")
         current_lines = []
         bell_enabled = "--no-bell" not in sys.argv and os.environ.get("ELENGENIX_BELL") != "0"
-        
+
         for line in lines:
             current_lines.append(line.format(color=color))
             self.call_from_thread(self._update_banner_text, "\n".join(current_lines))
             time.sleep(0.12)
-            
+
         sys_logs = [
             "[INFO] Loading security knowledge base...",
             "[INFO] Registering 62 vulnerability detection skills...",
@@ -882,10 +990,9 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
 
     def _chat_write_user(self, text: str) -> None:
         ts = time.strftime("%H:%M")
-        self._chat().write(Text.from_markup(
-            f"\n[white]┃[/] [dim]{ts}[/] [white]you[/]\n"
-            f"  [white]{text}[/]"
-        ))
+        self._chat().write(
+            Text.from_markup(f"\n[white]┃[/] [dim]{ts}[/] [white]you[/]\n" f"  [white]{text}[/]")
+        )
 
     def _chat_write_agent(self, text: str) -> None:
         ts = time.strftime("%H:%M")
@@ -899,10 +1006,11 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
         name = AGENT_NAMES.get(aid, f"#{aid}")
         tag = f" [dim]{t}[/]" if t else ""
         ts = time.strftime("%H:%M")
-        self._chat().write(Text.from_markup(
-            f"\n[white]┃[/] [dim]{ts}[/] [white]{name}[/]{tag}\n"
-            f"  [white]{text[:500]}[/]"
-        ))
+        self._chat().write(
+            Text.from_markup(
+                f"\n[white]┃[/] [dim]{ts}[/] [white]{name}[/]{tag}\n" f"  [white]{text[:500]}[/]"
+            )
+        )
 
     def _chat_write_system(self, markup: str) -> None:
         self._chat().write(Text.from_markup(f"[dim]{markup}[/]"))
@@ -919,17 +1027,28 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
 
     def _update_sidebar(self, force: bool = False) -> None:
         now = time.monotonic()
-        if not force and (now - self._last_sidebar_update < 0.3): return
+        if not force and (now - self._last_sidebar_update < 0.3):
+            return
         self._last_sidebar_update = now
-        tokens = 0; model = "default"; team = 0; models: list[str] = []
+        tokens = 0
+        model = "default"
+        team = 0
+        models: list[str] = []
         try:
             if self._agent:
                 from tools.token_counter import count_tokens
+
                 if hasattr(self._agent, "conversation_history"):
-                    tokens = sum(count_tokens(str(m.get("content", ""))) for m in self._agent.conversation_history)
-        except Exception: pass
+                    tokens = sum(
+                        count_tokens(str(m.get("content", "")))
+                        for m in self._agent.conversation_history
+                    )
+        except Exception:
+            pass
         em = [m.strip() for m in os.environ.get("ACTIVE_MODELS", "").split(",") if m.strip()]
-        if em: models = em[:3]; team = len(models)
+        if em:
+            models = em[:3]
+            team = len(models)
 
         # Update target values for smooth counter animation
         self._target_tools = self.tools_run
@@ -939,34 +1058,51 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
         try:
             self._sidebar().refresh_data(
                 status="thinking" if self._processing else "ready",
-                mode=self.mode, model=model, models=models,
-                session=self.session_name, turns=self.turn_count,
-                tokens=self._displayed_tokens, limit=128000,
-                target=self.target, thinking=self.thinking,
-                team=team, tools_run=self._displayed_tools,
+                mode=self.mode,
+                model=model,
+                models=models,
+                session=self.session_name,
+                turns=self.turn_count,
+                tokens=self._displayed_tokens,
+                limit=128000,
+                target=self.target,
+                thinking=self.thinking,
+                team=team,
+                tools_run=self._displayed_tools,
                 findings=self._displayed_findings,
                 talk_to=self._talk_to,
                 game_active=self._game_active,
                 game_frame=getattr(self, "_current_game_frame", ""),
             )
-        except Exception: pass
+        except Exception:
+            pass
 
     @work(thread=True)
     def _send_to_agent(self, text: str, callback=None) -> None:
-        if self._processing: return
+        if self._processing:
+            return
         self._processing = True
         self.call_from_thread(self._update_sidebar)
         self.call_from_thread(lambda: self.query_one("#thinking_bar", ThinkingWidget).show())
         try:
-            if self._agent is None: raise RuntimeError("Agent not ready.")
+            if self._agent is None:
+                raise RuntimeError("Agent not ready.")
             if hasattr(self._agent, "_execute_tool"):
                 orig = self._agent._execute_tool
+
                 def wrap(ad, cb=None):
                     # CHILL mode blocks all tool/shell execution
-                    if self.mode == "CHILL" and ad.get("action") in ("run_shell", "run_tool", "shell"):
-                        self.call_from_thread(self._chat_write_system, "[dim]tool execution blocked in CHILL mode — Ctrl+M to switch to HUNT[/dim]")
+                    if self.mode == "CHILL" and ad.get("action") in (
+                        "run_shell",
+                        "run_tool",
+                        "shell",
+                    ):
+                        self.call_from_thread(
+                            self._chat_write_system,
+                            "[dim]tool execution blocked in CHILL mode — Ctrl+M to switch to HUNT[/dim]",
+                        )
                         return "__FINISH__"
-                    
+
                     if ad.get("action") == "submit_findings":
                         findings_data = ad.get("findings", [])
                         if not isinstance(findings_data, list):
@@ -979,43 +1115,48 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
 
                     cmd = ad.get("command", "")[:120]
                     risk = "SAFE"
-                    try: risk = self._agent.governance.classify_risk(ad)
-                    except Exception: pass
+                    try:
+                        risk = self._agent.governance.classify_risk(ad)
+                    except Exception:
+                        pass
                     self.call_from_thread(self._chat_write_governance, cmd, risk)
-                    
+
                     if risk == "DESTRUCTIVE":
                         self.call_from_thread(
                             self._chat_write_system,
-                            f"\n[bold #ff2222]🛡️ [GOVERNANCE] Action blocked: '{cmd}' violates safety/integrity rules.[/bold #ff2222]\n"
+                            f"\n[bold #ff2222]🛡️ [GOVERNANCE] Action blocked: '{cmd}' violates safety/integrity rules.[/bold #ff2222]\n",
                         )
-                    
+
                     if self.mode == "HUNT" and risk == "SAFE":
                         self.tools_run += 1
                         self.call_from_thread(self._update_sidebar)
                         self.call_from_thread(self._trigger_border_glow)
-                        
+
                     # Wrapped callback to output tool progress directly to TUI chat as system updates
                     def tui_cb(msg):
                         if msg and not msg.startswith("exec:"):
                             self.call_from_thread(self._chat_write_system, f"[#444444]┊ {msg}[/]")
                         if cb:
                             cb(msg)
-                            
+
                     return orig(ad, tui_cb)
+
                 self._agent._execute_tool = wrap
+
             def agent_callback(msg: str):
-                if not msg: return
+                if not msg:
+                    return
 
                 if msg.startswith("thought:"):
                     thought_content = msg.split(":", 1)[1].strip()
                     self.call_from_thread(
-                        self._chat_write_system,
-                        f"[#333333]┊[/] [#444444]{thought_content}[/]"
+                        self._chat_write_system, f"[#333333]┊[/] [#444444]{thought_content}[/]"
                     )
 
                 elif msg.startswith("exec:"):
                     # Structured command execution block — render inside a beautiful Panel card
                     import json as _json
+
                     try:
                         data = _json.loads(msg[5:])
                         cmd = data.get("cmd", "")
@@ -1023,9 +1164,13 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
                         ok = data.get("success", True)
                         purpose = data.get("purpose", "")
                         thought = data.get("thought", "")
-                        
-                        status = "[bold #ffffff][OK][/bold #ffffff]" if ok else "[bold #ffffff][FAIL][/bold #ffffff]"
-                        
+
+                        status = (
+                            "[bold #ffffff][OK][/bold #ffffff]"
+                            if ok
+                            else "[bold #ffffff][FAIL][/bold #ffffff]"
+                        )
+
                         # Build panel content
                         body_parts = []
                         if thought:
@@ -1034,24 +1179,27 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
                             body_parts.append(f"[dim #999999]Purpose : {purpose}[/dim #999999]")
                         if thought or purpose:
                             body_parts.append("")
-                        
+
                         body_parts.append(f"[bold #ffffff]~$ {cmd}[/bold #ffffff]")
-                        
+
                         # Truncate long output
                         lines = out.splitlines()
                         preview_lines = lines[:15]
                         preview = "\n".join(preview_lines)
                         if len(lines) > 15:
-                            preview += f"\n[dim #737373]... ({len(lines)-15} more lines)[/dim #737373]"
-                        
+                            preview += (
+                                f"\n[dim #737373]... ({len(lines)-15} more lines)[/dim #737373]"
+                            )
+
                         if preview.strip():
                             body_parts.append(f"[#cccccc]{preview}[/#cccccc]")
-                        
+
                         body_parts.append(status)
-                        
+
                         panel_content = Text.from_markup("\n".join(body_parts))
-                        
+
                         from rich.box import ROUNDED
+
                         panel = Panel(
                             panel_content,
                             title="[#888888]shell[/]",
@@ -1078,11 +1226,17 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
 
             if hasattr(self._agent, "process_universal"):
                 agent_mode = "auto" if self.mode == "CHILL" else "bug_bounty"
-                resp = self._agent.process_universal(text, target=self.target or "", mode=agent_mode, callback=agent_callback)
+                resp = self._agent.process_universal(
+                    text, target=self.target or "", mode=agent_mode, callback=agent_callback
+                )
             else:
-                resp = self._agent.process_query(user_input=text, target=self.target or "", callback=agent_callback)
-            if resp: self.call_from_thread(self._chat_write_agent, str(resp))
-            else: self.call_from_thread(self._chat_write_error, "No response.")
+                resp = self._agent.process_query(
+                    user_input=text, target=self.target or "", callback=agent_callback
+                )
+            if resp:
+                self.call_from_thread(self._chat_write_agent, str(resp))
+            else:
+                self.call_from_thread(self._chat_write_error, "No response.")
         except Exception as exc:
             logger.error(f"Agent: {exc}")
             self.call_from_thread(self._chat_write_error, str(exc))
@@ -1094,11 +1248,16 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
     def on_key(self, event) -> None:
         ho = self.query_one("#help_overlay", HelpOverlayWidget)
         if ho.has_class("visible"):
-            event.stop(); ho.on_key(event); return
+            event.stop()
+            ho.on_key(event)
+            return
         ov = self.query_one("#settings_overlay", SettingsOverlayWidget)
         if ov.has_class("visible"):
-            if ov.query_one("#custom_url_row").has_class("visible"): return
-            event.stop(); ov.on_key(event); return
+            if ov.query_one("#custom_url_row").has_class("visible"):
+                return
+            event.stop()
+            ov.on_key(event)
+            return
         key = event.key
         if key not in ("tab", "shift+tab"):
             self._cycling_suggestions = False
@@ -1112,42 +1271,65 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
                         self._original_prefix = text
                         self._suggest_idx = -1
                         self._cycling_suggestions = True
-                    
+
                     parts = self._original_prefix.split()
                     if len(parts) == 1:
                         prefix = parts[0].lower()
                         matches = [c for c in self.SLASH_COMMANDS if c.startswith(prefix)]
                     else:
                         matches = []
-                    
+
                     if matches:
                         event.stop()
                         if key == "tab":
                             self._suggest_idx = (self._suggest_idx + 1) % len(matches)
                         else:
                             self._suggest_idx = (self._suggest_idx - 1) % len(matches)
-                        
+
                         inp.value = matches[self._suggest_idx]
                         inp.cursor_position = len(inp.value)
                         self._update_suggestion_box(matches)
                         return
-        if key == "ctrl+comma": event.stop(); self.action_show_settings(); return
-        if key == "ctrl+t": event.stop(); self.action_toggle_think(); return
-        if key == "ctrl+r": event.stop(); self.action_toggle_research(); return
+        if key == "ctrl+comma":
+            event.stop()
+            self.action_show_settings()
+            return
+        if key == "ctrl+t":
+            event.stop()
+            self.action_toggle_think()
+            return
+        if key == "ctrl+r":
+            event.stop()
+            self.action_toggle_research()
+            return
         if self._game_active:
             if key == "space":
                 if self.game.game_over:
                     self.game.start()
                 else:
                     self.game.jump()
-                event.stop(); return
+                event.stop()
+                return
             if key == "q" or key == "escape":
                 self._stop_game()
-                event.stop(); return
-        if key == "ctrl+m": event.stop(); self.action_toggle_mode(); return
-        if key == "ctrl+p": event.stop(); self.action_show_model(); return
-        if key == "ctrl+g": event.stop(); self.action_show_help(); return
-        if key == "ctrl+c": event.stop(); self.action_app_exit(); return
+                event.stop()
+                return
+        if key == "ctrl+m":
+            event.stop()
+            self.action_toggle_mode()
+            return
+        if key == "ctrl+p":
+            event.stop()
+            self.action_show_model()
+            return
+        if key == "ctrl+g":
+            event.stop()
+            self.action_show_help()
+            return
+        if key == "ctrl+c":
+            event.stop()
+            self.action_app_exit()
+            return
 
     def on_resize(self, event) -> None:
         """Handle window resizing - auto-hide sidebar on compact layouts (< 95 width)."""
@@ -1181,11 +1363,25 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
 
     # ── Input ────────────────────────────────────────────────────────────
     SLASH_COMMANDS = [
-        "/clear", "/reset", "/quit", "/exit",
-        "/mode chill", "/mode hunt",
-        "/target <domain>", "/talk 1", "/talk 2", "/talk 3", "/talk all",
-        "/session", "/session new", "/session list", "/session load <id>",
-        "/stats", "/team", "/game", "/help",
+        "/clear",
+        "/reset",
+        "/quit",
+        "/exit",
+        "/mode chill",
+        "/mode hunt",
+        "/target <domain>",
+        "/talk 1",
+        "/talk 2",
+        "/talk 3",
+        "/talk all",
+        "/session",
+        "/session new",
+        "/session list",
+        "/session load <id>",
+        "/stats",
+        "/team",
+        "/game",
+        "/help",
     ]
 
     def _update_suggestion_box(self, matches: list[str]) -> None:
@@ -1203,20 +1399,20 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
         if not self._cycling_suggestions:
             self._original_prefix = text
             self._suggest_idx = -1
-        
+
         box = self.query_one("#suggest_box", Static)
         if not text or not text.startswith("/"):
             box.styles.display = "none"
             self._cycling_suggestions = False
             return
-            
+
         parts = self._original_prefix.split()
         if len(parts) == 1:
             prefix = parts[0].lower()
             matches = [c for c in self.SLASH_COMMANDS if c.startswith(prefix)]
         else:
             matches = []
-            
+
         if matches:
             self._update_suggestion_box(matches)
             box.styles.display = "block"
@@ -1226,18 +1422,22 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
         text = event.value.strip()
-        if not text: return
+        if not text:
+            return
         event.input.value = ""
         self._cycling_suggestions = False
-        if not self.history or self.history[-1] != text: self.history.append(text)
+        if not self.history or self.history[-1] != text:
+            self.history.append(text)
         self.history_idx = -1
-        if self._handle_slash(text): return
+        if self._handle_slash(text):
+            return
         self._ensure_session()
         self._chat_write_user(text)
         # Hide banner on first message
         try:
             self.query_one("#banner", Static).display = False
-        except Exception: pass
+        except Exception:
+            pass
         self.turn_count += 1
         self._update_sidebar()
         self._send_to_agent(text)
@@ -1245,132 +1445,195 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
     def _handle_slash(self, text: str) -> bool:
         low = text.lower().strip()
         if low in ("/quit", "/exit", "quit", "exit"):
-            self._save_session(); self.set_timer(0.3, self.exit); return True
-        if low == "/clear": self._chat().clear(); return True
+            self._save_session()
+            self.set_timer(0.3, self.exit)
+            return True
+        if low == "/clear":
+            self._chat().clear()
+            return True
         if low == "/reset":
             self._chat().clear()
             try:
                 self.query_one("#banner", Static).display = True
                 self._update_banner()
-            except Exception: pass
+            except Exception:
+                pass
             if self._agent and hasattr(self._agent, "clear_conversation_history"):
                 self._agent.clear_conversation_history()
-            self.turn_count = 0; self.tools_run = 0; self.findings = 0
-            self._update_sidebar(); return True
-        if low in ("/help", "?"): self.action_show_help(); return True
+            self.turn_count = 0
+            self.tools_run = 0
+            self.findings = 0
+            self._update_sidebar()
+            return True
+        if low in ("/help", "?"):
+            self.action_show_help()
+            return True
         if low == "/mode":
-            self._chat_write_system("Modes: chill (chat only)  hunt (chat + scan)"); return True
+            self._chat_write_system("Modes: chill (chat only)  hunt (chat + scan)")
+            return True
         if low.startswith("/mode "):
             v = text.split(" ", 1)[1].strip().upper()
             if v in ("CHILL", "HUNT"):
-                self.mode = v; self._update_sidebar(); self._chat_write_system(f"Mode: {v}")
+                self.mode = v
+                self._update_sidebar()
+                self._chat_write_system(f"Mode: {v}")
             return True
         if low.startswith("/target"):
             p = text.split(" ", 1)
             self.target = p[1].strip() if len(p) > 1 else ""
             self._update_sidebar()
-            self._chat_write_system(f"Target: {self.target or '(cleared)'}"); return True
+            self._chat_write_system(f"Target: {self.target or '(cleared)'}")
+            return True
         if low == "/stats":
             try:
                 from tools.vector_memory import get_vector_memory
+
                 vs = get_vector_memory().get_memory_stats()
-                self._chat_write_system(f"Memory: {vs.get('total_memories',0)} entries, {vs.get('unique_targets',0)} targets")
-            except Exception as e: self._chat_write_system(f"Stats: {e}")
+                self._chat_write_system(
+                    f"Memory: {vs.get('total_memories',0)} entries, {vs.get('unique_targets',0)} targets"
+                )
+            except Exception as e:
+                self._chat_write_system(f"Stats: {e}")
             return True
         if low == "/team":
-            active = [m.strip() for m in os.environ.get("ACTIVE_MODELS","").split(",") if m.strip()]
-            if not active: self._chat_write_system("No team configured.")
+            active = [
+                m.strip() for m in os.environ.get("ACTIVE_MODELS", "").split(",") if m.strip()
+            ]
+            if not active:
+                self._chat_write_system("No team configured.")
             else:
-                rs = ["Strategist","Recon Lead","Exploit Analyst"]
+                rs = ["Strategist", "Recon Lead", "Exploit Analyst"]
                 lines = ["[bold]Team Aegis:[/bold]"]
-                for i, m in enumerate(active[:3]): lines.append(f"  [{rs[i]} {m}]")
+                for i, m in enumerate(active[:3]):
+                    lines.append(f"  [{rs[i]} {m}]")
                 self._chat().write(Text.from_markup("\n".join(lines)))
             return True
         if low.startswith("/talk"):
             parts = text.split()
             if len(parts) > 1:
                 v = parts[1].strip()
-                if v in ("1","2","3"): self._talk_to = int(v)
-                elif v in ("all","*"): self._talk_to = "all"
-                else: self._chat_write_system("Usage: /talk <1|2|3|all>")
-            self._chat_write_system(f"Talk to: {self._talk_to if self._talk_to == 'all' else AGENT_NAMES[self._talk_to]}")
-            self._update_sidebar(); return True
+                if v in ("1", "2", "3"):
+                    self._talk_to = int(v)
+                elif v in ("all", "*"):
+                    self._talk_to = "all"
+                else:
+                    self._chat_write_system("Usage: /talk <1|2|3|all>")
+            self._chat_write_system(
+                f"Talk to: {self._talk_to if self._talk_to == 'all' else AGENT_NAMES[self._talk_to]}"
+            )
+            self._update_sidebar()
+            return True
         if low.startswith("/session"):
-            parts = text.split(maxsplit=2); sub = parts[1].strip() if len(parts) > 1 else ""
+            parts = text.split(maxsplit=2)
+            sub = parts[1].strip() if len(parts) > 1 else ""
             if sub == "new":
                 self._save_session()
                 from tools.session_manager import generate_session_id
+
                 self.session_name = generate_session_id()
-                if self._session_mgr: self._session_mgr.start_session(name=self.session_name, target=self.target, mode=self.mode)
-                if self._agent and hasattr(self._agent,"clear_conversation_history"): self._agent.clear_conversation_history()
-                self.turn_count = 0; self.tools_run = 0; self.findings = 0; self._chat().clear()
+                if self._session_mgr:
+                    self._session_mgr.start_session(
+                        name=self.session_name, target=self.target, mode=self.mode
+                    )
+                if self._agent and hasattr(self._agent, "clear_conversation_history"):
+                    self._agent.clear_conversation_history()
+                self.turn_count = 0
+                self.tools_run = 0
+                self.findings = 0
+                self._chat().clear()
                 self._chat_write_system(f"New session: {self.session_name}")
-                self._update_sidebar(); return True
+                self._update_sidebar()
+                return True
             if sub == "list" and self._session_mgr:
                 ss = self._session_mgr.list_sessions()
-                if not ss: self._chat_write_system("No saved sessions.")
+                if not ss:
+                    self._chat_write_system("No saved sessions.")
                 else:
                     lines = ["[bold]Sessions:[/bold]"]
                     for s in ss[-10:]:
                         sid = s.name
                         marker = " >" if sid == self.session_name else "  "
-                        lines.append(f"  {marker} [dim]{sid}[/]  turns={s.turn_count}  [dim]{s.target or '-'}[/]")
+                        lines.append(
+                            f"  {marker} [dim]{sid}[/]  turns={s.turn_count}  [dim]{s.target or '-'}[/]"
+                        )
                     self._chat().write(Text.from_markup("\n".join(lines)))
                 return True
             if sub == "load" and len(parts) > 2 and self._session_mgr:
                 sid = parts[2].strip()
                 info = self._session_mgr.resume_session(sid, agent=self._agent)
                 if info:
-                    self.session_name = sid; self.target = info.get("target", self.target)
-                    self.mode = info.get("mode", self.mode); self.turn_count = info.get("turns", 0)
+                    self.session_name = sid
+                    self.target = info.get("target", self.target)
+                    self.mode = info.get("mode", self.mode)
+                    self.turn_count = info.get("turns", 0)
                     self._chat().clear()
                     self._chat_write_system(f"Loaded session: {sid}")
-                    self._replay_history(); self._update_sidebar()
-                else: self._chat_write_system(f"Session not found: {sid}")
+                    self._replay_history()
+                    self._update_sidebar()
+                else:
+                    self._chat_write_system(f"Session not found: {sid}")
                 return True
-            self._chat_write_system(f"Session: {self.session_name}  Turns: {self.turn_count}"); return True
+            self._chat_write_system(f"Session: {self.session_name}  Turns: {self.turn_count}")
+            return True
         if low == "/game":
             if not self._game_active:
                 self._start_game()
             else:
                 self._stop_game()
             return True
-        if low.startswith("/"): self._chat_write_system(f"Unknown: {low}  (/help)"); return True
+        if low.startswith("/"):
+            self._chat_write_system(f"Unknown: {low}  (/help)")
+            return True
         return False
 
     def _save_session(self) -> str:
         sid = self.session_name
         try:
             if self._session_mgr and sid:
-                self._session_mgr.save_session(name=sid, agent=self._agent, target=self.target, mode=self.mode)
-        except Exception: pass
+                self._session_mgr.save_session(
+                    name=sid, agent=self._agent, target=self.target, mode=self.mode
+                )
+        except Exception:
+            pass
         return sid
 
     def _replay_history(self) -> None:
-        if not self._agent or not hasattr(self._agent, "conversation_history"): return
+        if not self._agent or not hasattr(self._agent, "conversation_history"):
+            return
         for msg in self._agent.conversation_history:
-            role = msg.get("role", ""); content = msg.get("content", "")
-            if not content: continue
-            if role == "user": self._chat_write_user(content[:500])
-            elif role == "assistant": self._chat_write_agent(content[:500])
+            role = msg.get("role", "")
+            content = msg.get("content", "")
+            if not content:
+                continue
+            if role == "user":
+                self._chat_write_user(content[:500])
+            elif role == "assistant":
+                self._chat_write_agent(content[:500])
 
     def _load_session_by_id(self, sid: str) -> None:
-        if not sid or not self._session_mgr: return
+        if not sid or not self._session_mgr:
+            return
         self._save_session()
         from tools.session_manager import SessionManager
+
         info = SessionManager().resume_session(sid, agent=self._agent)
         if info:
-            self.session_name = sid; self.target = info.get("target", self.target)
-            self.mode = info.get("mode", self.mode); self.turn_count = info.get("turns", 0)
+            self.session_name = sid
+            self.target = info.get("target", self.target)
+            self.mode = info.get("mode", self.mode)
+            self.turn_count = info.get("turns", 0)
             self._chat().clear()
             self._chat_write_system(f"Session loaded: {sid}  ({self.turn_count} turns)")
-            self._replay_history(); self._update_sidebar()
-        else: self._chat_write_system(f"Session not found: {sid}")
+            self._replay_history()
+            self._update_sidebar()
+        else:
+            self._chat_write_system(f"Session not found: {sid}")
 
     def action_app_exit(self) -> None:
         sid = self._save_session()
         logger.info(f"Session {sid} saved on exit")
         from ui_components import console
+
         console.print(f"\n  thank you for using elengenix\n  session: {sid}\n", style="dim")
         self.exit()
 
@@ -1404,28 +1667,36 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
         self.query_one("#settings_overlay", SettingsOverlayWidget).show()
 
     def action_scroll_up(self) -> None:
-        try: self._chat().scroll_up(10)
-        except Exception: pass
+        try:
+            self._chat().scroll_up(10)
+        except Exception:
+            pass
 
     def action_scroll_down(self) -> None:
-        try: self._chat().scroll_down(10)
-        except Exception: pass
+        try:
+            self._chat().scroll_down(10)
+        except Exception:
+            pass
 
     def action_history_up(self) -> None:
         inp = self.query_one("#user_input", Input)
         if inp.has_focus and self.history:
-            if self.history_idx == -1: self.history_idx = len(self.history) - 1
-            elif self.history_idx > 0: self.history_idx -= 1
+            if self.history_idx == -1:
+                self.history_idx = len(self.history) - 1
+            elif self.history_idx > 0:
+                self.history_idx -= 1
             inp.value = self.history[self.history_idx]
             inp.cursor_position = len(inp.value)
 
     def action_history_down(self) -> None:
         inp = self.query_one("#user_input", Input)
         if inp.has_focus and self.history:
-            if self.history_idx == -1: return
+            if self.history_idx == -1:
+                return
             self.history_idx += 1
             if self.history_idx >= len(self.history):
-                self.history_idx = -1; inp.value = ""
+                self.history_idx = -1
+                inp.value = ""
             else:
                 inp.value = self.history[self.history_idx]
                 inp.cursor_position = len(inp.value)
@@ -1435,9 +1706,11 @@ def main(target: str = "", mode: str = "auto", session_id: str = "") -> None:
     app = ElengenixTextualApp(target=target, mode=mode, session_id=session_id)
     app.run()
 
+
 if __name__ == "__main__":
     sid = ""
     if "-s" in sys.argv:
         idx = sys.argv.index("-s")
-        if idx + 1 < len(sys.argv): sid = sys.argv[idx + 1]
+        if idx + 1 < len(sys.argv):
+            sid = sys.argv[idx + 1]
     main(session_id=sid)

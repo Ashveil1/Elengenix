@@ -16,8 +16,8 @@ from pathlib import Path
 from typing import Any, Callable, Dict, Optional
 
 from tools.governance import Governance
-from tools.tool_registry import registry, ToolResult, ToolCategory
 from tools.safe_exec import execute_safely
+from tools.tool_registry import ToolCategory, ToolResult, registry
 from tools.vector_memory import remember
 
 logger = logging.getLogger("elengenix.agent")
@@ -99,6 +99,7 @@ def execute_tool(
             return "Error: web_search requires a 'query' parameter."
         try:
             from tools.research_tool import search_web
+
             results = search_web(query, num_results=5)
             return json.dumps(results, indent=2, ensure_ascii=False)
         except Exception as e:
@@ -107,13 +108,14 @@ def execute_tool(
     if action == "create_ai_tool":
         try:
             from tools.ai_tool_creator import AIToolCreator, ToolSpec
+
             creator = AIToolCreator()
             spec = ToolSpec(
                 name=action_data.get("name", "custom_tool"),
                 purpose=action_data.get("purpose", ""),
                 code=action_data.get("code", ""),
                 dependencies=action_data.get("dependencies", []),
-                ai_reasoning=action_data.get("ai_reasoning", "")
+                ai_reasoning=action_data.get("ai_reasoning", ""),
             )
             success = creator.create_tool(spec)
             return "Tool created successfully." if success else "Failed to create tool."
@@ -123,16 +125,20 @@ def execute_tool(
     if action == "run_ai_tool":
         try:
             from tools.ai_tool_creator import AIToolCreator
+
             creator = AIToolCreator()
             tool_name = action_data.get("name", "")
             kwargs = action_data.get("kwargs", {})
             result = creator.execute_tool(tool_name, **kwargs)
-            return json.dumps({
-                "success": result.success,
-                "output": result.output,
-                "error": result.error,
-                "findings": result.findings
-            }, indent=2)
+            return json.dumps(
+                {
+                    "success": result.success,
+                    "output": result.output,
+                    "error": result.error,
+                    "findings": result.findings,
+                },
+                indent=2,
+            )
         except Exception as e:
             return f"Error running tool: {e}"
 
@@ -152,7 +158,10 @@ def execute_tool(
         return "Error: Invalid or empty command."
 
     return execute_shell_command(
-        cmd_raw, governance, max_output_len, callback,
+        cmd_raw,
+        governance,
+        max_output_len,
+        callback,
         purpose=action_data.get("purpose", ""),
         thought=action_data.get("thought", ""),
     )
@@ -205,6 +214,7 @@ def execute_shell_command(
 
     try:
         import time as _time
+
         _t0 = _time.perf_counter()
         safe_result = execute_safely(cmd_raw, timeout=300)
         elapsed = _time.perf_counter() - _t0
@@ -220,20 +230,31 @@ def execute_shell_command(
         # The TUI agent_callback intercepts "exec:" prefixed messages.
         if callback:
             import json as _json
-            callback("exec:" + _json.dumps({
-                "cmd": cmd_raw,
-                "output": output,
-                "success": success,
-                "elapsed": round(elapsed, 2),
-                "purpose": purpose,
-                "thought": thought,
-            }))
+
+            callback(
+                "exec:"
+                + _json.dumps(
+                    {
+                        "cmd": cmd_raw,
+                        "output": output,
+                        "success": success,
+                        "elapsed": round(elapsed, 2),
+                        "purpose": purpose,
+                        "thought": thought,
+                    }
+                )
+            )
         else:
             # Fallback for non-TUI (CLI / terminal) mode
             from ui_components import show_command_execution
+
             show_command_execution(
-                cmd=cmd_raw, result=output, success=success,
-                purpose=purpose, thought=thought, elapsed=elapsed,
+                cmd=cmd_raw,
+                result=output,
+                success=success,
+                purpose=purpose,
+                thought=thought,
+                elapsed=elapsed,
             )
 
         if not success:
@@ -274,8 +295,9 @@ def _prompt_approval(
         Tuple (approved: bool, enable_auto: bool).
         enable_auto is True only when the user selects Allow Auto.
     """
-    from ui_components import console, confirm
     from rich.panel import Panel
+
+    from ui_components import confirm, console
 
     label_color = "yellow" if risk_level == "PRIVILEGED" else "red"
 
@@ -310,7 +332,9 @@ def _prompt_approval(
         raw = "n"
 
     if raw == "a":
-        console.print("  [cyan][INFO] Auto-approve enabled — PRIVILEGED commands will run without prompts this session.[/cyan]")
+        console.print(
+            "  [cyan][INFO] Auto-approve enabled — PRIVILEGED commands will run without prompts this session.[/cyan]"
+        )
         return True, True
     if raw == "y":
         return True, False
@@ -400,24 +424,35 @@ def execute_write_script(
     # Route info messages through callback (TUI) or console.print (terminal)
     if callback:
         import json as _json
-        callback("exec:" + _json.dumps({
-            "cmd": f"write_script {script_path}",
-            "output": f"Successfully wrote script to {script_path}",
-            "success": True,
-            "elapsed": 0.0,
-            "purpose": purpose,
-            "thought": thought,
-        }))
+
+        callback(
+            "exec:"
+            + _json.dumps(
+                {
+                    "cmd": f"write_script {script_path}",
+                    "output": f"Successfully wrote script to {script_path}",
+                    "success": True,
+                    "elapsed": 0.0,
+                    "purpose": purpose,
+                    "thought": thought,
+                }
+            )
+        )
     else:
         from ui_components import console
+
         console.print(f"\n[grey70][INFO] AI wrote script: {script_path}[/grey70]")
         if purpose:
             console.print(f"[grey70][INFO] Purpose: {purpose}[/grey70]")
         console.print(f"[grey70][RUN]  {cmd}[/grey70]\n")
 
     shell_output = execute_shell_command(
-        cmd, governance, max_output_len, callback,
-        purpose=purpose, thought=thought,
+        cmd,
+        governance,
+        max_output_len,
+        callback,
+        purpose=purpose,
+        thought=thought,
     )
     # Prepend the absolute path so the AI always knows where the file lives
     # and does not confuse relative-path shell lookups with the actual file.
@@ -467,20 +502,24 @@ def execute_install_tool(
 
         # Build install command for known managers
         _MANAGERS = {
-            "go":    f"go install github.com/{name}{version or '@latest'}",
-            "pip":   f"pip install {name}{version}",
-            "pip3":  f"pip3 install {name}{version}",
-            "apt":   f"sudo apt-get install -y {name}",
+            "go": f"go install github.com/{name}{version or '@latest'}",
+            "pip": f"pip install {name}{version}",
+            "pip3": f"pip3 install {name}{version}",
+            "apt": f"sudo apt-get install -y {name}",
             "cargo": f"cargo install {name}",
-            "npm":   f"npm install -g {name}",
-            "gem":   f"gem install {name}",
-            "brew":  f"brew install {name}",
+            "npm": f"npm install -g {name}",
+            "gem": f"gem install {name}",
+            "brew": f"brew install {name}",
         }
         install_cmd = _MANAGERS.get(manager, f"pip install {name}{version}")
 
     return execute_shell_command(
-        install_cmd, governance, max_output_len, callback,
-        purpose=purpose, thought=thought,
+        install_cmd,
+        governance,
+        max_output_len,
+        callback,
+        purpose=purpose,
+        thought=thought,
     )
 
 
@@ -503,15 +542,18 @@ def handle_ask_user(
     try:
         if input_type == "confirm":
             from ui_components import confirm
+
             approved = confirm(question, default=False)
             return "yes" if approved else "no"
 
         elif input_type == "password":
             import getpass
+
             return getpass.getpass(f"  {question}: ")
 
         else:
             from prompt_toolkit import prompt as pt_prompt
+
             try:
                 user_text = pt_prompt(f"  > ")
             except (EOFError, KeyboardInterrupt):
@@ -534,6 +576,7 @@ def execute_tool_registry(
     tool = registry.get_tool(tool_name)
     if tool and tool.is_available:
         try:
+
             async def _run() -> ToolResult:
                 s = semaphore or asyncio.Semaphore(5)
                 return await tool.execute(target, report_dir, s)
@@ -546,6 +589,7 @@ def execute_tool_registry(
 
             # No shared loop — run directly
             import asyncio as _asyncio
+
             return _asyncio.run(_run())
 
         except Exception as e:
@@ -570,7 +614,11 @@ def execute_tool_subprocess(tool_name: str, target: str) -> ToolResult:
     commands = {
         "dns_lookup": ["dig", target, "ANY"],
         "http_probe": ["curl", "-s", "-I", f"https://{target}"],
-        "port_scan": ["python3", "-c", f"import socket; [print(p) for p in range(1,1024) if socket.socket().connect_ex(('{{target}}', p)) == 0]"],
+        "port_scan": [
+            "python3",
+            "-c",
+            f"import socket; [print(p) for p in range(1,1024) if socket.socket().connect_ex(('{{target}}', p)) == 0]",
+        ],
     }
 
     cmd = commands.get(tool_name)

@@ -33,6 +33,7 @@ logger = logging.getLogger("elengenix.ai_tool_creator")
 @dataclass
 class ToolSpec:
     """Specification for a tool to be created."""
+
     name: str
     purpose: str
     language: str
@@ -48,6 +49,7 @@ class ToolSpec:
 @dataclass
 class ToolExecutionResult:
     """Result from executing an AI-created tool."""
+
     success: bool
     output: str
     error: Optional[str]
@@ -90,6 +92,7 @@ class AIGovernance:
         if use_ast_sandbox:
             try:
                 from tools.ai_sandbox import RealDangerousPatternDetector
+
                 self._detector = RealDangerousPatternDetector(
                     allow_network=False,
                     allow_dangerous_imports=False,
@@ -138,15 +141,15 @@ class AIGovernance:
                 return False, f"Dangerous pattern detected: {pattern}"
 
         return True, "Safe"
-    
+
     def request_approval(self, action: str, details: Dict) -> bool:
         """Request user approval for action."""
         if self.mode == "auto":
             return True
-        
+
         if action == "create_tool" and details.get("tool_name") in self.auto_approve_tools:
             return True
-        
+
         # Show prompt to user
         print(f"\n[AI REQUEST] {action}")
         if "tool_name" in details:
@@ -155,43 +158,45 @@ class AIGovernance:
             print(f"Purpose: {details['purpose']}")
         if "ai_reasoning" in details:
             print(f"AI Reasoning: {details['ai_reasoning']}")
-        
+
         response = input("Approve? (y/n/auto): ").strip().lower()
-        
+
         if response == "auto":
             self.mode = "auto"
             print("[Mode changed to AUTO - will auto-approve future requests]")
             return True
-        
+
         approved = response in ("y", "yes", "")
-        
-        self.approval_history.append({
-            "action": action,
-            "details": details,
-            "approved": approved,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-        })
-        
+
+        self.approval_history.append(
+            {
+                "action": action,
+                "details": details,
+                "approved": approved,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }
+        )
+
         return approved
 
 
 class DependencyManager:
     """Manage dependencies for AI-created tools."""
-    
+
     def __init__(self, cache_dir: Path = Path(".cache/ai_deps")):
         self.cache_dir = cache_dir
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.installed = set()
-        
+
     def install_pip_package(self, package: str) -> bool:
         """Install pip package safely."""
         if package in self.installed:
             return True
-            
+
         try:
             cmd = [sys.executable, "-m", "pip", "install", "--user", "--quiet", package]
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
-            
+
             if result.returncode == 0:
                 self.installed.add(package)
                 logger.info(f"Installed {package}")
@@ -206,21 +211,21 @@ class DependencyManager:
 
 class AIToolCreator:
     """AI Tool Creator - Dynamic tool creation and management."""
-    
+
     AI_TOOLS_DIR = Path("tools/ai_generated")
-    
+
     def __init__(self, governance_mode: str = "ask", ai_client=None):
         self.governance = AIGovernance(mode=governance_mode)
         self.dep_manager = DependencyManager()
         self.ai_client = ai_client
-        
+
         self.AI_TOOLS_DIR.mkdir(parents=True, exist_ok=True)
-        
+
         self.ai_tools: Dict[str, ToolSpec] = {}
         self._load_existing_tools()
-        
+
         logger.info(f"AIToolCreator initialized (mode: {governance_mode})")
-    
+
     def _load_existing_tools(self) -> None:
         """Load previously created AI tools."""
         for tool_file in self.AI_TOOLS_DIR.glob("*.json"):
@@ -229,18 +234,18 @@ class AIToolCreator:
                 self.ai_tools[data["name"]] = ToolSpec(**data)
             except Exception as e:
                 logger.debug(f"Failed to load tool {tool_file}: {e}")
-    
+
     def analyze_target_and_plan(self, target: str, target_info: Dict = None) -> List[ToolSpec]:
         """
         AI analyzes target and plans what custom tools are needed.
-        
+
         Returns:
             List of ToolSpec that AI thinks are needed
         """
         if not self.ai_client:
             logger.warning("No AI client available for tool planning")
             return []
-        
+
         prompt = f"""You are an autonomous security AI. Analyze this target and plan custom tools.
 
 Target: {target}
@@ -273,15 +278,15 @@ Respond in JSON format:
     ]
 }}
 """
-        
+
         try:
             # Call AI to analyze and plan
             response = self._call_ai(prompt)
-            
+
             # Parse response
             data = json.loads(response)
             tools = []
-            
+
             for tool_data in data.get("tools", []):
                 spec = ToolSpec(
                     name=tool_data["name"],
@@ -294,79 +299,84 @@ Respond in JSON format:
                     ai_reasoning=tool_data.get("reasoning", ""),
                 )
                 tools.append(spec)
-            
+
             logger.info(f"AI planned {len(tools)} custom tools for {target}")
             return tools
-            
+
         except Exception as e:
             logger.error(f"Tool planning failed: {e}")
             return []
-    
+
     def create_tool(self, tool_spec: ToolSpec) -> bool:
         """
         Create a tool from specification.
-        
+
         Returns:
             True if created successfully
         """
         # Check governance
         is_safe, reason = self.governance.check_tool_safety(tool_spec)
-        
+
         if not is_safe:
             logger.warning(f"Tool {tool_spec.name} failed safety check: {reason}")
-            if not self.governance.request_approval("create_unsafe_tool", {
-                "tool_name": tool_spec.name,
-                "purpose": tool_spec.purpose,
-                "reason": reason,
-                "ai_reasoning": tool_spec.ai_reasoning,
-            }):
+            if not self.governance.request_approval(
+                "create_unsafe_tool",
+                {
+                    "tool_name": tool_spec.name,
+                    "purpose": tool_spec.purpose,
+                    "reason": reason,
+                    "ai_reasoning": tool_spec.ai_reasoning,
+                },
+            ):
                 return False
         elif tool_spec.requires_approval:
-            if not self.governance.request_approval("create_tool", {
-                "tool_name": tool_spec.name,
-                "purpose": tool_spec.purpose,
-                "safety_level": tool_spec.safety_level,
-                "ai_reasoning": tool_spec.ai_reasoning,
-            }):
+            if not self.governance.request_approval(
+                "create_tool",
+                {
+                    "tool_name": tool_spec.name,
+                    "purpose": tool_spec.purpose,
+                    "safety_level": tool_spec.safety_level,
+                    "ai_reasoning": tool_spec.ai_reasoning,
+                },
+            ):
                 logger.info(f"User declined tool creation: {tool_spec.name}")
                 return False
-        
+
         # Install dependencies first
         for dep in tool_spec.dependencies:
             if not self.dep_manager.install_pip_package(dep):
                 logger.warning(f"Failed to install dependency: {dep}")
-        
+
         # Save tool
         try:
             # Save Python file
             tool_path = self.AI_TOOLS_DIR / f"{tool_spec.name}.py"
             tool_path.write_text(tool_spec.code, encoding="utf-8")
-            
+
             # Save metadata
             meta_path = self.AI_TOOLS_DIR / f"{tool_spec.name}.json"
             meta_path.write_text(
-                json.dumps(tool_spec.__dict__, indent=2, default=str),
-                encoding="utf-8"
+                json.dumps(tool_spec.__dict__, indent=2, default=str), encoding="utf-8"
             )
-            
+
             # Register
             self.ai_tools[tool_spec.name] = tool_spec
-            
+
             logger.info(f"Created AI tool: {tool_spec.name}")
             return True
-            
+
         except Exception as e:
             logger.error(f"Failed to create tool {tool_spec.name}: {e}")
             return False
-    
+
     def execute_tool(self, tool_name: str, **kwargs) -> ToolExecutionResult:
         """
         Execute an AI-created tool.
-        
+
         Args:
             tool_name: Name of tool to execute
             **kwargs: Arguments to pass to tool
-            
+
         Returns:
             ToolExecutionResult
         """
@@ -379,16 +389,19 @@ Respond in JSON format:
                 execution_time=0.0,
                 tool_name=tool_name,
             )
-        
+
         tool_spec = self.ai_tools[tool_name]
-        
+
         # Request approval for execution if needed
         if tool_spec.requires_approval and self.governance.mode != "auto":
-            if not self.governance.request_approval("execute_tool", {
-                "tool_name": tool_name,
-                "purpose": tool_spec.purpose,
-                "args": kwargs,
-            }):
+            if not self.governance.request_approval(
+                "execute_tool",
+                {
+                    "tool_name": tool_name,
+                    "purpose": tool_spec.purpose,
+                    "args": kwargs,
+                },
+            ):
                 return ToolExecutionResult(
                     success=False,
                     output="",
@@ -397,22 +410,24 @@ Respond in JSON format:
                     execution_time=0.0,
                     tool_name=tool_name,
                 )
-        
+
         # Execute tool in sandboxed environment
         import time
+
         start_time = time.time()
-        
+
         try:
             # Create temporary module
             tool_path = self.AI_TOOLS_DIR / f"{tool_name}.py"
-            
+
             # Load and execute
             import importlib.util
+
             spec = importlib.util.spec_from_file_location(tool_name, tool_path)
             module = importlib.util.module_from_spec(spec)
             # Execute
             spec.loader.exec_module(module)
-            
+
             # Call main function if exists
             if hasattr(module, "main"):
                 result = module.main(**kwargs)
@@ -420,9 +435,9 @@ Respond in JSON format:
                 result = module.run(**kwargs)
             else:
                 result = {"findings": [], "output": "No main/run function found"}
-            
+
             execution_time = time.time() - start_time
-            
+
             return ToolExecutionResult(
                 success=True,
                 output=str(result.get("output", "")),
@@ -431,7 +446,7 @@ Respond in JSON format:
                 execution_time=execution_time,
                 tool_name=tool_name,
             )
-            
+
         except Exception as e:
             execution_time = time.time() - start_time
             logger.error(f"Tool execution failed: {e}")
@@ -443,26 +458,26 @@ Respond in JSON format:
                 execution_time=execution_time,
                 tool_name=tool_name,
             )
-    
+
     def improve_tool(self, tool_name: str, feedback: str) -> bool:
         """
         AI improves a tool based on execution feedback.
-        
+
         Args:
             tool_name: Tool to improve
             feedback: What went wrong / what could be better
-            
+
         Returns:
             True if improved successfully
         """
         if tool_name not in self.ai_tools:
             return False
-        
+
         old_spec = self.ai_tools[tool_name]
-        
+
         if not self.ai_client:
             return False
-        
+
         prompt = f"""Improve this security tool based on feedback.
 
 Tool Name: {tool_name}
@@ -480,16 +495,16 @@ Provide improved version with:
 
 Respond with complete new code.
 """
-        
+
         try:
             new_code = self._call_ai(prompt)
-            
+
             # Extract code from markdown if present
             if "```python" in new_code:
                 new_code = new_code.split("```python")[1].split("```")[0].strip()
             elif "```" in new_code:
                 new_code = new_code.split("```")[1].split("```")[0].strip()
-            
+
             # Update spec
             improved_spec = ToolSpec(
                 name=old_spec.name,
@@ -501,40 +516,46 @@ Respond with complete new code.
                 safety_level=old_spec.safety_level,
                 ai_reasoning=f"Improved based on feedback: {feedback}",
             )
-            
+
             # Backup old version
-            backup_path = self.AI_TOOLS_DIR / f"{tool_name}_backup_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.py"
+            backup_path = (
+                self.AI_TOOLS_DIR
+                / f"{tool_name}_backup_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.py"
+            )
             (self.AI_TOOLS_DIR / f"{tool_name}.py").rename(backup_path)
-            
+
             # Save improved version
             return self.create_tool(improved_spec)
-            
+
         except Exception as e:
             logger.error(f"Tool improvement failed: {e}")
             return False
-    
+
     def _call_ai(self, prompt: str) -> str:
         """Call AI client with prompt."""
         if not self.ai_client:
             raise RuntimeError("No AI client configured")
-        
+
         # Use UniversalAIClient pattern
         try:
             from tools.universal_ai_client import AIClientManager, AIMessage
-            
+
             manager = AIClientManager()
             messages = [
-                AIMessage(role="system", content="You are an expert security researcher and Python developer."),
+                AIMessage(
+                    role="system",
+                    content="You are an expert security researcher and Python developer.",
+                ),
                 AIMessage(role="user", content=prompt),
             ]
-            
+
             response = manager.chat(messages, temperature=0.3, max_tokens=2048)
             return response.content
-            
+
         except Exception as e:
             logger.error(f"AI call failed: {e}")
             return "{}"
-    
+
     def list_ai_tools(self) -> List[Dict[str, Any]]:
         """List all AI-created tools."""
         return [
@@ -547,12 +568,12 @@ Respond with complete new code.
             }
             for spec in self.ai_tools.values()
         ]
-    
+
     def delete_tool(self, tool_name: str) -> bool:
         """Delete an AI-created tool."""
         if tool_name not in self.ai_tools:
             return False
-        
+
         try:
             (self.AI_TOOLS_DIR / f"{tool_name}.py").unlink(missing_ok=True)
             (self.AI_TOOLS_DIR / f"{tool_name}.json").unlink(missing_ok=True)
@@ -566,7 +587,7 @@ Respond with complete new code.
 def run_cli():
     """CLI for AI Tool Creator."""
     import sys
-    
+
     if len(sys.argv) < 2:
         print("Usage: python ai_tool_creator.py <command> [args]")
         print("Commands:")
@@ -575,68 +596,68 @@ def run_cli():
         print("  execute <name>    - Execute an AI tool")
         print("  delete <name>     - Delete an AI tool")
         sys.exit(1)
-    
+
     command = sys.argv[1]
     creator = AIToolCreator(governance_mode="ask")
-    
+
     if command == "list":
         tools = creator.list_ai_tools()
         print(f"\nAI-Created Tools ({len(tools)}):")
         for tool in tools:
             print(f"  - {tool['name']}: {tool['purpose'][:60]}...")
             print(f"    Created: {tool['created_at']}")
-    
+
     elif command == "create":
         if len(sys.argv) < 3:
             print("Usage: create <target_url>")
             sys.exit(1)
-        
+
         target = sys.argv[2]
         print(f"AI analyzing target: {target}")
-        
+
         tools = creator.analyze_target_and_plan(target)
-        
+
         if not tools:
             print("No tools planned")
             sys.exit(1)
-        
+
         print(f"\nAI planned {len(tools)} tools:")
         for spec in tools:
             print(f"\n  [Creating] {spec.name}")
             print(f"  Purpose: {spec.purpose}")
             print(f"  Reasoning: {spec.ai_reasoning}")
-            
+
             if creator.create_tool(spec):
                 print(f"  [OK] Created successfully")
             else:
                 print(f"  [FAIL] Creation failed or declined")
-    
+
     elif command == "execute":
         if len(sys.argv) < 3:
             print("Usage: execute <tool_name>")
             sys.exit(1)
-        
+
         tool_name = sys.argv[2]
         result = creator.execute_tool(tool_name)
-        
+
         if result.success:
             print(f"[OK] Tool executed successfully")
             print(f"Output: {result.output[:500]}")
             print(f"Findings: {len(result.findings)}")
         else:
             print(f"[FAIL] {result.error}")
-    
+
     elif command == "delete":
         if len(sys.argv) < 3:
             print("Usage: delete <tool_name>")
             sys.exit(1)
-        
+
         tool_name = sys.argv[2]
         if creator.delete_tool(tool_name):
             print(f"[OK] Deleted {tool_name}")
         else:
             print(f"[FAIL] Could not delete {tool_name}")
-    
+
     else:
         print(f"Unknown command: {command}")
 

@@ -11,6 +11,7 @@ Uses configured AI providers to:
 This is the difference between "probe everything blindly" and "think about
 what we're seeing and adapt".
 """
+
 from __future__ import annotations
 
 import json
@@ -25,6 +26,7 @@ def _get_ai_client():
     """Get the configured AI client. Lazy import to avoid hard dep."""
     try:
         from tools.universal_ai_client import create_default_client
+
         return create_default_client()
     except Exception as e:
         logger.warning("AI client not available: %s", e)
@@ -38,17 +40,21 @@ def _safe_ask(prompt: str, max_tokens: int = 300, timeout: float = 15.0) -> Opti
         return None
     try:
         import asyncio
+
         async def ask():
             from tools.universal_ai_client import AIMessage
-            resp = await client.chat([
-                AIMessage(role="user", content=prompt)
-            ], max_tokens=max_tokens, temperature=0.2)
+
+            resp = await client.chat(
+                [AIMessage(role="user", content=prompt)], max_tokens=max_tokens, temperature=0.2
+            )
             return resp.content if hasattr(resp, "content") else str(resp)
+
         try:
             loop = asyncio.get_event_loop()
             if loop.is_running():
                 # Inside another loop — run in thread
                 import concurrent.futures
+
                 with concurrent.futures.ThreadPoolExecutor(max_workers=1) as ex:
                     return ex.submit(asyncio.run, ask()).result(timeout=timeout)
             return asyncio.run(ask())
@@ -85,9 +91,7 @@ async def prioritize_endpoints(endpoints: List[str]) -> List[str]:
     if not endpoints:
         return endpoints
 
-    prompt = PRIORITIZATION_PROMPT.format(
-        endpoints="\n".join(f"- {e}" for e in endpoints[:30])
-    )
+    prompt = PRIORITIZATION_PROMPT.format(endpoints="\n".join(f"- {e}" for e in endpoints[:30]))
     response = _safe_ask(prompt, max_tokens=400)
     if not response:
         return endpoints
@@ -214,6 +218,7 @@ def generate_executive_summary(
 # ═══════════════════════════════════════════════════════════════════════════
 # QUICK SMOKE TEST
 # ═══════════════════════════════════════════════════════════════════════════
+
 
 def is_ai_available() -> bool:
     """Check if AI is configured and reachable."""

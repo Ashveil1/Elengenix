@@ -28,6 +28,7 @@ logger = logging.getLogger("elengenix.ssrf_scanner")
 @dataclass
 class SSRFResult:
     """Result of a single SSRF test."""
+
     url: str
     param: str
     payload: str
@@ -41,6 +42,7 @@ class SSRFResult:
 @dataclass
 class SSRFScanResult:
     """Full SSRF scan results."""
+
     target: str
     results: List[SSRFResult] = field(default_factory=list)
     vulnerable_params: List[str] = field(default_factory=list)
@@ -69,18 +71,15 @@ SSRF_PAYLOADS = [
     ("http://localhost", "localhost"),
     ("http://0.0.0.0", "0.0.0.0"),
     ("http://[::1]", "IPv6 localhost"),
-    
     # Cloud metadata endpoints
     ("http://169.254.169.254/latest/meta-data/", "AWS metadata"),
     ("http://169.254.169.254/latest/meta-data/iam/security-credentials/", "AWS IAM credentials"),
     ("http://metadata.google.internal/computeMetadata/v1/", "GCP metadata"),
     ("http://169.254.169.254/metadata/instance", "Azure metadata"),
-    
     # Protocol smuggling
     ("gopher://127.0.0.1:25/", "SMTP via gopher"),
     ("file:///etc/passwd", "Local file read"),
     ("dict://127.0.0.1:6379/", "Redis via dict"),
-    
     # Internal services
     ("http://127.0.0.1:8080", "Internal web service"),
     ("http://127.0.0.1:3000", "Internal web service"),
@@ -104,17 +103,17 @@ SSRF_INDICATORS = [
 
 class SSRFScanner:
     """SSRF vulnerability scanner.
-    
+
     Tests URL parameters for SSRF by injecting payloads that trigger
     outbound requests from the server.
-    
+
     Example:
         scanner = SSRFScanner()
         result = scanner.scan("https://example.com/fetch?url=test")
         if result.is_vulnerable:
             print(f"SSRF found in params: {result.vulnerable_params}")
     """
-    
+
     def __init__(
         self,
         timeout: float = 10.0,
@@ -122,7 +121,7 @@ class SSRFScanner:
         max_redirects: int = 5,
     ):
         """Initialize the SSRF scanner.
-        
+
         Args:
             timeout: Request timeout in seconds.
             verify_ssl: Whether to verify SSL certificates.
@@ -131,7 +130,7 @@ class SSRFScanner:
         self.timeout = timeout
         self.verify_ssl = verify_ssl
         self.max_redirects = max_redirects
-    
+
     def scan(
         self,
         target_url: str,
@@ -139,27 +138,27 @@ class SSRFScanner:
         method: str = "GET",
     ) -> SSRFScanResult:
         """Scan a URL for SSRF vulnerabilities.
-        
+
         Args:
             target_url: The URL to test.
             params: URL parameters to test. If None, auto-discovers parameters.
             method: HTTP method to use.
-            
+
         Returns:
             SSRFScanResult with all test results.
         """
         import requests
-        
+
         start_time = time.time()
         result = SSRFScanResult(target=target_url)
-        
+
         # Parse the URL to get existing parameters
         parsed = urllib.parse.urlparse(target_url)
         existing_params = dict(urllib.parse.parse_qsl(parsed.query))
-        
+
         # Merge with provided params
         test_params = {**existing_params, **(params or {})}
-        
+
         # If no parameters, test common ones
         if not test_params:
             test_params = {
@@ -174,12 +173,12 @@ class SSRFScanner:
                 "document": "",
                 "page": "",
             }
-        
+
         # Test each parameter with each payload
         for param_name, original_value in test_params.items():
             for payload, description in SSRF_PAYLOADS:
                 result.total_tests += 1
-                
+
                 try:
                     # Build test URL
                     test_params_copy = dict(test_params)
@@ -187,7 +186,7 @@ class SSRFScanner:
                     test_url = urllib.parse.urlunparse(
                         parsed._replace(query=urllib.parse.urlencode(test_params_copy))
                     )
-                    
+
                     # Make request
                     response = requests.get(
                         test_url,
@@ -195,7 +194,7 @@ class SSRFScanner:
                         verify=self.verify_ssl,
                         allow_redirects=False,
                     )
-                    
+
                     # Check for SSRF indicators
                     response_text = response.text[:10000]
                     for pattern, indicator_desc in SSRF_INDICATORS:
@@ -215,7 +214,7 @@ class SSRFScanner:
                                 result.vulnerable_params.append(param_name)
                             logger.info(f"SSRF found: {param_name} with {description}")
                             break
-                    
+
                 except requests.exceptions.Timeout:
                     # Timeout might indicate the server tried to connect
                     logger.debug(f"Timeout for {param_name}={payload}")
@@ -225,10 +224,10 @@ class SSRFScanner:
                         logger.debug(f"Connection refused for {param_name}={payload}")
                 except Exception as e:
                     logger.debug(f"Error testing {param_name}: {e}")
-        
+
         result.duration = time.time() - start_time
         return result
-    
+
     def scan_with_params(
         self,
         target_url: str,
@@ -236,12 +235,12 @@ class SSRFScanner:
         method: str = "POST",
     ) -> SSRFScanResult:
         """Scan specific parameters for SSRF.
-        
+
         Args:
             target_url: The URL to test.
             param_names: List of parameter names to test.
             method: HTTP method to use.
-            
+
         Returns:
             SSRFScanResult with all test results.
         """

@@ -12,22 +12,22 @@ agent:
 ai:
   # Selected provider: openai, gemini, anthropic, groq, local, openrouter
   active_provider: gemini
-  
+
   providers:
     gemini:
       model: gemini-1.5-flash
       # api_key: Read from GEMINI_API_KEY
-    
+
     openai:
       model: gpt-4o-mini
       # api_key: Read from OPENAI_API_KEY
-    
+
     anthropic:
       model: claude-3-5-sonnet-latest
-    
+
     groq:
       model: llama-3.3-70b-versatile
-    
+
     local:
       base_url: http://localhost:11434/v1
       model: llama3.2

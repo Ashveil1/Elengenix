@@ -2,6 +2,7 @@
 
 Tests for NVD CVE database integration.
 """
+
 from __future__ import annotations
 
 import sys
@@ -16,6 +17,7 @@ sys.path.insert(0, str(ROOT))
 def test_nvd_loads_embedded_cves():
     """NVD must load embedded CVEs."""
     from tools.nvd_cve import get_nvd
+
     nvd = get_nvd()
     assert nvd.count() >= 30, f"Too few CVEs: {nvd.count()}"
 
@@ -23,6 +25,7 @@ def test_nvd_loads_embedded_cves():
 def test_nvd_lookup_vulnerable_django():
     """Django 3.0.0 must have known CVEs."""
     from tools.nvd_cve import get_nvd
+
     nvd = get_nvd()
     cves = nvd.lookup("django", "3.0.0")
     assert len(cves) >= 1
@@ -34,17 +37,19 @@ def test_nvd_lookup_vulnerable_django():
 def test_nvd_lookup_patched_django():
     """Patched Django should have fewer/no CVEs."""
     from tools.nvd_cve import get_nvd
+
     nvd = get_nvd()
     cves_old = nvd.lookup("django", "3.0.0")
     cves_new = nvd.lookup("django", "4.2.16")
-    assert len(cves_new) < len(cves_old), (
-        f"Patched version should have fewer CVEs: old={len(cves_old)}, new={len(cves_new)}"
-    )
+    assert len(cves_new) < len(
+        cves_old
+    ), f"Patched version should have fewer CVEs: old={len(cves_old)}, new={len(cves_new)}"
 
 
 def test_nvd_lookup_log4shell():
     """Log4Shell CVE-2021-44228 must be detected."""
     from tools.nvd_cve import get_nvd
+
     nvd = get_nvd()
     cves = nvd.lookup("log4j", "2.14.0")
     cve_ids = {c.cve_id for c in cves}
@@ -58,6 +63,7 @@ def test_nvd_lookup_log4shell():
 def test_nvd_lookup_unknown_package():
     """Unknown package should return empty list."""
     from tools.nvd_cve import get_nvd
+
     nvd = get_nvd()
     cves = nvd.lookup("unknown-package-xyz-12345", "1.0.0")
     assert cves == []
@@ -66,6 +72,7 @@ def test_nvd_lookup_unknown_package():
 def test_nvd_cve_has_required_fields():
     """Each CVE must have required fields."""
     from tools.nvd_cve import get_nvd
+
     nvd = get_nvd()
     for cve in nvd.list_all()[:10]:
         assert cve.cve_id.startswith("CVE-")
@@ -79,6 +86,7 @@ def test_nvd_cve_has_required_fields():
 def test_nvd_lookup_dependencies_bulk():
     """Bulk dependency scan must work."""
     from tools.nvd_cve import scan_dependencies_for_cves
+
     deps = [
         ("django", "3.0.0"),
         ("requests", "2.20.0"),
@@ -95,6 +103,7 @@ def test_nvd_lookup_dependencies_bulk():
 def test_nvd_severity_classification():
     """CVSS → severity mapping must be correct."""
     from tools.nvd_cve import _sev
+
     assert _sev(10.0) == "Critical"
     assert _sev(9.0) == "Critical"
     assert _sev(8.9) == "High"
@@ -108,7 +117,9 @@ def test_nvd_severity_classification():
 def test_nvd_cve_to_dict():
     """CVE to_dict must be JSON-serializable."""
     import json
+
     from tools.nvd_cve import get_nvd
+
     nvd = get_nvd()
     cves = nvd.list_all()
     payload = [c.to_dict() for c in cves[:5]]
@@ -119,6 +130,7 @@ def test_nvd_cve_to_dict():
 def test_nvd_log4j_vulnerable_range():
     """Log4j 2.14.0 is in vulnerable range for CVE-2021-44228."""
     from tools.nvd_cve import get_nvd
+
     nvd = get_nvd()
     # Various versions in vulnerable range
     for v in ["2.10.0", "2.14.0", "2.16.0"]:
@@ -147,6 +159,7 @@ def test_nvd_in_hunt_engine():
         pytest.skip("vulnerable target not running")
 
     from tools.hunt_engine import HuntEngine
+
     engine = HuntEngine(target=target, quiet=True)
     report = engine.hunt_sync()
     # We don't require NVD findings against the test target (no project deps)

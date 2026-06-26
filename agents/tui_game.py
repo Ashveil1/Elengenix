@@ -6,8 +6,8 @@ Falling = game over. Score = distance survived.
 
 from __future__ import annotations
 
-import random
 import logging
+import random
 import sys
 from typing import Any
 
@@ -20,6 +20,7 @@ PLAYER_X = 5
 GRAVITY = 0.15  # Lower gravity for a smaller, tighter jump
 JUMP_VEL = -1.1  # Lower jump impulse to prevent jumping too high
 TERRAIN_SEGMENTS = 400  # Longer terrain for high speeds
+
 
 class ObbyGame:
     """Minimal 2D platformer — jump or die."""
@@ -66,7 +67,7 @@ class ObbyGame:
         tokens = {}
         pos = 15
         while pos < TERRAIN_SEGMENTS - 10:
-            if self.get_tile(pos) == "█" and self.get_tile(pos+1) == "█":
+            if self.get_tile(pos) == "█" and self.get_tile(pos + 1) == "█":
                 # Tokens can be collected by lower jumps (GROUND_Y - 1 or -2)
                 tokens[pos] = random.choice([GROUND_Y - 1, GROUND_Y - 2])
                 pos += random.randint(8, 18)
@@ -195,7 +196,7 @@ class ObbyGame:
                     y_draw = int(token_y)
                     if 0 <= y_draw < len(lines):
                         line = lines[y_draw]
-                        lines[y_draw] = line[:screen_x] + "$" + line[screen_x + 1:]
+                        lines[y_draw] = line[:screen_x] + "$" + line[screen_x + 1 :]
 
         # Draw player
         py = int(self.player_y)
@@ -205,23 +206,23 @@ class ObbyGame:
         else:
             head = "o"
             body = "▲"
-        
+
         y_head = py - 1
         y_body = py
-        
+
         if 0 <= y_head < len(lines):
             line = lines[y_head]
-            lines[y_head] = line[:PLAYER_X] + head + line[PLAYER_X + 1:]
+            lines[y_head] = line[:PLAYER_X] + head + line[PLAYER_X + 1 :]
         if 0 <= y_body < len(lines):
             line = lines[y_body]
-            lines[y_body] = line[:PLAYER_X] + body + line[PLAYER_X + 1:]
+            lines[y_body] = line[:PLAYER_X] + body + line[PLAYER_X + 1 :]
 
         # Ground layer
         ground_line = ""
         for x in range(VIEWPORT_W):
             world_x = int(self.offset + x)
             tile = self.get_tile(world_x)
-            ground_line += ("█" if tile != " " else " ")
+            ground_line += "█" if tile != " " else " "
         if GROUND_Y + 1 < len(lines):
             lines[GROUND_Y + 1] = ground_line
 
@@ -230,7 +231,7 @@ class ObbyGame:
         for x in range(VIEWPORT_W):
             world_x = int(self.offset + x)
             tile = self.get_tile(world_x)
-            under_line += ("▒" if tile != " " else " ")
+            under_line += "▒" if tile != " " else " "
         if GROUND_Y + 2 < len(lines):
             lines[GROUND_Y + 2] = under_line
 
@@ -245,6 +246,6 @@ class ObbyGame:
             f"     SCORE: {self.score:05d}",
             "\n",
             "   [SPACE] Play again",
-            "   [Q] Quit game"
+            "   [Q] Quit game",
         ]
         return "\n".join(lines)

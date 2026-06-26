@@ -23,33 +23,34 @@ import threading
 import time
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional
 
 from ui_components import console
 
 if TYPE_CHECKING:
-    from agents.strategist_agent import StrategistAgent
-    from agents.specialist_agent import SpecialistAgent
     from agents.critic_agent import CriticAgent
+    from agents.specialist_agent import SpecialistAgent
+    from agents.strategist_agent import StrategistAgent
 
 logger = logging.getLogger("elengenix.council")
 
 
 # ── Message Types ──────────────────────────────────────────────────────────────
 
+
 class MessageType(str, Enum):
     """Types of messages exchanged between agents via AgentCouncil."""
 
-    PLAN = "plan"                    # Strategist → Council: attack plan
-    TASK = "task"                    # Council → Specialist: single task
-    RESULT = "result"                # Specialist → Council: tool result
-    FINDING = "finding"              # Specialist → Council: security finding
-    REVIEW_REQUEST = "review_req"    # Council → Critic: please review findings
-    VERDICT = "verdict"              # Critic → Council: approved / false-positive
-    DELIBERATE = "deliberate"        # Council → all: vote on risky action
-    VOTE = "vote"                    # Agent → Council: vote result
-    STATUS = "status"                # Any → Council: informational update
-    COMPLETE = "complete"            # Any → Council: mission done signal
+    PLAN = "plan"  # Strategist → Council: attack plan
+    TASK = "task"  # Council → Specialist: single task
+    RESULT = "result"  # Specialist → Council: tool result
+    FINDING = "finding"  # Specialist → Council: security finding
+    REVIEW_REQUEST = "review_req"  # Council → Critic: please review findings
+    VERDICT = "verdict"  # Critic → Council: approved / false-positive
+    DELIBERATE = "deliberate"  # Council → all: vote on risky action
+    VOTE = "vote"  # Agent → Council: vote result
+    STATUS = "status"  # Any → Council: informational update
+    COMPLETE = "complete"  # Any → Council: mission done signal
 
 
 @dataclass
@@ -181,6 +182,7 @@ class SharedInbox:
 
 # ── AgentCouncil ───────────────────────────────────────────────────────────────
 
+
 class AgentCouncil:
     """Orchestrates Strategist, Specialist, and Critic agents.
 
@@ -256,9 +258,21 @@ class AgentCouncil:
         if not plan:
             self._emit("[Council] [WARN] Strategist returned empty plan — using default recon")
             plan = [
-                {"description": f"Subdomain recon on {self.target}", "phase": "recon", "status": "pending"},
-                {"description": f"HTTP probe live hosts on {self.target}", "phase": "recon", "status": "pending"},
-                {"description": f"Nuclei vuln scan on {self.target}", "phase": "scanning", "status": "pending"},
+                {
+                    "description": f"Subdomain recon on {self.target}",
+                    "phase": "recon",
+                    "status": "pending",
+                },
+                {
+                    "description": f"HTTP probe live hosts on {self.target}",
+                    "phase": "recon",
+                    "status": "pending",
+                },
+                {
+                    "description": f"Nuclei vuln scan on {self.target}",
+                    "phase": "scanning",
+                    "status": "pending",
+                },
             ]
 
         self._emit(f"[Council] Plan: {len(plan)} tasks")
@@ -314,9 +328,7 @@ class AgentCouncil:
                         fp = v.get("finding", {})
                         fp["_reason"] = v.get("notes", "")
                         self.false_positives.append(fp)
-                        self._emit(
-                            f"[Council] [SKIP] False positive: {fp.get('title', 'finding')}"
-                        )
+                        self._emit(f"[Council] [SKIP] False positive: {fp.get('title', 'finding')}")
 
             # Track token usage
             self._update_token_usage()
@@ -324,9 +336,7 @@ class AgentCouncil:
         # ── Phase 4: Strategist re-evaluates if any rounds remain ──────────────
         if round_num < self.max_rounds and self.validated_findings:
             self._emit("[Council] Phase 4 — Strategist re-evaluating based on findings...")
-            follow_up = self.strategist.replan(
-                self.validated_findings, self.target, self.inbox
-            )
+            follow_up = self.strategist.replan(self.validated_findings, self.target, self.inbox)
             for task in follow_up[:5]:  # cap follow-up tasks
                 if round_num >= self.max_rounds:
                     break
@@ -408,6 +418,7 @@ class AgentCouncil:
         if risk.lower() == "critical":
             try:
                 from ui_components import confirm
+
                 human_ok = confirm(
                     f"CRITICAL task requires your approval:\n  {description}\n  AI votes: {approve_count}/{len(votes)} approve",
                     default=False,

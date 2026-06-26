@@ -31,7 +31,9 @@ class LogicHypothesis:
 class BusinessLogicAnalyzer:
     """Generate business/authz hypotheses from findings and state."""
 
-    def generate(self, mission_snapshot: Dict[str, Any], recent_findings: List[Dict[str, Any]]) -> List[LogicHypothesis]:
+    def generate(
+        self, mission_snapshot: Dict[str, Any], recent_findings: List[Dict[str, Any]]
+    ) -> List[LogicHypothesis]:
         target = mission_snapshot.get("target", "")
 
         endpoints = []
@@ -43,9 +45,23 @@ class BusinessLogicAnalyzer:
                     endpoints.append(url)
 
         # Heuristics: identify likely object endpoints
-        object_like = [e for e in endpoints if any(x in e for x in ["/api/", "/v1/", "/v2/", "/users/", "/accounts/", "/orders/", "/invoices/", "/admin"])][:
-            30
-        ]
+        object_like = [
+            e
+            for e in endpoints
+            if any(
+                x in e
+                for x in [
+                    "/api/",
+                    "/v1/",
+                    "/v2/",
+                    "/users/",
+                    "/accounts/",
+                    "/orders/",
+                    "/invoices/",
+                    "/admin",
+                ]
+            )
+        ][:30]
 
         hyps: List[LogicHypothesis] = []
 

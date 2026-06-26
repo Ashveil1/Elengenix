@@ -3,6 +3,7 @@
 Tests for the new semantic planner: TargetFingerprinter, AttackVectorDatabase,
 and StrategicPlanner's new methods.
 """
+
 from __future__ import annotations
 
 import sys
@@ -11,14 +12,13 @@ from pathlib import Path
 # Make the project root importable
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from agents.agent_dataclasses import AttackPhase, AttackStep, AttackTree
 from agents.agent_planner import (
+    VULN_BY_STACK,
     AttackVectorDatabase,
     StrategicPlanner,
     TargetFingerprinter,
-    VULN_BY_STACK,
 )
-from agents.agent_dataclasses import AttackPhase, AttackStep, AttackTree
-
 
 # ---------------------------------------------------------------------------
 # TargetFingerprinter tests
@@ -173,10 +173,31 @@ def test_fingerprinter_case_insensitive_headers():
 
 def test_vector_db_has_well_known_stacks():
     db = AttackVectorDatabase()
-    for tech in ("php", "aspnet", "java", "python", "node", "ruby", "go",
-                 "wordpress", "drupal", "joomla", "magento", "laravel",
-                 "rails", "django", "flask", "express", "tomcat", "jenkins",
-                 "graphql", "openapi", "phpmyadmin", "kibana", "grafana"):
+    for tech in (
+        "php",
+        "aspnet",
+        "java",
+        "python",
+        "node",
+        "ruby",
+        "go",
+        "wordpress",
+        "drupal",
+        "joomla",
+        "magento",
+        "laravel",
+        "rails",
+        "django",
+        "flask",
+        "express",
+        "tomcat",
+        "jenkins",
+        "graphql",
+        "openapi",
+        "phpmyadmin",
+        "kibana",
+        "grafana",
+    ):
         assert tech in db.db, f"missing vuln entry for {tech}"
 
 
@@ -247,9 +268,11 @@ def test_vector_db_combined_php_wordpress_includes_union():
 
 class _StubClient:
     """Minimal stand-in for AIClientManager to avoid LLM calls in tests."""
+
     def chat(self, messages, **kwargs):
         class _Resp:
             content = "{}"
+
         return _Resp()
 
     # Some AIClientManager implementations also have these; provide them for safety.
@@ -382,7 +405,7 @@ def test_fingerprinter_combined_real_world_example():
             "X-Powered-By": "PHP/5.6.40",
         },
         body="<html><head><title>Welcome to the Vuln Web App</title></head>"
-             "<body>...index.php?page=login...</body></html>",
+        "<body>...index.php?page=login...</body></html>",
         cookies={"PHPSESSID": "abc123"},
         url="http://testphp.vulnweb.com/login.php",
     )
@@ -396,4 +419,5 @@ def test_fingerprinter_combined_real_world_example():
 if __name__ == "__main__":
     # Allow running as a script
     import pytest
+
     sys.exit(pytest.main([__file__, "-v"]))

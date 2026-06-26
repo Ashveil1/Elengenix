@@ -13,9 +13,10 @@ import logging
 import os
 import subprocess
 import sys
-import yaml
 from pathlib import Path
 from typing import List, Optional, Tuple
+
+import yaml
 
 logger = logging.getLogger("elengenix.doctor")
 
@@ -129,7 +130,11 @@ def _ensure_project_venv() -> Tuple[Optional[Path], str]:
 def _check_python(python_executable: Path) -> Tuple[bool, str]:
     """Check the version of the Python interpreter used by Elengenix."""
     proc = subprocess.run(
-        [str(python_executable), "-c", "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}')"],
+        [
+            str(python_executable),
+            "-c",
+            "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}')",
+        ],
         capture_output=True,
         text=True,
     )
@@ -227,7 +232,9 @@ def _install_python_packages(packages: List[str]) -> Tuple[bool, str]:
         cwd=_project_root(),
     )
     output = "\n".join(
-        part for part in [venv_output, upgrade.stdout, upgrade.stderr, install.stdout, install.stderr] if part
+        part
+        for part in [venv_output, upgrade.stdout, upgrade.stderr, install.stdout, install.stderr]
+        if part
     ).strip()
     return install.returncode == 0, output
 
@@ -238,8 +245,8 @@ def check_health(interactive: bool = True) -> bool:
     If interactive=True, prompts the user to fix issues dynamically.
     Returns True if system is healthy.
     """
-    from ui_components import console, print_error, print_success, print_warning, confirm
-    
+    from ui_components import confirm, console, print_error, print_success, print_warning
+
     console.print("\n[bold red]System Health Check[/bold red] [dim]1.0.0[/dim]\n")
     all_ok = True
     runtime_python = _project_python()
@@ -254,9 +261,13 @@ def check_health(interactive: bool = True) -> bool:
     if project_venv:
         console.print(f"  Runtime: [bold white]venv[/bold white] [dim]({runtime_python})[/dim]")
     elif _in_virtualenv():
-        console.print(f"  Runtime: [bold white]active virtualenv[/bold white] [dim]({runtime_python})[/dim]")
+        console.print(
+            f"  Runtime: [bold white]active virtualenv[/bold white] [dim]({runtime_python})[/dim]"
+        )
     else:
-        console.print(f"  Runtime: [bold white]system python[/bold white] [dim]({runtime_python})[/dim]")
+        console.print(
+            f"  Runtime: [bold white]system python[/bold white] [dim]({runtime_python})[/dim]"
+        )
     if not py_ok:
         all_ok = False
     console.print()
@@ -268,10 +279,13 @@ def check_health(interactive: bool = True) -> bool:
     console.print(f"  config.yaml: {status} {cfg_msg}")
     if not cfg_ok:
         all_ok = False
-        if interactive and confirm("API Keys not configured. Run configuration wizard now?", default=True):
+        if interactive and confirm(
+            "API Keys not configured. Run configuration wizard now?", default=True
+        ):
             console.print("\n[grey70]Launching Configuration Wizard...[/grey70]")
             try:
                 import wizard
+
                 wizard.main()
                 # Re-check config after wizard
                 cfg_ok, cfg_msg = _check_config()
@@ -284,10 +298,10 @@ def check_health(interactive: bool = True) -> bool:
 
     # ── Python Libraries ─────────────────────────────────────────────────────────
     console.print("[bold red]Python Libraries[/bold red]")
-    
+
     missing_required: List[str] = []
     missing_optional: List[str] = []
-    
+
     for import_name, pip_name, is_required in PYTHON_LIBRARIES:
         ok, info = _check_library(import_name, runtime_python)
         if ok:
@@ -302,7 +316,7 @@ def check_health(interactive: bool = True) -> bool:
                 status = "[bold yellow]Missing (Optional)[/bold yellow]"
                 missing_optional.append(pip_name)
             console.print(f"  {pip_name}: {status}")
-            
+
     console.print()
 
     # Auto-repair / instructions for missing libraries
@@ -311,28 +325,34 @@ def check_health(interactive: bool = True) -> bool:
             print_error(f"Missing required libraries: {', '.join(missing_required)}")
         if missing_optional:
             print_warning(f"Missing optional libraries: {', '.join(missing_optional)}")
-            
+
         if interactive:
             try:
                 import questionary
+
                 choices = []
                 if missing_required:
                     choices.append("Install missing required libraries")
                 if missing_optional:
                     choices.append("Install missing optional libraries")
                 choices.append("Skip for now")
-                
+
                 choice = questionary.select(
-                    "Missing python libraries detected. What would you like to do?",
-                    choices=choices
+                    "Missing python libraries detected. What would you like to do?", choices=choices
                 ).ask()
-                
+
                 if choice == "Install missing required libraries":
-                    to_install = [name for import_name, name, req in PYTHON_LIBRARIES if req and name in missing_required]
+                    to_install = [
+                        name
+                        for import_name, name, req in PYTHON_LIBRARIES
+                        if req and name in missing_required
+                    ]
                     console.print(f"[*] Installing required libraries: {', '.join(to_install)}...")
                     success, output = _install_python_packages(to_install)
                     if success:
-                        console.print("[bold white][OK][/bold white] Dependencies installed into project venv")
+                        console.print(
+                            "[bold white][OK][/bold white] Dependencies installed into project venv"
+                        )
                         all_ok = check_health(interactive=False)
                         return all_ok
                     print_error("Automatic installation failed")
@@ -340,11 +360,17 @@ def check_health(interactive: bool = True) -> bool:
                         console.print(f"[dim]{output[-1200:]}[/dim]")
                     return False
                 elif choice == "Install missing optional libraries":
-                    to_install = [name for import_name, name, req in PYTHON_LIBRARIES if not req and name in missing_optional]
+                    to_install = [
+                        name
+                        for import_name, name, req in PYTHON_LIBRARIES
+                        if not req and name in missing_optional
+                    ]
                     console.print(f"[*] Installing optional libraries: {', '.join(to_install)}...")
                     success, output = _install_python_packages(to_install)
                     if success:
-                        console.print("[bold white][OK][/bold white] Dependencies installed into project venv")
+                        console.print(
+                            "[bold white][OK][/bold white] Dependencies installed into project venv"
+                        )
                         all_ok = check_health(interactive=False)
                         return all_ok
                     print_error("Automatic installation failed")
@@ -352,7 +378,9 @@ def check_health(interactive: bool = True) -> bool:
                         console.print(f"[dim]{output[-1200:]}[/dim]")
                     return False
             except ImportError:
-                print_warning("questionary module missing. Run setup.sh to install core dependencies.")
+                print_warning(
+                    "questionary module missing. Run setup.sh to install core dependencies."
+                )
             except Exception as e:
                 logger.error(f"Error during library installation prompt: {e}")
 
@@ -360,7 +388,9 @@ def check_health(interactive: bool = True) -> bool:
     # Elengenix does NOT bundle or check third-party security tools (scanners, fuzzers, etc.).
     # The AI agent discovers tools via shell (`which`, `command -v`) and can request
     # the user to install a tool when needed. See `install_tool` action in the system prompt.
-    console.print("[dim]Note: External security tools are not checked here. The AI agent discovers and requests them on demand.[/dim]")
+    console.print(
+        "[dim]Note: External security tools are not checked here. The AI agent discovers and requests them on demand.[/dim]"
+    )
     console.print()
 
     # ── Final Verdict ──────────────────────────────────────────────────────────
@@ -368,15 +398,18 @@ def check_health(interactive: bool = True) -> bool:
     if all_ok:
         print_success("System is healthy and ready for use")
     else:
-        print_warning("System still has some unresolved issues. Run 'elengenix doctor' again later.")
+        print_warning(
+            "System still has some unresolved issues. Run 'elengenix doctor' again later."
+        )
     console.print()
 
     return all_ok
 
 
 if __name__ == "__main__":
-    import sys
     import os
+    import sys
+
     # Ensure the root directory is in sys.path so we can import root modules like ui_components
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     check_health(interactive="--no-interactive" not in sys.argv)

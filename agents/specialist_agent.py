@@ -18,7 +18,7 @@ import re
 import shlex
 import subprocess
 import time
-from typing import Any, Callable, Dict, List, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional
 
 from agents.worker_base import BaseWorker, WorkerResult
 from tools.universal_ai_client import AIMessage
@@ -30,6 +30,7 @@ logger = logging.getLogger("elengenix.specialist")
 
 
 # ── Sub-Workers ────────────────────────────────────────────────────────────────
+
 
 class ExploitWorker(BaseWorker):
     """Verifies potential exploits with minimal, safe PoC requests.
@@ -72,20 +73,27 @@ class ExploitWorker(BaseWorker):
                 cmd += ["-d", payload]
 
             result = subprocess.run(
-                cmd, shell=False, capture_output=True, text=True,
+                cmd,
+                shell=False,
+                capture_output=True,
+                text=True,
                 timeout=self.timeout_seconds,
             )
             output = result.stdout + result.stderr
             findings = []
-            if any(sig in output.lower() for sig in ["error", "exception", "traceback", "sql", "debug"]):
-                findings.append({
-                    "type": "exploit_indicator",
-                    "severity": "high",
-                    "title": "Potential exploit confirmed",
-                    "target": target,
-                    "description": f"Response contains suspicious patterns",
-                    "evidence": output[:500],
-                })
+            if any(
+                sig in output.lower() for sig in ["error", "exception", "traceback", "sql", "debug"]
+            ):
+                findings.append(
+                    {
+                        "type": "exploit_indicator",
+                        "severity": "high",
+                        "title": "Potential exploit confirmed",
+                        "target": target,
+                        "description": f"Response contains suspicious patterns",
+                        "evidence": output[:500],
+                    }
+                )
             return WorkerResult(
                 success=True,
                 worker_name=self.name,
@@ -133,39 +141,57 @@ class FuzzerWorker(BaseWorker):
         import requests
 
         params = params or {}
-        
+
         # Ensure target has protocol
         if not target.startswith("http"):
             target = f"https://{target}"
 
         findings = []
-        
+
         # Common paths to check
         common_paths = [
-            "/", "/admin", "/login", "/api", "/api/v1", "/api/v2",
-            "/robots.txt", "/sitemap.xml", "/.env", "/.git",
-            "/wp-admin", "/wp-login.php", "/phpmyadmin",
-            "/backup", "/config", "/database", "/db",
-            "/debug", "/test", "/staging", "/dev",
+            "/",
+            "/admin",
+            "/login",
+            "/api",
+            "/api/v1",
+            "/api/v2",
+            "/robots.txt",
+            "/sitemap.xml",
+            "/.env",
+            "/.git",
+            "/wp-admin",
+            "/wp-login.php",
+            "/phpmyadmin",
+            "/backup",
+            "/config",
+            "/database",
+            "/db",
+            "/debug",
+            "/test",
+            "/staging",
+            "/dev",
         ]
-        
+
         for path in common_paths:
             try:
                 url = f"{target.rstrip('/')}{path}"
                 response = requests.get(url, timeout=5, verify=False)
-                
+
                 if response.status_code in [200, 301, 302, 403]:
-                    findings.append({
-                        "type": "directory_found",
-                        "severity": "low",
-                        "title": f"Path found: {path}",
-                        "url": url,
-                        "target": target,
-                        "description": f"Status: {response.status_code}",
-                    })
+                    findings.append(
+                        {
+                            "type": "directory_found",
+                            "severity": "low",
+                            "title": f"Path found: {path}",
+                            "url": url,
+                            "target": target,
+                            "description": f"Status: {response.status_code}",
+                        }
+                    )
             except Exception:
                 continue
-        
+
         return WorkerResult(
             success=True,
             worker_name=self.name,
@@ -175,6 +201,7 @@ class FuzzerWorker(BaseWorker):
 
 
 # ── SpecialistAgent ─────────────────────────────────────────────────────────────
+
 
 class SpecialistAgent:
     """AI agent responsible for task execution via tools and shell commands.
@@ -274,18 +301,22 @@ Respond ONLY with valid JSON. No extra text."""
         # Get AI decision
         decision = self._ai_decide(prompt)
         if not decision:
-            return WorkerResult(success=False, worker_name="SpecialistAgent", error="AI decision failed")
+            return WorkerResult(
+                success=False, worker_name="SpecialistAgent", error="AI decision failed"
+            )
 
         action = decision.get("action", "skip")
 
         if action == "skip":
             self._history.append(f"[SKIP] {description}: {decision.get('reason', '')}")
-            inbox.post(CouncilMessage(
-                msg_type=MessageType.STATUS,
-                sender="specialist",
-                recipient="council",
-                payload={"status": "skipped", "task": description},
-            ))
+            inbox.post(
+                CouncilMessage(
+                    msg_type=MessageType.STATUS,
+                    sender="specialist",
+                    recipient="council",
+                    payload={"status": "skipped", "task": description},
+                )
+            )
             return WorkerResult(success=True, worker_name="SpecialistAgent", output="Skipped")
 
         # Execute
@@ -296,12 +327,14 @@ Respond ONLY with valid JSON. No extra text."""
         self._all_findings.extend(result.findings)
 
         # Post result to inbox
-        inbox.post(CouncilMessage(
-            msg_type=MessageType.RESULT,
-            sender="specialist",
-            recipient="council",
-            payload=result.to_dict(),
-        ))
+        inbox.post(
+            CouncilMessage(
+                msg_type=MessageType.RESULT,
+                sender="specialist",
+                recipient="council",
+                payload=result.to_dict(),
+            )
+        )
 
         return result
 
@@ -336,7 +369,8 @@ Respond ONLY with valid JSON. No extra text."""
             )
         else:
             return WorkerResult(
-                success=False, worker_name="SpecialistAgent",
+                success=False,
+                worker_name="SpecialistAgent",
                 error=f"Unknown action: {action}",
             )
 
@@ -350,9 +384,10 @@ Respond ONLY with valid JSON. No extra text."""
         Returns:
             WorkerResult.
         """
-        from tools.tool_registry import registry, ToolResult, ToolCategory
         import asyncio
         from pathlib import Path
+
+        from tools.tool_registry import ToolCategory, ToolResult, registry
 
         tool_name = decision.get("tool", "")
         cmd_target = decision.get("target", target)
@@ -371,6 +406,7 @@ Respond ONLY with valid JSON. No extra text."""
         try:
             try:
                 from tools.event_loop import get_shared_loop
+
                 loop = get_shared_loop()
                 sem = asyncio.Semaphore(3)
                 future = asyncio.run_coroutine_threadsafe(
@@ -397,8 +433,10 @@ Respond ONLY with valid JSON. No extra text."""
             )
         except Exception as exc:
             return WorkerResult(
-                success=False, worker_name="SpecialistAgent",
-                error=str(exc), metadata={"tool": tool_name},
+                success=False,
+                worker_name="SpecialistAgent",
+                error=str(exc),
+                metadata={"tool": tool_name},
             )
 
     def _run_shell(self, decision: Dict[str, Any], description: str) -> WorkerResult:
@@ -416,7 +454,8 @@ Respond ONLY with valid JSON. No extra text."""
         command = decision.get("command", "")
         if not command:
             return WorkerResult(
-                success=False, worker_name="SpecialistAgent",
+                success=False,
+                worker_name="SpecialistAgent",
                 error="Empty command",
             )
 
@@ -429,7 +468,8 @@ Respond ONLY with valid JSON. No extra text."""
             )
             if not gate.allowed:
                 return WorkerResult(
-                    success=False, worker_name="SpecialistAgent",
+                    success=False,
+                    worker_name="SpecialistAgent",
                     error=f"Blocked by governance: {gate.rationale}",
                 )
 
@@ -446,7 +486,8 @@ Respond ONLY with valid JSON. No extra text."""
             )
         except Exception as exc:
             return WorkerResult(
-                success=False, worker_name="SpecialistAgent",
+                success=False,
+                worker_name="SpecialistAgent",
                 error=str(exc),
             )
 
@@ -463,9 +504,15 @@ Respond ONLY with valid JSON. No extra text."""
             return None
         for attempt in range(self.max_retries + 1):
             try:
-                response = self.client.chat([
-                    AIMessage(role="user", content=prompt),
-                ], temperature=0.3).content or ""
+                response = (
+                    self.client.chat(
+                        [
+                            AIMessage(role="user", content=prompt),
+                        ],
+                        temperature=0.3,
+                    ).content
+                    or ""
+                )
                 self.total_tokens_used += len(response) // 4
                 return _parse_json(response)
             except Exception as exc:
@@ -475,6 +522,7 @@ Respond ONLY with valid JSON. No extra text."""
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
+
 
 def _parse_json(text: str) -> Optional[Dict[str, Any]]:
     """Parse first JSON object from text.
@@ -515,39 +563,46 @@ def _heuristic_findings(output: str, command: str) -> List[Dict[str, Any]]:
     # Look for secrets
     secrets = re.findall(
         r"(?:API[_-]?KEY|SECRET|PASSWORD|TOKEN|APIKEY)[=:]\s*\S+",
-        output, re.IGNORECASE,
+        output,
+        re.IGNORECASE,
     )
     if secrets:
-        findings.append({
-            "type": "potential_secret",
-            "severity": "high",
-            "title": f"Potential secret found ({len(secrets)} matches)",
-            "description": "Credentials or API keys detected in output",
-            "evidence": str(secrets[:3]),
-        })
+        findings.append(
+            {
+                "type": "potential_secret",
+                "severity": "high",
+                "title": f"Potential secret found ({len(secrets)} matches)",
+                "description": "Credentials or API keys detected in output",
+                "evidence": str(secrets[:3]),
+            }
+        )
 
     # Look for URLs
     urls = re.findall(r"https?://[^\s\"'<>]+", output)
     if urls:
-        findings.append({
-            "type": "urls_extracted",
-            "severity": "info",
-            "title": f"{len(urls)} URLs found",
-            "description": "Extracted URLs from tool output",
-            "evidence": "\n".join(urls[:10]),
-        })
+        findings.append(
+            {
+                "type": "urls_extracted",
+                "severity": "info",
+                "title": f"{len(urls)} URLs found",
+                "description": "Extracted URLs from tool output",
+                "evidence": "\n".join(urls[:10]),
+            }
+        )
 
     # Look for SQL errors
     sql_errors = re.findall(
         r"(?:sql|mysql|ora-\d+|syntax error|unclosed quotation)", output, re.IGNORECASE
     )
     if sql_errors:
-        findings.append({
-            "type": "sql_error_detected",
-            "severity": "high",
-            "title": "Potential SQL injection indicator",
-            "description": "SQL-related error messages detected in response",
-            "evidence": str(sql_errors[:3]),
-        })
+        findings.append(
+            {
+                "type": "sql_error_detected",
+                "severity": "high",
+                "title": "Potential SQL injection indicator",
+                "description": "SQL-related error messages detected in response",
+                "evidence": str(sql_errors[:3]),
+            }
+        )
 
     return findings

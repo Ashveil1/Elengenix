@@ -1,14 +1,22 @@
 """
 test_multimodal_agent.py — Tests for multi-modal AI agent.
 """
+
 import sys
+
 sys.path.insert(0, "/mnt/data/Elengenix")
 
 from tools.multimodal_agent import (
-    extract_secrets, extract_endpoints,
-    analyze_code, detect_language, CodeFinding,
-    MemoryTier, MemoryItem, MemoryAugmentedReasoner,
-    ReasoningStepType, ChainOfThoughtReasoner,
+    ChainOfThoughtReasoner,
+    CodeFinding,
+    MemoryAugmentedReasoner,
+    MemoryItem,
+    MemoryTier,
+    ReasoningStepType,
+    analyze_code,
+    detect_language,
+    extract_endpoints,
+    extract_secrets,
 )
 
 
@@ -77,7 +85,7 @@ def test_code_analyze_hardcoded_password():
 
 
 def test_code_analyze_md5():
-    code = 'h = hashlib.md5(data).hexdigest()'
+    code = "h = hashlib.md5(data).hexdigest()"
     findings = analyze_code("crypto.py", code)
     assert any(f.pattern_id == "weak_crypto" for f in findings)
     print("[OK] test_code_analyze_md5")
@@ -111,6 +119,7 @@ def test_memory_remember_recall():
 
 def test_memory_consolidation():
     import time
+
     m = MemoryAugmentedReasoner()
     item = m.remember("Important finding", MemoryTier.WORKING, importance=0.7)
     item.created_at = time.time() - 7200  # 2 hours ago
@@ -138,7 +147,9 @@ def test_chain_of_thought():
 def test_chain_of_thought_verification():
     r = ChainOfThoughtReasoner("Test if vulnerable")
     r.hypothesize("Reflected XSS in search box")
-    r.test("Send <script>alert(1)</script>", "Alert or 200 with script", "Got 200 with script in body")
+    r.test(
+        "Send <script>alert(1)</script>", "Alert or 200 with script", "Got 200 with script in body"
+    )
     assert r.hypotheses[-1]["verified"] is True
     print("[OK] test_chain_of_thought_verification")
 

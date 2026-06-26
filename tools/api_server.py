@@ -32,7 +32,7 @@ import time
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, List, Any, Optional, Set
+from typing import Any, Dict, List, Optional, Set
 
 logger = logging.getLogger("elengenix.api_server")
 
@@ -40,10 +40,11 @@ logger = logging.getLogger("elengenix.api_server")
 # Safe FastAPI import (optional dependency)
 # ---------------------------------------------------------------------------
 try:
-    from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, BackgroundTasks
-    from fastapi.responses import FileResponse, JSONResponse, HTMLResponse
+    from fastapi import BackgroundTasks, FastAPI, HTTPException, WebSocket, WebSocketDisconnect
     from fastapi.middleware.cors import CORSMiddleware
+    from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
     from pydantic import BaseModel, Field
+
     _HAS_FASTAPI = True
 except ImportError:
     _HAS_FASTAPI = False
@@ -52,8 +53,10 @@ except ImportError:
 # In-Memory Scan Store (replace with DB in production)
 # ---------------------------------------------------------------------------
 
+
 class ScanRecord:
     """Represents a single scan in the system."""
+
     def __init__(self, target: str, scan_type: str = "full"):
         self.id: str = f"scan_{uuid.uuid4().hex[:12]}"
         self.target: str = target
@@ -95,11 +98,15 @@ if _HAS_FASTAPI:
 
     class ScanRequest(BaseModel):
         """Request body for starting a scan."""
+
         target: str = Field(..., description="Target to scan (URL, IP, domain)")
-        scan_type: str = Field("full", description="Scan type: full, quick, deep, stealth, web, api")
+        scan_type: str = Field(
+            "full", description="Scan type: full, quick, deep, stealth, web, api"
+        )
 
     class ScanStatus(BaseModel):
         """Scan status response."""
+
         id: str
         target: str
         scan_type: str
@@ -111,6 +118,7 @@ if _HAS_FASTAPI:
 
     class FindingFilter(BaseModel):
         """Filters for finding search."""
+
         severity: Optional[str] = None
         vuln_type: Optional[str] = None
         target: Optional[str] = None
@@ -119,17 +127,21 @@ if _HAS_FASTAPI:
 
     class SuppressRequest(BaseModel):
         """Request to suppress a false positive finding."""
+
         reason: str = Field(..., description="Why this finding is a false positive")
 
     class WebhookRequest(BaseModel):
         """Register a CI/CD webhook."""
+
         url: str = Field(..., description="Webhook URL")
         secret: Optional[str] = Field(None, description="Shared secret for HMAC signing")
-        events: List[str] = Field(["scan.completed", "finding.critical"], 
-                                   description="Events to trigger on")
+        events: List[str] = Field(
+            ["scan.completed", "finding.critical"], description="Events to trigger on"
+        )
 
     class ReportRequest(BaseModel):
         """Generate a compliance report."""
+
         scan_ids: List[str] = Field(..., description="Scan IDs to include")
         format: str = Field("html", description="Report format: html, pdf, json, sarif")
         standard: str = Field("pci_dss", description="Compliance standard: pci_dss, soc2, iso27001")
@@ -186,8 +198,8 @@ if _HAS_FASTAPI:
         await _notify_ws(scan_id, "scan.started", {"scan_id": scan_id, "target": target})
 
         try:
-            from orchestrator import Orchestrator
             from main import normalize_target
+            from orchestrator import Orchestrator
 
             normalized = normalize_target(target)
             orch = Orchestrator(normalized)
@@ -214,20 +226,28 @@ if _HAS_FASTAPI:
                 if sev in severity_counts:
                     severity_counts[sev] += 1
 
-            await _notify_ws(scan_id, "scan.completed", {
-                "scan_id": scan_id,
-                "findings_count": len(record.findings),
-                "severity_counts": severity_counts,
-            })
+            await _notify_ws(
+                scan_id,
+                "scan.completed",
+                {
+                    "scan_id": scan_id,
+                    "findings_count": len(record.findings),
+                    "severity_counts": severity_counts,
+                },
+            )
 
         except Exception as e:
             logger.exception(f"Scan {scan_id} failed: {e}")
             record.status = "failed"
             record.error = str(e)
-            await _notify_ws(scan_id, "scan.failed", {
-                "scan_id": scan_id,
-                "error": str(e),
-            })
+            await _notify_ws(
+                scan_id,
+                "scan.failed",
+                {
+                    "scan_id": scan_id,
+                    "error": str(e),
+                },
+            )
         finally:
             record.completed_at = datetime.now(timezone.utc)
 
@@ -249,10 +269,13 @@ if _HAS_FASTAPI:
     async def start_scan(req: ScanRequest, background_tasks: BackgroundTasks):
         """Start a new security scan."""
         try:
-            from main import validate_target, normalize_target
+            from main import normalize_target, validate_target
+
             normalized = normalize_target(req.target)
             if not validate_target(normalized):
-                raise HTTPException(status_code=400, detail=f"Invalid or out-of-scope target: {req.target}")
+                raise HTTPException(
+                    status_code=400, detail=f"Invalid or out-of-scope target: {req.target}"
+                )
         except Exception as e:
             raise HTTPException(status_code=400, detail=str(e))
 
@@ -279,7 +302,9 @@ if _HAS_FASTAPI:
         if not record:
             raise HTTPException(status_code=404, detail=f"Scan not found: {scan_id}")
         if record.status != "running":
-            raise HTTPException(status_code=400, detail=f"Scan is not running (status: {record.status})")
+            raise HTTPException(
+                status_code=400, detail=f"Scan is not running (status: {record.status})"
+            )
         if record._task:
             record._task.cancel()
         record.status = "cancelled"
@@ -304,7 +329,7 @@ if _HAS_FASTAPI:
         if vuln_type:
             findings = [f for f in findings if vuln_type.lower() in f.get("type", "").lower()]
         total = len(findings)
-        findings = findings[offset:offset + limit]
+        findings = findings[offset : offset + limit]
         return {
             "total": total,
             "limit": limit,
@@ -331,14 +356,18 @@ if _HAS_FASTAPI:
                 all_findings.append(enriched)
         # Filters
         if severity:
-            all_findings = [f for f in all_findings if f.get("severity", "").lower() == severity.lower()]
+            all_findings = [
+                f for f in all_findings if f.get("severity", "").lower() == severity.lower()
+            ]
         if target:
-            all_findings = [f for f in all_findings if target.lower() in str(f.get("url", "")).lower()]
+            all_findings = [
+                f for f in all_findings if target.lower() in str(f.get("url", "")).lower()
+            ]
         if q:
             q_lower = q.lower()
             all_findings = [f for f in all_findings if q_lower in json.dumps(f).lower()]
         total = len(all_findings)
-        all_findings = all_findings[offset:offset + limit]
+        all_findings = all_findings[offset : offset + limit]
         return {"total": total, "limit": limit, "offset": offset, "findings": all_findings}
 
     @_app.post("/findings/{finding_id}/suppress", tags=["Findings"])
@@ -372,8 +401,15 @@ if _HAS_FASTAPI:
 
         # Generate report
         try:
-            from tools.report_gen import ExecutiveSummary, FindingReport, export_report, ReportFormat
             from datetime import datetime, timezone
+
+            from tools.report_gen import (
+                ExecutiveSummary,
+                FindingReport,
+                ReportFormat,
+                export_report,
+            )
+
             summary = ExecutiveSummary(
                 target=", ".join(s.target for s in scans),
                 scan_date=datetime.now(timezone.utc).isoformat(),
@@ -384,19 +420,24 @@ if _HAS_FASTAPI:
             )
             reports = []
             for f in all_findings:
-                reports.append(FindingReport(
-                    id=str(hash(str(f))),
-                    title=f.get("title", "Finding")[:100],
-                    severity=f.get("severity", "Informational"),
-                    cvss=f.get("cvss", 0),
-                    url=f.get("url", ""),
-                    vuln_class=f.get("type", "unknown"),
-                    description=f.get("details", ""),
-                    impact="",
-                    remediation=f.get("remediation", ""),
-                ))
-            fmt_map = {"html": ReportFormat.HTML, "json": ReportFormat.JSON, 
-                      "sarif": ReportFormat.SARIF}
+                reports.append(
+                    FindingReport(
+                        id=str(hash(str(f))),
+                        title=f.get("title", "Finding")[:100],
+                        severity=f.get("severity", "Informational"),
+                        cvss=f.get("cvss", 0),
+                        url=f.get("url", ""),
+                        vuln_class=f.get("type", "unknown"),
+                        description=f.get("details", ""),
+                        impact="",
+                        remediation=f.get("remediation", ""),
+                    )
+                )
+            fmt_map = {
+                "html": ReportFormat.HTML,
+                "json": ReportFormat.JSON,
+                "sarif": ReportFormat.SARIF,
+            }
             fmt = fmt_map.get(req.format, ReportFormat.HTML)
             export_report(summary, reports, str(output_path), fmt)
         except Exception as e:
@@ -423,8 +464,9 @@ if _HAS_FASTAPI:
                     break
             else:
                 raise HTTPException(status_code=404, detail=f"Report not found: {report_id}")
-        return FileResponse(str(report_path), media_type="application/octet-stream",
-                            filename=report_path.name)
+        return FileResponse(
+            str(report_path), media_type="application/octet-stream", filename=report_path.name
+        )
 
     @_app.post("/webhook", tags=["Webhooks"])
     async def register_webhook(req: WebhookRequest):
@@ -434,13 +476,16 @@ if _HAS_FASTAPI:
         wh_dir = Path("data/webhooks")
         wh_dir.mkdir(parents=True, exist_ok=True)
         with open(wh_dir / f"{webhook_id}.json", "w") as f:
-            json.dump({
-                "id": webhook_id,
-                "url": req.url,
-                "secret": req.secret,
-                "events": req.events,
-                "created_at": datetime.now(timezone.utc).isoformat(),
-            }, f)
+            json.dump(
+                {
+                    "id": webhook_id,
+                    "url": req.url,
+                    "secret": req.secret,
+                    "events": req.events,
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                },
+                f,
+            )
         return {"status": "registered", "webhook_id": webhook_id, "url": req.url}
 
     @_app.get("/webhooks", tags=["Webhooks"])
@@ -477,10 +522,14 @@ if _HAS_FASTAPI:
             # Send current status immediately
             record = _scan_store.get(scan_id)
             if record:
-                await websocket.send_text(json.dumps({
-                    "event": "scan.status",
-                    "data": record.to_dict(),
-                }))
+                await websocket.send_text(
+                    json.dumps(
+                        {
+                            "event": "scan.status",
+                            "data": record.to_dict(),
+                        }
+                    )
+                )
             # Keep connection open
             while True:
                 data = await websocket.receive_text()
@@ -504,15 +553,15 @@ if _HAS_FASTAPI:
 <title>Elenginx Security Dashboard</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
          background: #0a0a0f; color: #e0e0e0; }
-  .header { background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); 
+  .header { background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
             padding: 20px 30px; border-bottom: 1px solid #2a2a4a; }
   .header h1 { font-size: 24px; color: #fff; }
   .header span { color: #ff4444; }
   .content { padding: 30px; max-width: 1400px; margin: 0 auto; }
   .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 30px; }
-  .stat-card { background: linear-gradient(135deg, #1a1a2e 0%, #0f3460 100%); border-radius: 12px; padding: 20px; 
+  .stat-card { background: linear-gradient(135deg, #1a1a2e 0%, #0f3460 100%); border-radius: 12px; padding: 20px;
                border: 1px solid #2a2a4a; }
   .stat-card .label { font-size: 12px; color: #888; text-transform: uppercase; letter-spacing: 1px; }
   .stat-card .value { font-size: 36px; font-weight: 700; margin: 8px 0; }
@@ -521,9 +570,9 @@ if _HAS_FASTAPI:
   .stat-card .value.medium { color: #ffcc44; }
   .stat-card .value.low { color: #44cc44; }
   .table { background: #1a1a2e; border-radius: 12px; border: 1px solid #2a2a4a; overflow: hidden; }
-  .table-header { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr 1fr 1fr; padding: 12px 16px; 
+  .table-header { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr 1fr 1fr; padding: 12px 16px;
                   background: #0f3460; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: #888; }
-  .table-row { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr 1fr 1fr; padding: 12px 16px; 
+  .table-row { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr 1fr 1fr; padding: 12px 16px;
                border-top: 1px solid #2a2a4a; font-size: 14px; }
   .table-row:hover { background: rgba(255,255,255,0.03); }
   .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
@@ -537,9 +586,9 @@ if _HAS_FASTAPI:
   .btn { background: #4488ff; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; }
   .btn:hover { background: #3366cc; }
   .new-scan { display: flex; gap: 12px; margin-bottom: 30px; }
-  .new-scan input { flex: 1; background: #1a1a2e; border: 1px solid #2a2a4a; padding: 10px 16px; border-radius: 8px; 
+  .new-scan input { flex: 1; background: #1a1a2e; border: 1px solid #2a2a4a; padding: 10px 16px; border-radius: 8px;
                     color: white; font-size: 14px; }
-  .new-scan select { background: #1a1a2e; border: 1px solid #2a2a4a; padding: 10px 16px; border-radius: 8px; 
+  .new-scan select { background: #1a1a2e; border: 1px solid #2a2a4a; padding: 10px 16px; border-radius: 8px;
                      color: white; font-size: 14px; }
   .footer { text-align: center; padding: 20px; color: #555; font-size: 12px; }
   .ws-status { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
@@ -597,7 +646,7 @@ function startScan() {
 }
 function refreshScans() {
   fetch('/health').then(r=>r.json()).then(h => {
-    document.getElementById('stats').innerHTML = 
+    document.getElementById('stats').innerHTML =
       '<div class="stat-card"><div class="label">Active Scans</div><div class="value">'+h.active_scans+'</div></div>'+
       '<div class="stat-card"><div class="label">Total Scans</div><div class="value">'+h.total_scans+'</div></div>'+
       '<div class="stat-card"><div class="label">Uptime</div><div class="value" style="font-size:20px">'+Math.floor(h.uptime_seconds/3600)+'h</div></div>';
@@ -628,7 +677,7 @@ setInterval(refreshScans, 5000); refreshScans(); connectWS();
     async def list_all_scans(limit: int = 50, offset: int = 0):
         """List all scans."""
         scans = sorted(_scan_store.values(), key=lambda s: s.created_at, reverse=True)
-        scans = scans[offset:offset + limit]
+        scans = scans[offset : offset + limit]
         return {
             "total": len(_scan_store),
             "limit": limit,
@@ -654,12 +703,13 @@ setInterval(refreshScans, 5000); refreshScans(); connectWS();
                 _ws_connections["global"].discard(websocket)
 
     # Export module-level app reference
-    globals()['app'] = _app
+    globals()["app"] = _app
 
 
 # ---------------------------------------------------------------------------
 # CLI Server Launcher
 # ---------------------------------------------------------------------------
+
 
 def run_server(host: str = "0.0.0.0", port: int = 8443, reload: bool = False) -> None:
     """Launch the Elenginx Enterprise API server.
@@ -672,7 +722,7 @@ def run_server(host: str = "0.0.0.0", port: int = 8443, reload: bool = False) ->
     if not _HAS_FASTAPI:
         print("[FAIL] FastAPI not installed. Run: pip install fastapi uvicorn")
         return
-    from ui_components import console, print_success, print_info
+    from ui_components import console, print_info, print_success
 
     console.print(f"[bold red]  Elenginx Enterprise API[/bold red]")
     print_info(f"  Server: http://{host}:{port}")
@@ -682,6 +732,7 @@ def run_server(host: str = "0.0.0.0", port: int = 8443, reload: bool = False) ->
     print_success("  Press Ctrl+C to stop")
 
     import uvicorn
+
     uvicorn.run(
         "tools.api_server:app",
         host=host,

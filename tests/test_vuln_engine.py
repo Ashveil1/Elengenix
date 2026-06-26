@@ -1,13 +1,22 @@
 """
 test_vuln_engine.py — Tests for Next-Gen Vulnerability Engine.
 """
+
 import sys
+
 sys.path.insert(0, "/mnt/data/Elengenix")
 
 from tools.vuln_engine import (
-    VulnClass, VulnFinding, PayloadGen, fingerprint_tech,
-    ExploitChain, KillChainPhase, ChainLink,
-    check_known_cves, calculate_cvss, severity_from_cvss,
+    ChainLink,
+    ExploitChain,
+    KillChainPhase,
+    PayloadGen,
+    VulnClass,
+    VulnFinding,
+    calculate_cvss,
+    check_known_cves,
+    fingerprint_tech,
+    severity_from_cvss,
 )
 
 
@@ -97,8 +106,15 @@ def test_cvss_calculation_dos():
 
 
 def test_exploit_chain():
-    f1 = VulnFinding(title="IDOR", url="http://x.com/api/u/1", parameter="id", vuln_class=VulnClass.BROKEN_ACCESS)
-    f2 = VulnFinding(title="PII Leak", url="http://x.com/api/u/1", parameter="id", vuln_class=VulnClass.SENSITIVE_DATA)
+    f1 = VulnFinding(
+        title="IDOR", url="http://x.com/api/u/1", parameter="id", vuln_class=VulnClass.BROKEN_ACCESS
+    )
+    f2 = VulnFinding(
+        title="PII Leak",
+        url="http://x.com/api/u/1",
+        parameter="id",
+        vuln_class=VulnClass.SENSITIVE_DATA,
+    )
     chain = ExploitChain(name="Account Takeover via IDOR", target="http://x.com")
     chain.add(f1, KillChainPhase.EXPLOIT, "Enumerate user IDs", "Access any user data")
     chain.add(f2, KillChainPhase.ACTIONS, "Extract PII", "GDPR breach, account takeover")

@@ -39,6 +39,7 @@ def _finding_hash(finding: Dict[str, Any]) -> str:
 @dataclass
 class DedupResult:
     """Result of deduplication."""
+
     unique_findings: List[Dict[str, Any]]
     duplicates_removed: int
     merge_count: int
@@ -114,5 +115,7 @@ def deduplicate_in_place(findings: List[Dict[str, Any]]) -> List[Dict[str, Any]]
     """Convenience: deduplicate and return unique list."""
     result = deduplicate_findings(findings)
     if result.duplicates_removed > 0:
-        logger.info(f"Dedup: removed {result.duplicates_removed} duplicates, merged {result.merge_count}")
+        logger.info(
+            f"Dedup: removed {result.duplicates_removed} duplicates, merged {result.merge_count}"
+        )
     return result.unique_findings

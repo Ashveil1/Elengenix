@@ -90,7 +90,9 @@ class BountyReporter:
         if executive_summary:
             lines.append(executive_summary)
         else:
-            lines.append(f"This report contains {len(findings)} potential security findings identified through automated and semi-automated analysis.")
+            lines.append(
+                f"This report contains {len(findings)} potential security findings identified through automated and semi-automated analysis."
+            )
         lines.append("")
 
         # Severity summary
@@ -129,11 +131,15 @@ class BountyReporter:
             lines.append("")
 
             lines.append("### Impact")
-            lines.append("*Describe business impact here - e.g., data leakage, unauthorized access.*")
+            lines.append(
+                "*Describe business impact here - e.g., data leakage, unauthorized access.*"
+            )
             lines.append("")
 
             lines.append("### Remediation")
-            lines.append("*Describe recommended fix - e.g., add authorization check, rate limiting.*")
+            lines.append(
+                "*Describe recommended fix - e.g., add authorization check, rate limiting.*"
+            )
             lines.append("")
 
             lines.append("---")
@@ -173,8 +179,14 @@ class BountyReporter:
                     "url": f.url,
                     "cvss_score": f.cvss_score,
                     "cwe_id": f.cwe_id,
-                    "has_request": (self.evidence_dir / f"{re.sub(r'[^a-zA-Z0-9._-]', '_', f.finding_id)[:60]}_request.txt").exists(),
-                    "has_response": (self.evidence_dir / f"{re.sub(r'[^a-zA-Z0-9._-]', '_', f.finding_id)[:60]}_response.txt").exists(),
+                    "has_request": (
+                        self.evidence_dir
+                        / f"{re.sub(r'[^a-zA-Z0-9._-]', '_', f.finding_id)[:60]}_request.txt"
+                    ).exists(),
+                    "has_response": (
+                        self.evidence_dir
+                        / f"{re.sub(r'[^a-zA-Z0-9._-]', '_', f.finding_id)[:60]}_response.txt"
+                    ).exists(),
                 }
                 for f in findings
             ],

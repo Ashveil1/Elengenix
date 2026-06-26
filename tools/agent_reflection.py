@@ -29,17 +29,40 @@ _DB_PATH = Path(__file__).parent.parent / "data" / "agent_reflection.db"
 
 # Keywords that indicate user is giving negative feedback
 NEGATIVE_KEYWORDS = {
-    "ผิด", "ไม่ใช่", "ไม่เกี่ยว", "ไม่ถูกต้อง", "ผิดนะ",
-    "wrong", "incorrect", "not right", "that's not", "no that's",
-    "ไม่เกี่ยวเลย", "ไม่จริง", "ไม่ใช่เลย", "ผิดไปเลย",
-    "messed up", "you're wrong", "incorrect answer",
+    "ผิด",
+    "ไม่ใช่",
+    "ไม่เกี่ยว",
+    "ไม่ถูกต้อง",
+    "ผิดนะ",
+    "wrong",
+    "incorrect",
+    "not right",
+    "that's not",
+    "no that's",
+    "ไม่เกี่ยวเลย",
+    "ไม่จริง",
+    "ไม่ใช่เลย",
+    "ผิดไปเลย",
+    "messed up",
+    "you're wrong",
+    "incorrect answer",
 }
 
 # Keywords that indicate user is satisfied with the answer
 POSITIVE_KEYWORDS = {
-    "ถูกต้อง", "ใช่เลย", "ตรงตามต้องการ", "เยี่ยม", "ขอบคุณ",
-    "correct", "right", "thanks", "perfect", "exactly",
-    "got it", "that's right", "good answer",
+    "ถูกต้อง",
+    "ใช่เลย",
+    "ตรงตามต้องการ",
+    "เยี่ยม",
+    "ขอบคุณ",
+    "correct",
+    "right",
+    "thanks",
+    "perfect",
+    "exactly",
+    "got it",
+    "that's right",
+    "good answer",
 }
 
 
@@ -80,6 +103,7 @@ def init_db() -> None:
 @dataclass
 class ReflectionEntry:
     """Single reflection record."""
+
     query: str
     response: str
     feedback: str
@@ -129,14 +153,14 @@ class AgentReflection:
 
     def categorize_query(self, query: str) -> str:
         """
-    Auto-categorize the query for filtering.
+        Auto-categorize the query for filtering.
 
-    Args:
-        query: Original user query.
+        Args:
+            query: Original user query.
 
-    Returns:
-        Category string (security, research, casual, code, general)
-    """
+        Returns:
+            Category string (security, research, casual, code, general)
+        """
         q_lower = query.lower()
 
         security_terms = ["scan", "vuln", "exploit", "hack", "bounty", "nuclei", "subfinder"]
@@ -202,9 +226,7 @@ class AgentReflection:
             conn.commit()
             conn.close()
 
-            logger.info(
-                f"Reflection recorded: sentiment={sentiment}, category={category}"
-            )
+            logger.info(f"Reflection recorded: sentiment={sentiment}, category={category}")
             return True
         except Exception as e:
             logger.error(f"Failed to record reflection: {e}")
@@ -235,9 +257,7 @@ class AgentReflection:
             # Query: Find negative feedback records
             # Use simple keyword matching since we don't have embeddings here
             words = current_query.lower().split()
-            word_conditions = " OR ".join(
-                f"query LIKE ?" for _ in words
-            )
+            word_conditions = " OR ".join(f"query LIKE ?" for _ in words)
             params = [f"%{w}%" for w in words]
 
             cursor = conn.execute(
@@ -261,15 +281,9 @@ class AgentReflection:
             # Format caution
             caution_lines = ["### ⚠️ CAUTION FROM PAST MISTAKES:"]
             for i, row in enumerate(rows, 1):
-                caution_lines.append(
-                    f"{i}. Previous query: {row['query'][:100]}"
-                )
-                caution_lines.append(
-                    f"   User feedback: {row['feedback'][:80]}"
-                )
-                caution_lines.append(
-                    f"   Category: {row['category']}"
-                )
+                caution_lines.append(f"{i}. Previous query: {row['query'][:100]}")
+                caution_lines.append(f"   User feedback: {row['feedback'][:80]}")
+                caution_lines.append(f"   Category: {row['category']}")
 
             caution_lines.append(
                 "\nIMPORTANT: Avoid making similar mistakes. "
@@ -309,9 +323,7 @@ class AgentReflection:
                 stats["total"] += count
                 if sentiment in stats:
                     stats[sentiment] += count
-                stats["categories"][category] = (
-                    stats["categories"].get(category, 0) + count
-                )
+                stats["categories"][category] = stats["categories"].get(category, 0) + count
 
             return stats
         except Exception as e:

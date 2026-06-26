@@ -13,6 +13,7 @@ logger = logging.getLogger("elengenix.token_counter")
 
 try:
     import tiktoken
+
     _enc = tiktoken.get_encoding("cl100k_base")
     TIKTOKEN_AVAILABLE = True
 except ImportError:

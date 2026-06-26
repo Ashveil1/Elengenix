@@ -17,11 +17,19 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import requests
-from tools.tool_registry import BaseTool, ToolCategory, ToolMetadata, ToolPriority, ToolResult, register_tool
+
+from tools.tool_registry import (
+    BaseTool,
+    ToolCategory,
+    ToolMetadata,
+    ToolPriority,
+    ToolResult,
+    register_tool,
+)
 from tools.universal_ai_client import AIClientManager, AIMessage
 from tools.waf_evasion import WAFEvasionEngine
 from tools.waf_signatures import detect_waf_from_response
-from ui_components import console, print_info, print_success, print_warning, print_error
+from ui_components import console, print_error, print_info, print_success, print_warning
 
 logger = logging.getLogger("elengenix.dynamic_waf_mutator")
 
@@ -59,12 +67,18 @@ class DynamicWAFMutator:
         # Common WAF block status codes
         if status_code in (403, 406, 409, 501, 502, 503):
             return True
-        
+
         # Generic heuristic checks
         body_lower = body.lower()
         block_triggers = [
-            "blocked by waf", "cloudflare ray", "mod_security", "access denied",
-            "incident id", "sucuri cloudproxy", "security gate", "activity blocked"
+            "blocked by waf",
+            "cloudflare ray",
+            "mod_security",
+            "access denied",
+            "incident id",
+            "sucuri cloudproxy",
+            "security gate",
+            "activity blocked",
         ]
         return any(trigger in body_lower for trigger in block_triggers)
 
@@ -76,7 +90,7 @@ class DynamicWAFMutator:
         status_code: int,
         headers: str,
         body_snippet: str,
-        attempt: int
+        attempt: int,
     ) -> List[AIMessage]:
         """
         Build a high-context prompt for the WAF evasion LLM.
@@ -125,7 +139,7 @@ class DynamicWAFMutator:
         target_path: str,
         base_payload: str,
         vuln_type: str = "Cross-Site Scripting",
-        max_attempts: int = 5
+        max_attempts: int = 5,
     ) -> Dict[str, Any]:
         """
         Run the interactive real-time AI feedback mutation loop to bypass WAF.
@@ -141,16 +155,16 @@ class DynamicWAFMutator:
         """
         current_payload = base_payload
         target_url = self.base_url.rstrip("/") + "/" + target_path.lstrip("/")
-        
+
         print_info(f"Starting Dynamic WAF Mutator loop against: {target_url}")
         print_info(f"Target Vulnerability: {vuln_type}")
         print_info(f"Base Exploit Payload: {base_payload}")
 
         waf_name = None
-        
+
         for attempt in range(1, max_attempts + 1):
             logger.info(f"WAF Mutation loop attempt {attempt} running...")
-            
+
             # Send current payload
             status, text, headers = self.evasion_engine._send_probe(target_url, current_payload)
             blocked = self._is_blocked(status, text)
@@ -172,12 +186,14 @@ class DynamicWAFMutator:
                     "attempts": attempt,
                     "waf_type": waf_name,
                     "status_code": status,
-                    "history": self.history
+                    "history": self.history,
                 }
 
             # If blocked, record history and request AI mutation
-            print_warning(f"[WARN] Attempt {attempt} got blocked (Status: {status}). Requesting AI mutation...")
-            
+            print_warning(
+                f"[WARN] Attempt {attempt} got blocked (Status: {status}). Requesting AI mutation..."
+            )
+
             # Record failed attempt details
             serialized_headers = json.dumps(headers)
             attempt_record = {
@@ -185,7 +201,7 @@ class DynamicWAFMutator:
                 "payload": current_payload,
                 "status_code": status,
                 "blocked": True,
-                "waf_type": waf_name
+                "waf_type": waf_name,
             }
             self.history.append(attempt_record)
 
@@ -197,14 +213,14 @@ class DynamicWAFMutator:
                 status_code=status,
                 headers=serialized_headers,
                 body_snippet=text,
-                attempt=attempt
+                attempt=attempt,
             )
 
             try:
                 # Call UniversalAIClient
                 response = self.ai_manager.chat(messages, temperature=0.7)
                 content = response.content.strip()
-                
+
                 # Parse JSON block
                 if "```json" in content:
                     content = content.split("```json")[1].split("```")[0].strip()
@@ -220,13 +236,15 @@ class DynamicWAFMutator:
 
                 print_info(f"[INFO] AI Reasoning: {reasoning}")
                 print_info(f"[RUN] Mutated payload: {next_payload}")
-                
+
                 current_payload = next_payload
 
             except Exception as e:
                 print_error(f"[FAIL] AI Mutation generation failed: {e}")
                 # Fallback to rule-based mutator if AI fails
-                variants = self.evasion_engine.generate_mutations(current_payload, waf_name, max_variants=5)
+                variants = self.evasion_engine.generate_mutations(
+                    current_payload, waf_name, max_variants=5
+                )
                 if len(variants) > 1:
                     current_payload = variants[1][0]
                     print_warning(f"Fallback: Using rule-based mutation payload: {current_payload}")
@@ -239,18 +257,20 @@ class DynamicWAFMutator:
             "bypass_payload": None,
             "attempts": max_attempts,
             "waf_type": waf_name,
-            "history": self.history
+            "history": self.history,
         }
 
 
-@register_tool(ToolMetadata(
-    name="dynamic_waf_mutator",
-    category=ToolCategory.EXPLOITATION,
-    priority=ToolPriority.HIGH,
-    binary_name="python3",  # Dynamic tool uses python environment, always available
-    description="Adaptive AI-driven real-time WAF evasion mutator",
-    timeout_seconds=300,
-))
+@register_tool(
+    ToolMetadata(
+        name="dynamic_waf_mutator",
+        category=ToolCategory.EXPLOITATION,
+        priority=ToolPriority.HIGH,
+        binary_name="python3",  # Dynamic tool uses python environment, always available
+        description="Adaptive AI-driven real-time WAF evasion mutator",
+        timeout_seconds=300,
+    )
+)
 class DynamicWAFMutatorTool(BaseTool):
     """
     Dynamic WAF Bypass Mutator plugin wrapping the AI loop into the Elengenix tool registry.
@@ -265,7 +285,7 @@ class DynamicWAFMutatorTool(BaseTool):
         target: Union[str, List[str]],
         report_dir: Path,
         semaphore: asyncio.Semaphore,
-        **kwargs
+        **kwargs,
     ) -> ToolResult:
         """
         Execute the dynamic WAF mutator tool.
@@ -280,6 +300,7 @@ class DynamicWAFMutatorTool(BaseTool):
             ToolResult containing bypass outcomes.
         """
         import time
+
         start_time = time.time()
 
         base_url = target if isinstance(target, str) else target[0]
@@ -300,14 +321,14 @@ class DynamicWAFMutatorTool(BaseTool):
                         target_path=target_path,
                         base_payload=base_payload,
                         vuln_type=vuln_type,
-                        max_attempts=max_attempts
+                        max_attempts=max_attempts,
                     )
-                )
+                ),
             )
 
         execution_time = time.time() - start_time
         output_file = report_dir / "dynamic_waf_bypass_results.json"
-        
+
         # Save output
         try:
             output_file.write_text(json.dumps(result, indent=2))
@@ -316,12 +337,14 @@ class DynamicWAFMutatorTool(BaseTool):
 
         findings = []
         if result.get("success"):
-            findings.append({
-                "vuln_type": vuln_type,
-                "bypass_payload": result.get("bypass_payload"),
-                "attempts_needed": result.get("attempts"),
-                "waf_type": result.get("waf_type"),
-            })
+            findings.append(
+                {
+                    "vuln_type": vuln_type,
+                    "bypass_payload": result.get("bypass_payload"),
+                    "attempts_needed": result.get("attempts"),
+                    "waf_type": result.get("waf_type"),
+                }
+            )
 
         return ToolResult(
             success=result.get("success", False),
@@ -330,5 +353,5 @@ class DynamicWAFMutatorTool(BaseTool):
             output=json.dumps(result, indent=2),
             findings=findings,
             execution_time=execution_time,
-            raw_output_file=output_file if output_file.exists() else None
+            raw_output_file=output_file if output_file.exists() else None,
         )

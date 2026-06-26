@@ -3,6 +3,7 @@
 run.py — Launcher for Red Team Agent Framework.
 Can be run from either the redteam_agent/ directory or the parent directory.
 """
+
 import sys
 from pathlib import Path
 

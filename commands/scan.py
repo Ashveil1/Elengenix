@@ -3,12 +3,12 @@ commands/scan.py — Scan Command Handler
 Extracted from main.py for better code organization.
 """
 
+import asyncio
+import json
+import logging
 import os
 import sys
-import json
 import time
-import asyncio
-import logging
 from pathlib import Path
 
 from ui_components import console, print_error, print_success, prompt_target
@@ -16,60 +16,66 @@ from ui_components import console, print_error, print_success, prompt_target
 
 def handle_scan(args) -> int:
     """Handle the scan command.
-    
+
     Args:
         args: Parsed command arguments.
-        
+
     Returns:
         Exit code (0 for success, 1 for error).
     """
+    from shutil import which
+
     from agent import get_agent
     from bot_utils import send_telegram_notification
-    from shutil import which
     from main import require_authorized_scan_target
-    
+
     # Silence INFO logs during scan
     logging.getLogger().setLevel(logging.WARNING)
-    
+
     target = args.target or prompt_target()
     if not target:
         return 1
-    
+
     if not require_authorized_scan_target(target):
         return 1
-    
+
     env_models = [m.strip() for m in os.environ.get("ACTIVE_MODELS", "").split(",") if m.strip()]
     team_size = len(env_models)
-    
+
     print()
     console.print(f"\n[bold #ffffff]  ELENGENIX AI SCAN 1.0.0[/bold #ffffff]")
     console.print(f"  Target: [red]{target}[/red]")
     if team_size >= 2:
         console.print(f"  Team: [red]{team_size} agents[/red]")
     print()
-    
+
     # Phase 0: Pre-flight
     console.print("[bold #ffffff]Phase 0: Elengenix Framework Pre-flight[/bold #ffffff]")
-    
+
     subdomain_hint = ""
     preflight_findings = []
     preflight_file = None
     try:
         from orchestrator import run_elengenix_modules
+
         preflight_dir = Path(f"reports/preflight_{target.replace('/', '_')}_{int(time.time())}")
         preflight_dir.mkdir(parents=True, exist_ok=True)
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         try:
             preflight_findings = loop.run_until_complete(
-                asyncio.wait_for(run_elengenix_modules(target, preflight_dir, timeout=90), timeout=110)
+                asyncio.wait_for(
+                    run_elengenix_modules(target, preflight_dir, timeout=90), timeout=110
+                )
             )
         finally:
             loop.close()
         if preflight_findings:
             preflight_file = preflight_dir / "elengenix_findings.json"
             preflight_file.write_text(json.dumps(preflight_findings, indent=2, default=str))
-            console.print(f"  [OK] Pre-flight: {len(preflight_findings)} findings saved to {preflight_file}")
+            console.print(
+                f"  [OK] Pre-flight: {len(preflight_findings)} findings saved to {preflight_file}"
+            )
             finding_summary = "\n".join(
                 f"  - [{f.get('severity', '?')}] {f.get('type', '?')}: {f.get('title', '?')[:80]}"
                 for f in preflight_findings[:20]
@@ -79,15 +85,17 @@ def handle_scan(args) -> int:
             console.print("  [dim]Pre-flight: 0 findings (target may be down or unreachable)[/dim]")
     except Exception as e:
         console.print(f"  [WARN] Pre-flight failed: {e}")
-    
+
     # Phase 1: AI-driven reconnaissance
     console.print("[bold #ffffff]Phase 1: AI-Driven Reconnaissance[/bold #ffffff]")
-    
+
     # Pre-seed subdomains via OTX
     initial_subs = set()
     try:
-        from tools.wayback_tool import fetch_otx_urls
         from urllib.parse import urlparse
+
+        from tools.wayback_tool import fetch_otx_urls
+
         urls = fetch_otx_urls(target)
         for u in urls:
             host = urlparse(u).hostname
@@ -101,9 +109,9 @@ def handle_scan(args) -> int:
                 console.print(f"    ... +{len(initial_subs) - 5} more")
     except Exception:
         pass
-    
+
     agent = get_agent()
-    
+
     # Check available tools
     tool_map = {
         "curl": which("curl"),
@@ -114,12 +122,13 @@ def handle_scan(args) -> int:
     avail_tools = [name for name, path in tool_map.items() if path]
     tools_context = f"\nAvailable tools on system: {', '.join(sorted(avail_tools))}\n"
     tools_context += "\nElengenix has built-in Python scanners for: SSRF, SSTI, XXE, Deserialization, GraphQL, Race Conditions, CORS, JWT, Business Logic, Supply Chain, API Schema Diff\n"
-    
+
     def scan_callback(msg):
         import re
+
         try:
-            safe_msg = re.sub(r'\[/?[^\]]+\]', '', msg)
-            
+            safe_msg = re.sub(r"\[/?[^\]]+\]", "", msg)
+
             if msg.startswith("### AI THINKING:"):
                 thought = msg.replace("### AI THINKING:", "").strip()
                 console.print(f"\n[THINKING] {thought[:150]}")
@@ -131,7 +140,7 @@ def handle_scan(args) -> int:
                 console.print(f"  {safe_msg[:200]}")
         except Exception:
             console.print(f"  {msg[:200]}")
-    
+
     # Run AI scan
     try:
         response = agent.process_universal(
@@ -149,12 +158,15 @@ def handle_scan(args) -> int:
             f"- If a tool is missing, ask the user with ask_user action\n"
             f"- Run actual tools, report results honestly. If something fails, try another approach.\n"
             f"- IMPORTANT: Write temp files to current directory (./subdomains.txt) NOT /tmp\n",
-            target=target, callback=scan_callback, mode="bug_bounty",
+            target=target,
+            callback=scan_callback,
+            mode="bug_bounty",
             preflight_findings=preflight_findings,
         )
         if response:
             import re
-            safe_response = re.sub(r'\[/?[^\]]+\]', '', response[:2000])
+
+            safe_response = re.sub(r"\[/?[^\]]+\]", "", response[:2000])
             console.print(f"\nAI Analysis:")
             console.print(f"  {safe_response[:2000]}")
             report_file = Path(f"reports/scan_{target}_{int(time.time())}.md")

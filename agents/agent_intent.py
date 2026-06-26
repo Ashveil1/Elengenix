@@ -123,10 +123,12 @@ def _ai_classify(client: Any, query: str) -> str:
         Intent string: 'casual', 'research', 'scan', or 'security_chat'.
     """
     try:
-        res = client.chat([
-            AIMessage(role="system", content=_INTENT_PROMPT),
-            AIMessage(role="user", content=query),
-        ]).content
+        res = client.chat(
+            [
+                AIMessage(role="system", content=_INTENT_PROMPT),
+                AIMessage(role="user", content=query),
+            ]
+        ).content
         if res is None:
             return "security_chat"
         intent = str(res).strip().lower()

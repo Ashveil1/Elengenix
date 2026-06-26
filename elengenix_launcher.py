@@ -16,10 +16,10 @@ Environment:
 Author: Elengenix Project Contributors
 """
 
-import sys
+import logging
 import os
 import subprocess
-import logging
+import sys
 from pathlib import Path
 from typing import List
 
@@ -31,23 +31,26 @@ logger = logging.getLogger("elengenix.launcher")
 # Used only in this module to avoid importing Rich at startup for speed.
 # ---------------------------------------------------------------------------
 
+
 class Colors:
     """ANSI escape codes for terminal output styling (Ancient Greek Theme)."""
-    HEADER    = "\033[38;5;178m"  # Gold3
-    BLUE      = "\033[38;5;67m"   # Steel Blue
-    CYAN      = "\033[38;5;178m"  # Gold3 (Replaces Cyan for primary text)
-    GREEN     = "\033[38;5;113m"  # Dark Olive Green2
-    YELLOW    = "\033[38;5;208m"  # Dark Orange
-    RED       = "\033[38;5;131m"  # Indian Red
-    BOLD      = "\033[1m"
-    DIM       = "\033[2m"
+
+    HEADER = "\033[38;5;178m"  # Gold3
+    BLUE = "\033[38;5;67m"  # Steel Blue
+    CYAN = "\033[38;5;178m"  # Gold3 (Replaces Cyan for primary text)
+    GREEN = "\033[38;5;113m"  # Dark Olive Green2
+    YELLOW = "\033[38;5;208m"  # Dark Orange
+    RED = "\033[38;5;131m"  # Indian Red
+    BOLD = "\033[1m"
+    DIM = "\033[2m"
     UNDERLINE = "\033[4m"
-    END       = "\033[0m"
+    END = "\033[0m"
 
 
 # ---------------------------------------------------------------------------
 # Environment Bootstrap
 # ---------------------------------------------------------------------------
+
 
 def bootstrap() -> Path:
     """Detect project root and activate virtual environment if present.
@@ -68,6 +71,7 @@ def bootstrap() -> Path:
     if env_file.exists():
         try:
             from dotenv import load_dotenv
+
             load_dotenv(env_file, override=False)
         except ImportError:
             # Fallback: manual .env parsing if python-dotenv is missing
@@ -86,27 +90,28 @@ def bootstrap() -> Path:
 # UI Output Utilities
 # ---------------------------------------------------------------------------
 
+
 class ElengenixUI:
     """Lightweight terminal UI with color-coded output and text-only markers."""
 
     MARKERS = {
-        "info":    "[*]",
+        "info": "[*]",
         "success": "[OK]",
-        "error":   "[FAIL]",
+        "error": "[FAIL]",
         "warning": "[WARN]",
-        "header":  "",
-        "bold":    "",
+        "header": "",
+        "bold": "",
     }
 
     @classmethod
     def print(cls, message: str, style: str = "info"):
         color_map = {
-            "info":    Colors.CYAN,
+            "info": Colors.CYAN,
             "success": Colors.GREEN,
-            "error":   Colors.RED,
+            "error": Colors.RED,
             "warning": Colors.YELLOW,
-            "header":  Colors.HEADER,
-            "bold":    Colors.BOLD,
+            "header": Colors.HEADER,
+            "bold": Colors.BOLD,
         }
         color = color_map.get(style, Colors.END)
         marker = cls.MARKERS.get(style, "")
@@ -122,7 +127,9 @@ class ElengenixUI:
         line = Colors.BLUE + ("─" * width) + Colors.END
         print()
         print(line)
-        print(f"{Colors.BOLD}{Colors.CYAN}  ELENGENIX{Colors.END}  {Colors.DIM}  |  Universal AI + Bug Bounty Agent{Colors.END}")
+        print(
+            f"{Colors.BOLD}{Colors.CYAN}  ELENGENIX{Colors.END}  {Colors.DIM}  |  Universal AI + Bug Bounty Agent{Colors.END}"
+        )
         print(line)
         print()
 
@@ -130,6 +137,7 @@ class ElengenixUI:
 # ---------------------------------------------------------------------------
 # Application Router
 # ---------------------------------------------------------------------------
+
 
 class ElengenixApp:
     """Main application command router.
@@ -144,63 +152,98 @@ class ElengenixApp:
     # All supported commands grouped by category (for help display)
     COMMAND_GROUPS = {
         "AI & Agent": [
-            ("ai [query]",           "Interactive AI chat assistant"),
-            ("cli",                  "Gemini-style CLI session (prompt_toolkit)"),
-            ("universal",            "Autonomous agent mode — open-ended tasks"),
-            ("autonomous <target>",  "Fully autonomous AI-driven scan"),
+            ("ai [query]", "Interactive AI chat assistant"),
+            ("cli", "Gemini-style CLI session (prompt_toolkit)"),
+            ("universal", "Autonomous agent mode — open-ended tasks"),
+            ("autonomous <target>", "Fully autonomous AI-driven scan"),
         ],
         "Reconnaissance": [
-            ("recon <domain>",       "Subdomain + asset discovery & correlation"),
-            ("scan <target>",        "Full pipeline: Recon -> Vuln -> Report"),
-            ("mission <target>",     "Start autonomous scanning mission"),
-            ("bounty [program]",     "Bug bounty program intel & predictor"),
-            ("programs",             "List known bug bounty programs"),
+            ("recon <domain>", "Subdomain + asset discovery & correlation"),
+            ("scan <target>", "Full pipeline: Recon -> Vuln -> Report"),
+            ("mission <target>", "Start autonomous scanning mission"),
+            ("bounty [program]", "Bug bounty program intel & predictor"),
+            ("programs", "List known bug bounty programs"),
         ],
         "Exploitation & Testing": [
-            ("bola <url>",           "BOLA / IDOR differential tests"),
-            ("waf <url>",            "WAF detection & XSS bypass engine"),
-            ("evasion",              "EDR/AV evasion framework"),
-            ("research <CVE|type>",  "CVE research + PoC generator"),
-            ("poc <vuln-type>",      "Generate custom exploit PoC"),
+            ("bola <url>", "BOLA / IDOR differential tests"),
+            ("waf <url>", "WAF detection & XSS bypass engine"),
+            ("evasion", "EDR/AV evasion framework"),
+            ("research <CVE|type>", "CVE research + PoC generator"),
+            ("poc <vuln-type>", "Generate custom exploit PoC"),
         ],
         "Analysis & Intelligence": [
-            ("sast <file|dir>",      "Static code analysis (Python, JS, Go, Java)"),
-            ("cloud <file|dir>",     "Terraform / IaC / cloud security review"),
-            ("mobile <target>",      "Mobile API traffic analysis & fuzzing"),
-            ("soc [logfile]",        "Security log & SIEM threat analysis"),
+            ("sast <file|dir>", "Static code analysis (Python, JS, Go, Java)"),
+            ("cloud <file|dir>", "Terraform / IaC / cloud security review"),
+            ("mobile <target>", "Mobile API traffic analysis & fuzzing"),
+            ("soc [logfile]", "Security log & SIEM threat analysis"),
         ],
         "Reports & Memory": [
-            ("report [findings]",    "Generate HTML/PDF security report"),
-            ("memory",               "View & search AI semantic memory"),
-            ("history",              "Browse past scan sessions"),
-            ("dashboard",            "Launch live web dashboard (browser UI)"),
-            ("cve-update",           "Refresh local CVE database"),
+            ("report [findings]", "Generate HTML/PDF security report"),
+            ("memory", "View & search AI semantic memory"),
+            ("history", "Browse past scan sessions"),
+            ("dashboard", "Launch live web dashboard (browser UI)"),
+            ("cve-update", "Refresh local CVE database"),
         ],
         "Mission Control": [
-            ("status <mission_id>",  "Check mission status"),
-            ("pause <mission_id>",   "Pause a running mission"),
-            ("resume <mission_id>",  "Resume a paused mission"),
+            ("status <mission_id>", "Check mission status"),
+            ("pause <mission_id>", "Pause a running mission"),
+            ("resume <mission_id>", "Resume a paused mission"),
         ],
         "System": [
-            ("doctor",               "System health check — tools & API keys"),
-            ("configure",            "Set up AI providers, Telegram, HackerOne"),
-            ("gateway",              "Start Telegram bot gateway"),
-            ("arsenal",              "Manual tool selector menu"),
-            ("menu",                 "Interactive categorized menu"),
-            ("update",               "Update framework via git pull"),
-            ("help",                 "Show this help message"),
+            ("doctor", "System health check — tools & API keys"),
+            ("configure", "Set up AI providers, Telegram, HackerOne"),
+            ("gateway", "Start Telegram bot gateway"),
+            ("arsenal", "Manual tool selector menu"),
+            ("menu", "Interactive categorized menu"),
+            ("update", "Update framework via git pull"),
+            ("help", "Show this help message"),
         ],
     }
 
     # Commands that delegate to main.py (full Rich/heavy-import pipeline)
     DELEGATE_TO_MAIN = {
-        "ai", "cli", "tui", "cli-textual", "clitest", "cli-legacy", "universal", "autonomous",
-        "recon", "scan", "bola", "waf", "evasion",
-        "research", "poc", "sast", "cloud", "mobile", "soc",
-        "report", "memory", "history", "dashboard", "cve-update",
-        "configure", "gateway", "arsenal", "menu", "update",
-        "profile", "intel", "web", "api", "bb", "check", "test",
-        "red", "pdf", "hack", "quick", "deep", "stealth",
+        "ai",
+        "cli",
+        "tui",
+        "cli-textual",
+        "clitest",
+        "cli-legacy",
+        "universal",
+        "autonomous",
+        "recon",
+        "scan",
+        "bola",
+        "waf",
+        "evasion",
+        "research",
+        "poc",
+        "sast",
+        "cloud",
+        "mobile",
+        "soc",
+        "report",
+        "memory",
+        "history",
+        "dashboard",
+        "cve-update",
+        "configure",
+        "gateway",
+        "arsenal",
+        "menu",
+        "update",
+        "profile",
+        "intel",
+        "web",
+        "api",
+        "bb",
+        "check",
+        "test",
+        "red",
+        "pdf",
+        "hack",
+        "quick",
+        "deep",
+        "stealth",
     }
 
     def __init__(self):
@@ -222,14 +265,14 @@ class ElengenixApp:
 
         # Commands with native handlers in this launcher
         native_handlers = {
-            "mission":   self.cmd_mission,
-            "bounty":    self.cmd_bounty,
-            "programs":  self.cmd_programs,
-            "status":    self.cmd_status,
-            "pause":     self.cmd_pause,
-            "resume":    self.cmd_resume,
-            "doctor":    self.cmd_doctor,
-            "telegram":  self.cmd_telegram,
+            "mission": self.cmd_mission,
+            "bounty": self.cmd_bounty,
+            "programs": self.cmd_programs,
+            "status": self.cmd_status,
+            "pause": self.cmd_pause,
+            "resume": self.cmd_resume,
+            "doctor": self.cmd_doctor,
+            "telegram": self.cmd_telegram,
         }
 
         if command in native_handlers:
@@ -253,7 +296,7 @@ class ElengenixApp:
         except KeyboardInterrupt:
             # Launcher itself was interrupted during setup, just exit quietly
             sys.exit(0)
-        
+
         # After subprocess finishes, check if it was interrupted
         # return codes like -2 (SIGINT) or 130 should NOT exit the launcher if we want to return gracefully
         if result and result.returncode not in [0, -2, 130]:
@@ -268,7 +311,9 @@ class ElengenixApp:
         print(f"{Colors.BOLD}Usage:{Colors.END} elengenix <command> [target] [options]")
         print()
         print(f"  {Colors.DIM}Smart mode — just type a target:{Colors.END}")
-        print(f"    {Colors.GREEN}elengenix example.com{Colors.END}         →  auto-detect and route")
+        print(
+            f"    {Colors.GREEN}elengenix example.com{Colors.END}         →  auto-detect and route"
+        )
         print(f"    {Colors.GREEN}elengenix https://api.x.com/{Colors.END}  →  BOLA / WAF workflow")
         print(f"    {Colors.GREEN}elengenix myapp.py{Colors.END}            →  SAST static scan")
         print()
@@ -298,6 +343,7 @@ class ElengenixApp:
         ElengenixUI.print(f"Starting mission: {target}", "info")
         try:
             from tools.smart_scanner import SmartScanner
+
             scanner = SmartScanner(target=target)
             results = scanner.run()
             findings = len(results.get("findings", []))
@@ -310,10 +356,15 @@ class ElengenixApp:
         ElengenixUI.print("Discovering programs...", "info")
         try:
             from tools.bounty_intelligence import BountyIntelligence
+
             api_key = os.environ.get("HACKERONE_API_KEY")
             api_user = os.environ.get("HACKERONE_API_USER")
             intel = BountyIntelligence(api_key=api_key, api_username=api_user)
-            programs = intel.discover_programs_api(500, 10) if api_key else intel.discover_programs_public(10)
+            programs = (
+                intel.discover_programs_api(500, 10)
+                if api_key
+                else intel.discover_programs_public(10)
+            )
             if programs:
                 ranked = intel.rank_programs(programs)
                 top = ranked[0]
@@ -397,28 +448,51 @@ class ElengenixApp:
     def cmd_unknown(self, command: str):
         """Handle unrecognized commands with smart suggestion (High Performance)."""
         print()
-        print(f"  {Colors.RED}Σ Error:{Colors.END} Protocol '{Colors.BOLD}{command}{Colors.END}' is not recognized.")
-        print(f"  {Colors.DIM}─────────────────────────────────────────────────────────────────{Colors.END}")
-        
+        print(
+            f"  {Colors.RED}Σ Error:{Colors.END} Protocol '{Colors.BOLD}{command}{Colors.END}' is not recognized."
+        )
+        print(
+            f"  {Colors.DIM}─────────────────────────────────────────────────────────────────{Colors.END}"
+        )
+
         # Show closest match hint
-        all_cmds = sorted(list(set(list(self.DELEGATE_TO_MAIN) + [
-            "mission", "bounty", "programs", "status", "pause", "resume",
-            "doctor", "telegram", "cli", "menu", "configure"
-        ])))
-        
+        all_cmds = sorted(
+            list(
+                set(
+                    list(self.DELEGATE_TO_MAIN)
+                    + [
+                        "mission",
+                        "bounty",
+                        "programs",
+                        "status",
+                        "pause",
+                        "resume",
+                        "doctor",
+                        "telegram",
+                        "cli",
+                        "menu",
+                        "configure",
+                    ]
+                )
+            )
+        )
+
         # Smart matching
         close = [c for c in all_cmds if command in c or c.startswith(command[:2])]
         if close:
             hints = ", ".join([f"{Colors.BOLD}{Colors.CYAN}{c}{Colors.END}" for c in close[:3]])
             print(f"  {Colors.DIM}Did you mean:{Colors.END} {hints}?")
-        
-        print(f"  {Colors.DIM}Type{Colors.END} {Colors.BOLD}elengenix help{Colors.END} {Colors.DIM}to list all active protocols.{Colors.END}")
+
+        print(
+            f"  {Colors.DIM}Type{Colors.END} {Colors.BOLD}elengenix help{Colors.END} {Colors.DIM}to list all active protocols.{Colors.END}"
+        )
         print()
 
 
 # ---------------------------------------------------------------------------
 # Entry Point
 # ---------------------------------------------------------------------------
+
 
 def main():
     """Application entry point. Parses sys.argv and routes to handlers."""

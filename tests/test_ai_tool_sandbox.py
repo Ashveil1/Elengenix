@@ -3,6 +3,7 @@
 Tests for the new ai_sandbox module: RealDangerousPatternDetector
 and SubprocessSandbox.
 """
+
 from __future__ import annotations
 
 import sys
@@ -22,7 +23,6 @@ from tools.ai_sandbox import (
     analyze_code,
     run_sandboxed,
 )
-
 
 # ---------------------------------------------------------------------------
 # Detector tests
@@ -90,8 +90,11 @@ def test_detector_allow_dangerous_imports_disables_flag():
     detector = RealDangerousPatternDetector(allow_dangerous_imports=True)
     report = detector.analyze("import os\n")
     # import is allowed but other dangerous calls would still flag
-    assert all("os" not in h.description or h.severity != PatternSeverity.CRITICAL
-               for h in report.hits if h.pattern_id == "dangerous_import")
+    assert all(
+        "os" not in h.description or h.severity != PatternSeverity.CRITICAL
+        for h in report.hits
+        if h.pattern_id == "dangerous_import"
+    )
 
 
 def test_detector_allow_eval_exec_disables_flag():
@@ -156,9 +159,7 @@ def test_detector_imports_recorded():
 
 def test_detector_by_severity_helper():
     detector = RealDangerousPatternDetector()
-    report = detector.analyze(
-        "import os\nos.system('ls')\nx = obj.__class__\n"
-    )
+    report = detector.analyze("import os\nos.system('ls')\nx = obj.__class__\n")
     by_high = report.by_severity(PatternSeverity.HIGH)
     assert all(h.severity == PatternSeverity.HIGH for h in by_high)
 
@@ -279,6 +280,7 @@ def test_sandbox_allow_network_flag_passes_env():
     """When network is allowed, the env marker is omitted."""
     # Use a detector that allows dangerous imports so the test code can use os
     from tools.ai_sandbox import RealDangerousPatternDetector
+
     detector = RealDangerousPatternDetector(
         allow_network=True,
         allow_dangerous_imports=True,
@@ -297,6 +299,7 @@ def test_sandbox_allow_network_flag_passes_env():
 
 def test_sandbox_no_network_sets_env_marker():
     from tools.ai_sandbox import RealDangerousPatternDetector
+
     detector = RealDangerousPatternDetector(
         allow_network=False,
         allow_dangerous_imports=True,
@@ -305,8 +308,7 @@ def test_sandbox_no_network_sets_env_marker():
     cfg = SandboxConfig(allow_network=False)
     sandbox = SubprocessSandbox(config=cfg, detector=detector)
     result = sandbox.run(
-        "import os\n"
-        "print(os.environ.get('ELENGENIX_SANDBOX_NO_NETWORK', 'NO'))\n"
+        "import os\n" "print(os.environ.get('ELENGENIX_SANDBOX_NO_NETWORK', 'NO'))\n"
     )
     assert result.returncode == 0
     assert "1" in result.stdout
@@ -332,4 +334,5 @@ def test_run_sandboxed_helper():
 if __name__ == "__main__":
     # Allow running as a script
     import pytest
+
     sys.exit(pytest.main([__file__, "-v"]))

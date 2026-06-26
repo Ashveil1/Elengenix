@@ -27,6 +27,7 @@ _EXAMPLE_FILE = Path(__file__).parent.parent / "MEMORY.md.example"
 # File I/O
 # ─────────────────────────────────────────────────────────────
 
+
 def _ensure_memory_file() -> None:
     """Create MEMORY.md from example template if it doesn't exist yet."""
     if not _MEMORY_FILE.exists():
@@ -104,8 +105,7 @@ def write_field(key: str, value: str) -> None:
 
         new_line = f'{key}: "{value}"'
         if re.search(pattern, text, flags=re.MULTILINE | re.IGNORECASE):
-            text = re.sub(pattern, new_line, text,
-                          flags=re.MULTILINE | re.IGNORECASE)
+            text = re.sub(pattern, new_line, text, flags=re.MULTILINE | re.IGNORECASE)
         else:
             # Append to Custom Notes section
             text += f"\n{new_line}"
@@ -122,18 +122,10 @@ def append_target(target: str) -> None:
     try:
         text = _MEMORY_FILE.read_text(encoding="utf-8")
         if target.lower() not in text.lower():
-            text = re.sub(
-                r"(frequent_targets:\s*\[\])",
-                f"frequent_targets:\n  - {target}",
-                text
-            )
+            text = re.sub(r"(frequent_targets:\s*\[\])", f"frequent_targets:\n  - {target}", text)
             # If already a list, append
             if f"  - {target}" not in text:
-                text = re.sub(
-                    r"(frequent_targets:)",
-                    f"\\1\n  - {target}",
-                    text
-                )
+                text = re.sub(r"(frequent_targets:)", f"\\1\n  - {target}", text)
             _MEMORY_FILE.write_text(text, encoding="utf-8")
     except Exception as e:
         logger.warning(f"Could not append target: {e}")
@@ -142,6 +134,7 @@ def append_target(target: str) -> None:
 # ─────────────────────────────────────────────────────────────
 # AI-Powered Profile Updates
 # ─────────────────────────────────────────────────────────────
+
 
 def ai_update_memory(conversation_snippet: str, ai_client=None) -> None:
     """
@@ -201,8 +194,9 @@ If there's nothing new to learn, return: {{}}
 
         # Parse the JSON response
         import json
+
         # Extract JSON from response
-        json_match = re.search(r'\{[^{}]*\}', resp, re.DOTALL)
+        json_match = re.search(r"\{[^{}]*\}", resp, re.DOTALL)
         if not json_match:
             return
 
@@ -224,6 +218,7 @@ If there's nothing new to learn, return: {{}}
 # ─────────────────────────────────────────────────────────────
 # Context Injection
 # ─────────────────────────────────────────────────────────────
+
 
 def build_memory_prompt_block() -> str:
     """
@@ -296,11 +291,7 @@ def build_memory_prompt_block() -> str:
     if not lines:
         return ""
 
-    return (
-        "=== Personal Memory Profile ===\n"
-        + "\n".join(lines)
-        + "\n=== End Profile ==="
-    )
+    return "=== Personal Memory Profile ===\n" + "\n".join(lines) + "\n=== End Profile ==="
 
 
 def get_memory_path() -> Path:
