@@ -29,6 +29,9 @@ MENU_ITEMS = [
     {"id": "rate_limits", "label": "Rate Limits", "icon": "[3]"},
     {"id": "skills", "label": "Skills & Tools", "icon": "[4]"},
     {"id": "mode_settings", "label": "Mode Settings", "icon": "[5]"},
+    {"id": "theme", "label": "Theme", "icon": "[6]"},
+    {"id": "scan_options", "label": "Scan Options", "icon": "[7]"},
+    {"id": "export", "label": "Export Settings", "icon": "[8]"},
 ]
 
 
@@ -278,6 +281,9 @@ class SettingsOverlay:
             "rate_limits": "main",
             "skills": "main",
             "mode_settings": "main",
+            "theme": "main",
+            "scan_options": "main",
+            "export": "main",
             "provider_select": "agent_setup",
             "model_select": "provider_select",
             "api_key_edit": "api_keys",
@@ -364,6 +370,33 @@ class SettingsOverlay:
                 self._update_items()
             return None
 
+        if self._current_layer == "theme":
+            if item_id.startswith("theme_"):
+                theme_name = item_id.replace("theme_", "")
+                self._current_layer = "main"
+                self._selected_idx = 0
+                self._update_items()
+                return f"theme:{theme_name}"
+            return None
+
+        if self._current_layer == "scan_options":
+            if item_id.startswith("scan_"):
+                scan_type = item_id.replace("scan_", "")
+                self._current_layer = "main"
+                self._selected_idx = 0
+                self._update_items()
+                return f"scan:{scan_type}"
+            return None
+
+        if self._current_layer == "export":
+            if item_id.startswith("export_"):
+                export_type = item_id.replace("export_", "")
+                self._current_layer = "main"
+                self._selected_idx = 0
+                self._update_items()
+                return f"export:{export_type}"
+            return None
+
         return None
 
     # ── Item builders ─────────────────────────────────────────────
@@ -381,6 +414,9 @@ class SettingsOverlay:
             "rate_limits": self._build_rate_limit_items,
             "skills": self._build_skills_items,
             "mode_settings": self._build_mode_items,
+            "theme": self._build_theme_items,
+            "scan_options": self._build_scan_options_items,
+            "export": self._build_export_items,
         }
         self._items = builders.get(self._current_layer, lambda: [])()
 
@@ -589,6 +625,39 @@ class SettingsOverlay:
             {"id": "back_to_main", "label": "[BACK] Back to Settings", "action": "back"},
         ]
 
+    def _build_theme_items(self):
+        items = [{"id": "", "label": "--- SELECT THEME ---", "action": ""}]
+        try:
+            from tui.themes import THEMES
+
+            for name in THEMES.keys():
+                items.append({"id": f"theme_{name}", "label": f"  {name}", "action": ""})
+        except Exception:
+            items.append({"id": "", "label": "  Themes not available", "action": ""})
+        items.append({"id": "", "label": "", "action": ""})
+        items.append({"id": "back_to_main", "label": "[BACK] Back to Settings", "action": "back"})
+        return items
+
+    def _build_scan_options_items(self):
+        return [
+            {"id": "", "label": "--- SCAN OPTIONS ---", "action": ""},
+            {"id": "scan_quick", "label": "Quick Scan (fast, less thorough)", "action": ""},
+            {"id": "scan_full", "label": "Full Scan (comprehensive)", "action": ""},
+            {"id": "scan_custom", "label": "Custom Scan (select tools)", "action": ""},
+            {"id": "", "label": "", "action": ""},
+            {"id": "back_to_main", "label": "[BACK] Back to Settings", "action": "back"},
+        ]
+
+    def _build_export_items(self):
+        return [
+            {"id": "", "label": "--- EXPORT OPTIONS ---", "action": ""},
+            {"id": "export_html", "label": "Export to HTML", "action": ""},
+            {"id": "export_json", "label": "Export to JSON", "action": ""},
+            {"id": "export_markdown", "label": "Export to Markdown", "action": ""},
+            {"id": "", "label": "", "action": ""},
+            {"id": "back_to_main", "label": "[BACK] Back to Settings", "action": "back"},
+        ]
+
     # ── Model cache ─────────────────────────────────────────────
 
     def _fetch_models(self, provider: str) -> None:
@@ -781,5 +850,8 @@ class SettingsOverlay:
             "skills": "[SKILLS] SKILLS & TOOLS",
             "mode_settings": "[MODE] MODE SETTINGS",
             "custom_url": "[CUSTOM] ENTER API URL",
+            "theme": "[THEME] SELECT THEME",
+            "scan_options": "[SCAN] SCAN OPTIONS",
+            "export": "[EXPORT] EXPORT SETTINGS",
         }
         return titles.get(self._current_layer, "[CONFIG] SETTINGS")

@@ -98,3 +98,6 @@ response.html
 .env.save
 .env.bak
 .aider*
+
+# MCP Configuration
+!.mcp.json
