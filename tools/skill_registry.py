@@ -95,64 +95,68 @@ class SkillRegistry:
     def _init_default_skills(self):
         """Initialize default skills list."""
         default_skills = [
-            # Reconnaissance
-            Skill("subfinder", "Subdomain enumeration", "recon", 
-                  "subfinder", SkillStatus.MISSING,
-                  "go install github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest",
-                  use_cases=["discover subdomains", "expand attack surface"],
-                  alternatives=["amass", "findomain"]),
+            # Reconnaissance (Python-based)
+            Skill("python_recon", "Pure Python HTTP probe and recon", "recon",
+                  "python3", SkillStatus.AVAILABLE,
+                  "Built-in",
+                  use_cases=["probe web services", "directory discovery", "port scanning"]),
             
-            Skill("httpx", "Fast HTTP prober", "recon",
-                  "httpx", SkillStatus.MISSING,
-                  "go install github.com/projectdiscovery/httpx/cmd/httpx@latest",
-                  use_cases=["probe web services", "detect technologies"],
-                  alternatives=[["curl", "wget"]]),
+            # Vulnerability Scanning (Python-based)
+            Skill("ssrf_scanner", "Server-Side Request Forgery scanner", "scanner",
+                  "python3", SkillStatus.AVAILABLE,
+                  "Built-in",
+                  use_cases=["SSRF detection", "internal network probing"]),
             
-            Skill("naabu", "Port scanner", "recon",
-                  "naabu", SkillStatus.MISSING,
-                  "go install github.com/projectdiscovery/naabu/v2/cmd/naabu@latest",
-                  use_cases=["port scanning", "service discovery"],
-                  alternatives=["nmap", "masscan"]),
+            Skill("ssti_scanner", "Server-Side Template Injection scanner", "scanner",
+                  "python3", SkillStatus.AVAILABLE,
+                  "Built-in",
+                  use_cases=["SSTI detection", "template injection"]),
             
-            # Vulnerability Scanning
-            Skill("nuclei", "Template-based vulnerability scanner", "scanner",
-                  "nuclei", SkillStatus.MISSING,
-                  "go install github.com/projectdiscovery/nuclei/v2/cmd/nuclei@latest",
-                  use_cases=["CVE scanning", "misconfiguration detection"],
-                  alternatives=[["nmap", "openvas"]]),
+            Skill("xxe_scanner", "XML External Entity scanner", "scanner",
+                  "python3", SkillStatus.AVAILABLE,
+                  "Built-in",
+                  use_cases=["XXE detection", "XML parsing vulnerabilities"]),
             
-            Skill("dalfox", "XSS scanner", "scanner",
-                  "dalfox", SkillStatus.MISSING,
-                  "go install github.com/hahwul/dalfox/v2@latest",
-                  use_cases=["XSS detection", "parameter fuzzing"],
-                  alternatives=["xsstrike", "xsser"]),
+            Skill("deserialization_scanner", "Insecure deserialization scanner", "scanner",
+                  "python3", SkillStatus.AVAILABLE,
+                  "Built-in",
+                  use_cases=["deserialization vulnerabilities", "unsafe data handling"]),
             
-            # Fuzzing
-            Skill("ffuf", "Fast web fuzzer", "fuzzing",
-                  "ffuf", SkillStatus.MISSING,
-                  "go install github.com/ffuf/ffuf@latest",
-                  use_cases=["directory brute force", "parameter fuzzing"],
-                  alternatives=["gobuster", "dirbuster"]),
+            Skill("graphql_scanner", "GraphQL API vulnerability scanner", "scanner",
+                  "python3", SkillStatus.AVAILABLE,
+                  "Built-in",
+                  use_cases=["GraphQL introspection", "API vulnerabilities"]),
             
-            Skill("arjun", "HTTP parameter discovery", "fuzzing",
-                  "arjun", SkillStatus.MISSING,
-                  "pip install arjun",
-                  use_cases=["parameter discovery", "API testing"],
-                  alternatives=["paramminer", "mantra"]),
+            Skill("race_condition_tester", "Race condition vulnerability tester", "scanner",
+                  "python3", SkillStatus.AVAILABLE,
+                  "Built-in",
+                  use_cases=["TOCTOU vulnerabilities", "concurrent access issues"]),
             
-            # Secret Detection
-            Skill("trufflehog", "Secret scanner", "secrets",
-                  "trufflehog", SkillStatus.MISSING,
-                  "go install github.com/trufflesecurity/trufflehog@latest",
-                  use_cases=["API key detection", "secret exposure"],
-                  alternatives=["git-secrets", "detect-secrets"]),
+            Skill("cors_checker", "CORS misconfiguration tester", "scanner",
+                  "python3", SkillStatus.AVAILABLE,
+                  "Built-in",
+                  use_cases=["CORS bypass", "origin reflection"]),
             
-            # Exploitation
-            Skill("katana", "Web crawler", "exploitation",
-                  "katana", SkillStatus.MISSING,
-                  "go install github.com/projectdiscovery/katana/cmd/katana@latest",
-                  use_cases=[["web crawling", "JS endpoint discovery"]],
-                  alternatives=["gau", "hakrawler"]),
+            Skill("jwt_tester", "JWT security vulnerability tester", "scanner",
+                  "python3", SkillStatus.AVAILABLE,
+                  "Built-in",
+                  use_cases=["JWT algorithm confusion", "weak secrets"]),
+            
+            Skill("logic_flaw_engine", "Business logic vulnerability analyzer", "scanner",
+                  "python3", SkillStatus.AVAILABLE,
+                  "Built-in",
+                  use_cases=["price manipulation", "workflow bypass"]),
+            
+            Skill("supply_chain_analyzer", "Software supply chain analyzer", "scanner",
+                  "python3", SkillStatus.AVAILABLE,
+                  "Built-in",
+                  use_cases=["dependency vulnerabilities", "typosquatting"]),
+            
+            # Fuzzing (Python-based)
+            Skill("active_fuzzer", "Active fuzzing with response delta scoring", "fuzzing",
+                  "python3", SkillStatus.AVAILABLE,
+                  "Built-in",
+                  use_cases=["XSS detection", "SQLi detection", "parameter fuzzing"]),
         ]
         
         for skill in default_skills:

@@ -91,39 +91,6 @@ def is_in_scope(target: str) -> bool:
 def sanitize_path(target: str) -> str:
     return re.sub(r'[^a-zA-Z0-9.-]', '_', target)[:100]
 
-# ── Legacy Tool Runners (for backward compatibility) ─────────
-async def run_subfinder_legacy(target: str, report_dir: Path) -> str:
-    output_file = report_dir / "subdomains.txt"
-    cmd = ["subfinder", "-d", target, "-o", str(output_file), "-silent"]
-    try:
-        proc = await asyncio.create_subprocess_exec(*cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
-        await proc.communicate()
-        return output_file.read_text() if output_file.exists() else ""
-    except Exception as e:
-        return f"Subfinder error: {e}"
-
-async def run_httpx_legacy(target: str, report_dir: Path) -> str:
-    output_file = report_dir / "live_hosts.txt"
-    input_file = report_dir / "subdomains.txt"
-    
-    cmd = ["httpx", "-l" if input_file.exists() else "-u", str(input_file) if input_file.exists() else target, "-o", str(output_file), "-silent"]
-    try:
-        proc = await asyncio.create_subprocess_exec(*cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
-        await proc.communicate()
-        return output_file.read_text() if output_file.exists() else ""
-    except Exception as e:
-        return f"Httpx error: {e}"
-
-async def run_nuclei_legacy(target: str, report_dir: Path) -> str:
-    output_file = report_dir / "nuclei_results.txt"
-    cmd = ["nuclei", "-u", target, "-o", str(output_file), "-silent", "-severity", "critical,high,medium"]
-    try:
-        proc = await asyncio.create_subprocess_exec(*cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
-        await proc.communicate()
-        return output_file.read_text() if output_file.exists() else ""
-    except Exception as e:
-        return f"Nuclei error: {e}"
-
 # ──  Modern Tool Registry Orchestrator ───────────────────
 def get_recommended_tool_chain(target_type: str = "web") -> List:
     """Get recommended tools based on target type using registry."""
@@ -224,94 +191,20 @@ def _suggest_missing_tools(
     tools: List[Any],
     target: str = "",
 ) -> None:
-    """Check required tools and offer auto-installation."""
+    """Check required tools and report missing ones."""
     missing = [t for t in tools if t and not t.is_available]
     if not missing:
         return
 
-    from dependency_manager import TOOLS as INSTALLABLE_TOOLS, run_with_streaming, verify_and_advise
-
-    auto_install = []
-    manual_install = []
-
-    for tool in missing:
-        name = tool.metadata.name
-        if name in INSTALLABLE_TOOLS:
-            auto_install.append(name)
-        else:
-            manual_install.append(name)
-
-    if not auto_install and not manual_install:
-        return
-
     console.print("\n[bold yellow]  Tools Required But Missing:[/bold yellow]")
-
-    if auto_install:
-        console.print(f"  [red]{' '.join(auto_install)}[/red]")
-
-        from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn
-        import questionary
-        try:
-            install_now = questionary.confirm(
-                "Install missing tools now?",
-                default=True,
-            ).ask()
-        except Exception:
-            install_now = False
-
-        if install_now:
-            from dependency_manager import check_prerequisites
-            if not check_prerequisites():
-                console.print("[bold red]Missing Go or Git — cannot install[/bold red]")
-                return
-
-            succeeded = []
-            failed = []
-            for tool_name in auto_install:
-                cmd = INSTALLABLE_TOOLS[tool_name]
-                with Progress(
-                    SpinnerColumn(),
-                    TextColumn(f"[bold yellow]Installing {tool_name}..."),
-                    BarColumn(),
-                    console=console,
-                    transient=True,
-                ) as progress:
-                    progress.add_task("", total=None)
-                    ok = run_with_streaming(cmd)
-                if ok and verify_and_advise(tool_name):
-                    console.print(f"  [bold green][OK] {tool_name}[/bold green]")
-                    succeeded.append(tool_name)
-                else:
-                    console.print(f"  [bold red][FAIL] {tool_name}[/bold red]")
-                    console.print(f"     Manual: [dim]{' '.join(cmd)}[/dim]")
-                    failed.append(tool_name)
-
-            if succeeded:
-                console.print(f"\n[bold green]Installed: {', '.join(succeeded)}[/bold green]")
-            if failed:
-                console.print(f"[yellow]Failed: {', '.join(failed)}[/yellow]")
-
-    if manual_install:
-        from rich.table import Table
-        tbl = Table(show_header=False, box=None)
-        tbl.add_column(style="yellow", width=12)
-        tbl.add_column(style="dim", width=60)
-        for name in manual_install:
-            cmd = _manual_cmd(name)
-            tbl.add_row(name, cmd)
-        console.print("\n[bold yellow]Need manual install:[/bold yellow]")
-        console.print(tbl)
+    for tool in missing:
+        console.print(f"  [red]{tool.metadata.name}[/red] - {tool.metadata.description}")
+    console.print("[dim]  All scanning tools are built-in Python modules.[/dim]")
 
 
 def _manual_cmd(tool_name: str) -> str:
     """Return install command for manual tools."""
-    cmds = {
-        "dalfox": "go install github.com/hahwul/dalfox/v2@latest",
-        "arjun": "pip install arjun",
-        "trufflehog": "curl -sSfL https://raw.githubusercontent.com/trufflesecurity/trufflehog/main/scripts/install.sh | sh -s -- -b /usr/local/bin",
-        "nmap": "sudo apt-get install nmap  # or: brew install nmap",
-    }
-    return cmds.get(tool_name, f"See docs for: {tool_name}")
+    return f"All scanning tools are built-in Python modules. No manual install needed for: {tool_name}"
 
 def calculate_cvss_for_results(results: List[ToolResult]) -> List[dict]:
     """Calculate CVSS scores for all findings."""
@@ -955,16 +848,6 @@ async def run_standard_scan(
                 if high > 0:
                     console.print(f"[bold orange3][HIGH] {high} findings need review[/bold orange3]")
             
-        else:
-            # Legacy mode (fallback)
-            asyncio.Semaphore(rate_limit)
-            tasks = [
-                run_subfinder_legacy(normalized, report_dir),
-                run_httpx_legacy(normalized, report_dir),
-                run_nuclei_legacy(normalized, report_dir),
-            ]
-            await asyncio.wait_for(asyncio.gather(*tasks), timeout=timeout)
-        
         console.print(f"[bold green][OK] Reports saved: {report_dir}[/bold green]")
         send_telegram_notification(f" Scan complete for `{normalized}` - Reports saved")
         return str(report_dir)

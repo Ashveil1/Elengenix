@@ -552,21 +552,14 @@ def main():
 
             # Check available tools for AI context
             tool_map = {
-                "subfinder": which("subfinder"),
-                "httpx": which("httpx"),
-                "nuclei": which("nuclei"),
-                "naabu": which("naabu"),
-                "ffuf": which("ffuf"),
-                "dalfox": which("dalfox"),
-                "gau": which("gau"),
-                "katana": which("katana"),
                 "curl": which("curl"),
                 "dig": which("dig"),
-                "nmap": which("nmap"),
                 "jq": which("jq"),
+                "python3": which("python3"),
             }
             avail_tools = [name for name, path in tool_map.items() if path]
             tools_context = f"\nAvailable tools on system: {', '.join(sorted(avail_tools))}\n"
+            tools_context += "\nElengenix has built-in Python scanners for: SSRF, SSTI, XXE, Deserialization, GraphQL, Race Conditions, CORS, JWT, Business Logic, Supply Chain, API Schema Diff\n"
 
             def scan_callback(msg):
                 import re
@@ -622,13 +615,14 @@ def main():
                 response = agent.process_universal(
                     f"Perform a full security reconnaissance and vulnerability assessment on {target}. "
                     f"Your mission:\n"
-                    f"- Use shell commands directly to run any tools you need\n"
-                    f"- You decide what tools to use and in what order (no fixed methodology)\n"
+                    f"- Use the built-in Python scanners (ssrf_scanner, ssti_scanner, xxe_scanner, etc.)\n"
+                    f"- Use shell commands for DNS, HTTP requests, and network operations\n"
                     f"{subdomain_hint}"
                     f"{tools_context}"
                     f"TIPS:\n"
-                    f"- For httpx, use: httpx -list subdomains.txt -silent -json (NOT -l)\n"
-                    f"- For nuclei, use: nuclei -list live_hosts.txt -severity critical,high,medium\n"
+                    f"- Use curl for HTTP requests: curl -s https://target.com\n"
+                    f"- Use dig for DNS: dig target.com ANY\n"
+                    f"- Use Python for scripting: python3 -c 'import requests; ...'\n"
                     f"- You can use pipes (|) and redirects (>) in your shell commands\n"
                     f"- If a tool is missing, ask the user with ask_user action\n"
                     f"- Run actual tools, report results honestly. If something fails, try another approach.\n"

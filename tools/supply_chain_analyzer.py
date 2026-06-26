@@ -402,7 +402,7 @@ class SupplyChainAnalyzer:
                             )
                             result.dependencies.append(dep)
         except Exception as e:
-            logger.debug(f"Failed to parse {file_path}: {e}")
+            logger.debug(f"Failed to parse {go_mod}: {e}")
     
     def _analyze_ruby(self, dir_path: Path, result: SupplyChainResult) -> None:
         """Analyze Ruby dependencies."""
