@@ -432,39 +432,9 @@ def main():
     
     # Interactive Menu (Wizard)
     if args.command == "menu":
-        from ui_components import show_categorized_menu, create_main_menu
-        menu_items = create_main_menu()   # flat list for index lookup
-
-        while True:
-            try:
-                show_categorized_menu()
-
-                choice_raw = console.input("[red]Select[/red] [dim](number or command)[/dim]: ").strip()
-
-                # Allow typing a command directly (e.g. "ai", "recon")
-                if choice_raw.isalpha() and choice_raw in [c for _, _, c in menu_items]:
-                    args.command = choice_raw
-                    break
-
-                try:
-                    idx = int(choice_raw) - 1
-                    if 0 <= idx < len(menu_items):
-                        choice_key = menu_items[idx][2]
-                    else:
-                        console.print("[red]Invalid selection[/red]")
-                        continue
-                except ValueError:
-                    console.print("[red]Invalid input — enter a number or command name[/red]")
-                    continue
-
-                if choice_key == "exit":
-                    sys.exit(0)
-
-                args.command = choice_key
-                break
-
-            except KeyboardInterrupt:
-                sys.exit(0)
+        from tui.main_menu import run_main_menu
+        run_main_menu()
+        return
 
     # Command Router
     try:
