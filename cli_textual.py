@@ -100,7 +100,7 @@ HELP_TEXT = """\
 [white]━━━ SHORTCUTS ━━━[/]
   [dim]Ctrl+R[/] Research  [dim]Ctrl+M[/] CHILL/HUNT
   [dim]Ctrl+T[/] Thinking  [dim]Ctrl+P[/] Model
-  [dim]Ctrl+G[/] Help      [dim]Ctrl+S[/] Settings
+  [dim]Ctrl+G[/] Help      [dim]Ctrl+,[/] Settings
   [dim]↑↓[/] History       [dim]/[/] Slash commands"""
 
 
@@ -210,7 +210,7 @@ class Sidebar(Container):
                 f"[white]SHORTCUTS[/]\n"
                 f"  [dim]Ctrl+R[/] Research [dim]Ctrl+M[/] CHILL/HUNT\n"
                 f"  [dim]Ctrl+T[/] Think   [dim]Ctrl+P[/] Model\n"
-                f"  [dim]Ctrl+G[/] Help    [dim]Ctrl+S[/] Settings\n"
+                f"  [dim]Ctrl+G[/] Help    [dim]Ctrl+,[/] Settings\n"
             )
         try:
             self.query_one("#sidebar_content", Static).update(sidebar_text)
@@ -501,7 +501,7 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
         Binding("ctrl+t", "toggle_think", "Think", priority=True),
         Binding("ctrl+p", "show_model", "Model", priority=True),
         Binding("ctrl+g", "show_help", "Help", priority=True),
-        Binding("ctrl+s", "show_settings", "Settings", priority=True),
+        Binding("ctrl+comma", "show_settings", "Settings", priority=True),
         Binding("ctrl+c", "app_exit", "Exit", priority=True),
         Binding("ctrl+u", "scroll_up", "", show=False, priority=True),
         Binding("ctrl+d", "scroll_down", "", show=False, priority=True),
@@ -1131,7 +1131,7 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
                         inp.cursor_position = len(inp.value)
                         self._update_suggestion_box(matches)
                         return
-        if key == "ctrl+s": event.stop(); self.action_show_settings(); return
+        if key == "ctrl+comma": event.stop(); self.action_show_settings(); return
         if key == "ctrl+t": event.stop(); self.action_toggle_think(); return
         if key == "ctrl+r": event.stop(); self.action_toggle_research(); return
         if self._game_active:
