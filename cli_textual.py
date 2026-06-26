@@ -328,20 +328,20 @@ class SettingsOverlayWidget(Widget, can_focus=True):
     DEFAULT_CSS = f"""
     SettingsOverlayWidget {{ layer: overlay; align: center middle; width: 100%; height: 100%; display: none; }}
     SettingsOverlayWidget.visible {{ display: block; }}
-    #settings_panel {{ width: 80; height: auto; max-height: 85%; min-height: 24; background: #0a0a0a; border: heavy #ff2222; padding: 0; }}
-    #settings_header {{ width: 1fr; height: 3; content-align: center middle; background: #111111; color: #ff2222; text-style: bold; border-bottom: solid #ff2222; }}
+    #settings_panel {{ width: 72; height: auto; max-height: 80%; min-height: 20; background: {BASE}; border: solid {DIM}; padding: 0; }}
+    #settings_header {{ width: 1fr; height: 1; content-align: center middle; background: {BASE}; color: {WHITE}; text-style: bold; border-bottom: solid {DIM}; }}
     #settings_content {{ width: 1fr; height: auto; background: transparent; padding: 1 2; }}
-    #settings_footer {{ width: 1fr; height: 2; content-align: center middle; color: #888888; background: #0d0d0d; border-top: solid #333333; }}
+    #settings_footer {{ width: 1fr; height: 1; content-align: center middle; color: {MUTED}; background: {CRUST}; }}
     {CUSTOM_URL_INPUT_CSS}
     """
 
     def compose(self) -> ComposeResult:
         with Vertical(id="settings_panel"):
-            yield Static("  ELENGENIX SETTINGS  ", id="settings_header")
+            yield Static("  SETTINGS  ", id="settings_header")
             yield Static("", id="settings_content", markup=True)
             with Horizontal(id="custom_url_row"):
                 yield Input(placeholder="Enter API base URL...", id="custom_url_input")
-            yield Static("  ↑↓ Navigate  ⏎ Select  Esc Close  q Quit", id="settings_footer")
+            yield Static("  ↑↓ Navigate  ⏎ Select  Esc Close  S Save", id="settings_footer")
 
     def on_mount(self) -> None:
         self._overlay = None
