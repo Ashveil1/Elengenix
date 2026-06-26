@@ -44,17 +44,19 @@ git pull && ./setup.sh
 ## Code Organization
 
 ```
-main.py                  # CLI entry point — argparse command router
+main.py                  # CLI entry point — argparse command router (2520 lines)
 ├── agent.py             # Bridge: imports & configures ElengenixAgent
-├── agent_brain.py       # ElengenixAgent — core AI reasoning engine (1885 lines)
-├── agents/              # Agent subsystem modules
+├── agent_brain.py       # ElengenixAgent — core AI reasoning engine (1847 lines)
+├── agents/              # Agent subsystem modules (18 files)
 │   ├── agent_planner.py     # StrategicPlanner, TargetFingerprinter
 │   ├── agent_executor.py    # Tool execution (registry, subprocess, shell)
 │   ├── agent_intent.py      # Intent classification
 │   ├── agent_logger.py      # Chain-of-thought logging
-│   ├── agent_helpers.py     # Shared helpers (target extraction, context)
+│   ├── agent_helpers.py     # Shared helpers (target extraction, _safe_operation)
 │   ├── agent_dataclasses.py # AttackTree and shared data structures
 │   ├── agent_universal.py   # Universal mode processor
+│   ├── agent_conversation.py # ConversationManager (extracted from agent_brain)
+│   ├── agent_modes.py       # ModeProcessor (extracted from agent_brain)
 │   ├── hybrid_agent.py      # Hybrid mode (redteam + structured analysis)
 │   ├── agent_council.py     # Multi-agent council deliberation
 │   ├── worker_base.py       # Base class for council workers
@@ -70,9 +72,10 @@ main.py                  # CLI entry point — argparse command router
 │   ├── dashboard.py         # ThreatDashboard Textual widget
 │   ├── visualizations.py    # RiskGauge, SeverityChart, VulnerabilityHeatmap, etc.
 │   ├── welcome.py           # WelcomeScreen, ascii_logo, MissionBriefing
-│   └── hunt_view.py         # Hunt result dashboard, launcher layout
-├── tools/               # ~120 modular security tool modules
-│   ├── tool_registry.py     # BaseTool ABC, ToolRegistry, auto-discovery
+│   ├── hunt_view.py         # Hunt result dashboard, launcher layout
+│   └── export.py            # HTML/JSON/Markdown export capabilities
+├── tools/               # 120+ modular security tool modules
+│   ├── tool_registry.py     # BaseTool ABC, ToolRegistry, 18 registered tools
 │   ├── governance.py        # Risk classification (DESTRUCTIVE/PRIVILEGED/SAFE)
 │   ├── universal_ai_client.py # OpenAI-compatible HTTP API client
 │   ├── vector_memory.py     # ChromaDB semantic recall
@@ -81,16 +84,27 @@ main.py                  # CLI entry point — argparse command router
 │   ├── mission_state.py     # Mission graph, facts, ledger (SQLite)
 │   ├── payload_mutation.py  # Payload mutation engine
 │   ├── active_fuzzer.py     # Live fuzzing with response delta scoring
+│   ├── ssrf_scanner.py      # Server-Side Request Forgery testing
+│   ├── ssti_scanner.py      # Server-Side Template Injection testing
+│   ├── xxe_scanner.py       # XML External Entity testing
+│   ├── deserialization_scanner.py # Insecure deserialization testing
+│   ├── graphql_scanner.py   # GraphQL API vulnerabilities
+│   ├── race_condition_tester.py # Race condition vulnerabilities
+│   ├── api_schema_diff.py   # Schema drift detection
+│   ├── supply_chain_analyzer.py # Dependency vulnerability analysis
+│   ├── logic_flaw_engine.py # Business logic flaw detection
+│   ├── cors_checker.py      # CORS misconfiguration testing
+│   ├── jwt_tester.py        # JWT security vulnerabilities
 │   └── ...                  # 100+ more modules
 ├── prompts/             # AI system prompts (system_prompt.txt)
 ├── knowledge/           # Methodology documentation (loaded by knowledge_loader)
 ├── data/                # Runtime data: logs, CoT logs, CVE cache, vector DB
-├── tests/               # 37 test files (pytest)
+├── tests/               # 39 test files (pytest)
 ├── scan_engine_upgrade.py # SmartOrchestrator for upgraded scan engine
 ├── dependency_manager.py  # Go tool installer
 ├── live_display.py      # Live activity display for chat mode
 ├── config.yaml.example  # Template config (secrets go in .env, NEVER here)
-└── watchman.py          # 24/7 monitoring daemon
+└── ...
 ```
 
 ---
@@ -137,7 +151,11 @@ User input → _analyze_intent() → [casual|research|scan|security_chat]
 3. Shell-capable executor path in `_execute_tool()` — all raw shell commands must pass through `tools.governance.Governance` before `tools.safe_exec.execute_safely()`
 
 ### Tool Registry Auto-Discovery
-`tools/tool_registry.py` auto-discovers all `*.py` files in `tools/` on import. Modules using `@register_tool(ToolMetadata(...))` decorator self-register. Currently 6 tools registered (subfinder, httpx, nuclei, arjun, dynamic_waf_mutator, trufflehog) out of ~120 modules — most modules are standalone and used directly by agent_brain.py, not through the registry.
+`tools/tool_registry.py` auto-discovers all `*.py` files in `tools/` on import. Modules using `@register_tool(ToolMetadata(...))` decorator self-register. Currently 18 tools registered:
+- **Go binaries**: subfinder, httpx, nuclei, arjun, dynamic_waf_mutator, trufflehog
+- **Python scanners**: waf_detector, active_fuzzer, python_recon, ssrf_scanner, ssti_scanner, xxe_scanner, deserialization_scanner, graphql_scanner, race_condition_tester, api_schema_diff, supply_chain_analyzer, logic_flaw_engine, cors_checker, jwt_tester
+
+Most modules are standalone and used directly by agent_brain.py, not through the registry.
 
 ---
 
@@ -207,7 +225,7 @@ User input → _analyze_intent() → [casual|research|scan|security_chat]
 
 ## Testing Strategy
 
-Tests live in `tests/` (37 test files). Focus areas:
+Tests live in `tests/` (39 test files). Focus areas:
 - **Governance enforcement** (`test_security.py`, `test_integration.py`): destructive/privileged shell commands blocked correctly
 - **Tool modules** (`test_waf_detector.py`, `test_active_fuzzer.py`, `test_hunt_engine.py`, etc.)
 - **TUI rendering** (`test_tui.py`): themes, visualizations, dashboard, welcome, hunt_view
@@ -221,6 +239,8 @@ Use `_lightweight_agent()` pattern in `test_security.py` to create test instance
 ```bash
 python3 -m pytest tests/test_tui.py tests/test_security.py tests/test_waf_detector.py tests/test_semantic_planner.py tests/test_active_fuzzer.py tests/test_agent_council.py tests/test_core_modules.py -v
 ```
+
+**Note**: Stable suite has 186 tests.
 
 ---
 

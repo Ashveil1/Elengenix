@@ -476,7 +476,8 @@ def main():
             # Silence INFO logs during scan
             logging.getLogger().setLevel(logging.WARNING)
 
-            target = args.target or console.input("Enter target: ").strip()
+            from ui_components import prompt_target
+            target = args.target or prompt_target()
             if not target: return
             if not require_authorized_scan_target(target):
                 return
@@ -547,9 +548,6 @@ def main():
             except Exception:
                 pass
 
-            from agent import get_agent
-            from bot_utils import send_telegram_notification
-            from shutil import which
             agent = get_agent()
 
             # Check available tools for AI context
@@ -1044,7 +1042,7 @@ def main():
                 print_info(f"SASTEngine skipped: {e}")
             # Also run multimodal agent code analysis (secret patterns, eval, SQLi, etc.)
             try:
-                from tools.multimodal_agent import analyze_code, detect_language
+                from tools.multimodal_agent import analyze_code
                 target_path = Path(target)
                 if target_path.is_file():
                     paths = [target_path]
@@ -1603,10 +1601,16 @@ def main():
                 
                 print_success(f"Loaded {len(findings)} findings")
                 
-                # Get metadata
-                target = console.input("[red]Target name[/red]: ").strip() or "Unknown Target"
-                author = console.input("[red]Author name[/red]: ").strip() or "Elengenix Security"
-                title = console.input("[red]Report title[/red]: ").strip() or f"Security Assessment - {target}"
+                # Get metadata with questionary or fallback to input
+                try:
+                    import questionary
+                    target = questionary.text("Target name:", default="Unknown Target").ask()
+                    author = questionary.text("Author name:", default="Elengenix Security").ask()
+                    title = questionary.text("Report title:", default=f"Security Assessment - {target}").ask()
+                except Exception:
+                    target = console.input("[red]Target name[/red]: ").strip() or "Unknown Target"
+                    author = console.input("[red]Author name[/red]: ").strip() or "Elengenix Security"
+                    title = console.input("[red]Report title[/red]: ").strip() or f"Security Assessment - {target}"
                 
                 metadata = ReportMetadata(
                     title=title,

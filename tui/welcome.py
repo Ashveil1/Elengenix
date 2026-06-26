@@ -13,9 +13,11 @@ Provides:
 from __future__ import annotations
 
 import logging
+import os
 import time
 from datetime import datetime
-from typing import Dict, List, Optional, Sequence
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Sequence
 
 from rich.align import Align
 from rich.box import HEAVY, ROUNDED, SIMPLE
@@ -50,6 +52,48 @@ LOGO_LINES: List[str] = [
     "| |____| |    | |      | |  | | |_| | |\\  || | |_____|",
     "|______|_|    |_|      |_|  |_|\\___/|_| \\_|___||_____|",
 ]
+
+
+def get_system_status() -> Dict[str, Any]:
+    """Get system status information for the welcome screen.
+    
+    Returns:
+        Dictionary containing system status info.
+    """
+    import psutil
+    
+    status = {
+        "cpu_percent": 0.0,
+        "memory_percent": 0.0,
+        "disk_percent": 0.0,
+        "python_version": f"{os.sys.version_info.major}.{os.sys.version_info.minor}.{os.sys.version_info.micro}",
+        "tools_installed": 0,
+        "last_scan": "Never",
+    }
+    
+    try:
+        status["cpu_percent"] = psutil.cpu_percent(interval=0.1)
+        mem = psutil.virtual_memory()
+        status["memory_percent"] = mem.percent
+        disk = psutil.disk_usage("/")
+        status["disk_percent"] = disk.percent
+    except Exception:
+        pass
+    
+    # Count installed tools
+    tools_dir = Path(__file__).parent.parent / "tools"
+    if tools_dir.exists():
+        status["tools_installed"] = len(list(tools_dir.glob("*.py"))) - 2  # Exclude __init__.py and tool_registry.py
+    
+    # Check last scan
+    reports_dir = Path("reports")
+    if reports_dir.exists():
+        scan_files = sorted(reports_dir.glob("*.html"), key=os.path.getmtime, reverse=True)
+        if scan_files:
+            last_scan_time = os.path.getmtime(scan_files[0])
+            status["last_scan"] = datetime.fromtimestamp(last_scan_time).strftime("%Y-%m-%d %H:%M")
+    
+    return status
 
 
 def ascii_logo(
@@ -210,6 +254,51 @@ def render_quick_start(
     )
 
 
+def render_system_status(
+    primary: str = "#ff2222",
+    text_color: str = "#ffffff",
+    muted: str = "#888888",
+) -> Panel:
+    """Render system status information as a Rich panel."""
+    status = get_system_status()
+    
+    table = Table(
+        show_header=False,
+        box=SIMPLE,
+        padding=(0, 1),
+        expand=True,
+    )
+    table.add_column("Metric", style=muted, width=12)
+    table.add_column("Value", style=text_color)
+    
+    # CPU status with color
+    cpu = status["cpu_percent"]
+    cpu_color = "#81C784" if cpu < 50 else "#ffb300" if cpu < 80 else "#ff5500"
+    table.add_row("CPU", f"[{cpu_color}]{cpu:.1f}%[/{cpu_color}]")
+    
+    # Memory status with color
+    mem = status["memory_percent"]
+    mem_color = "#81C784" if mem < 50 else "#ffb300" if mem < 80 else "#ff5500"
+    table.add_row("Memory", f"[{mem_color}]{mem:.1f}%[/{mem_color}]")
+    
+    # Disk status with color
+    disk = status["disk_percent"]
+    disk_color = "#81C784" if disk < 70 else "#ffb300" if disk < 90 else "#ff5500"
+    table.add_row("Disk", f"[{disk_color}]{disk:.1f}%[/{disk_color}]")
+    
+    table.add_row("Python", status["python_version"])
+    table.add_row("Tools", f"{status['tools_installed']} installed")
+    table.add_row("Last Scan", status["last_scan"])
+    
+    return Panel(
+        table,
+        title="[bold]SYSTEM STATUS[/bold]",
+        border_style=primary,
+        box=ROUNDED,
+        padding=(0, 1),
+    )
+
+
 # ---------------------------------------------------------------------------
 # Recent activity timeline
 # ---------------------------------------------------------------------------
@@ -308,7 +397,7 @@ def build_welcome_renderable(
     )
     body.add_row(
         activity.render(primary=primary, muted=muted),
-        _render_status_footer(theme_name=theme_name, primary=primary, text_color=text, muted=muted),
+        render_system_status(primary=primary, text_color=text, muted=muted),
     )
 
     return Group(header, body)
@@ -558,6 +647,8 @@ __all__ = [
     "RecentActivity",
     "QUICK_START_TILES",
     "render_quick_start",
+    "render_system_status",
+    "get_system_status",
     "build_welcome_renderable",
     "WelcomeScreen",
 ]

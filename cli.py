@@ -20,9 +20,8 @@ import warnings
 warnings.filterwarnings("ignore", category=FutureWarning)
 warnings.filterwarnings("ignore", message=".*google.generativeai.*")
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Callable
 from collections import deque
-from typing import Optional, Callable
 
 from rich.console import Console
 from rich.markdown import Markdown

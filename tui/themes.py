@@ -242,12 +242,160 @@ DEFAULT: Dict[str, str] = _validate({
 }, "DEFAULT")
 
 
+# ---------------------------------------------------------------------------
+# OCEAN - blue / cyan gradient (calm, professional)
+# ---------------------------------------------------------------------------
+
+OCEAN: Dict[str, str] = _validate({
+    "bg_dark":       "#0a1628",
+    "bg_panel":      "#0f2035",
+    "bg_card":       "#152a42",
+    "bg_overlay":    "#1a3450",
+    "bg_input":      "#081420",
+    "text":          "#e0f0ff",
+    "muted":         "#6ba3d6",
+    "dim":           "#3d6a99",
+    "inverse_text":  "#0a1628",
+    "inverse_bg":    "#00a8e8",
+    "primary":       "#00a8e8",  # ocean blue
+    "secondary":     "#00d4ff",  # cyan
+    "accent":        "#7ec8e3",  # light blue
+    "highlight":     "#00ffff",  # bright cyan
+    "success":       "#00e676",  # green
+    "warning":       "#ffab00",  # amber
+    "error":         "#ff1744",  # red
+    "info":          "#40c4ff",  # light blue
+    "critical":      "#ff1744",
+    "high":          "#ff6d00",
+    "medium":        "#ffab00",
+    "low":           "#00e676",
+    "border":        "#00a8e8",
+    "border_strong": "#00d4ff",
+    "border_glow":   "#7ec8e3",
+    "gradient_1":    "#0a1628",
+    "gradient_2":    "#00a8e8",
+    "gradient_3":    "#00d4ff",
+}, "OCEAN")
+
+
+# ---------------------------------------------------------------------------
+# FOREST - green / brown (natural, earthy)
+# ---------------------------------------------------------------------------
+
+FOREST: Dict[str, str] = _validate({
+    "bg_dark":       "#0d1a0d",
+    "bg_panel":      "#142314",
+    "bg_card":       "#1a2e1a",
+    "bg_overlay":    "#213a21",
+    "bg_input":      "#0a140a",
+    "text":          "#d4e8d4",
+    "muted":         "#6b9b6b",
+    "dim":           "#3d6b3d",
+    "inverse_text":  "#0d1a0d",
+    "inverse_bg":    "#4caf50",
+    "primary":       "#4caf50",  # forest green
+    "secondary":     "#81c784",  # light green
+    "accent":        "#a5d6a7",  # pale green
+    "highlight":     "#c8e6c9",
+    "success":       "#4caf50",
+    "warning":       "#ffb74d",  # orange
+    "error":         "#e57373",  # soft red
+    "info":          "#81c784",
+    "critical":      "#e57373",
+    "high":          "#ffb74d",
+    "medium":        "#fff176",  # yellow
+    "low":           "#81c784",
+    "border":        "#4caf50",
+    "border_strong": "#81c784",
+    "border_glow":   "#a5d6a7",
+    "gradient_1":    "#1b5e20",
+    "gradient_2":    "#4caf50",
+    "gradient_3":    "#a5d6a7",
+}, "FOREST")
+
+
+# ---------------------------------------------------------------------------
+# SUNSET - orange / red gradient (warm, inviting)
+# ---------------------------------------------------------------------------
+
+SUNSET: Dict[str, str] = _validate({
+    "bg_dark":       "#1a0a0a",
+    "bg_panel":      "#2a1212",
+    "bg_card":       "#3a1a1a",
+    "bg_overlay":    "#4a2222",
+    "bg_input":      "#150808",
+    "text":          "#ffe0e0",
+    "muted":         "#cc7777",
+    "dim":           "#994444",
+    "inverse_text":  "#1a0a0a",
+    "inverse_bg":    "#ff6b35",
+    "primary":       "#ff6b35",  # sunset orange
+    "secondary":     "#ff8c42",  # light orange
+    "accent":        "#ffb347",  # peach
+    "highlight":     "#ffd700",  # gold
+    "success":       "#66bb6a",  # green
+    "warning":       "#ffca28",  # yellow
+    "error":         "#ef5350",  # red
+    "info":          "#ff8a65",  # light orange
+    "critical":      "#ef5350",
+    "high":          "#ff7043",
+    "medium":        "#ffab91",
+    "low":           "#a5d6a7",
+    "border":        "#ff6b35",
+    "border_strong": "#ff8c42",
+    "border_glow":   "#ffb347",
+    "gradient_1":    "#bf360c",
+    "gradient_2":    "#ff6b35",
+    "gradient_3":    "#ffb347",
+}, "SUNSET")
+
+
+# ---------------------------------------------------------------------------
+# ARCTIC - light blue / white (clean, minimal)
+# ---------------------------------------------------------------------------
+
+ARCTIC: Dict[str, str] = _validate({
+    "bg_dark":       "#e8f4f8",
+    "bg_panel":      "#f0f8ff",
+    "bg_card":       "#ffffff",
+    "bg_overlay":    "#e0f0f8",
+    "bg_input":      "#f5f9fc",
+    "text":          "#1a3a4a",
+    "muted":         "#6090a0",
+    "dim":           "#90b0c0",
+    "inverse_text":  "#ffffff",
+    "inverse_bg":    "#2196f3",
+    "primary":       "#2196f3",  # material blue
+    "secondary":     "#64b5f6",  # light blue
+    "accent":        "#90caf9",  # pale blue
+    "highlight":     "#bbdefb",
+    "success":       "#4caf50",  # green
+    "warning":       "#ff9800",  # orange
+    "error":         "#f44336",  # red
+    "info":          "#29b6f6",  # light blue
+    "critical":      "#f44336",
+    "high":          "#ff7043",
+    "medium":        "#ffa726",
+    "low":           "#66bb6a",
+    "border":        "#b0bec5",
+    "border_strong": "#78909c",
+    "border_glow":   "#2196f3",
+    "gradient_1":    "#e3f2fd",
+    "gradient_2":    "#2196f3",
+    "gradient_3":    "#1565c0",
+}, "ARCTIC")
+
+
 THEMES: Dict[str, Dict[str, str]] = {
     "DEFAULT":   DEFAULT,
     "CYBERPUNK": CYBERPUNK,
     "MATRIX":    MATRIX,
     "STEALTH":   STEALTH,
     "SYNTHWAVE": SYNTHWAVE,
+    "OCEAN":     OCEAN,
+    "FOREST":    FOREST,
+    "SUNSET":    SUNSET,
+    "ARCTIC":    ARCTIC,
 }
 
 

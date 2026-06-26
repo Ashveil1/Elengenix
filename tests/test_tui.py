@@ -21,14 +21,18 @@ sys.path.insert(0, str(ROOT))
 # ═══════════════════════════════════════════════════════════════════════════
 
 def test_themes_loaded():
-    """All 5 themes must be defined."""
+    """All 9 themes must be defined."""
     from tui.themes import THEMES, get_theme
     assert "DEFAULT" in THEMES
     assert "CYBERPUNK" in THEMES
     assert "MATRIX" in THEMES
     assert "STEALTH" in THEMES
     assert "SYNTHWAVE" in THEMES
-    assert len(THEMES) >= 5
+    assert "OCEAN" in THEMES
+    assert "FOREST" in THEMES
+    assert "SUNSET" in THEMES
+    assert "ARCTIC" in THEMES
+    assert len(THEMES) >= 9
 
 
 def test_themes_have_required_keys():
@@ -284,6 +288,234 @@ def test_collect_dashboard_data():
     assert data["high"] == 1
     assert data["medium"] == 1
     assert data["low"] == 1
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# SCAN PROGRESS
+# ═══════════════════════════════════════════════════════════════════════════
+
+def test_scan_progress_widget_creation():
+    """ScanProgressWidget should create correctly."""
+    from tui.scan_progress import ScanProgressWidget
+    widget = ScanProgressWidget()
+    assert widget.scan is None
+
+
+def test_scan_progress_widget_start():
+    """ScanProgressWidget should start scan correctly."""
+    from tui.scan_progress import ScanProgressWidget
+    widget = ScanProgressWidget()
+    widget.start_scan("example.com", "Full Scan")
+    assert widget.scan is not None
+    assert widget.scan.target == "example.com"
+    assert len(widget.scan.phases) > 0
+
+
+def test_scan_progress_widget_update():
+    """ScanProgressWidget should update phases correctly."""
+    from tui.scan_progress import ScanProgressWidget
+    widget = ScanProgressWidget()
+    widget.start_scan("example.com", "Full Scan")
+    widget.update_phase("Recon", progress=0.5, findings=3)
+    assert widget.scan.phases[0].progress == 0.5
+    assert widget.scan.phases[0].findings_count == 3
+
+
+def test_scan_progress_widget_render():
+    """ScanProgressWidget should render correctly."""
+    from tui.scan_progress import ScanProgressWidget
+    widget = ScanProgressWidget()
+    widget.start_scan("example.com", "Full Scan")
+    widget.update_phase("Recon", progress=0.5, findings=3)
+    panel = widget.render()
+    assert panel is not None
+
+
+def test_scan_progress_standalone():
+    """render_scan_progress should work as standalone."""
+    from tui.scan_progress import render_scan_progress
+    panel = render_scan_progress(
+        target="example.com",
+        scan_type="Full Scan",
+        progress=0.5,
+        phases=[("Recon", 1.0, 5), ("Scanning", 0.5, 3)],
+        findings_total=8,
+        elapsed=30.0,
+    )
+    assert panel is not None
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# FINDINGS DISPLAY
+# ═══════════════════════════════════════════════════════════════════════════
+
+def test_findings_display_creation():
+    """FindingsDisplay should create correctly."""
+    from tui.findings_display import FindingsDisplay
+    display = FindingsDisplay()
+    assert len(display.findings) == 0
+
+
+def test_findings_display_add_finding():
+    """FindingsDisplay should add findings correctly."""
+    from tui.findings_display import FindingsDisplay, Finding
+    display = FindingsDisplay()
+    finding = Finding(
+        id="1",
+        title="SQL Injection",
+        severity="critical",
+        category="sqli",
+        location="/api/users",
+    )
+    display.add_finding(finding)
+    assert len(display.findings) == 1
+
+
+def test_findings_display_sort():
+    """FindingsDisplay should sort correctly."""
+    from tui.findings_display import FindingsDisplay, Finding
+    display = FindingsDisplay()
+    display.add_finding(Finding(id="1", title="Low", severity="low", category="xss", location="/"))
+    display.add_finding(Finding(id="2", title="Critical", severity="critical", category="sqli", location="/"))
+    display.add_finding(Finding(id="3", title="Medium", severity="medium", category="ssrf", location="/"))
+    
+    display.set_sort("severity")
+    filtered = display.get_filtered_sorted()
+    assert filtered[0].severity == "critical"
+    assert filtered[-1].severity == "low"
+
+
+def test_findings_display_filter():
+    """FindingsDisplay should filter correctly."""
+    from tui.findings_display import FindingsDisplay, Finding, FindingFilter
+    display = FindingsDisplay()
+    display.add_finding(Finding(id="1", title="Low", severity="low", category="xss", location="/"))
+    display.add_finding(Finding(id="2", title="Critical", severity="critical", category="sqli", location="/"))
+    
+    display.set_filter(FindingFilter(severities=["critical"]))
+    filtered = display.get_filtered_sorted()
+    assert len(filtered) == 1
+    assert filtered[0].severity == "critical"
+
+
+def test_findings_display_render():
+    """FindingsDisplay should render correctly."""
+    from tui.findings_display import FindingsDisplay, Finding
+    display = FindingsDisplay()
+    display.add_finding(Finding(id="1", title="SQL Injection", severity="critical", category="sqli", location="/api"))
+    panel = display.render()
+    assert panel is not None
+
+
+def test_findings_display_statistics():
+    """FindingsDisplay should calculate statistics correctly."""
+    from tui.findings_display import FindingsDisplay, Finding
+    display = FindingsDisplay()
+    display.add_finding(Finding(id="1", title="A", severity="critical", category="sqli", location="/"))
+    display.add_finding(Finding(id="2", title="B", severity="high", category="xss", location="/"))
+    display.add_finding(Finding(id="3", title="C", severity="low", category="info", location="/"))
+    
+    stats = display.get_statistics()
+    assert stats["critical"] == 1
+    assert stats["high"] == 1
+    assert stats["low"] == 1
+    assert stats["total"] == 3
+
+
+def test_render_findings_table_standalone():
+    """render_findings_table should work as standalone."""
+    from tui.findings_display import render_findings_table, Finding
+    findings = [
+        Finding(id="1", title="SQL Injection", severity="critical", category="sqli", location="/api"),
+        Finding(id="2", title="XSS", severity="high", category="xss", location="/search"),
+    ]
+    panel = render_findings_table(findings)
+    assert panel is not None
+
+
+def test_render_finding_detail_standalone():
+    """render_finding_detail should work as standalone."""
+    from tui.findings_display import render_finding_detail, Finding
+    finding = Finding(
+        id="1",
+        title="SQL Injection",
+        severity="critical",
+        category="sqli",
+        location="/api/users",
+        description="SQL injection in user parameter",
+        cvss_score=9.8,
+        cve_id="CVE-2024-12345",
+    )
+    panel = render_finding_detail(finding)
+    assert panel is not None
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# KEYBOARD SHORTCUTS
+# ═══════════════════════════════════════════════════════════════════════════
+
+def test_keyboard_shortcut_manager_creation():
+    """KeyboardShortcutManager should create correctly."""
+    from tui.keyboard_shortcuts import KeyboardShortcutManager
+    manager = KeyboardShortcutManager()
+    assert len(manager.shortcuts) == 0
+
+
+def test_keyboard_shortcut_register():
+    """KeyboardShortcutManager should register shortcuts correctly."""
+    from tui.keyboard_shortcuts import KeyboardShortcutManager, ShortcutCategory
+    manager = KeyboardShortcutManager()
+    manager.register("Ctrl+S", "Save", "save", ShortcutCategory.ACTION)
+    assert len(manager.shortcuts) == 1
+    assert manager.shortcuts[0].key == "Ctrl+S"
+
+
+def test_keyboard_shortcut_get_action():
+    """KeyboardShortcutManager should get action correctly."""
+    from tui.keyboard_shortcuts import KeyboardShortcutManager, ShortcutCategory
+    manager = KeyboardShortcutManager()
+    manager.register("Ctrl+S", "Save", "save", ShortcutCategory.ACTION)
+    action = manager.get_action("Ctrl+S")
+    assert action == "save"
+
+
+def test_keyboard_shortcut_execute():
+    """KeyboardShortcutManager should execute action correctly."""
+    from tui.keyboard_shortcuts import KeyboardShortcutManager, ShortcutCategory
+    manager = KeyboardShortcutManager()
+    manager.register("Ctrl+S", "Save", "save", ShortcutCategory.ACTION)
+    
+    executed = []
+    manager.register_handler("save", lambda: executed.append(True))
+    
+    result = manager.execute("Ctrl+S")
+    assert result is True
+    assert len(executed) == 1
+
+
+def test_keyboard_shortcut_render_help():
+    """KeyboardShortcutManager should render help correctly."""
+    from tui.keyboard_shortcuts import KeyboardShortcutManager, ShortcutCategory
+    manager = KeyboardShortcutManager()
+    manager.register("Ctrl+S", "Save", "save", ShortcutCategory.ACTION)
+    manager.register("F1", "Help", "help", ShortcutCategory.VIEW)
+    
+    panel = manager.render_help()
+    assert panel is not None
+
+
+def test_create_default_shortcut_manager():
+    """create_default_shortcut_manager should create manager with defaults."""
+    from tui.keyboard_shortcuts import create_default_shortcut_manager
+    manager = create_default_shortcut_manager()
+    assert len(manager.shortcuts) > 0
+
+
+def test_render_shortcuts_help_standalone():
+    """render_shortcuts_help should work as standalone."""
+    from tui.keyboard_shortcuts import render_shortcuts_help
+    panel = render_shortcuts_help()
+    assert panel is not None
 
 
 if __name__ == "__main__":
