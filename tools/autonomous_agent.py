@@ -1221,18 +1221,6 @@ def _exec_xss_hunt(action: AgentAction, state: AgentState) -> List[Dict]:
         logger.warning(f"xss_hunt error: {e}")
         _display(f"  [xss_hunt] error: {e}")
     return findings
-            except json.JSONDecodeError:
-                continue
-
-        _display(f"  [xss_hunt] Found {len(findings)} XSS vulnerabilities")
-    except FileNotFoundError:
-        _display("  [xss_hunt] Dalfox not installed — skipping")
-    except subprocess.TimeoutExpired:
-        _display("  [xss_hunt] Timeout (120s) — partial results")
-    except Exception as e:
-        logger.warning(f"xss_hunt error: {e}")
-        _display(f"  [xss_hunt] error: {e}")
-    return findings
 
 
 def _exec_zap_active_scan(action: AgentAction, state: AgentState) -> List[Dict]:
