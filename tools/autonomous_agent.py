@@ -1127,88 +1127,100 @@ def _exec_create_custom_tool(action: AgentAction, state: AgentState,
     return findings
 
 
-def _exec_nuclei_scan(action: AgentAction, state: AgentState) -> List[Dict]:
-    """Run Nuclei template-based vulnerability scanner."""
-    import subprocess
+def _exec_vuln_scan(action: AgentAction, state: AgentState) -> List[Dict]:
+    """Run Python-based vulnerability scanner."""
+    import requests
     findings = []
     target = action.target
     if "://" not in target:
         target = f"https://{target}"
-    _display(f"  [nuclei_scan] Running Nuclei on: {target}")
+    _display(f"  [vuln_scan] Running vulnerability scan on: {target}")
 
     try:
-        cmd = ["nuclei", "-u", target, "-severity", "critical,high,medium",
-               "-silent", "-jsonl", "-timeout", "15"]
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
-
-        for line in result.stdout.strip().splitlines():
+        # Check for common vulnerabilities
+        test_paths = [
+            ("/admin", "Admin panel exposed"),
+            ("/.env", "Environment file exposed"),
+            ("/.git", "Git repository exposed"),
+            ("/robots.txt", "Robots.txt with sensitive paths"),
+            ("/sitemap.xml", "Sitemap with sensitive URLs"),
+            ("/server-status", "Apache server-status exposed"),
+            ("/server-info", "Apache server-info exposed"),
+            ("/wp-config.php.bak", "WordPress config backup"),
+            ("/.htaccess", "HTACCESS file exposed"),
+            ("/web.config", "IIS config exposed"),
+        ]
+        
+        for path, description in test_paths:
             try:
-                entry = json.loads(line)
-                sev = entry.get("info", {}).get("severity", "info").lower()
-                findings.append({
-                    "title": f"Nuclei: {entry.get('info', {}).get('name', 'Unknown')}",
-                    "description": (
-                        f"Template: {entry.get('template-id', 'N/A')}\n"
-                        f"Matched: {entry.get('matched-at', target)}\n"
-                        f"Matcher: {entry.get('matcher-name', 'N/A')}"
-                    ),
-                    "severity": sev,
-                    "source": "nuclei_scan",
-                    "target": entry.get("matched-at", target),
-                    "template": entry.get("template-id"),
-                })
-            except json.JSONDecodeError:
+                url = f"{target.rstrip('/')}{path}"
+                response = requests.get(url, timeout=5, verify=False)
+                
+                if response.status_code == 200 and len(response.text) > 100:
+                    findings.append({
+                        "title": f"Information Disclosure: {description}",
+                        "description": f"Found accessible {path} at {url}",
+                        "severity": "medium",
+                        "source": "vuln_scan",
+                        "target": url,
+                    })
+            except Exception:
                 continue
-
-        _display(f"  [nuclei_scan] Found {len(findings)} vulnerabilities")
-    except FileNotFoundError:
-        _display("  [nuclei_scan] Nuclei not installed — skipping")
-    except subprocess.TimeoutExpired:
-        _display("  [nuclei_scan] Timeout (120s) — partial results")
+        
+        _display(f"  [vuln_scan] Found {len(findings)} potential issues")
     except Exception as e:
-        logger.warning(f"nuclei_scan error: {e}")
-        _display(f"  [nuclei_scan] error: {e}")
+        logger.warning(f"vuln_scan error: {e}")
+        _display(f"  [vuln_scan] error: {e}")
     return findings
 
 
 def _exec_xss_hunt(action: AgentAction, state: AgentState) -> List[Dict]:
-    """Run Dalfox for advanced XSS hunting."""
-    import subprocess
+    """Run Python-based XSS hunting."""
+    import requests
     findings = []
     target = action.target
     if "://" not in target:
         target = f"https://{target}"
-    _display(f"  [xss_hunt] Running Dalfox on: {target}")
+    _display(f"  [xss_hunt] Running XSS tests on: {target}")
 
     # Collect params from state for smarter scanning
     params = state.assets.get("discovered_params", [])
     wayback_params = state.assets.get("wayback_params", [])[:10]
     all_params = list(set(params + wayback_params))
 
+    # Common XSS payloads
+    xss_payloads = [
+        "<script>alert(1)</script>",
+        "'-alert(1)-'",
+        "\"><img src=x onerror=alert(1)>",
+        "javascript:alert(1)",
+    ]
+    
     try:
-        cmd = ["dalfox", "url", target, "--silence", "--format", "json",
-               "--timeout", "10"]
-        if all_params:
-            cmd += ["--data", "&".join(f"{p}=FUZZ" for p in all_params[:5])]
-
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
-
-        for line in result.stdout.strip().splitlines():
-            try:
-                entry = json.loads(line)
-                findings.append({
-                    "title": f"XSS Found: {entry.get('type', 'Reflected XSS')}",
-                    "description": (
-                        f"URL: {entry.get('proof_url', target)}\n"
-                        f"Param: {entry.get('param', 'N/A')}\n"
-                        f"Payload: {entry.get('payload', 'N/A')[:150]}\n"
-                        f"Type: {entry.get('type', 'N/A')}"
-                    ),
-                    "severity": "high",
-                    "source": "xss_hunt",
-                    "target": entry.get("proof_url", target),
-                    "param": entry.get("param"),
-                })
+        for param in all_params[:5]:  # Test first 5 params
+            for payload in xss_payloads:
+                try:
+                    url = f"{target}?{param}={payload}"
+                    response = requests.get(url, timeout=5, verify=False)
+                    
+                    if payload in response.text:
+                        findings.append({
+                            "title": f"XSS Found: Reflected XSS in {param}",
+                            "description": f"URL: {url}\nParam: {param}\nPayload: {payload}",
+                            "severity": "high",
+                            "source": "xss_hunt",
+                            "target": url,
+                            "param": param,
+                        })
+                        break  # Found XSS in this param, move to next
+                except Exception:
+                    continue
+        
+        _display(f"  [xss_hunt] Found {len(findings)} XSS vulnerabilities")
+    except Exception as e:
+        logger.warning(f"xss_hunt error: {e}")
+        _display(f"  [xss_hunt] error: {e}")
+    return findings
             except json.JSONDecodeError:
                 continue
 
@@ -1468,7 +1480,7 @@ Available actions (Phase 3 — Exploitation):
   - injection_test     : Test for XSS, SQLi, SSTI, LFI, Open Redirect. Params: {"target": "https://..."}
   - bola_probe         : BOLA/IDOR vulnerability check with GET/POST/PUT/DELETE methods. Params: {"target": "https://..."}
   - waf_bypass         : Adaptive WAF bypass with payload mutation. Params: {"target": "https://..."}
-  - nuclei_scan        : Run Nuclei template-based vulnerability scanner (CVE probing, misconfigurations). Params: {"target": "https://..."}
+  - vuln_scan        : Run Python-based vulnerability scanner. Params: {"target": "https://..."}
   - xss_hunt           : Run Dalfox advanced XSS scanner with smart parameter fuzzing. Params: {"target": "https://..."}
   - ssrf_scan          : Test for SSRF via URL params, cloud metadata endpoints, internal IP ranges. Params: {"target": "https://..."}
   - graphql_introspect : Auto-discover GraphQL endpoints + test introspection, depth limits, batching. Params: {"target": "https://..."}
@@ -1495,7 +1507,7 @@ Available actions (Strategic):
                             "header_audit", "subdomain_takeover",
                             "request_auth", "auth_test",
                             "injection_test", "bola_probe", "waf_bypass",
-                            "nuclei_scan", "xss_hunt",
+                            "vuln_scan", "xss_hunt",
                             "ssrf_scan", "graphql_introspect", "race_condition",
                             "create_custom_tool",
                             "done"]:
@@ -1774,7 +1786,7 @@ class AutonomousAgent:
             "subdomain_takeover": _exec_subdomain_takeover,
             "waf_bypass":         _exec_waf_bypass,
             "request_auth":       _exec_request_auth,
-            "nuclei_scan":        _exec_nuclei_scan,
+            "vuln_scan":        _exec_vuln_scan,
             "xss_hunt":           _exec_xss_hunt,
             "zap_active_scan":    _exec_zap_active_scan,
             "ssrf_scan":          _exec_ssrf_scan_ex,
@@ -1962,7 +1974,7 @@ class AutonomousAgent:
                 agent_role="Operator",
                 model_name="human",
                 content=f"Mission briefing: {goal}\nTarget: {target}\n"
-                        f"Available actions: recon, http_probe, waf_detect, nuclei_scan, "
+                        f"Available actions: recon, http_probe, waf_detect, vuln_scan, "
                         f"endpoint_fuzz, bola_probe, header_audit, xss_hunt, cors_scan, "
                         f"injection_test, subdomain_takeover, param_mine, js_recon, "
                         f"wayback_recon, threat_model, create_custom_tool",

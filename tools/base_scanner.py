@@ -1,7 +1,6 @@
 """
-tools/base_scanner.py — Nuclei Vulnerability Scanner Wrapper
-- Severity filtering
-- Auto-skips if nuclei not installed
+tools/base_scanner.py — Python-based Vulnerability Scanner
+- HTTP probe and vulnerability detection
 - Returns parsed findings list
 """
 
@@ -10,54 +9,67 @@ from __future__ import annotations
 import logging
 import os
 import re
-import shutil
-import subprocess
 from typing import List, Dict
+
+import requests
 
 logger = logging.getLogger("elengenix.base_scanner")
 
 
-def run_nuclei_scan(
-    target_file: str,
-    output_dir: str,
-    severity: str = "low,medium,high,critical",
-    timeout: int = 300,
+def run_vuln_scan(
+    target_url: str,
+    timeout: int = 30,
 ) -> List[Dict]:
     """
-    Runs nuclei against a targets file.
+    Run Python-based vulnerability scan against a target.
     Returns a list of parsed finding dicts.
     """
-    if not shutil.which("nuclei"):
-        logger.warning("nuclei not installed — skipping scan.")
-        return []
-
-    if not os.path.exists(target_file):
-        logger.error(f"Target file not found: {target_file}")
-        return []
-
-    output_file = os.path.join(output_dir, "nuclei_results.txt")
-    cmd = [
-        "nuclei",
-        "-l", target_file,
-        "-o", output_file,
-        "-severity", severity,
-        "-silent",
-        "-no-color",
+    if not target_url.startswith(("http://", "https://")):
+        target_url = f"https://{target_url}"
+    
+    findings = []
+    
+    # Common vulnerability checks
+    checks = [
+        ("/.env", "Environment file exposed", "high"),
+        ("/.git", "Git repository exposed", "high"),
+        ("/admin", "Admin panel exposed", "medium"),
+        ("/robots.txt", "Robots.txt with sensitive paths", "low"),
+        ("/sitemap.xml", "Sitemap with sensitive URLs", "low"),
+        ("/server-status", "Apache server-status exposed", "medium"),
+        ("/server-info", "Apache server-info exposed", "medium"),
+        ("/wp-config.php.bak", "WordPress config backup", "critical"),
+        ("/.htaccess", "HTACCESS file exposed", "medium"),
+        ("/web.config", "IIS config exposed", "medium"),
+        ("/phpinfo.php", "PHP info exposed", "medium"),
+        ("/.DS_Store", "macOS metadata file exposed", "low"),
+        ("/crossdomain.xml", "Cross-domain policy file", "low"),
+        ("/clientaccesspolicy.xml", "Silverlight policy file", "low"),
     ]
-
-    logger.info(f"Running nuclei: {' '.join(cmd)}")
-    try:
-        subprocess.run(cmd, timeout=timeout, capture_output=True, check=False)
-    except subprocess.TimeoutExpired:
-        logger.warning(f"nuclei timed out after {timeout}s.")
-    except Exception as e:
-        logger.error(f"nuclei error: {e}")
-        return []
-
-    return _parse_output(output_file)
+    
+    for path, description, severity in checks:
+        try:
+            url = f"{target_url.rstrip('/')}{path}"
+            response = requests.get(url, timeout=5, verify=False, allow_redirects=False)
+            
+            if response.status_code == 200 and len(response.text) > 50:
+                findings.append({
+                    "name": description,
+                    "severity": severity.upper(),
+                    "url": url,
+                    "details": f"Status: {response.status_code}, Size: {len(response.text)} bytes",
+                })
+        except requests.exceptions.RequestException:
+            continue
+        except Exception as e:
+            logger.debug(f"Error checking {path}: {e}")
+            continue
+    
+    return findings
 
 
 def _parse_output(output_file: str) -> List[Dict]:
+    """Legacy function for backward compatibility."""
     findings = []
     if not os.path.exists(output_file):
         return findings
@@ -74,5 +86,9 @@ def _parse_output(output_file: str) -> List[Dict]:
                         "details":  line,
                     })
     except Exception as e:
-        logger.warning(f"Could not parse nuclei output: {e}")
+        logger.warning(f"Could not parse output: {e}")
     return findings
+
+
+# Backward compatibility alias
+run_nuclei_scan = run_vuln_scan

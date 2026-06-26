@@ -7,7 +7,7 @@ The Specialist uses AI model #2 (default: Claude) to:
 
 Sub-workers:
 - ExploitWorker  — validates potential exploits (PoC verification).
-- FuzzerWorker   — runs parameter fuzzing via ffuf / arjun.
+- FuzzerWorker   — runs parameter fuzzing using built-in Python scanners.
 """
 
 from __future__ import annotations
@@ -101,7 +101,7 @@ class ExploitWorker(BaseWorker):
 
 
 class FuzzerWorker(BaseWorker):
-    """Runs parameter/path fuzzing using ffuf or arjun.
+    """Runs parameter/path fuzzing using Python-based scanners.
 
     Args:
         timeout_seconds: Max execution time.
@@ -121,7 +121,7 @@ class FuzzerWorker(BaseWorker):
         self.wordlist_path = wordlist_path
 
     def run(self, target: str, params: Optional[Dict[str, Any]] = None) -> WorkerResult:
-        """Run ffuf directory fuzzing on target URL.
+        """Run directory fuzzing on target URL using Python.
 
         Args:
             target: Base URL to fuzz.
@@ -130,66 +130,48 @@ class FuzzerWorker(BaseWorker):
         Returns:
             WorkerResult with discovered paths.
         """
-        import shutil
+        import requests
 
         params = params or {}
-        wordlist = params.get("wordlist", self.wordlist_path)
+        
+        # Ensure target has protocol
+        if not target.startswith("http"):
+            target = f"https://{target}"
 
-        tool = "ffuf" if shutil.which("ffuf") else None
-        if not tool:
-            return WorkerResult(
-                success=False,
-                worker_name=self.name,
-                error="ffuf not installed",
-            )
-
-        try:
-            # Ensure target has protocol
-            if not target.startswith("http"):
-                target = f"https://{target}"
-
-            cmd = [
-                "ffuf", "-u", f"{target}/FUZZ",
-                "-w", wordlist,
-                "-mc", "200,301,302,403",
-                "-o", "/tmp/ffuf_out.json",
-                "-of", "json",
-                "-t", "10",
-                "-p", "0.1",
-                "-timeout", "5",
-            ]
-            result = subprocess.run(
-                cmd, shell=False, capture_output=True, text=True,
-                timeout=self.timeout_seconds,
-            )
-            findings = []
+        findings = []
+        
+        # Common paths to check
+        common_paths = [
+            "/", "/admin", "/login", "/api", "/api/v1", "/api/v2",
+            "/robots.txt", "/sitemap.xml", "/.env", "/.git",
+            "/wp-admin", "/wp-login.php", "/phpmyadmin",
+            "/backup", "/config", "/database", "/db",
+            "/debug", "/test", "/staging", "/dev",
+        ]
+        
+        for path in common_paths:
             try:
-                import json as _json
-                with open("/tmp/ffuf_out.json") as fh:
-                    data = _json.load(fh)
-                for item in data.get("results", [])[:20]:
+                url = f"{target.rstrip('/')}{path}"
+                response = requests.get(url, timeout=5, verify=False)
+                
+                if response.status_code in [200, 301, 302, 403]:
                     findings.append({
                         "type": "directory_found",
                         "severity": "low",
-                        "title": f"Path found: {item.get('input', {}).get('FUZZ', '')}",
-                        "url": item.get("url", ""),
+                        "title": f"Path found: {path}",
+                        "url": url,
                         "target": target,
-                        "description": f"Status: {item.get('status', '')} | Length: {item.get('length', '')}",
+                        "description": f"Status: {response.status_code}",
                     })
             except Exception:
-                pass
-            return WorkerResult(
-                success=True,
-                worker_name=self.name,
-                output=result.stdout[:2000],
-                findings=findings,
-            )
-        except Exception as exc:
-            return WorkerResult(
-                success=False,
-                worker_name=self.name,
-                error=str(exc),
-            )
+                continue
+        
+        return WorkerResult(
+            success=True,
+            worker_name=self.name,
+            output=f"Checked {len(common_paths)} paths",
+            findings=findings,
+        )
 
 
 # ── SpecialistAgent ─────────────────────────────────────────────────────────────
@@ -218,7 +200,7 @@ Risk: {risk}
 Available tools: {available_tools}
 
 Decide ONE action:
-1. Run registered tool: {{"action": "run_tool", "tool": "subfinder", "target": "{target}", "purpose": "..."}}
+1. Run registered tool: {{"action": "run_tool", "tool": "dns_lookup", "target": "{target}", "purpose": "..."}}
 2. Run shell command: {{"action": "run_shell", "command": "curl -si https://{target}/", "purpose": "..."}}
 3. Skip (not applicable): {{"action": "skip", "reason": "..."}}
 
@@ -285,7 +267,7 @@ Respond ONLY with valid JSON. No extra text."""
             target=target,
             phase=phase,
             risk=risk,
-            available_tools=tool_list or tool_hint or "subfinder, httpx, nuclei, ffuf",
+            available_tools=tool_list or tool_hint or "python_scanner, dns_lookup, http_probe",
             history_context=history_ctx,
         )
 

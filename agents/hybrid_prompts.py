@@ -27,9 +27,9 @@ Rules:
 
 Respond ONLY with a valid JSON array:
 [
-  {"description": "Run subfinder to discover subdomains", "status": "pending", "phase": "recon"},
-  {"description": "Probe live hosts with httpx", "status": "pending", "phase": "recon"},
-  {"description": "Scan for vulnerabilities with nuclei", "status": "pending", "phase": "scanning"}
+  {"description": "DNS enumeration for target", "status": "pending", "phase": "recon"},
+  {"description": "HTTP service discovery", "status": "pending", "phase": "recon"},
+  {"description": "Vulnerability scanning with Python scanners", "status": "pending", "phase": "scanning"}
 ]
 
 No extra text, no markdown. Only the JSON array."""
@@ -50,11 +50,11 @@ Decide ONE next action. Choose the best action type:
 
 1. RUN A REGISTERED TOOL (preferred when available — structured output):
 {{
-  "thought": "I need to discover subdomains first",
+  "thought": "I need to enumerate DNS records first",
   "action": "run_tool",
-  "tool": "subfinder",
+  "tool": "dns_lookup",
   "target": "{target}",
-  "purpose": "Subdomain discovery"
+  "purpose": "DNS enumeration"
 }}
 
 2. RUN A SHELL COMMAND (full flexibility — pipes, scripts, curl, nmap, python):

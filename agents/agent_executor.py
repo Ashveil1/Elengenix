@@ -568,9 +568,9 @@ def execute_tool_subprocess(tool_name: str, target: str) -> ToolResult:
         )
 
     commands = {
-        "subfinder": ["subfinder", "-d", target, "-silent"],
-        "httpx": ["httpx", "-u", target, "-silent"],
-        "nuclei": ["nuclei", "-u", target, "-silent", "-severity", "critical,high,medium"],
+        "dns_lookup": ["dig", target, "ANY"],
+        "http_probe": ["curl", "-s", "-I", f"https://{target}"],
+        "port_scan": ["python3", "-c", f"import socket; [print(p) for p in range(1,1024) if socket.socket().connect_ex(('{{target}}', p)) == 0]"],
     }
 
     cmd = commands.get(tool_name)

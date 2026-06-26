@@ -702,26 +702,26 @@ class HybridAgent:
                 if not isinstance(item, dict):
                     continue
 
-                # A. Nuclei JSON Format
+                # A. Vulnerability finding format
                 if "template-id" in item or "template" in item:
                     info = item.get("info", {})
                     severity = info.get("severity", item.get("severity", "info")).lower()
                     findings.append({
-                        "type": "nuclei",
+                        "type": "vulnerability",
                         "severity": severity,
-                        "title": f"Nuclei: {info.get('name', item.get('template-id', 'finding'))}",
+                        "title": f"Vulnerability: {info.get('name', item.get('template-id', 'finding'))}",
                         "target": item.get("matched-at", item.get("host", "")),
                         "url": item.get("matched-at", ""),
                         "description": f"Template: {item.get('template-id')}. Matched: {item.get('matched-at') or item.get('host')}",
                         "evidence": item.get("extracted-results", item.get("matcher-name", "")),
                     })
 
-                # B. Httpx JSON Format
+                # B. HTTP probe result format
                 elif "webserver" in item or "status-code" in item or "tech" in item:
                     findings.append({
-                        "type": "httpx_probe",
+                        "type": "http_probe",
                         "severity": "info",
-                        "title": f"Httpx: {item.get('url', 'host')} [{item.get('status-code', '')}]",
+                        "title": f"HTTP Probe: {item.get('url', 'host')} [{item.get('status-code', '')}]",
                         "target": item.get("url", item.get("host", "")),
                         "url": item.get("url", ""),
                         "description": f"Server: {item.get('webserver', 'unknown')}. Tech: {', '.join(item.get('tech', []))}",
@@ -745,8 +745,8 @@ class HybridAgent:
                 return findings
 
         # ── 2. Fallback to Regex Heuristics (for plain text shell output) ─────
-        # Look for subdomains/hosts lists (e.g. from subfinder or simple list commands)
-        if "subfinder" in cmd_lower or "assetfinder" in cmd_lower:
+        # Look for subdomains/hosts lists
+        if "dig" in cmd_lower or "nslookup" in cmd_lower:
             hosts = []
             for line in output.splitlines():
                 line_str = line.strip()

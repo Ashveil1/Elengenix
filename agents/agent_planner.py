@@ -582,7 +582,7 @@ Generate an attack tree as JSON with this structure:
     ]
 }}
 
-Available tools: subfinder, httpx, naabu, nuclei, dalfox, arjun, ffuf, trufflehog, katana
+Available tools: Built-in Python scanners (SSRF, SSTI, XXE, Deserialization, GraphQL, CORS, JWT, Race Conditions, Business Logic, Supply Chain)
 
 Respond with valid JSON only."""
 
@@ -697,14 +697,12 @@ Respond with valid JSON only."""
             reasoning="Default reconnaissance-to-exploitation pipeline",
         )
         default_steps = [
-            AttackStep(AttackPhase.RECONNAISSANCE, "subfinder", target, "Discover subdomains"),
-            AttackStep(AttackPhase.RECONNAISSANCE, "naabu", target, "Port scan discovered hosts"),
-            AttackStep(AttackPhase.SCANNING, "httpx", target, "Probe live web services"),
-            AttackStep(AttackPhase.ENUMERATION, "trufflehog", target, "Find secrets in code"),
-            AttackStep(AttackPhase.ENUMERATION, "ffuf", target, "Discover hidden directories"),
-            AttackStep(AttackPhase.EXPLOITATION, "nuclei", target, "Scan for CVEs and misconfigurations"),
-            AttackStep(AttackPhase.EXPLOITATION, "dalfox", target, "Test for XSS vulnerabilities"),
-            AttackStep(AttackPhase.ENUMERATION, "arjun", target, "Discover hidden parameters"),
+            AttackStep(AttackPhase.RECONNAISSANCE, "dns_lookup", target, "DNS enumeration"),
+            AttackStep(AttackPhase.RECONNAISSANCE, "http_probe", target, "HTTP service discovery"),
+            AttackStep(AttackPhase.SCANNING, "port_scan", target, "Port scanning"),
+            AttackStep(AttackPhase.ENUMERATION, "path_discovery", target, "Directory enumeration"),
+            AttackStep(AttackPhase.EXPLOITATION, "vuln_scan", target, "Scan for vulnerabilities"),
+            AttackStep(AttackPhase.ENUMERATION, "param_discovery", target, "Discover parameters"),
         ]
         tree.steps = default_steps
         return tree
@@ -728,29 +726,29 @@ Respond with valid JSON only."""
                 # Critical findings - prioritize immediate action
                 if severity in ("critical", "high"):
                     if finding_type == "secret":
-                        return "trufflehog"
+                        return "secret_scan"
                     if finding_type in ("rce", "remote_code_execution"):
-                        return "nuclei"  # Document and report
+                        return "vuln_verify"
                     if finding_type in ("sqli", "sql_injection"):
-                        return "nuclei"  # Deep SQLi analysis
+                        return "sqli_test"
                     if finding_type in ("xss", "reflected_xss"):
-                        return "dalfox"  # Test for stored XSS
+                        return "xss_test"
                 
                 # Port-based decisions
                 if finding_type == "open_port":
                     port = finding.get("port", 0)
                     if port in [3306, 5432, 6379, 27017]:
-                        return "nuclei"
+                        return "service_scan"
                     if port in [80, 443, 8080, 3000]:
-                        return "ffuf"
+                        return "dir_scan"
                 
                 # API endpoints - enumerate parameters
                 if finding_type == "api_endpoint":
-                    return "arjun"
+                    return "param_discovery"
                 
                 # Hidden parameters - test for XSS
                 if finding_type == "hidden_parameter":
-                    return "dalfox"
+                    return "xss_test"
         
         # Then follow the attack tree phases in order
         phase_order = [
@@ -792,18 +790,17 @@ Respond with valid JSON only."""
         if finding_type == "api_endpoint":
             additional_steps.append(AttackStep(
                 phase=AttackPhase.ENUMERATION,
-                tool_name="arjun",
+                tool_name="param_discovery",
                 target=target_url,
                 purpose="Discover API parameters",
                 depends_on=[],
             ))
-            # Also try API-specific scanning
             additional_steps.append(AttackStep(
                 phase=AttackPhase.SCANNING,
-                tool_name="nuclei",
+                tool_name="vuln_scan",
                 target=target_url,
                 purpose="Scan API for vulnerabilities",
-                depends_on=["arjun"],
+                depends_on=["param_discovery"],
             ))
         
         # Subdomain discovered
@@ -812,43 +809,41 @@ Respond with valid JSON only."""
             if subdomain:
                 additional_steps.append(AttackStep(
                     phase=AttackPhase.SCANNING,
-                    tool_name="httpx",
+                    tool_name="http_probe",
                     target=subdomain,
                     purpose=f"Probe new subdomain: {subdomain}",
-                    depends_on=["subfinder"],
+                    depends_on=[],
                 ))
-                # Scan the new subdomain
                 additional_steps.append(AttackStep(
                     phase=AttackPhase.EXPLOITATION,
-                    tool_name="nuclei",
+                    tool_name="vuln_scan",
                     target=subdomain,
                     purpose=f"Scan subdomain for vulnerabilities: {subdomain}",
-                    depends_on=["httpx"],
+                    depends_on=["http_probe"],
                 ))
         
         # Hidden parameter discovered
         elif finding_type == "hidden_parameter":
             additional_steps.append(AttackStep(
                 phase=AttackPhase.EXPLOITATION,
-                tool_name="dalfox",
+                tool_name="xss_test",
                 target=target_url,
                 purpose="Test discovered parameters for XSS",
-                depends_on=["arjun"],
+                depends_on=[],
             ))
-            # Also test for SQLi
             additional_steps.append(AttackStep(
                 phase=AttackPhase.EXPLOITATION,
-                tool_name="nuclei",
+                tool_name="sqli_test",
                 target=target_url,
                 purpose="Test parameters for SQLi and other injections",
-                depends_on=["arjun"],
+                depends_on=[],
             ))
         
         # SQL injection found - escalate
         elif finding_type in ("sqli", "sql_injection"):
             additional_steps.append(AttackStep(
                 phase=AttackPhase.EXPLOITATION,
-                tool_name="nuclei",
+                tool_name="sqli_test",
                 target=target_url,
                 purpose="Deep SQLi analysis and exploitation",
                 depends_on=[],
@@ -858,7 +853,7 @@ Respond with valid JSON only."""
         elif finding_type in ("xss", "reflected_xss"):
             additional_steps.append(AttackStep(
                 phase=AttackPhase.EXPLOITATION,
-                tool_name="dalfox",
+                tool_name="xss_test",
                 target=target_url,
                 purpose="Test for stored XSS variants",
                 depends_on=[],
@@ -868,7 +863,7 @@ Respond with valid JSON only."""
         elif finding_type in ("lfi", "rfi", "path_traversal"):
             additional_steps.append(AttackStep(
                 phase=AttackPhase.EXPLOITATION,
-                tool_name="nuclei",
+                tool_name="vuln_scan",
                 target=target_url,
                 purpose="Test for RCE via LFI/RFI",
                 depends_on=[],
@@ -887,7 +882,7 @@ Respond with valid JSON only."""
             if port in [3306, 5432, 6379, 27017]:
                 additional_steps.append(AttackStep(
                     phase=AttackPhase.EXPLOITATION,
-                    tool_name="nuclei",
+                    tool_name="service_scan",
                     target=target_url,
                     purpose=f"Test {service} service on port {port}",
                     depends_on=[],
@@ -896,7 +891,7 @@ Respond with valid JSON only."""
             elif port in [80, 443, 8080, 8443, 3000, 5000]:
                 additional_steps.append(AttackStep(
                     phase=AttackPhase.SCANNING,
-                    tool_name="nuclei",
+                    tool_name="vuln_scan",
                     target=f"{target_url}:{port}",
                     purpose=f"Scan web service on port {port}",
                     depends_on=[],
@@ -908,7 +903,7 @@ Respond with valid JSON only."""
             if severity in ("critical", "high"):
                 additional_steps.append(AttackStep(
                     phase=AttackPhase.EXPLOITATION,
-                    tool_name="trufflehog",
+                    tool_name="secret_scan",
                     target=target_url,
                     purpose="Deep secret scan for additional credentials",
                     depends_on=[],
@@ -919,7 +914,7 @@ Respond with valid JSON only."""
             waf_name = new_finding.get("waf_name", "unknown")
             additional_steps.append(AttackStep(
                 phase=AttackPhase.SCANNING,
-                tool_name="nuclei",
+                tool_name="waf_bypass",
                 target=target_url,
                 purpose=f"Test {waf_name} bypass techniques",
                 depends_on=[],

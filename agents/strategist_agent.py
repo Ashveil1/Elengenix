@@ -43,14 +43,14 @@ class ReconWorker(BaseWorker):
         )
 
     def run(self, target: str, params: Optional[Dict[str, Any]] = None) -> WorkerResult:
-        """Run subfinder / amass against target.
+        """Run DNS enumeration against target.
 
         Args:
             target: Domain to enumerate.
             params: Unused by this worker.
 
         Returns:
-            WorkerResult with discovered subdomain findings.
+            WorkerResult with discovered findings.
         """
         import subprocess
         import shutil
@@ -58,15 +58,19 @@ class ReconWorker(BaseWorker):
         findings = []
         output_lines = []
 
-        for tool in ["_ext_recon"]:
-            if not shutil.which(tool):
-                continue
-            try:
-                cmd_map = {
-                    "subfinder": ["subfinder", "-d", target, "-silent"],
-                    "amass": ["amass", "enum", "-passive", "-d", target],
-                    "assetfinder": ["assetfinder", "--subs-only", target],
-                }
+        # Use DNS tools for enumeration
+        try:
+            cmd = ["dig", target, "ANY"]
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+            if result.returncode == 0:
+                output_lines.append(result.stdout)
+                findings.append({
+                    "type": "dns_enumeration",
+                    "target": target,
+                    "output": result.stdout[:500],
+                })
+        except Exception as e:
+            output_lines.append(f"DNS lookup failed: {e}")
                 result = subprocess.run(
                     cmd_map[tool],
                     shell=False,
@@ -185,13 +189,13 @@ Rules:
 - Tasks flow: reconnaissance → enumeration → vulnerability detection → exploitation → reporting
 - Max {max_tasks} tasks, highest impact first
 - Each task MUST specify risk level: low / medium / high / critical
-- "critical" risk = destructive or likely to trigger IDS (e.g. sqlmap, heavy fuzzing)
+- "critical" risk = destructive or likely to trigger IDS
 
 Respond ONLY with valid JSON array:
 [
-  {{"description": "Run subfinder for subdomain enum", "phase": "recon", "risk": "low", "tool_hint": "subfinder"}},
-  {{"description": "Probe live hosts with httpx", "phase": "recon", "risk": "low", "tool_hint": "httpx"}},
-  {{"description": "Nuclei CVE scan on discovered hosts", "phase": "scanning", "risk": "medium", "tool_hint": "nuclei"}}
+  {{"description": "DNS enumeration for target", "phase": "recon", "risk": "low", "tool_hint": "dig"}},
+  {{"description": "HTTP service discovery", "phase": "recon", "risk": "low", "tool_hint": "curl"}},
+  {{"description": "Vulnerability scanning", "phase": "scanning", "risk": "medium", "tool_hint": "python_scanner"}}
 ]
 
 No extra text. Only the JSON array."""

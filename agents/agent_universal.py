@@ -187,7 +187,7 @@ Detected user language: {detected_lang}
 
 [SECURITY TOOLS:]
 {tool_list}
-Plus: nmap, nuclei, ffuf, dalfox, sqlmap, and 40+ security tools
+Plus: Built-in Python scanners for SSRF, SSTI, XXE, Deserialization, GraphQL, CORS, JWT, Race Conditions, Business Logic, Supply Chain
 
 [GENERAL CAPABILITIES:]
 - File editing, shell commands, package installation
@@ -589,21 +589,22 @@ If a tool is missing and would be useful, ask the user with a format like:
 Think step-by-step which tools fit each phase:
 
 **PHASE 1: RECONNAISSANCE**
-- Subdomain enumeration: Use tools like subfinder, assetfinder, amass, or findomain
-- DNS analysis: dnsx, dnsrecon, or dig
-- Technology fingerprinting: httpx, whatweb, or webanalyze
+- DNS enumeration: Use dig, nslookup, or Python DNS libraries
+- HTTP probing: Use curl or Python requests
+- Technology fingerprinting: Analyze response headers and body
 - Choose based on: target size, rate limits, accuracy needs
 
 **PHASE 2: CONTENT DISCOVERY**
-- Directory/endpoint enumeration: ffuf, dirsearch, or gobuster
-- Parameter discovery: arjun, x8, or paramspider
+- Directory/path enumeration: Use Python wordlist scanners
+- Parameter discovery: Analyze forms and URLs
 - JS analysis for hidden endpoints
 - Choose based on: time constraints, depth needed
 
 **PHASE 3: VULNERABILITY SCANNING**
-- General scanning: nuclei (best for broad coverage)
-- XSS testing: dalfox
-- Secret scanning: trufflehog, gitleaks
+- Use built-in Python scanners: SSRF, SSTI, XXE, Deserialization, GraphQL, CORS, JWT
+- SQL injection testing: Use Python-based testers
+- XSS testing: Use Python-based testers
+- Secret scanning: Check for exposed credentials in responses
 - Choose based on: what was discovered, what's in scope
 
 **PHASE 4: EXPLOITATION**
@@ -641,8 +642,8 @@ def _build_general_prompt(user_input: str, now_context: str) -> str:
 You can help with code, security research, OSINT, system administration, and general tasks.
 
 ### AVAILABLE TOOLS (Use as needed):
-- Security tools: subfinder, httpx, nuclei, dalfox, ffuf, naabu, arjun, trufflehog
-- General: nmap, curl, dig, python, ripgrep, jq
+- Built-in Python scanners: SSRF, SSTI, XXE, Deserialization, GraphQL, CORS, JWT, Race Conditions
+- General: curl, dig, python, ripgrep, jq
 - Web search, file editing, package management
 
 ### YOUR FULL CAPABILITIES:

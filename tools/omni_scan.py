@@ -217,9 +217,9 @@ def _load_registry_findings(report_dir: Path) -> List[Dict[str, Any]]:
     
     # Fallback: Parse individual tool outputs
     tool_files = {
-        "nuclei": "nuclei_results.json",
-        "dalfox": "dalfox_results.json",
-        "trufflehog": "trufflehog_results.json",
+        "vuln_scan": "vuln_results.json",
+        "xss_hunt": "xss_results.json",
+        "secret_scan": "secret_results.json",
     }
     
     for tool_name, filename in tool_files.items():
@@ -294,10 +294,31 @@ def _print_findings_table(findings: List[Dict[str, Any]]) -> None:
 
 
 def _parse_nuclei_findings(findings_file: str) -> list:
-    """Legacy: Parse nuclei output into structured finding dicts."""
+    """Legacy: Parse vulnerability scan output into structured finding dicts."""
     findings = []
     if not os.path.exists(findings_file):
         return findings
+    try:
+        with open(findings_file, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    import json as _json
+                    entry = _json.loads(line)
+                    findings.append({
+                        "name": entry.get("name", entry.get("title", "Unknown")),
+                        "severity": entry.get("severity", "INFO").upper(),
+                        "url": entry.get("url", "-"),
+                        "details": entry.get("description", line[:200]),
+                        "tool": "vuln_scan",
+                    })
+                except _json.JSONDecodeError:
+                    findings.append({"name": line[:80], "severity": "INFO", "url": "-", "details": line, "tool": "vuln_scan"})
+    except Exception as e:
+        logger.warning(f"Could not parse output: {e}")
+    return findings
     try:
         with open(findings_file, "r", encoding="utf-8") as f:
             for line in f:

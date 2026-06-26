@@ -86,11 +86,11 @@ class ScanProgress:
 
 # Phase definitions for a typical security scan
 SCAN_PHASES = [
-    ("Recon", "subfinder, httpx"),
-    ("Port Scan", "naabu, masscan"),
-    ("Directory", "ffuf, feroxbuster"),
-    ("Vulnerability", "nuclei, custom scanners"),
-    ("Exploitation", "sqlmap, dalfox"),
+    ("Recon", "DNS lookup, HTTP probe"),
+    ("Port Scan", "Port discovery"),
+    ("Directory", "Path enumeration"),
+    ("Vulnerability", "Security scanning"),
+    ("Exploitation", "Vulnerability verification"),
     ("Report", "generate findings"),
 ]
 
