@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 
 # ============================================================
-#   Elengenix - Indestructible Professional Installer
+#   Elengenix - Professional Installer
 #   Supports: Debian, Arch, Fedora, macOS
-#   Version: v99999
-#   Optimized: Installs only Python dependencies
+#   Version: v2.0.0
+#   Python-based security scanning framework
 # ============================================================
 
 set -e
@@ -134,6 +134,16 @@ echo ""
 # 1. Privilege & Platform Detection
 OS="$(uname -s)"
 info "Detecting Platform: ${BOLD}$OS${NC}"
+
+# Check Python version
+PYTHON_VERSION=$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')
+PYTHON_MAJOR=$(echo "$PYTHON_VERSION" | cut -d. -f1)
+PYTHON_MINOR=$(echo "$PYTHON_VERSION" | cut -d. -f2)
+
+if [ "$PYTHON_MAJOR" -lt 3 ] || ([ "$PYTHON_MAJOR" -eq 3 ] && [ "$PYTHON_MINOR" -lt 10 ]); then
+    error "Python 3.10+ required (found $PYTHON_VERSION)"
+fi
+info "Python version: ${BOLD}$PYTHON_VERSION${NC}"
 
 if [[ "$OS" == "Linux" ]]; then
     if [[ "$EUID" -ne 0 ]]; then
@@ -313,7 +323,7 @@ fi
 
 info "Verifying installation..."
 VERIFY_OK=true
-for module in yaml rich requests dotenv openai; do
+for module in yaml rich requests dotenv openai textual questionary; do
     if ! "$VENV_PYTHON" -c "import $module" 2>/dev/null; then
         warning "Module not importable: $module"
         VERIFY_OK=false
@@ -333,8 +343,8 @@ echo ""
 echo -e "   ${BOLD}Start hunting with:${NC}"
 if command -v elengenix >/dev/null 2>&1; then
     echo -e "      elengenix           - Launch interactive menu"
-    echo -e "      elengenix doctor    - Check tool installation"
-    echo -e "      elengenix scan <target>  - Run full scan"
+    echo -e "      elengenix doctor    - Check system status"
+    echo -e "      elengenix menu      - Interactive feature selection"
 fi
 echo ""
 echo -e "  ${GREEN}Run 'elengenix doctor' to verify everything is set up correctly.${NC}"
