@@ -172,7 +172,7 @@ class SettingsOverlay:
     def render(self) -> Panel:
         """Build a Rich Panel representing the current overlay state."""
         try:
-            width = min(int(self.console.width * 0.7), 78)
+            width = min(int(self.console.width * 0.75), 78)
         except AttributeError:
             width = 70
         if width < 30:
@@ -180,12 +180,12 @@ class SettingsOverlay:
 
         title = self._get_title()
         lines = Text()
-        lines.append(f"\n{title}\n", style="bold #ffffff")
-        lines.append("=" * 40 + "\n\n", style="#ffffff")
+        lines.append(f"\n{title}\n", style="bold #ff2222")
+        lines.append("─" * 45 + "\n\n", style="#ff2222")
 
         # Show search text in model_select
         if self._current_layer == "model_select" and self._search:
-            lines.append(f"  Search: {self._search}\n\n", style="dim #555555")
+            lines.append(f"  Search: {self._search}\n\n", style="dim #888888")
 
         # Show a scrollable window of items
         total = len(self._items)
@@ -200,32 +200,34 @@ class SettingsOverlay:
                 continue
             is_selected = i == self._selected_idx
             if is_selected:
-                prefix = "\u25b6 "
-                style = "bold #ffffff on #333333"
+                prefix = "▸ "
+                style = "bold #ffffff on #222222"
             else:
                 prefix = "  "
-                style = "white on #0a0a0a"
+                style = "#cccccc on #0a0a0a"
             lines.append(f"{prefix} {label}\n", style=style)
 
         # Scroll indicators
         if start > 0:
-            lines.append(f"\n  \u25b2 more above\n", style="dim #737373")
+            lines.append(f"\n  ▲ more above\n", style="dim #666666")
         if end < total:
-            lines.append(f"  \u25bc more below ({total - end})\n", style="dim #737373")
+            lines.append(f"  ▼ more below ({total - end})\n", style="dim #666666")
 
         # Footer
         lines.append("\n")
         if self._current_layer == "main":
-            lines.append("[j/k or Arrow: Navigate]  [Enter: Select]  [q/B: Exit]\n", style="dim")
+            lines.append("[↑↓ or j/k: Navigate]  [Enter: Select]  [q: Exit]\n", style="dim #666666")
         else:
-            lines.append("[j/k or Arrow: Navigate]  [Enter: Select]  [q/B: Back]\n", style="dim")
+            lines.append(
+                "[↑↓ or j/k: Navigate]  [Enter: Select]  [Esc/B: Back]\n", style="dim #666666"
+            )
 
         panel = Panel(
             Align.center(lines, vertical="middle"),
             box=ROUNDED,
             width=width,
             style="on #0a0a0a",
-            border_style="#ffffff",
+            border_style="#ff2222",
             padding=(1, 2),
         )
         return panel
