@@ -255,7 +255,6 @@ async def cmd_ask(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def cmd_bounty(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Start autonomous bounty hunt."""
     from tools.bounty_intelligence import BountyIntelligence
-    import os
 
     api_key = os.environ.get("HACKERONE_API_KEY")
     api_user = os.environ.get("HACKERONE_API_USER")
@@ -328,7 +327,6 @@ async def cmd_mission(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def cmd_mission_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Check mission status."""
-    from tools.smart_scanner import SmartScanner
 
     if not context.args:
         await safe_reply(update, "Usage: `/status <mission_id>`")
@@ -353,7 +351,6 @@ async def cmd_mission_status(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
 async def cmd_pause(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Pause a running mission."""
-    from tools.smart_scanner import SmartScanner
 
     if not context.args:
         await safe_reply(update, "Usage: `/pause <mission_id>`")
@@ -376,7 +373,6 @@ async def cmd_pause(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def cmd_resume(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Resume a paused mission."""
-    from tools.smart_scanner import SmartScanner
 
     if not context.args:
         await safe_reply(update, "Usage: `/resume <mission_id>`")
@@ -406,7 +402,6 @@ async def cmd_resume(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def cmd_findings(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """View mission findings with rich formatting."""
-    from tools.smart_scanner import SmartScanner
 
     if not context.args:
         await safe_reply(update, "Usage: `/findings <mission_id>`")
@@ -466,8 +461,6 @@ async def cmd_findings(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def cmd_programs(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """List top bug bounty programs."""
-    from tools.bounty_intelligence import BountyIntelligence
-    import os
 
     api_key = os.environ.get("HACKERONE_API_KEY")
     api_user = os.environ.get("HACKERONE_API_USER")
@@ -488,7 +481,6 @@ async def cmd_programs(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         ranked = await run_in_thread(intel.rank_programs, programs)
 
-        from tools.telegram_bridge import TelegramBridge
         bridge = TelegramBridge()
         await bridge.notify_programs_list([p.__dict__ for p in ranked])
 

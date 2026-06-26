@@ -341,7 +341,7 @@ class SettingsOverlayWidget(Widget, can_focus=True):
         self._reload(); self._redraw(); self.add_class("visible")
         try:
             self.app.query_one("#user_input", Input).disabled = True
-        except: pass
+        except Exception: pass
         self.app.set_timer(0.0, lambda: self.focus())
 
     def hide(self) -> None:
@@ -350,7 +350,7 @@ class SettingsOverlayWidget(Widget, can_focus=True):
         try:
             inp = self.app.query_one("#user_input", Input)
             inp.disabled = False; inp.focus()
-        except: pass
+        except Exception: pass
 
     def on_key(self, event) -> None:
         if not self.has_class("visible"): return
@@ -595,7 +595,7 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
                 else:
                     self._chat_write_system(f"Session not found: {self._load_sid}")
                     self._load_sid = ""
-        except: pass
+        except Exception: pass
         self._update_sidebar()
         self.set_focus(self.query_one("#user_input", Input))
         self._load_agent()
@@ -646,7 +646,7 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
         try:
             if self._session_mgr:
                 self._session_mgr.start_session(name=self.session_name, target=self.target, mode=self.mode)
-        except: pass
+        except Exception: pass
         self._update_sidebar()
         return self.session_name
 
@@ -812,7 +812,7 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
         try:
             self.query_one("#scanline", Scanline).styles.display = "none"
             self.query_one("#glitch", GlitchFlash).styles.display = "none"
-        except: pass
+        except Exception: pass
         self._trans = False
         self._trans_frame = 0
         self.mode = self._trans_next
@@ -927,7 +927,7 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
                 from tools.token_counter import count_tokens
                 if hasattr(self._agent, "conversation_history"):
                     tokens = sum(count_tokens(str(m.get("content", ""))) for m in self._agent.conversation_history)
-        except: pass
+        except Exception: pass
         em = [m.strip() for m in os.environ.get("ACTIVE_MODELS", "").split(",") if m.strip()]
         if em: models = em[:3]; team = len(models)
 
@@ -949,7 +949,7 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
                 game_active=self._game_active,
                 game_frame=getattr(self, "_current_game_frame", ""),
             )
-        except: pass
+        except Exception: pass
 
     @work(thread=True)
     def _send_to_agent(self, text: str, callback=None) -> None:
@@ -980,7 +980,7 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
                     cmd = ad.get("command", "")[:120]
                     risk = "SAFE"
                     try: risk = self._agent.governance.classify_risk(ad)
-                    except: pass
+                    except Exception: pass
                     self.call_from_thread(self._chat_write_governance, cmd, risk)
                     
                     if risk == "DESTRUCTIVE":
@@ -1237,7 +1237,7 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
         # Hide banner on first message
         try:
             self.query_one("#banner", Static).display = False
-        except: pass
+        except Exception: pass
         self.turn_count += 1
         self._update_sidebar()
         self._send_to_agent(text)
@@ -1252,7 +1252,7 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
             try:
                 self.query_one("#banner", Static).display = True
                 self._update_banner()
-            except: pass
+            except Exception: pass
             if self._agent and hasattr(self._agent, "clear_conversation_history"):
                 self._agent.clear_conversation_history()
             self.turn_count = 0; self.tools_run = 0; self.findings = 0
@@ -1343,7 +1343,7 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
         try:
             if self._session_mgr and sid:
                 self._session_mgr.save_session(name=sid, agent=self._agent, target=self.target, mode=self.mode)
-        except: pass
+        except Exception: pass
         return sid
 
     def _replay_history(self) -> None:
@@ -1405,11 +1405,11 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
 
     def action_scroll_up(self) -> None:
         try: self._chat().scroll_up(10)
-        except: pass
+        except Exception: pass
 
     def action_scroll_down(self) -> None:
         try: self._chat().scroll_down(10)
-        except: pass
+        except Exception: pass
 
     def action_history_up(self) -> None:
         inp = self.query_one("#user_input", Input)

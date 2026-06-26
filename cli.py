@@ -339,7 +339,6 @@ def show_model_selector(console: Console, manager) -> Optional[tuple[str, List[s
     
     def print_centered_box(title: str, subtitle: str, width: int = 60):
         """Stable centered box using string manipulation (no complex ANSI)."""
-        import os
         os.system('clear' if os.name == 'posix' else 'cls')
         
         terminal_width = 80
@@ -355,7 +354,6 @@ def show_model_selector(console: Console, manager) -> Optional[tuple[str, List[s
         print("\n")
 
     try:
-        import os
         
         # Load current team from environment
         active_models_str = os.environ.get("ACTIVE_MODELS", "")
@@ -467,7 +465,6 @@ def show_model_selector(console: Console, manager) -> Optional[tuple[str, List[s
                         continue
                     custom_key = questionary.text("    Enter API key (or leave empty):").ask()
                     # Save to env AND .env file for persistence
-                    import os
                     os.environ["CUSTOM_API_BASE"] = custom_url
                     if custom_key:
                         os.environ["CUSTOM_API_KEY"] = custom_key
@@ -1105,7 +1102,6 @@ def main(mode: str = "auto", target: str = None):
                     agent.conversation_history = ch
                     chat.add(f"[dim]Compressed: {orig} → {len(ch)} turns (legacy)[/dim]")
             elif hasattr(agent, "conversation_history") and agent.conversation_history:
-                from tools.context_compressor import get_compressor
                 comp = get_compressor(aggressive="aggressive" in cmd.lower())
                 ch = comp.compress_and_return_history(agent.conversation_history)
                 orig = len(agent.conversation_history)
@@ -1146,7 +1142,6 @@ def main(mode: str = "auto", target: str = None):
             # /install → list missing tools
             if len(parts) < 2 or not parts[1].strip():
                 try:
-                    from tools.skill_registry import get_skill_registry
                     registry = get_skill_registry()
                     missing = registry.get_missing_skills()
                     if missing:
@@ -1165,7 +1160,6 @@ def main(mode: str = "auto", target: str = None):
                 tool_name = parts[2].strip()
                 try:
                     from tools.install_request import get_install_manager
-                    from tools.skill_registry import get_skill_registry
                     mgr = get_install_manager()
                     registry = get_skill_registry()
                     pending = mgr.get_pending_requests()
@@ -1189,7 +1183,6 @@ def main(mode: str = "auto", target: str = None):
             # /install <tool>
             tool_name = parts[1].strip()
             try:
-                from tools.skill_registry import get_skill_registry
                 registry = get_skill_registry()
                 skill = registry.skills.get(tool_name)
                 if not skill:
@@ -1214,7 +1207,6 @@ def main(mode: str = "auto", target: str = None):
         # Global short-answer: y/yes or n/no for pending installs (anytime)
         lower_trim = cmd.strip().lower()
         if lower_trim in ('y', 'yes', 'n', 'no', 'nvm', 'cancel'):
-            from tools.install_request import get_install_manager
             mgr = get_install_manager()
             pending = mgr.get_pending_requests()
             if pending:
@@ -1310,7 +1302,6 @@ def main(mode: str = "auto", target: str = None):
 
             def _stream_run():
                 try:
-                    from tools.universal_ai_client import UniversalAIClient
 
                     # Reuse the agent's already-configured active client
                     active_client = None
@@ -1677,7 +1668,6 @@ def main(mode: str = "auto", target: str = None):
                             input_panel = _info_input(ibuf, icur)
                             layout["input"].update(input_panel)
                         except Exception as e:
-                            import traceback
                             traceback.print_exc()
                             print(f"RENDER ERROR: {e}", file=sys.stderr)
 

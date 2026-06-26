@@ -604,7 +604,7 @@ def main():
                     try:
                         safe_msg = re.sub(r'\[/?[^\]]+\]', '', msg)
                         console.print(f"  {safe_msg[:200]}")
-                    except:
+                    except Exception:
                         console.print(f"  {msg[:200]}")
 
             subdomain_hint = ""
