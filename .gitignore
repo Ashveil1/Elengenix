@@ -105,3 +105,10 @@ subdomains.txt
 
 # User config directory (runtime data, not source)
 .config/
+
+# AI development session logs (MiMoCode/Claude/Codex work logs)
+docs/*session*.md
+docs/*development*.md
+docs/*bugfix*.md
+docs/*final*.md
+docs/*tui-improvements*.md
