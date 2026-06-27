@@ -11,7 +11,7 @@ from __future__ import annotations
 from collections import deque
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Set, Tuple
+from typing import Dict, List, Optional, Set, Tuple
 
 try:
     import networkx as nx
@@ -60,7 +60,7 @@ class FileRelationshipGraph:
     - Tool recommendation based on relationships
     """
 
-    def __init__(self, project_root: Path = None):
+    def __init__(self, project_root: Optional[Path] = None):
         self.project_root = project_root or Path.cwd()
         self.nodes: Dict[str, FileNode] = {}
         self._edges: List[Tuple[str, str]] = []
@@ -198,7 +198,7 @@ class FileRelationshipGraph:
         else:
             # Manual DFS-based cycle detection
             visited = set()
-            current_path = []
+            current_path: List[str] = []
             in_current_path = set()
 
             def dfs(node):
@@ -241,7 +241,7 @@ class FileRelationshipGraph:
                 in_degree = len(node.imported_by)
                 out_degree = len(node.imports)
                 # Weighted by being imported (more = more important)
-                scores[node.name] = in_degree * 2 + out_degree * 1
+                scores[node.name] = float(in_degree * 2 + out_degree * 1)
             return scores
 
     def get_complexity_report(self) -> List[Tuple[str, int, int]]:
@@ -320,7 +320,7 @@ class FileRelationshipGraph:
             "edges": self._edges,
         }
 
-    def save(self, output_path: Path = None) -> None:
+    def save(self, output_path: Optional[Path] = None) -> None:
         """Save the graph as JSON."""
         import json
 

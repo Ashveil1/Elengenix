@@ -28,7 +28,7 @@ def get_config() -> dict:
     base_dir = Path(__file__).parent.absolute()
     config_path = base_dir / "config.yaml"
 
-    config_data = {}
+    config_data: dict = {}
     if config_path.exists():
         try:
             with open(config_path, "r") as f:

@@ -14,7 +14,7 @@ import logging
 import os
 import re
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional, Set, Tuple
 from urllib.parse import urlparse
 
 from tools.perf import FastHTTP, SmartCache, Timer, cached
@@ -51,7 +51,7 @@ logger = logging.getLogger("elengenix.orchestrator")
 # ── Scope Management ─────────────────────────────────────────
 def load_allowed_domains(scope_file: str = "scope.txt") -> Set[str]:
     """Loads authorized domains/IPs from environment or local file."""
-    domains = set()
+    domains: Set[str] = set()
     env_scope = os.getenv("ELENGENIX_SCOPE")
     if env_scope:
         domains.update(d.strip().lower() for d in env_scope.split(",") if d.strip())
@@ -114,7 +114,7 @@ def sanitize_path(target: str) -> str:
 
 
 # ──  Modern Tool Registry Orchestrator ───────────────────
-def get_recommended_tool_chain(target_type: str = "web") -> List:
+def get_recommended_tool_chain(target_type: str = "web") -> List[Any]:
     """Get recommended tools based on target type using registry."""
     return registry.get_recommended_chain(target_type)
 
@@ -158,21 +158,22 @@ async def run_tool_with_registry(
 
 
 async def run_registry_pipeline(
-    target: str, report_dir: Path, rate_limit: int = 5, tool_filter: List[str] = None
+    target: str, report_dir: Path, rate_limit: int = 5, tool_filter: Optional[List[str]] = None
 ) -> List[ToolResult]:
     """Run all available tools from registry."""
     semaphore = asyncio.Semaphore(rate_limit)
-    results = []
+    results: List[ToolResult] = []
 
     # Get all registered tools or filtered list
+    available_tools: List[Any] = []
+    tools: List[Any] = []
     if tool_filter:
         tools = [registry.get_tool(name) for name in tool_filter if registry.get_tool(name)]
+        available_tools = [t for t in tools if t is not None and t.is_available]
     else:
         # Get recommended chain for web targets
         tools = registry.get_recommended_chain("web")
-
-    # Filter available tools
-    available_tools = [t for t in tools if t and t.is_available]
+        available_tools = [t for t in tools if t.is_available]
 
     if not available_tools:
         console.print("[grey70][WARN] No tools available in registry[/grey70]")
@@ -195,7 +196,7 @@ async def run_registry_pipeline(
                 console.print(f"  [dim][ ] {tool.metadata.name}: No findings[/dim]")
             else:
                 console.print(
-                    f"  [red][FAIL] {tool.metadata.name}: {result.error_message[:50]}...[/red]"
+                    f"  [red][FAIL] {tool.metadata.name}: {(result.error_message or '')[:50]}...[/red]"
                 )
 
         except Exception as e:
@@ -226,7 +227,7 @@ def _manual_cmd(tool_name: str) -> str:
     )
 
 
-def calculate_cvss_for_results(results: List[ToolResult]) -> List[dict]:
+def calculate_cvss_for_results(results: List[ToolResult]) -> List[Dict[str, Any]]:
     """Calculate CVSS scores for all findings."""
     calculator = CVSSCalculator(use_ai=False)  # Use deterministic scoring for speed
     scored_findings = []
@@ -249,14 +250,14 @@ def calculate_cvss_for_results(results: List[ToolResult]) -> List[dict]:
 
     # Sort by severity
     severity_order = {"Critical": 0, "High": 1, "Medium": 2, "Low": 3, "Informational": 4}
-    scored_findings.sort(key=lambda x: severity_order.get(x["severity"], 5))
+    scored_findings.sort(key=lambda x: severity_order.get(str(x.get("severity", "")), 5))
 
     return scored_findings
 
 
 def print_findings_summary(results: List[ToolResult]) -> None:
     """Print a summary of findings grouped by severity."""
-    findings_by_severity = {
+    findings_by_severity: Dict[str, List[Dict[str, Any]]] = {
         "Critical": [],
         "High": [],
         "Medium": [],
@@ -313,14 +314,7 @@ async def _run_phase1_recon(
         try:
             recon = PythonRecon(timeout=1.0, max_concurrent=40)
             # Use quick mode (smaller wordlists) for production scans to keep latency reasonable
-            recon_result = (
-                await asyncio.wait_for(
-                    asyncio.to_thread(recon.full_recon, target, True),
-                    timeout=min(60, timeout - 30),
-                )
-                if False
-                else recon.full_recon(target, quick=True)
-            )
+            recon_result = recon.full_recon(target, quick=True)
 
             # Save recon report
             recon_path = report_dir / "python_recon.json"
@@ -429,51 +423,48 @@ def http_get_cached(url: str, timeout: float = 10.0) -> Optional[str]:
         return None
 
 
-@cached(cache=_cve_scache, ttl=3600)
+@cached(cache=_cve_scache, ttl=3600)  # type: ignore[misc]
 def _check_cves_for_tech_cached(base_url: str, techs: tuple, server: str) -> List[Dict[str, Any]]:
     """Cached version of CVE checking."""
     # Rebuild recon_result-like dict for the actual logic
     try:
-        from tools.vuln_engine import KNOWN_CVES, severity_from_cvss
-    except Exception as e:
+        from tools.vuln_engine import KNOWN_CVES, severity_from_cvss  # type: ignore[import-untyped]
+    except Exception:
         return []
-    findings = []
+    findings: List[Dict[str, Any]] = []
     if not KNOWN_CVES:
         return findings
-    for cve in KNOWN_CVES:
-        for affected in cve.get("affected", []):
-            tech_name = affected.get("tech", "").lower()
-            version_pattern = affected.get("version_pattern", "")
-            if not tech_name:
+    for tech_key, version_map in KNOWN_CVES.items():
+        if not isinstance(version_map, dict):
+            continue
+        for version_range, cve_list in version_map.items():
+            if not isinstance(cve_list, list):
                 continue
-            for tech in techs:
-                if tech_name in tech.lower():
-                    if version_pattern and version_pattern != "*":
-                        ver_match = re.search(r"(\d+(?:\.\d+)*)", tech)
-                        if ver_match and version_pattern in tech:
-                            pass  # Vulnerable
-                        else:
-                            continue
-                    findings.append(
-                        {
-                            "tool": "vuln_engine",
-                            "type": "cve_detection",
-                            "severity": severity_from_cvss(cve.get("cvss", 5.0)),
-                            "cvss": cve.get("cvss", 5.0),
-                            "url": base_url,
-                            "title": f"{cve.get('id', 'CVE')} in {tech}",
-                            "details": (
-                                f"{cve.get('description', '')}\n"
-                                f"Affected: {affected.get('description', '')}\n"
-                                f"CVSS: {cve.get('cvss', 0)} ({cve.get('cvss_vector', '')})\n"
-                                f"Remedation: {cve.get('remediation', 'Update to a patched version')}"
-                            ),
-                            "cve": cve.get("id", ""),
-                            "cwe": cve.get("cwe", []),
-                            "matched_tech": tech,
-                        }
-                    )
-                    break
+            for cve_tuple in cve_list:
+                if not isinstance(cve_tuple, tuple) or len(cve_tuple) < 3:
+                    continue
+                cve_id, description, cvss_score = cve_tuple[0], cve_tuple[1], cve_tuple[2]
+                for tech in techs:
+                    if tech_key.lower() in tech.lower():
+                        findings.append(
+                            {
+                                "tool": "vuln_engine",
+                                "type": "cve_detection",
+                                "severity": severity_from_cvss(cvss_score),
+                                "cvss": cvss_score,
+                                "url": base_url,
+                                "title": f"{cve_id} in {tech}",
+                                "details": (
+                                    f"{description}\n"
+                                    f"Version range: {version_range}\n"
+                                    f"CVSS: {cvss_score}"
+                                ),
+                                "cve": cve_id,
+                                "cwe": [],
+                                "matched_tech": tech,
+                            }
+                        )
+                        break
     return findings
 
 
@@ -493,7 +484,8 @@ def _check_cves_for_tech(recon_result: Dict[str, Any], base_url: str) -> List[Di
     """
     # Extract tech info from http_probe and delegate to cached version
     http = recon_result.get("http_probe", {}) or {}
-    techs = tuple(http.get("tech", []) or [])
+    techs_raw: List[str] = http.get("tech", []) or []
+    techs = tuple(techs_raw)
     server = str((http.get("headers", {}) or {}).get("Server", ""))
     if not techs and not server:
         return []
@@ -565,15 +557,10 @@ async def _run_phase3_fuzz(
             fuzz_targets = fuzz_targets[:3]
 
         fuzz_findings: List[Dict[str, Any]] = []
-        all_fuzz_results = []
-
-        async def _fuzz_one(f_url: str, f_param: str) -> List[Any]:
-            # Run sync fuzzer in a worker thread so the event loop stays alive
-            # and KeyboardInterrupt can be delivered promptly.
-            return await asyncio.to_thread(fuzzer.fuzz_parameter, f_url, f_param, xss_payloads)
+        all_fuzz_results: List[Any] = []
 
         # Fuzz all targets concurrently (bounded by asyncio.to_thread parallelism)
-        async def _fuzz_xss_and_sqli(f_url: str, f_param: str):
+        async def _fuzz_xss_and_sqli(f_url: str, f_param: str) -> Tuple[List[Any], List[Any]]:
             xss_results = await asyncio.to_thread(
                 fuzzer.fuzz_parameter, f_url, f_param, xss_payloads
             )
@@ -587,9 +574,13 @@ async def _run_phase3_fuzz(
             return_exceptions=True,
         )
         for result in fuzz_results_per_target:
-            if isinstance(result, Exception):
+            if isinstance(result, BaseException):
                 console.print(f"  [WARN] Fuzz target failed: {result}")
                 continue
+            if not isinstance(result, tuple) or len(result) != 2:
+                continue
+            xss_fuzz: List[Any]
+            sql_fuzz: List[Any]
             xss_fuzz, sql_fuzz = result
             for fr in xss_fuzz:
                 if fr.is_interesting:
@@ -807,7 +798,7 @@ async def run_standard_scan(
     rate_limit: int = 5,
     timeout: int = 600,
     use_registry: bool = True,
-    tool_filter: List[str] = None,
+    tool_filter: Optional[List[str]] = None,
     use_smart_scan: bool = False,
 ) -> Optional[str]:
     """

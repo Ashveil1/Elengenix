@@ -128,7 +128,7 @@ class AsyncBatcher:
         self.timeout = timeout
         self.semaphore = asyncio.Semaphore(concurrency)
         self.results: List[Any] = []
-        self.errors: List[Exception] = []
+        self.errors: List[tuple] = []
 
     async def _run_one(self, coro, idx: int):
         try:

@@ -53,8 +53,8 @@ def _extract_json(text: str):
     # Try parsing as-is
     try:
         return json.loads(candidate)
-    except json.JSONDecodeError:
-        pass
+    except json.JSONDecodeError as e:
+        logger.debug("JSON decode failed for candidate: %s", e)
     # Find outermost { ... } or [ ... ]
     for s, e in [("{", "}"), ("[", "]")]:
         si = candidate.find(s)
@@ -62,7 +62,8 @@ def _extract_json(text: str):
         if si != -1 and ei > si:
             try:
                 return json.loads(candidate[si : ei + 1])
-            except json.JSONDecodeError:
+            except json.JSONDecodeError as e:
+                logger.debug("JSON decode failed for slice: %s", e)
                 continue
     raise ValueError(f"No valid JSON in response:\n{text[:500]}")
 
@@ -385,7 +386,8 @@ class HybridAgent:
                     or ""
                 )
                 return _extract_json(response)
-            except Exception:
+            except Exception as e:
+                logger.debug("Retry specialist AI call failed: %s", e)
                 return None
         except Exception as e:
             self._log(f"[Specialist] AI error: {e}")
@@ -696,8 +698,8 @@ class HybridAgent:
             if line_str.startswith("{") and line_str.endswith("}"):
                 try:
                     json_lines.append(json.loads(line_str))
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug("Failed to parse JSON line: %s", e)
 
         # Try to parse entire output as single JSON array/object if no lines parsed
         if not json_lines and output.strip().startswith(("[", "{")):
@@ -707,8 +709,8 @@ class HybridAgent:
                     json_lines.extend(parsed)
                 elif isinstance(parsed, dict):
                     json_lines.append(parsed)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("Failed to parse entire output as JSON: %s", e)
 
         # Process parsed JSON objects
         if json_lines:
@@ -856,7 +858,10 @@ class HybridAgent:
                         "vector": score.vector_string,
                     }
                 )
-            except Exception:
+            except Exception as e:
+                logger.warning(
+                    "CVSS scoring failed for finding '%s': %s", f.get("type", "unknown"), e
+                )
                 scored.append(
                     {
                         "tool": f.get("_tool", "?"),
@@ -945,48 +950,48 @@ class HybridAgent:
 
             ref.payload_mutator = PayloadMutator()
             ref.smart_payload_generator = SmartPayloadGenerator(seed=42)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Could not load payload_mutation: %s", e)
         try:
             from tools.active_fuzzer import ActiveFuzzer
 
             ref.active_fuzzer = ActiveFuzzer()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Could not load active_fuzzer: %s", e)
         try:
             from tools.coverage_analyzer import CoverageAnalyzer
 
             ref.coverage_analyzer = CoverageAnalyzer()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Could not load coverage_analyzer: %s", e)
         try:
             from tools.learning_engine import LearningEngine
 
             ref.learning_engine = LearningEngine(use_chroma=False)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Could not load learning_engine: %s", e)
         try:
             from tools.bola_tester import BOLATester
 
             ref.bola_tester = BOLATester()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Could not load bola_tester: %s", e)
         try:
             from tools.waf_detector import SmartWAFDetector
 
             ref.waf_detector = SmartWAFDetector()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Could not load waf_detector: %s", e)
         try:
             from tools.logic_analyzer import BusinessLogicAnalyzer
 
             ref.logic_analyzer = BusinessLogicAnalyzer(mission_state=self.mission_state)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Could not load logic_analyzer: %s", e)
         try:
             from live_display import get_activity_logger
 
             ref.activity_logger = get_activity_logger()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Could not load activity_logger: %s", e)
         return ref

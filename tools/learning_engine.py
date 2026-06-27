@@ -155,7 +155,7 @@ class LearningEngine:
             ),
         )
         self._conn.commit()
-        row_id = cur.lastrowid
+        row_id: int = cur.lastrowid or 0
 
         # Also store in ChromaDB for semantic search
         if self._chroma_collection is not None:
@@ -171,7 +171,7 @@ class LearningEngine:
                 }
                 self._chroma_collection.add(
                     documents=[doc_text],
-                    metadatas=[metadata],
+                    metadatas=[metadata],  # type: ignore[list-item]
                     ids=[f"exploit_{row_id}"],
                 )
             except Exception as e:
@@ -225,7 +225,7 @@ class LearningEngine:
         results: List[ExploitRecord] = []
         for tech in tech_stack:
             pattern = f'%"{tech}"%'
-            params = [pattern]
+            params: List[Any] = [pattern]
             if vuln_class:
                 params.append(vuln_class)
             params.append(limit)
@@ -243,7 +243,7 @@ class LearningEngine:
         if self._chroma_collection is not None and len(results) < limit:
             try:
                 query_text = f"{vuln_class or 'security'} {' '.join(tech_stack)}"
-                where = {"success": 1}
+                where: Dict[str, Any] = {"success": 1}
                 if vuln_class:
                     where["vuln_class"] = vuln_class
                 chroma_results = self._chroma_collection.query(

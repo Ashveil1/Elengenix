@@ -225,8 +225,8 @@ class Sidebar(Container):
             )
         try:
             self.query_one("#sidebar_content", Static).update(sidebar_text)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Failed to update sidebar content: %s", e)
 
 
 # ── Thinking Animation ─────────────────────────────────────────────────
@@ -362,7 +362,8 @@ class SettingsOverlayWidget(Widget, can_focus=True):
                         break
                     _time.sleep(0.05)
             self._overlay = SettingsOverlay(agent, None, target=getattr(self.app, "target", ""))
-        except Exception:
+        except Exception as e:
+            logger.debug("Failed to load settings overlay: %s", e)
             self._overlay = None
 
     def _redraw(self) -> None:
@@ -378,8 +379,8 @@ class SettingsOverlayWidget(Widget, can_focus=True):
         self.add_class("visible")
         try:
             self.app.query_one("#user_input", Input).disabled = True
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Failed to disable user input for settings overlay: %s", e)
         self.app.set_timer(0.0, lambda: self.focus())
 
     def hide(self) -> None:
@@ -389,8 +390,8 @@ class SettingsOverlayWidget(Widget, can_focus=True):
             inp = self.app.query_one("#user_input", Input)
             inp.disabled = False
             inp.focus()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Failed to re-enable user input after settings overlay: %s", e)
 
     def on_key(self, event) -> None:
         if not self.has_class("visible"):
@@ -511,8 +512,8 @@ class HelpOverlayWidget(Widget, can_focus=True):
         self.add_class("visible")
         try:
             self.app.query_one("#user_input", Input).disabled = True
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Failed to disable user input for help overlay: %s", e)
         self.app.set_timer(0.0, lambda: self.focus())
 
     def hide(self) -> None:
@@ -521,8 +522,8 @@ class HelpOverlayWidget(Widget, can_focus=True):
             inp = self.app.query_one("#user_input", Input)
             inp.disabled = False
             inp.focus()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Failed to re-enable user input after help overlay: %s", e)
 
     def on_key(self, event) -> None:
         if not self.has_class("visible"):
@@ -673,8 +674,8 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
                 else:
                     self._chat_write_system(f"Session not found: {self._load_sid}")
                     self._load_sid = ""
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("Failed to load session manager: %s", e)
         self._update_sidebar()
         self.set_focus(self.query_one("#user_input", Input))
         self._load_agent()
@@ -752,8 +753,8 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
                 self._session_mgr.start_session(
                     name=self.session_name, target=self.target, mode=self.mode
                 )
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("Failed to start session: %s", e)
         self._update_sidebar()
         return self.session_name
 
@@ -786,8 +787,8 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
             shades = ["#ffffff", "#cccccc", "#999999", "#cccccc"]
             try:
                 self.query_one("#header", Static).styles.color = shades[self._header_pulse]
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("Failed to update header pulse color: %s", e)
 
         # ThinkingWidget tick — 30fps smoothness
         if self._processing:
@@ -796,8 +797,8 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
                 frames = ["◐", "◓", "◑", "◒"]
                 tw.idx = (self._anim_frame // 8) % 4
                 tw.update(f"[white]{frames[tw.idx]} thinking[/]")
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("Failed to update thinking widget: %s", e)
 
         # Smooth progress bar tick
         if hasattr(self, "_progress_total") and self._progress_total > 0:
@@ -816,8 +817,8 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
                         f"{self._progress_findings} findings"
                     )
                 )
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("Failed to update progress bar: %s", e)
 
     def _animate_counters(self) -> None:
         """Smooth counter transitions (~16fps) for sidebar numbers."""
@@ -879,8 +880,8 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
                 if f == 4:
                     try:
                         self.query_one("#glitch", GlitchFlash).styles.display = "none"
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.debug("Failed to hide glitch flash during transition: %s", e)
                 t = (f - 3) / 15.0
                 ease = t * t * (3 - 2 * t)  # smoothstep easing
 
@@ -901,8 +902,8 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
                         w = self.query_one(sel)
                         w.styles.background = bg
                         w.styles.color = txt
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.debug("Failed to apply transition styles to %s: %s", sel, e)
 
                 # Switch mode at midpoint for seamless feel
                 if f == 11:
@@ -923,17 +924,17 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
                     else:
                         v = int(220 + ease * 35)
                         header.styles.color = f"#{v:02x}{v:02x}{v:02x}"
-                except Exception:
-                    pass
-        except Exception:
-            pass
+                except Exception as e:
+                    logger.debug("Failed to settle header color during transition: %s", e)
+        except Exception as e:
+            logger.debug("Transition animation error: %s", e)
 
     def _finish_transition(self) -> None:
         try:
             self.query_one("#scanline", Scanline).styles.display = "none"
             self.query_one("#glitch", GlitchFlash).styles.display = "none"
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Failed to hide overlays during transition finish: %s", e)
         self._trans = False
         self._trans_frame = 0
         self.mode = self._trans_next
@@ -954,8 +955,8 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
     def _update_banner_text(self, text: str) -> None:
         try:
             self.query_one("#banner", Static).update(Text.from_markup(text))
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Failed to update banner text: %s", e)
 
     @work(thread=True)
     def _run_boot_sequence(self) -> None:
@@ -992,8 +993,8 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
             screen = self.screen
             screen.add_class("glow")
             self.set_timer(1.2, lambda: screen.remove_class("glow"))
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Failed to trigger border glow: %s", e)
 
     def _update_banner(self) -> None:
         color = "#ff2222" if self.mode == "HUNT" else "white"
@@ -1055,8 +1056,8 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
                         count_tokens(str(m.get("content", "")))
                         for m in self._agent.conversation_history
                     )
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Failed to count tokens for sidebar: %s", e)
         em = [m.strip() for m in os.environ.get("ACTIVE_MODELS", "").split(",") if m.strip()]
         if em:
             models = em[:3]
@@ -1086,8 +1087,8 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
                 game_active=self._game_active,
                 game_frame=getattr(self, "_current_game_frame", ""),
             )
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Failed to refresh sidebar data: %s", e)
 
     @work(thread=True)
     def _send_to_agent(self, text: str, callback=None) -> None:
@@ -1129,8 +1130,8 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
                     risk = "SAFE"
                     try:
                         risk = self._agent.governance.classify_risk(ad)
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.debug("Failed to classify risk for governance: %s", e)
                     self.call_from_thread(self._chat_write_governance, cmd, risk)
 
                     if risk == "DESTRUCTIVE":
@@ -1226,7 +1227,8 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
                             expand=False,
                         )
                         self.call_from_thread(self._chat_write_panel, panel)
-                    except Exception:
+                    except Exception as e:
+                        logger.debug("Failed to parse exec callback JSON: %s", e)
                         # Fallback: just show the raw message
                         self.call_from_thread(self._chat_write_system, f"[dim]{msg[5:]}[/dim]")
 
@@ -1356,8 +1358,8 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
                 sidebar.display = False
             else:
                 sidebar.display = True
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Failed to handle resize for sidebar: %s", e)
 
     def _start_game(self) -> None:
         self._game_active = True
@@ -1453,8 +1455,8 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
         # Hide banner on first message
         try:
             self.query_one("#banner", Static).display = False
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Failed to hide banner on first message: %s", e)
         self.turn_count += 1
         self._update_sidebar()
         self._send_to_agent(text)
@@ -1473,8 +1475,8 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
             try:
                 self.query_one("#banner", Static).display = True
                 self._update_banner()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("Failed to show banner on reset: %s", e)
             if self._agent and hasattr(self._agent, "clear_conversation_history"):
                 self._agent.clear_conversation_history()
             self.turn_count = 0
@@ -1610,8 +1612,8 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
                 self._session_mgr.save_session(
                     name=sid, agent=self._agent, target=self.target, mode=self.mode
                 )
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("Failed to save session %s: %s", sid, e)
         return sid
 
     def _replay_history(self) -> None:
@@ -1686,14 +1688,14 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
     def action_scroll_up(self) -> None:
         try:
             self._chat().scroll_up(10)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Failed to scroll chat up: %s", e)
 
     def action_scroll_down(self) -> None:
         try:
             self._chat().scroll_down(10)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Failed to scroll chat down: %s", e)
 
     def action_history_up(self) -> None:
         inp = self.query_one("#user_input", Input)

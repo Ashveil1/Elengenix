@@ -111,13 +111,19 @@ class BaseTool(ABC):
         """Execute the tool and return standardized result."""
 
     def _build_command(
-        self, target: Union[str, List[str]], output_file: Path, extra_flags: List[str] = None
+        self,
+        target: Union[str, List[str]],
+        output_file: Path,
+        extra_flags: Optional[List[str]] = None,
     ) -> List[str]:
         """Build command arguments. Override in subclasses."""
         raise NotImplementedError("Subclasses must implement _build_command")
 
     async def _run_subprocess(
-        self, cmd: List[str], timeout: int = None, semaphore: asyncio.Semaphore = None
+        self,
+        cmd: List[str],
+        timeout: Optional[int] = None,
+        semaphore: Optional[asyncio.Semaphore] = None,
     ) -> tuple:
         """Execute subprocess with optional semaphore.
 

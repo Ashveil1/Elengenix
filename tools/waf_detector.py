@@ -54,8 +54,8 @@ class WAFSignature:
 
     name: str  # "cloudflare", "aws_waf", etc.
     block_status: int  # typical block status
-    body_pattern: Optional[str]  # regex of typical block page
-    header_patterns: Dict[str, str]  # header -> regex
+    body_pattern: Any  # regex of typical block page (compiled or string)
+    header_patterns: Dict[str, Any]  # header -> regex (compiled or string)
     confidence_threshold: float = 0.7
 
 

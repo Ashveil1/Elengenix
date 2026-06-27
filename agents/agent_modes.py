@@ -33,9 +33,9 @@ class ModeProcessor:
     def __init__(
         self,
         client: Any,
-        governance: Governance,
-        cvss_calc: CVSSCalculator,
-        cve_db: Any,
+        governance: Optional[Governance] = None,
+        cvss_calc: Optional[CVSSCalculator] = None,
+        cve_db: Any = None,
         enable_memory: bool = True,
     ):
         """Initialize the mode processor.

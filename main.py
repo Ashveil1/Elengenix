@@ -18,21 +18,23 @@ import sys
 import time
 from pathlib import Path
 
+logger = logging.getLogger("elengenix.main")
+
 # --- Load .env file (API keys, model preferences, etc.) ---
 try:
     from dotenv import load_dotenv
 
     load_dotenv(override=False)  # Don't override existing env vars
-except ImportError:
-    pass  # python-dotenv not installed, user must set env vars manually
+except ImportError as e:
+    logger.debug("Could not import python-dotenv: %s", e)
 
 # --- Suppress urllib3 InsecureRequestWarning (we intentionally use verify=False for hostile targets) ---
 try:
     import urllib3
 
     urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-except (ImportError, AttributeError):
-    pass
+except (ImportError, AttributeError) as e:
+    logger.debug("Could not import or configure urllib3 warning suppression: %s", e)
 
 # --- Rich & Interactive UI ---
 from rich.console import Console
@@ -80,7 +82,6 @@ logging.basicConfig(
         logging.StreamHandler(sys.stderr),
     ],
 )
-logger = logging.getLogger("elengenix.main")
 
 
 # ── Dependency Management ─────────────────────────────────────────────────────
@@ -155,7 +156,7 @@ def validate_target(target: str) -> bool:
         if ip.is_private or ip.is_loopback or ip.is_reserved or ip.is_link_local:
             return False
     except ValueError:
-        pass  # Not an IP, continue with domain check
+        logger.debug("Target '%s' is not a valid IP address, treating as domain", cleaned)
     # Domain and IPv4 Regex
     pattern = (
         r"^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}|^\d{1,3}(\.\d{1,3}){3}$"
@@ -349,8 +350,8 @@ def main():
             import ui_components as _ui
 
             _ui.console = _SilentConsole()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Failed to set silent console for quiet mode: %s", e)
 
     # Welcome wizard on first run (before processing command)
     if args.command == "welcome":
@@ -905,8 +906,8 @@ def main():
                                     "snippet": cf.code_snippet[:100] if cf.code_snippet else "",
                                 }
                             )
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.debug("Failed to analyze file %s with multimodal agent: %s", p, e)
             except Exception as e:
                 print_info(f"Multimodal analysis skipped: {e}")
             for finding in all_findings:
@@ -958,8 +959,8 @@ def main():
                         )
                     export_report(summary, reports, str(html_path), ReportFormat.HTML)
                     console.print(f"[green][OK] Report:[/green] {html_path}")
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug("Failed to generate SAST HTML report: %s", e)
 
         elif args.command == "cloud":
             from ui_components import print_error, print_info, print_success, show_section
@@ -1118,8 +1119,8 @@ def main():
                     from tools.tui_dashboard import run_minimal
 
                     run_minimal()
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.warning("Dashboard minimal fallback failed: %s", e)
 
         elif args.command == "update":
             # New: use the Updater class to check for and apply updates
@@ -1969,14 +1970,7 @@ def main():
         # ── Command Registry fallback: Dispatch unknown commands ──
         else:
             # Auto-import command modules so their @command decorators register
-            try:
-                pass
-            except Exception:
-                pass
-            try:
-                pass
-            except Exception:
-                pass
+            # Command registry auto-imports handled below
             from commands.registry import CommandRegistry
 
             _cmd_reg = CommandRegistry()
@@ -2304,8 +2298,8 @@ def _cmd_prefetch():
             collection.query(query_texts=["prefetch"], n_results=1)
             try:
                 client.delete_collection("prefetch_test")
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("Failed to clean up prefetch test collection: %s", e)
             console.print("\r  [OK] ChromaDB embedding model: [green]downloaded[/green]")
         except Exception as e:
             console.print(

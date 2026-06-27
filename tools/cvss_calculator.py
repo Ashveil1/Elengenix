@@ -65,7 +65,7 @@ class CVSSCalculator:
 
     def __init__(self, use_ai: bool = True):
         self.use_ai = use_ai and LLMClient is not None
-        self.client = LLMClient() if self.use_ai else None
+        self.client = LLMClient() if self.use_ai and LLMClient is not None else None
 
     def calculate(self, vector: CVSSVector, context: Optional[str] = None) -> CVSSScore:
         """

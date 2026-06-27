@@ -17,7 +17,7 @@ Usage:
 """
 
 import time
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from rich.box import ASCII, MINIMAL
 from rich.console import Console
@@ -561,7 +561,7 @@ def create_main_menu() -> List[tuple]:
     """Flatten MENU_CATEGORIES into a numbered list for the interactive prompt."""
     flat: List[tuple] = []
     for cat in MENU_CATEGORIES:
-        flat.extend(cat["items"])
+        flat.extend(cat["items"])  # type: ignore[arg-type]
     flat.append(("Exit", "Quit application", "exit"))
     return flat
 
@@ -903,7 +903,7 @@ def show_toast(message: str, level: str = "info", duration: float = 0.5):
 # ---------------------------------------------------------------------------
 
 
-def show_divider(char: str = "=", width: int = None):
+def show_divider(char: str = "=", width: Optional[int] = None):
     """Show a horizontal divider line."""
     w = width or console.width or 100
     console.print(f"[dim #737373]{char * w}[/dim #737373]")

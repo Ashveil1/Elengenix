@@ -269,7 +269,7 @@ class PayloadGen:
     ]
 
     @classmethod
-    def for_class(cls, vuln_class: VulnClass, ctx: Dict = None) -> List[str]:
+    def for_class(cls, vuln_class: VulnClass, ctx: Optional[Dict] = None) -> List[str]:
         ctx = ctx or {}
         tech = ctx.get("tech_stack", "").lower()
         if vuln_class == VulnClass.INJECTION:
@@ -355,16 +355,18 @@ TECH_SIGNATURES = {
 
 def fingerprint_tech(
     headers: Dict[str, str], body: str = "", url: str = ""
-) -> List[Dict[str, str]]:
+) -> List[Dict[str, Any]]:
     """Detect technology stack from response headers and body."""
-    detected = []
+    detected: List[Dict[str, Any]] = []
     headers_lower = {k.lower(): v for k, v in headers.items()}
 
     for tech, sigs in TECH_SIGNATURES.items():
+        if not isinstance(sigs, dict):
+            continue
         score = 0
         version = ""
         # Check headers
-        for h_key, h_val in sigs["headers"]:
+        for h_key, h_val in sigs.get("headers", []):
             for resp_h, resp_v in headers.items():
                 if resp_h.lower() == h_key.lower():
                     if h_val and h_val in resp_v:
@@ -375,7 +377,7 @@ def fingerprint_tech(
                     elif not h_val:
                         score += 1
         # Check meta tags
-        for pattern in sigs["meta"]:
+        for pattern in sigs.get("meta", []):
             m = re.search(pattern, body, re.IGNORECASE)
             if m:
                 score += 3

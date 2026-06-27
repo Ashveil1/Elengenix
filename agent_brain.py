@@ -86,8 +86,8 @@ def remember(content, target=None, category=None, **kwargs):
     try:
         vm = _get_vector_memory()
         vm.remember(content, target=target, category=category, **kwargs)
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug("Could not store memory: %s", e)
 
 
 def recall(query, target=None, n_results=5):
@@ -117,8 +117,8 @@ def _sqlite_save_message(session_id, role, content, model_name="", token_count=0
     try:
         mp = _get_memory_persistence()
         mp.save_message(session_id, role, content, model_name, token_count)
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug("Could not save message to SQLite: %s", e)
 
 
 def _get_context_status(session_id, model_name=""):
@@ -135,8 +135,8 @@ def _sqlite_clear_session(session_id):
     try:
         mp = _get_memory_persistence()
         mp.clear_session(session_id)
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug("Could not clear session from SQLite: %s", e)
 
 
 logger = logging.getLogger("elengenix.agent")
@@ -170,7 +170,7 @@ class ElengenixAgent:
     #     DESTRUCTIVE → blocked unconditionally
     #     PRIVILEGED  → requires interactive user approval
     #     SAFE        → allowed freely
-    ALLOWED_TOOLS = set()  # kept as empty sentinel for backward compat
+    ALLOWED_TOOLS: set = set()  # kept as empty sentinel for backward compat
 
     #  SHARED PERSISTENT EVENT LOOP (prevents "coroutine never awaited" / loop leaks)
     @staticmethod
@@ -268,54 +268,54 @@ class ElengenixAgent:
         #  M5: Active Fuzzing Harness — sends real payloads to live targets
         #  and measures response deltas. This is what makes fuzzing ACTUAL
         #  (vs just generating candidates).
+        self.active_fuzzer = None
         try:
             from tools.active_fuzzer import ActiveFuzzer
 
             self.active_fuzzer = ActiveFuzzer()
         except Exception as e:
             logger.debug(f"ActiveFuzzer unavailable: {e}")
-            self.active_fuzzer = None
 
         #  M6: Coverage Analyzer — tracks every endpoint/param/method tested
         #  so we can answer "what did we actually test?" honestly.
+        self.coverage_analyzer = None
         try:
             from tools.coverage_analyzer import CoverageAnalyzer
 
             self.coverage_analyzer = CoverageAnalyzer()
         except Exception as e:
             logger.debug(f"CoverageAnalyzer unavailable: {e}")
-            self.coverage_analyzer = None
 
         #  M7: Cross-Session Learning — remembers what worked on past
         #  targets and suggests tools/payloads with high success rate
         #  for the current tech stack.
+        self.learning_engine = None
         try:
             from tools.learning_engine import LearningEngine
 
             self.learning_engine = LearningEngine(use_chroma=False)
         except Exception as e:
             logger.debug(f"LearningEngine unavailable: {e}")
-            self.learning_engine = None
 
         #  M8: BOLA / IDOR Tester — replays requests with two sessions
         #  to detect broken object-level authorization.
+        self.bola_tester = None
         try:
             from tools.bola_tester import BOLATester
 
             self.bola_tester = BOLATester()
         except Exception as e:
             logger.debug(f"BOLATester unavailable: {e}")
-            self.bola_tester = None
 
         #  M9: Smart WAF Detector — probe-based detection that identifies
         #  Cloudflare / ModSecurity / AWS WAF etc. and suggests evasions.
+        self.waf_detector = None
         try:
             from tools.waf_detector import SmartWAFDetector
 
             self.waf_detector = SmartWAFDetector()
         except Exception as e:
             logger.debug(f"SmartWAFDetector unavailable: {e}")
-            self.waf_detector = None
 
         #  Agent Reflection / Self-Feedback Tracker
         self.reflection_tracker = _get_agent_reflection().get_reflection()
@@ -324,15 +324,16 @@ class ElengenixAgent:
         self._smart_orchestrator = None
 
         #  Analysis Pipeline (13+ post-finding analyzers)
+        self.analysis_pipeline = None
         try:
             from tools.analysis_pipeline import AnalysisPipeline
 
             self.analysis_pipeline = AnalysisPipeline(self)
         except Exception as e:
             logger.warning(f"Failed to initialize centralized AnalysisPipeline: {e}")
-            self.analysis_pipeline = None
 
         #  Skill Registry (Tool Awareness)
+        self.skill_registry = None
         try:
             from tools.skill_registry import get_skill_registry
 
@@ -342,7 +343,6 @@ class ElengenixAgent:
             self.base_prompt = f"{self.base_prompt}\n\n{skill_context}"
         except ImportError:
             logger.warning("Skill registry not available")
-            self.skill_registry = None
 
         #  Wire up mode processor with initialized dependencies
         self.mode_processor.governance = self.governance
@@ -452,8 +452,8 @@ class ElengenixAgent:
                     f"lang={fp.get('language')} cms={fp.get('cms')}",
                     step=0,
                 )
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("Could not log fingerprint thought: %s", e)
         return fp
 
     def _init_team_aegis_clients(self) -> dict:
@@ -749,8 +749,8 @@ To use the CVE database, reference vulnerability types and ask for similar CVEs.
                 return tgt
             if tgt:
                 return f"https://{tgt}"
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Could not extract base URL from mission state: %s", e)
         return "http://localhost"
 
     def _extract_json(self, text: str) -> Optional[Dict[str, Any]]:
@@ -1794,8 +1794,8 @@ Use JSON format:
             try:
                 safe = re.sub(r"\[/?[^\]]+\]", "", str(msg))
                 callback(safe[:200])
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("Activity log callback failed: %s", e)
 
     def resume_mission(
         self,
@@ -1879,8 +1879,8 @@ Use JSON format:
                     error_message=res_data.get("error_message", ""),
                 )
                 previous_results.append(dummy_res)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("Could not reconstruct ledger ToolResult: %s", e)
 
         # Update status
         mission_state.resume_mission()
@@ -1996,7 +1996,7 @@ Return a single JSON block representing the action. Example:
                     "UPDATE missions SET status = 'completed', updated_at = ? WHERE mission_id = ?",
                     (_now(), mission_id),
                 )
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("Could not update mission status to completed: %s", e)
 
         return f"Resumed mission '{mission_id}' completed successfully."
