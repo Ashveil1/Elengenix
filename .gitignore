@@ -32,7 +32,6 @@ __pycache__/
 *$py.class
 venv/
 .venv/
-.env
 
 # OS files
 .DS_Store
@@ -46,6 +45,11 @@ data/governance_audit.db
 data/cot_logs/
 data/scan_state/
 data/missions/
+
+# Runtime data files (generated, not source)
+data/ml_profiles.json
+data/watchman_state.json
+data/.ai_consent_accepted
 
 # Scan artifacts (output files at repo root only)
 /*.txt
@@ -81,15 +85,12 @@ dist/
 *.swp
 *.swo
 *~
-.DS_Store
-Thumbs.db
 
 # Scan outputs at root (output of various tools)
 live_hosts.txt
 subdomains.txt
 *.har
 *.har.json
-response.html
 
 # Backup/temp files
 *.bak
@@ -101,3 +102,6 @@ response.html
 
 # MCP Configuration
 !.mcp.json
+
+# User config directory (runtime data, not source)
+.config/
