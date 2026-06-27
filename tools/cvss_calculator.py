@@ -152,7 +152,7 @@ class CVSSCalculator:
             return score
 
         try:
-            prompt = """Analyze this security finding and determine if the CVSS severity needs adjustment.
+            prompt = f"""Analyze this security finding and determine if the CVSS severity needs adjustment.
 
 Finding Context:
 {context}
@@ -316,7 +316,7 @@ Only adjust if you have high confidence (>0.7). Otherwise keep original."""
             )
 
         # Build context
-        full_context = """Vulnerability Type: {finding_type}
+        full_context = f"""Vulnerability Type: {finding_type}
 Affected URL: {url}
 Evidence: {evidence}
 {context}"""

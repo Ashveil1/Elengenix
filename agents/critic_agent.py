@@ -13,7 +13,6 @@ Sub-workers:
 
 from __future__ import annotations
 
-import json
 import logging
 import re
 import subprocess
@@ -431,28 +430,19 @@ def _extract_signatures(finding: Dict[str, Any]) -> List[str]:
 def _extract_json(text: str) -> Any:
     """Extract JSON array or object from LLM response.
 
+    Delegates to the unified hardened extractor; preserves the historical
+    contract of returning an empty list on failure.
+
     Args:
         text: Raw LLM response string.
 
     Returns:
         Parsed Python object or empty list on failure.
     """
-    match = re.search(r"```(?:json)?\s*([\s\S]*?)\s*```", text)
-    candidate = match.group(1).strip() if match else text.strip()
+    from agents.agent_helpers import extract_json
 
-    try:
-        return json.loads(candidate)
-    except (json.JSONDecodeError, ValueError):
-        pass
-
-    for start, end in [("[", "]"), ("{", "}")]:
-        si = candidate.find(start)
-        ei = candidate.rfind(end)
-        if si != -1 and ei > si:
-            try:
-                return json.loads(candidate[si : ei + 1])
-            except (json.JSONDecodeError, ValueError):
-                continue
-
-    logger.warning(f"[Critic] No valid JSON: {text[:200]}")
-    return []
+    result = extract_json(text, expect="array")
+    if result is None:
+        logger.warning(f"[Critic] No valid JSON: {text[:200]}")
+        return []
+    return result

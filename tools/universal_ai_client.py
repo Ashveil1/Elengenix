@@ -63,6 +63,15 @@ class AIMessage:
 
 
 @dataclass
+class ToolCall:
+    """A structured tool-call returned by the model via native function-calling."""
+
+    id: str
+    name: str
+    arguments: Dict[str, Any]
+
+
+@dataclass
 class AIResponse:
     """Standardized response format."""
 
@@ -70,6 +79,168 @@ class AIResponse:
     model: str
     usage: Dict[str, int]
     raw_response: Optional[Dict] = None
+    tool_calls: Optional[List[ToolCall]] = None
+
+
+# ── Native tool-calling schema for the agent action set ───────────────────
+# Mirrors the actions defined in prompts/system_prompt.txt.  When a provider
+# supports native function-calling these schemas are sent in the ``tools``
+# parameter so the model returns structured calls instead of free-text JSON.
+ACTION_TOOLS: List[Dict[str, Any]] = [
+    {
+        "type": "function",
+        "function": {
+            "name": "run_shell",
+            "description": "Execute a shell command on the target",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "command": {"type": "string", "description": "Shell command to run"},
+                    "purpose": {"type": "string", "description": "Why this command is being run"},
+                },
+                "required": ["command"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "run_ai_tool",
+            "description": "Execute a custom Python tool created by the agent",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "Tool name"},
+                    "kwargs": {"type": "object", "description": "Arguments to pass"},
+                },
+                "required": ["name"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "write_script",
+            "description": "Write and run a custom script",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "filename": {"type": "string"},
+                    "runner": {"type": "string", "description": "e.g. python3, bash, go run"},
+                    "purpose": {"type": "string"},
+                    "code": {"type": "string", "description": "Script content"},
+                },
+                "required": ["filename", "code"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "install_tool",
+            "description": "Request installation of a security tool (requires user approval)",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string"},
+                    "manager": {"type": "string", "description": "pip/go/apt/cargo/npm/brew"},
+                    "purpose": {"type": "string"},
+                },
+                "required": ["name"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "ask_user",
+            "description": "Ask the user a question or request input",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "question": {"type": "string"},
+                    "input_type": {"type": "string", "enum": ["text", "confirm", "password"]},
+                },
+                "required": ["question"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "submit_findings",
+            "description": "Report a discovered vulnerability to the system",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "findings": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "type": {"type": "string"},
+                                "endpoint": {"type": "string"},
+                                "severity": {
+                                    "type": "string",
+                                    "enum": ["critical", "high", "medium", "low", "info"],
+                                },
+                                "description": {"type": "string"},
+                                "evidence": {"type": "string"},
+                            },
+                            "required": ["type", "severity"],
+                        },
+                    },
+                    "target": {"type": "string"},
+                },
+                "required": ["findings"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "web_search",
+            "description": "Search the web for information, CVEs, or exploits",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "Search query"},
+                },
+                "required": ["query"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "save_memory",
+            "description": "Save an important finding for future sessions",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "target": {"type": "string"},
+                    "learning": {"type": "string", "description": "What was learned"},
+                    "category": {"type": "string"},
+                },
+                "required": ["learning"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "finish",
+            "description": "Complete the mission with a summary",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "summary": {"type": "string", "description": "Mission summary and findings"},
+                },
+                "required": ["summary"],
+            },
+        },
+    },
+]
 
 
 class UniversalAIClient:
@@ -279,6 +450,8 @@ class UniversalAIClient:
         temperature: float = 0.7,
         max_tokens: int = 4096,
         stream: bool = False,
+        tools: Optional[List[Dict[str, Any]]] = None,
+        tool_choice: Optional[str] = None,
     ) -> AIResponse:
         """
         Send chat completion request.
@@ -288,6 +461,8 @@ class UniversalAIClient:
             temperature: Sampling temperature (0-2)
             max_tokens: Maximum tokens to generate
             stream: Whether to stream the response
+            tools: Optional list of tool schemas for native function-calling
+            tool_choice: Optional tool choice hint ("auto", "none", or a tool name)
 
         Returns:
             AIResponse with content and metadata
@@ -310,6 +485,16 @@ class UniversalAIClient:
             "max_tokens": max_tokens,
             "stream": stream,
         }
+
+        # Native tool-calling support
+        if tools:
+            payload["tools"] = tools
+            if tool_choice:
+                payload["tool_choice"] = (
+                    tool_choice
+                    if tool_choice in ("auto", "none")
+                    else {"type": "function", "function": {"name": tool_choice}}
+                )
 
         # NVIDIA-specific parameters (e.g., for reasoning models)
         if self.provider == "nvidia":
@@ -352,7 +537,26 @@ class UniversalAIClient:
 
                 # Parse response
                 choice = data["choices"][0]
-                content = choice["message"]["content"]
+                content = choice["message"].get("content") or ""
+                raw_tool_calls = choice["message"].get("tool_calls")
+
+                parsed_tool_calls = None
+                if raw_tool_calls:
+                    parsed_tool_calls = []
+                    for tc in raw_tool_calls:
+                        try:
+                            args = tc["function"]["arguments"]
+                            if isinstance(args, str):
+                                args = json.loads(args)
+                        except (json.JSONDecodeError, KeyError):
+                            args = {}
+                        parsed_tool_calls.append(
+                            ToolCall(
+                                id=tc.get("id", ""),
+                                name=tc["function"]["name"],
+                                arguments=args,
+                            )
+                        )
 
                 return AIResponse(
                     content=content,
@@ -361,6 +565,7 @@ class UniversalAIClient:
                         "usage", {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
                     ),
                     raw_response=data,
+                    tool_calls=parsed_tool_calls,
                 )
 
             except requests.exceptions.HTTPError as e:
@@ -388,7 +593,7 @@ class UniversalAIClient:
         raise NotImplementedError(f"Custom format for {self.provider} not implemented")
 
     def _call_anthropic(self, payload: Dict, stream: bool) -> AIResponse:
-        """Call Anthropic Claude API with retry logic."""
+        """Call Anthropic Claude API with retry logic, tool-calling, and prompt caching."""
         url = "https://api.anthropic.com/v1/messages"
 
         # Convert OpenAI format to Anthropic format
@@ -400,18 +605,49 @@ class UniversalAIClient:
             else:
                 messages.append({"role": m["role"], "content": m["content"]})
 
-        anthropic_payload = {
+        # Build system param: use cache_control for prompt caching when system
+        # prompt is large enough to benefit (>1000 chars). This saves both
+        # latency and cost on multi-step missions where the same base prompt
+        # is sent every step.
+        if system_msg:
+            if len(system_msg) > 1000:
+                system_param = [
+                    {
+                        "type": "text",
+                        "text": system_msg,
+                        "cache_control": {"type": "ephemeral"},
+                    }
+                ]
+            else:
+                system_param = system_msg
+        else:
+            system_param = ""
+
+        anthropic_payload: Dict[str, Any] = {
             "model": self.model,
             "max_tokens": payload["max_tokens"],
             "temperature": payload["temperature"],
-            "system": system_msg,
+            "system": system_param,
             "messages": messages,
         }
+
+        # Native tool-calling for Anthropic (tool_use)
+        if payload.get("tools"):
+            anthropic_payload["tools"] = []
+            for tool in payload["tools"]:
+                if tool.get("type") == "function":
+                    anthropic_payload["tools"].append(
+                        {
+                            "name": tool["function"]["name"],
+                            "description": tool["function"].get("description", ""),
+                            "input_schema": tool["function"].get("parameters", {}),
+                        }
+                    )
 
         headers = {
             "Content-Type": "application/json",
             "x-api-key": self.api_key,
-            "anthropic-version": "2023-06-01",
+            "anthropic-version": "2024-10-22",
         }
 
         for attempt in range(self.max_retries):
@@ -422,8 +658,23 @@ class UniversalAIClient:
                 resp.raise_for_status()
                 data = resp.json()
 
+                # Parse Anthropic response: content blocks can be text or tool_use
+                text_parts: List[str] = []
+                parsed_tool_calls: List[ToolCall] = []
+                for block in data.get("content", []):
+                    if block.get("type") == "text":
+                        text_parts.append(block.get("text", ""))
+                    elif block.get("type") == "tool_use":
+                        parsed_tool_calls.append(
+                            ToolCall(
+                                id=block.get("id", ""),
+                                name=block.get("name", ""),
+                                arguments=block.get("input", {}),
+                            )
+                        )
+
                 return AIResponse(
-                    content=data["content"][0]["text"],
+                    content="\n".join(text_parts),
                     model=data["model"],
                     usage={
                         "prompt_tokens": data["usage"]["input_tokens"],
@@ -432,6 +683,7 @@ class UniversalAIClient:
                         + data["usage"]["output_tokens"],
                     },
                     raw_response=data,
+                    tool_calls=parsed_tool_calls if parsed_tool_calls else None,
                 )
             except requests.exceptions.HTTPError as e:
                 if e.response.status_code == 401:

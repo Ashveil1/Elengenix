@@ -246,7 +246,7 @@ class AIToolCreator:
             logger.warning("No AI client available for tool planning")
             return []
 
-        prompt = """You are an autonomous security AI. Analyze this target and plan custom tools.
+        prompt = f"""You are an autonomous security AI. Analyze this target and plan custom tools.
 
 Target: {target}
 Target Info: {target_info or 'Unknown'}
@@ -478,7 +478,7 @@ Respond in JSON format:
         if not self.ai_client:
             return False
 
-        prompt = """Improve this security tool based on feedback.
+        prompt = f"""Improve this security tool based on feedback.
 
 Tool Name: {tool_name}
 Current Code:

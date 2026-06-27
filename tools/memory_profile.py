@@ -150,7 +150,7 @@ def ai_update_memory(conversation_snippet: str, ai_client=None) -> None:
     if not current_profile:
         current_profile = "(empty — first time meeting this user)"
 
-    prompt = """You are analyzing a conversation to update a user's personal memory profile.
+    prompt = f"""You are analyzing a conversation to update a user's personal memory profile.
 
 Current profile:
 {current_profile}

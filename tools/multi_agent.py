@@ -453,7 +453,7 @@ class TeamAegis:
         except Exception:
             pass
 
-        prompt = """## TEAM AEGIS — Security Research Team Collaboration
+        prompt = f"""## TEAM AEGIS — Security Research Team Collaboration
 
 ### YOUR IDENTITY
 - Role: {role['name']}

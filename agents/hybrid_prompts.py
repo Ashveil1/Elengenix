@@ -121,6 +121,10 @@ HYBRID_GOVERNANCE_RULES = """SAFETY RULES:
 
 
 # ── TeamAegis v2 Prompts (3-agent council mode) ────────────────────────────────
+# NOTE: The constants below use single-brace {placeholder} syntax and MUST be
+# rendered with str.format(**kwargs) before being sent to the model. Do NOT pass
+# them directly as message content — the literal braces would reach the LLM.
+# (They are currently unused; wire them up via .format() when adopting them.)
 
 CRITIC_PROMPT = """You are a senior security researcher and quality gatekeeper.
 

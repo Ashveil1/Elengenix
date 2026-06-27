@@ -754,16 +754,16 @@ To use the CVE database, reference vulnerability types and ask for similar CVEs.
         return "http://localhost"
 
     def _extract_json(self, text: str) -> Optional[Dict[str, Any]]:
-        """Extract JSON from LLM response, supporting Markdown and raw blocks."""
-        json_match = re.search(r"```(?:json)?\s*([\s\S]*?)\s*```|({[\s\S]*})", text)
-        if not json_match:
-            return None
+        """Extract JSON from LLM response, supporting Markdown and raw blocks.
 
-        json_str = json_match.group(1) or json_match.group(2)
-        try:
-            return json.loads(json_str)
-        except json.JSONDecodeError:
-            return None
+        Delegates to the unified, hardened extractor in agent_helpers. An optional
+        one-shot LLM repair pass is enabled (using this agent's own client) so a
+        single malformed action response doesn't stall the mission loop.
+        """
+        from agents.agent_helpers import extract_json
+
+        result = extract_json(text, expect="object", repair_client=self.client)
+        return result if isinstance(result, dict) else None
 
     def _execute_tool(
         self, action_data: Dict[str, Any], callback: Optional[Callable] = None
@@ -883,8 +883,8 @@ To use the CVE database, reference vulnerability types and ask for similar CVEs.
             past_memories = get_context_for_ai(user_input, target="universal", max_memories=5)
             logger.info(f"Retrieved {len(past_memories.splitlines())} context lines from memory.")
 
-            now_context = _get_now_context()  # noqa: F841 - used in chat_prompt template
-            chat_prompt = """You are Elengenix AI v3.0, an expert security assistant and conversational AI.
+            now_context = _get_now_context()
+            chat_prompt = f"""You are Elengenix AI v3.0, an expert security assistant and conversational AI.
 Intent category: {intent}
 
 {now_context}
@@ -1010,19 +1010,19 @@ Do NOT attempt to run a scan. Respond naturally in the user's language (English 
                 #  AI-driven dynamic planning with SEMANTIC MEMORY
 
                 # Retrieve context from Vector Memory (remembers across sessions)
-                _semantic_context = get_context_for_ai(  # noqa: F841 - used in full_prompt template
+                _semantic_context = get_context_for_ai(
                     current_query=user_input, target=target or "global", max_memories=15
                 )
 
                 # Recent conversation history (session only)
                 recent_history = history[-self.history_limit :]
-                _history_text = "\n".join(  # noqa: F841 - used in full_prompt template
+                _history_text = "\n".join(
                     [f"{m['role'].capitalize()}: {m['content']}" for m in recent_history]
                 )
 
                 # Available tools context
                 available_tools = registry.list_available_tools()
-                _tool_list = ", ".join(  # noqa: F841 - used in full_prompt template
+                _tool_list = ", ".join(
                     [name for name, info in available_tools.items() if info["available"]]
                 )
 
@@ -1037,7 +1037,11 @@ Do NOT attempt to run a scan. Respond naturally in the user's language (English 
                         sim = mem.get("similarity", 0)
                         related_context += f"- {content}... (relevance: {sim:.0%})\n"
 
-                full_prompt = """{self.base_prompt}
+                _results_summary = self._summarize_results(previous_results)
+                _mission_snapshot = json.dumps(
+                    mission_state.snapshot(max_items=40), ensure_ascii=False
+                )
+                full_prompt = f"""{self.base_prompt}
 
 ### AVAILABLE TOOLS:
 {_tool_list}
@@ -1049,10 +1053,10 @@ Do NOT attempt to run a scan. Respond naturally in the user's language (English 
 {_history_text}
 
 ### PREVIOUS RESULTS (Current Mission):
-{self._summarize_results(previous_results)}
+{_results_summary}
 
 ### MISSION STATE SNAPSHOT (Graph/Facts/Hypotheses):
-{json.dumps(mission_state.snapshot(max_items=40), ensure_ascii=False)}
+{_mission_snapshot}
 
 Plan your next move. Consider:
 1. What do we know from previous sessions about this target?
@@ -1067,15 +1071,27 @@ Use JSON format:
 "purpose": "...", "question": "..."}}"""
 
                 from ui_components import show_spinner
+                from tools.universal_ai_client import ACTION_TOOLS
 
                 with show_spinner("AI Agent is planning its next move...", spinner_style="#ffffff"):
-                    response_text = self.client.chat(
+                    _resp = self.client.chat(
                         [
                             AIMessage(role="system", content=full_prompt),
                             AIMessage(role="user", content="Plan next action"),
-                        ]
-                    ).content
-                action_data = self._extract_json(response_text) or {}
+                        ],
+                        temperature=0.2,
+                        tools=ACTION_TOOLS,
+                    )
+
+                # Prefer native tool-calling; fall back to text-JSON extraction
+                if _resp.tool_calls:
+                    _tc = _resp.tool_calls[0]
+                    action_data = {
+                        "action": _tc.name,
+                        **_tc.arguments,
+                    }
+                else:
+                    action_data = self._extract_json(_resp.content) or {}
                 reasoning = action_data.get("purpose", "continue investigation")
 
             #  Chain of Thought Logging
@@ -1525,8 +1541,13 @@ Use JSON format:
                 # send_telegram_notification(f" Mission Accomplished: {user_input}")
                 return action_data.get("summary", "Mission completed successfully.")
 
-            # Feedback Loop
-            history.append({"role": "assistant", "content": str(action_data)})
+            # Feedback Loop: include the model's own thought prominently so
+            # its reasoning feeds the next step (self-reinforcing chain-of-thought).
+            _thought = action_data.get("thought", "")
+            _history_entry = str(action_data)
+            if _thought:
+                _history_entry = f"[Thought: {_thought}]\n{_history_entry}"
+            history.append({"role": "assistant", "content": _history_entry})
             history.append({"role": "user", "content": f"OBSERVATION: {obs}"})
 
         # Save CoT log on completion
@@ -1908,7 +1929,7 @@ Use JSON format:
             else:
                 _semantic_context = get_context_for_ai(objective, target=target, max_memories=5)
                 _now_context = _get_now_context()
-                prompt = """You are the dynamic specialist. Decide the next scanning action.
+                prompt = f"""You are the dynamic specialist. Decide the next scanning action.
 Objective: {objective}
 Target: {target}
 Step: {step + 1}/{self.max_steps}
@@ -1927,11 +1948,18 @@ Return a single JSON block representing the action. Example:
                         content=f"Last results: {[r.tool_name for r in previous_results[-3:]]}",
                     ),
                 ]
-                res_content = (self.client.chat(messages).content or "").strip()
-                action_data = self._extract_json(res_content) or {
-                    "action": "finish",
-                    "purpose": "Scan completed",
-                }
+                from tools.universal_ai_client import ACTION_TOOLS
+
+                _sp_resp = self.client.chat(messages, temperature=0.2, tools=ACTION_TOOLS)
+                if _sp_resp.tool_calls:
+                    _tc = _sp_resp.tool_calls[0]
+                    action_data = {"action": _tc.name, **_tc.arguments}
+                else:
+                    res_content = (_sp_resp.content or "").strip()
+                    action_data = self._extract_json(res_content) or {
+                        "action": "finish",
+                        "purpose": "Scan completed",
+                    }
                 reasoning = action_data.get("purpose", "Dynamic execution")
 
             if action_data.get("action") == "finish":

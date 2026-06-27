@@ -125,7 +125,7 @@ class ConversationManager:
         )
 
         try:
-            summary_prompt = """Summarize this conversation concisely, keeping key facts and decisions:
+            summary_prompt = f"""Summarize this conversation concisely, keeping key facts and decisions:
 
 {conversation_text}
 

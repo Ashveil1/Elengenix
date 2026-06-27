@@ -20,6 +20,7 @@ The dashboard is designed to be dropped into any Textual app::
 from __future__ import annotations
 
 import logging
+import os
 import random
 import time
 from dataclasses import dataclass, field
@@ -234,7 +235,8 @@ class ThreatDashboard(Container):
 
     def on_mount(self) -> None:
         """Start the simulation timer and prime the panels."""
-        self._seed_demo_data()
+        if os.environ.get("ELENGENIX_DEMO"):
+            self._seed_demo_data()
         self._refresh_all()
         # 4 FPS is enough for dashboard updates (15 FPS if you want smoother).
         self._tick_timer = self.set_interval(0.25, self._tick)

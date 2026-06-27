@@ -12,7 +12,6 @@ Sub-workers:
 
 from __future__ import annotations
 
-import json
 import logging
 import re
 import subprocess
@@ -526,23 +525,18 @@ Respond ONLY with valid JSON. No extra text."""
 def _parse_json(text: str) -> Optional[Dict[str, Any]]:
     """Parse first JSON object from text.
 
+    Delegates to the unified hardened extractor in agent_helpers.
+
     Args:
         text: Raw string possibly containing JSON.
 
     Returns:
         Dict or None.
     """
-    try:
-        return json.loads(text.strip())
-    except (json.JSONDecodeError, ValueError):
-        pass
-    match = re.search(r"\{[\s\S]*\}", text)
-    if match:
-        try:
-            return json.loads(match.group())
-        except (json.JSONDecodeError, ValueError):
-            pass
-    return None
+    from agents.agent_helpers import extract_json
+
+    result = extract_json(text, expect="object")
+    return result if isinstance(result, dict) else None
 
 
 def _heuristic_findings(output: str, command: str) -> List[Dict[str, Any]]:

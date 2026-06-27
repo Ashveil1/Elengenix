@@ -27,7 +27,6 @@ from __future__ import annotations
 
 import json
 import logging
-import re
 import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -136,21 +135,15 @@ def _ai_call(ai_client, system: str, user: str, temperature: float = 0.3) -> str
 
 
 def _parse_json(text: str) -> dict:
-    """Extract JSON from markdown code fences or raw."""
-    for fence in ["```json", "```"]:
-        if fence in text:
-            try:
-                return json.loads(text.split(fence)[1].split("```")[0].strip())
-            except Exception:
-                pass
-    try:
-        # find first { ... }
-        m = re.search(r"\{.*\}", text, re.DOTALL)
-        if m:
-            return json.loads(m.group())
-    except Exception:
-        pass
-    return {}
+    """Extract JSON from markdown code fences or raw.
+
+    Delegates to the unified hardened extractor; preserves the ``{}``-on-failure
+    contract that callers rely on (they use ``.get(...)`` on the result).
+    """
+    from agents.agent_helpers import extract_json
+
+    result = extract_json(text, expect="object")
+    return result if isinstance(result, dict) else {}
 
 
 def _build_headers(state: AgentState, extra: dict = None) -> dict:
@@ -692,7 +685,7 @@ def _exec_threat_model(action: AgentAction, state: AgentState, ai_client=None) -
                 "Analyze all gathered intelligence and produce an actionable plan. "
                 "Focus on the most promising attack vectors with highest bounty potential."
             ),
-            user="""Based on this intelligence, create a threat model and attack plan:
+            user=f"""Based on this intelligence, create a threat model and attack plan:
 
 {context}
 
@@ -1459,7 +1452,7 @@ def _exec_analyze_findings(
             "You are an expert bug bounty analyst. Analyze findings after each tool run. "
             "Be concise and strategic."
         ),
-        user="""Action just completed: {action.name} on {action.target}
+        user=f"""Action just completed: {action.name} on {action.target}
 
 New findings:
 {findings_text}
@@ -1525,7 +1518,7 @@ def _ai_reflect_on_action(
             " permanent damage or catastrophic database deletion."
             " Otherwise, approve it."
         ),
-        user="""Proposed action: {action.name} on {action.target}
+        user=f"""Proposed action: {action.name} on {action.target}
 Reasoning: {action.reasoning}
 
 Assess the potential consequences. Is this a wise and safe choice for a bug bounty scan?
@@ -1700,7 +1693,7 @@ Available actions (Strategic):
             "- Pivot to new subdomains/endpoints when interesting assets are found.\n"
             "- Focus on findings with highest bounty potential."
         ),
-        user="""{available_actions}
+        user=f"""{available_actions}
 
 Current scan state:
 {context}

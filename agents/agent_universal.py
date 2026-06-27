@@ -160,7 +160,7 @@ def process_universal(
         has_thai = bool(re.search(r"[฀-๿]", user_input))
         detected_lang = "Thai" if has_thai else "English"
 
-        chat_prompt = """You are Elengenix AI — A Universal AI Agent specialized for Bug Bounty and Security Research.
+        chat_prompt = f"""You are Elengenix AI — A Universal AI Agent specialized for Bug Bounty and Security Research.
 Intent category: {intent}
 Detected user language: {detected_lang}
 
@@ -286,7 +286,7 @@ GraphQL, CORS, JWT, Race Conditions, Business Logic, Supply Chain
         if wants_thai:
             return "Hello! How can I help you?"
         lang_rule = "Respond in Thai ONLY." if wants_thai else "Respond in English ONLY."
-        simple_prompt = """You are Elengenix AI 1.0.0.
+        simple_prompt = f"""You are Elengenix AI 1.0.0.
 User input: "{user_input}"
 Contains Thai characters: {wants_thai}
 
@@ -345,7 +345,7 @@ Keep it short and conversational. No tools. No emojis."""
         recent = history[-10:]
         history_text = "\n".join([f"{m['role'].capitalize()}: {m['content']}" for m in recent])
 
-        step_prompt = """{base_prompt_text}
+        step_prompt = f"""{base_prompt_text}
 
 ### CONVERSATION HISTORY:
 {history_text}
@@ -363,15 +363,27 @@ Respond with JSON:
 
         # Get AI decision
         try:
-            response_text = (
-                client.chat(
-                    [
-                        AIMessage(role="system", content=step_prompt),
-                        AIMessage(role="user", content="What is the next action?"),
-                    ]
-                ).content
-                or ""
+            from tools.universal_ai_client import ACTION_TOOLS
+
+            _resp = client.chat(
+                [
+                    AIMessage(role="system", content=step_prompt),
+                    AIMessage(role="user", content="What is the next action?"),
+                ],
+                temperature=0.2,
+                tools=ACTION_TOOLS,
             )
+            # Prefer native tool-calling; fall back to text-JSON extraction
+            if _resp.tool_calls:
+                _tc = _resp.tool_calls[0]
+                response_text = json.dumps(
+                    {
+                        "thought": _tc.arguments.pop("thought", "execute action"),
+                        "action": {"type": _tc.name, "params": _tc.arguments},
+                    }
+                )
+            else:
+                response_text = _resp.content or ""
             consecutive_ai_failures = 0  # reset on success
         except Exception as e:
             consecutive_ai_failures += 1
@@ -455,7 +467,12 @@ Respond with JSON:
         result_obj = executor.execute_action({"type": action_type, "params": params})
         result = result_obj.output if result_obj.success else f"{result_obj.error}"
 
-        _append_history(history, "assistant", f"[{action_type}] {result[:300]}")
+        # Include the model's own thought in the history so its reasoning
+        # feeds the next step (self-reinforcing chain-of-thought).
+        _entry = f"[{action_type}] {result[:300]}"
+        if thought:
+            _entry = f"[Thought: {thought}]\n{_entry}"
+        _append_history(history, "assistant", _entry)
 
         # Score findings
         if is_security_task and result_obj.success:

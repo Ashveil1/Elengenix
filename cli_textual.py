@@ -27,6 +27,17 @@ from textual.widgets import Input, RichLog, Static
 from agent import get_agent
 from agents.tui_game import ObbyGame
 
+# TUI widgets (mounted but hidden by default; toggled via Ctrl+D)
+try:
+    from tui.dashboard import ThreatDashboard
+    from tui.findings_display import Finding, FindingsDisplay
+    from tui.scan_progress import ScanProgressWidget
+    from tui.themes import ThemeManager, THEMES as THEME_PALETTE
+
+    _TUI_WIDGETS_AVAILABLE = True
+except ImportError:
+    _TUI_WIDGETS_AVAILABLE = False
+
 LOG_FILE = Path("data/elengenix_cli.log")
 LOG_FILE.parent.mkdir(exist_ok=True)
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -113,6 +124,7 @@ HELP_TEXT = """\
   [dim]Ctrl+R[/] Research  [dim]Ctrl+M[/] CHILL/HUNT
   [dim]Ctrl+T[/] Thinking  [dim]Ctrl+P[/] Model
   [dim]Ctrl+G[/] Help      [dim]Ctrl+,[/] Settings
+  [dim]Ctrl+D[/] Dashboard [dim]/theme[/] Theme
   [dim]↑↓[/] History       [dim]/[/] Slash commands"""
 
 
@@ -222,6 +234,7 @@ class Sidebar(Container):
                 "  [dim]Ctrl+R[/] Research [dim]Ctrl+M[/] CHILL/HUNT\n"
                 "  [dim]Ctrl+T[/] Think   [dim]Ctrl+P[/] Model\n"
                 "  [dim]Ctrl+G[/] Help    [dim]Ctrl+,[/] Settings\n"
+                "  [dim]Ctrl+D[/] Dashboard\n"
             )
         try:
             self.query_one("#sidebar_content", Static).update(sidebar_text)
@@ -564,6 +577,12 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
     min-height: 0; border: none; margin: 0 3 0 3; padding: 0 3;
     overflow-y: auto; display: none; }
 #banner { height: auto; display: block; padding: 2 3 0 3; }
+#dashboard_col { width: 50; height: 1fr; background: $background;
+    border-left: solid $secondary; display: none; overflow-y: auto; }
+#dashboard_col.visible { display: block; }
+#scan_progress { height: auto; min-height: 8; }
+#findings_display { height: 1fr; min-height: 10; }
+#threat_dashboard { height: 1fr; min-height: 10; }
 """
 
     BINDINGS = [
@@ -572,6 +591,7 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
         Binding("ctrl+t", "toggle_think", "Think", priority=True),
         Binding("ctrl+p", "show_model", "Model", priority=True),
         Binding("ctrl+g", "show_help", "Help", priority=True),
+        Binding("ctrl+d", "toggle_dashboard", "Dashboard", priority=True),
         Binding("ctrl+comma", "show_settings", "Settings", priority=True),
         Binding("ctrl+c", "app_exit", "Exit", priority=True),
         Binding("ctrl+u", "scroll_up", "", show=False, priority=True),
@@ -632,6 +652,13 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
         self._game_active = False
         self._current_game_frame = ""
 
+        # ── Phase 3: dashboard + theme manager ────────────────────────
+        self._dashboard_visible = False
+        self._findings_data: list = []  # list of Finding dataclasses
+        self._theme_mgr = None
+        if _TUI_WIDGETS_AVAILABLE:
+            self._theme_mgr = ThemeManager("DEFAULT")
+
     def compose(self) -> ComposeResult:
         yield Static(self._header_base_text + f"  {self.target or ''}  |  /help", id="header")
         with Horizontal(id="main_row"):
@@ -651,6 +678,11 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
                 with Vertical(id="input_row"):
                     yield Static("", id="suggest_box", markup=True)
                     yield Input(placeholder="  try it!", id="user_input")
+            if _TUI_WIDGETS_AVAILABLE:
+                with Vertical(id="dashboard_col"):
+                    yield ScanProgressWidget(id="scan_progress")
+                    yield FindingsDisplay(id="findings_display")
+                    yield ThreatDashboard(id="threat_dashboard")
             yield Sidebar(id="sidebar")
         yield Scanline(id="scanline")
         yield GlitchFlash(id="glitch")
@@ -1123,6 +1155,13 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
                         num_findings = len(findings_data)
                         if num_findings > 0:
                             self.findings += num_findings
+                            # Feed findings to dashboard widgets
+                            if _TUI_WIDGETS_AVAILABLE:
+                                for fd in findings_data:
+                                    if isinstance(fd, dict):
+                                        self._findings_data.append(fd)
+                                if self._dashboard_visible:
+                                    self.call_from_thread(self._refresh_dashboard)
                             self.call_from_thread(self._update_sidebar)
                             self.call_from_thread(self._trigger_border_glow)
 
@@ -1345,6 +1384,10 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
             event.stop()
             self.action_show_help()
             return
+        if key == "ctrl+d":
+            event.stop()
+            self.action_toggle_dashboard()
+            return
         if key == "ctrl+c":
             event.stop()
             self.action_app_exit()
@@ -1399,6 +1442,7 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
         "/session load <id>",
         "/stats",
         "/team",
+        "/theme <name>",
         "/game",
         "/help",
     ]
@@ -1542,6 +1586,23 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
             )
             self._update_sidebar()
             return True
+        if low.startswith("/theme"):
+            parts = text.split(maxsplit=1)
+            if len(parts) < 2 or not self._theme_mgr:
+                if self._theme_mgr:
+                    available = ", ".join(self._theme_mgr.list_themes())
+                    self._chat_write_system(f"Themes: {available}")
+                else:
+                    self._chat_write_system("Theme manager not available.")
+                return True
+            theme_name = parts[1].strip().upper()
+            if theme_name in THEME_PALETTE:
+                self._theme_mgr.transition_to(theme_name, duration=0.6)
+                self._chat_write_system(f"Theme: {theme_name}")
+            else:
+                available = ", ".join(self._theme_mgr.list_themes())
+                self._chat_write_system(f"Unknown theme. Available: {available}")
+            return True
         if low.startswith("/session"):
             parts = text.split(maxsplit=2)
             sub = parts[1].strip() if len(parts) > 1 else ""
@@ -1684,6 +1745,44 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
 
     def action_show_settings(self) -> None:
         self.query_one("#settings_overlay", SettingsOverlayWidget).show()
+
+    def action_toggle_dashboard(self) -> None:
+        """Toggle the dashboard panel visibility (Ctrl+D)."""
+        if not _TUI_WIDGETS_AVAILABLE:
+            self._chat_write_system("[dim]Dashboard widgets not available.[/dim]")
+            return
+        try:
+            col = self.query_one("#dashboard_col")
+            self._dashboard_visible = not self._dashboard_visible
+            if self._dashboard_visible:
+                col.add_class("visible")
+                self._refresh_dashboard()
+                self._chat_write_system("[dim]Dashboard opened (Ctrl+D to close)[/dim]")
+            else:
+                col.remove_class("visible")
+        except Exception as e:
+            logger.debug("Dashboard toggle failed: %s", e)
+
+    def _refresh_dashboard(self) -> None:
+        """Push current findings into the dashboard and findings widgets."""
+        if not _TUI_WIDGETS_AVAILABLE:
+            return
+        try:
+            # Findings display
+            fd = self.query_one("#findings_display", FindingsDisplay)
+            if hasattr(fd, "update_findings"):
+                fd.update_findings(self._findings_data)
+            # Threat dashboard: feed real findings
+            td = self.query_one("#threat_dashboard", ThreatDashboard)
+            if self._findings_data and hasattr(td, "add_finding"):
+                for f in self._findings_data[-10:]:
+                    td.add_finding(
+                        title=getattr(f, "title", str(f)),
+                        severity=getattr(f, "severity", "info"),
+                        location=getattr(f, "location", ""),
+                    )
+        except Exception as e:
+            logger.debug("Dashboard refresh failed: %s", e)
 
     def action_scroll_up(self) -> None:
         try:

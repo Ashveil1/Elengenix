@@ -326,6 +326,12 @@ class CommandSimplifier:
     [cyan]elengenix[/cyan] terraform/             [dim]->[/dim]  [green]Cloud security review[/green]
 
 [dim]┌─────────────────────┬──────────────────────────────────────────────┐[/dim]
+│  [bold cyan]INTERACTIVE[/bold cyan]       │                                              │
+[dim]├─────────────────────┼──────────────────────────────────────────────┤[/dim]
+│  [cyan]elengenix tui[/cyan]       [dim](default)[/dim]  [white]Textual TUI — full-featured[/white]     │
+│  [cyan]elengenix hunt[/cyan] <target>        [white]Hunt mode — autonomous scan[/white]     │
+│  [cyan]elengenix cli-legacy[/cyan]            [white]Rich CLI (legacy)[/white]                │
+[dim]├─────────────────────┼──────────────────────────────────────────────┤[/dim]
 │  [bold cyan]AI & AGENT[/bold cyan]         │                                              │
 [dim]├─────────────────────┼──────────────────────────────────────────────┤[/dim]
 │  [cyan]elengenix cli[/cyan]      │  [white]Gemini-style CLI session (prompt_toolkit)[/white]   │

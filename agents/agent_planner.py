@@ -611,11 +611,12 @@ class StrategicPlanner:
             tree.steps.append(step)
 
         # 2) AI: ask the LLM for additional high-level ideas
-        planning_prompt = """You are a penetration testing strategist.
+        _tech_str = ", ".join(fingerprint.get("technologies", [])) or "unknown"
+        planning_prompt = f"""You are a penetration testing strategist.
 
 TARGET: {target}
 OBJECTIVE: {objective}
-DETECTED TECHNOLOGIES: {', '.join(fingerprint.get('technologies', [])) or 'unknown'}
+DETECTED TECHNOLOGIES: {_tech_str}
 
 Generate an attack tree as JSON with this structure:
 {{
