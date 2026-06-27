@@ -140,7 +140,7 @@ def test_contextual_mutator_picks_for_sqli_string_single_quote():
 
 def test_contextual_mutator_picks_for_ssrf_aws():
     cm = ContextualMutator()
-    ctx = InjectionContext(category="ssrf", sinks=["cloud", "aws"])
+    ctx = InjectionContext(category="ssr", sinks=["cloud", "aws"])
     cands = cm.candidates(ctx)
     assert len(cands) >= 1
     # 169.254.169.254 is the AWS metadata IP

@@ -15,13 +15,11 @@ Features:
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Callable, Dict, List, Optional
 
-from rich.align import Align
-from rich.box import HEAVY, ROUNDED, SIMPLE
-from rich.console import Group
+from rich.box import ROUNDED, SIMPLE
 from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text

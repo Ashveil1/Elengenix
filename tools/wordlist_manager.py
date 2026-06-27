@@ -319,7 +319,7 @@ Respond in JSON format only:
 }"""
 
     def _get_ai_user_prompt(self, context: Dict) -> str:
-        return f"""Based on the following reconnaissance data, generate 10-15 high-value paths to test:
+        return """Based on the following reconnaissance data, generate 10-15 high-value paths to test:
 
 Technology Stack: {', '.join(context['tech_stack']) or 'Unknown'}
 

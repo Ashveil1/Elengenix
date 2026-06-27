@@ -163,7 +163,7 @@ def test_properly_authorized_no_bola(mock_server):
     assert result.status_a == 200
     assert result.status_b == 403
     assert "denied" in result.reasoning.lower() or "enforced" in result.reasoning.lower()
-    print(f"[NO-BOLA] A=200, B=403, properly authZ'd")
+    print("[NO-BOLA] A=200, B=403, properly authZ'd")
 
 
 def test_enumeration_bola(mock_server):
@@ -181,7 +181,7 @@ def test_enumeration_bola(mock_server):
     assert not result.is_bola
     assert result.status_a == 200
     assert result.status_b == 404
-    print(f"[ENUM-NO] A sees it, B doesn't = no BOLA")
+    print("[ENUM-NO] A sees it, B doesn't = no BOLA")
 
 
 def test_bola_summarize(mock_server):
@@ -213,7 +213,7 @@ def test_invalid_session_raises():
         tester.test_object(
             "https://api.com/users/{id}", "1", session_a="user_a", session_b="missing"
         )
-    print(f"[VALIDATE] correctly raised for missing session")
+    print("[VALIDATE] correctly raised for missing session")
 
 
 def test_unauthenticated_session_works():

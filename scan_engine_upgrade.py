@@ -469,7 +469,7 @@ class SmartOrchestrator:
         try:
             # Strategy 1: git diff against HEAD
             result = subprocess.run(
-                ["git", "diff", "--name-only", "HEAD"],
+                ["git", "dif", "--name-only", "HEAD"],
                 capture_output=True,
                 text=True,
                 timeout=10,

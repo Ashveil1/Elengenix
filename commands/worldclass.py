@@ -10,13 +10,8 @@ Registers commands that expose the flagship engines:
 
 from __future__ import annotations
 
-import asyncio
-import json
-import sys
-import time
-from pathlib import Path
 
-from commands.registry import CommandRegistry, command
+from commands.registry import command
 
 
 def _console():

@@ -17,10 +17,9 @@ Public API:
 from __future__ import annotations
 
 import logging
-import re
 import time
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger("elengenix.logic_flaw_engine")
 
@@ -193,7 +192,6 @@ class LogicFlawEngine:
         Returns:
             LogicFlawResult with analysis results.
         """
-        import requests
 
         start_time = time.time()
         result = LogicFlawResult(target=url)
@@ -235,7 +233,6 @@ class LogicFlawEngine:
         result: LogicFlawResult,
     ) -> None:
         """Test for price manipulation vulnerabilities."""
-        import requests
 
         # Find price-related parameters
         price_params = [
@@ -259,7 +256,7 @@ class LogicFlawEngine:
                             flaw_type="price_manipulation",
                             endpoint=url,
                             description=f"Negative price accepted for parameter '{param}'",
-                            evidence=f"Sent price=-100, got 200 OK",
+                            evidence="Sent price=-100, got 200 OK",
                             severity="High",
                             confidence=0.7,
                             remediation="Validate that price cannot be negative",
@@ -279,7 +276,7 @@ class LogicFlawEngine:
                             flaw_type="price_manipulation",
                             endpoint=url,
                             description=f"Zero price accepted for parameter '{param}'",
-                            evidence=f"Sent price=0, got 200 OK",
+                            evidence="Sent price=0, got 200 OK",
                             severity="Medium",
                             confidence=0.6,
                             remediation="Validate that price cannot be zero",
@@ -297,7 +294,6 @@ class LogicFlawEngine:
         result: LogicFlawResult,
     ) -> None:
         """Test for quantity overflow vulnerabilities."""
-        import requests
 
         # Find quantity-related parameters
         qty_params = [
@@ -319,7 +315,7 @@ class LogicFlawEngine:
                             flaw_type="quantity_overflow",
                             endpoint=url,
                             description=f"Large quantity accepted for parameter '{param}'",
-                            evidence=f"Sent quantity=999999999, got 200 OK",
+                            evidence="Sent quantity=999999999, got 200 OK",
                             severity="Medium",
                             confidence=0.5,
                             remediation="Validate quantity against stock limits",
@@ -337,7 +333,6 @@ class LogicFlawEngine:
         result: LogicFlawResult,
     ) -> None:
         """Test for negative value acceptance."""
-        import requests
 
         # Test negative values for numeric parameters
         for param, value in params.items():
@@ -372,7 +367,6 @@ class LogicFlawEngine:
         result: LogicFlawResult,
     ) -> None:
         """Test for parameter tampering vulnerabilities."""
-        import requests
 
         # Test adding admin/role parameters
         test_params = dict(params)

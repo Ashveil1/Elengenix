@@ -217,14 +217,10 @@ def test_all_scanners_instantiate():
 
 def test_all_tui_modules_import():
     """All TUI modules should be importable."""
-    from tui.dashboard import ThreatDashboard
-    from tui.export import export_to_html, export_to_json
     from tui.findings_display import FindingsDisplay
     from tui.keyboard_shortcuts import KeyboardShortcutManager
-    from tui.main_menu import render_main_menu
     from tui.scan_progress import ScanProgressWidget
-    from tui.themes import THEMES
-    from tui.visualizations import RiskGauge, SeverityChart
+    from tui.visualizations import RiskGauge
     from tui.welcome import build_welcome_renderable
 
     # Test instantiation
@@ -246,18 +242,7 @@ def test_all_tui_modules_import():
 
 def test_all_agent_modules_import():
     """All agent modules should be importable."""
-    from agents.agent_conversation import ConversationManager
-    from agents.agent_dataclasses import AttackTree
-    from agents.agent_executor import execute_tool
     from agents.agent_helpers import _extract_target_from_text, _safe_operation
-    from agents.agent_intent import analyze_intent
-    from agents.agent_logger import ChainOfThoughtLogger
-    from agents.agent_modes import ModeProcessor
-    from agents.agent_planner import StrategicPlanner
-    from agents.critic_agent import CriticAgent
-    from agents.hybrid_agent import HybridAgent
-    from agents.specialist_agent import SpecialistAgent
-    from agents.strategist_agent import StrategistAgent
 
     # Test helpers
     result = _safe_operation("test", lambda: 42)

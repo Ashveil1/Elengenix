@@ -27,7 +27,7 @@ import re
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Tuple
 
 logger = logging.getLogger("elengenix.supply_chain_analyzer")
 

@@ -30,13 +30,11 @@ from __future__ import annotations
 
 import json
 import logging
-import math
 import sqlite3
 import time
-from collections import defaultdict
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger("elengenix.learning_engine")
 
@@ -202,7 +200,7 @@ class LearningEngine:
         # SQL-based recall
         cur = self._conn.cursor()
         placeholders = ",".join("?" * len(tech_stack))
-        query = f"""
+        query = """
             SELECT *, (
                 SELECT COUNT(*) FROM exploits e2
                 WHERE e2.tool = exploits.tool
@@ -306,7 +304,7 @@ class LearningEngine:
         where = " AND ".join(conditions) if conditions else "1=1"
 
         rows = cur.execute(
-            f"""
+            """
             SELECT tool,
                    SUM(success) * 1.0 / COUNT(*) as success_rate,
                    COUNT(*) as sample_size

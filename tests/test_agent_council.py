@@ -1,14 +1,12 @@
 """tests/test_agent_council.py — Unit tests for TeamAegis v2 AgentCouncil."""
 
 import json
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
-import pytest
 
 from agents.agent_council import AgentCouncil, CouncilMessage, MessageType, SharedInbox
 from agents.critic_agent import CriticAgent
-from agents.critic_agent import _extract_json as critic_extract_json
-from agents.specialist_agent import SpecialistAgent, _heuristic_findings
+from agents.specialist_agent import _heuristic_findings
 from agents.strategist_agent import StrategistAgent, _extract_json
 from agents.worker_base import BaseWorker, WorkerResult
 

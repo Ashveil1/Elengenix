@@ -108,7 +108,7 @@ class AutoDetector:
                 pass
 
         # Cloud/Terraform files
-        if ext in [".tf", ".tfvars", ".yml", ".yaml"]:
+        if ext in [".t", ".tfvars", ".yml", ".yaml"]:
             return {
                 "action": "ai",
                 "module": "ai",
@@ -296,7 +296,7 @@ class CommandSimplifier:
         "help": "menu",  # Show menu
         # File-based shortcuts
         "report": "report",  # Generate report
-        "pdf": "report",  # PDF report
+        "pd": "report",  # PDF report
         # Special modes
         "red": "evasion",  # Red team
         "team": "evasion",  # Red team

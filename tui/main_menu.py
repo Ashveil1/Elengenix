@@ -16,14 +16,10 @@ from __future__ import annotations
 import logging
 import os
 from pathlib import Path
-from typing import Any, Dict, List, Optional
 
-from rich.align import Align
-from rich.box import HEAVY, ROUNDED, SIMPLE
-from rich.console import Group
+from rich.box import ROUNDED, SIMPLE
 from rich.panel import Panel
 from rich.table import Table
-from rich.text import Text
 
 logger = logging.getLogger("elengenix.tui.main_menu")
 

@@ -210,7 +210,7 @@ def test_tool_registry_singleton():
 
 def test_tool_registry_register():
     """ToolRegistry should register tools."""
-    from tools.tool_registry import ToolCategory, registry
+    from tools.tool_registry import registry
 
     tools = registry.list_available_tools()
     assert len(tools) > 0

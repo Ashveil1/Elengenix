@@ -29,7 +29,6 @@ import time
 import uuid
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
-from typing import Any, Dict, List
 
 import pytest
 
@@ -360,7 +359,7 @@ def test_price_detector_currency_confusion() -> None:
     titles = [f.title for f in findings]
     assert any("JPY" in t for t in titles), titles
     assert any(f.severity.value == "critical" for f in findings)
-    print(f"[OK] price: currency confusion JPY raised")
+    print("[OK] price: currency confusion JPY raised")
 
 
 def test_price_detector_discount_stacking() -> None:
@@ -377,7 +376,7 @@ def test_price_detector_discount_stacking() -> None:
     findings = asyncio.run(engine.detectors[0].detect("api.com", endpoints))
     titles = [f.title for f in findings]
     assert any("stacking" in t.lower() or "reuse" in t.lower() for t in titles), titles
-    print(f"[OK] price: discount-stacking raised")
+    print("[OK] price: discount-stacking raised")
 
 
 def test_price_detector_skips_non_price_endpoints() -> None:
@@ -390,7 +389,7 @@ def test_price_detector_skips_non_price_endpoints() -> None:
     findings = asyncio.run(engine.detectors[0].detect("api.com", endpoints))
     # No price-related output expected
     assert all("Negative" not in f.title and "Quantity" not in f.title for f in findings)
-    print(f"[OK] price: no false positive on heartbeat")
+    print("[OK] price: no false positive on heartbeat")
 
 
 def test_price_detector_integer_overflow_payloads() -> None:
@@ -409,7 +408,7 @@ def test_price_detector_integer_overflow_payloads() -> None:
         ev_data = f.evidence[0].data
         assert "payloads" in ev_data
         assert any(p > 10**9 for p in ev_data["payloads"])
-    print(f"[OK] price: overflow evidence payloads present")
+    print("[OK] price: overflow evidence payloads present")
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -507,7 +506,7 @@ def test_state_machine_deep_linkable_step() -> None:
     findings = asyncio.run(det.detect("api.com", endpoints))
     deep = [f for f in findings if "Deep-linkable" in f.title]
     assert deep, f"expected deep-link finding, got: {[f.title for f in findings]}"
-    print(f"[OK] state: deep-link finding for step 3")
+    print("[OK] state: deep-link finding for step 3")
 
 
 def test_state_machine_admin_path() -> None:
@@ -520,7 +519,7 @@ def test_state_machine_admin_path() -> None:
     det = engine.detectors[2]
     findings = asyncio.run(det.detect("api.com", endpoints))
     assert any("admin" in f.tags for f in findings)
-    print(f"[OK] state: admin-path flagged")
+    print("[OK] state: admin-path flagged")
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -542,7 +541,7 @@ def test_auth_reset_token_flagged() -> None:
     det = engine.detectors[3]
     findings = asyncio.run(det.detect("api.com", endpoints))
     assert any(any("reset" in t for t in f.tags) for f in findings)
-    print(f"[OK] auth: reset-token entropy raised")
+    print("[OK] auth: reset-token entropy raised")
 
 
 def test_auth_2fa_bypass_flagged() -> None:
@@ -555,7 +554,7 @@ def test_auth_2fa_bypass_flagged() -> None:
     det = engine.detectors[3]
     findings = asyncio.run(det.detect("api.com", endpoints))
     assert any(any("2fa" in t for t in f.tags) for f in findings)
-    print(f"[OK] auth: 2FA bypass raised")
+    print("[OK] auth: 2FA bypass raised")
 
 
 def test_auth_session_fixation_flagged() -> None:
@@ -572,7 +571,7 @@ def test_auth_session_fixation_flagged() -> None:
     det = engine.detectors[3]
     findings = asyncio.run(det.detect("api.com", endpoints))
     assert any("session_fixation" in f.tags for f in findings)
-    print(f"[OK] auth: session fixation raised")
+    print("[OK] auth: session fixation raised")
 
 
 def test_auth_oauth_external_redirect_flagged() -> None:
@@ -662,7 +661,7 @@ def test_authorization_uuid_v1_flagged() -> None:
     ev = findings[0].evidence[0].data
     assert ev.get("uuid") == u1
     assert ev.get("extracted_timestamp_ms") is not None
-    print(f"[OK] authz: UUID v1 leak flagged")
+    print("[OK] authz: UUID v1 leak flagged")
 
 
 def test_authorization_role_param_flagged() -> None:
@@ -855,7 +854,6 @@ def test_inference_engine_novelty_unique() -> None:
         InferenceEngine,
         LogicFinding,
         LogicFlawConfig,
-        Severity,
     )
 
     ie = InferenceEngine(LogicFlawConfig())
@@ -875,7 +873,6 @@ def test_inference_engine_impact_higher_for_critical_cats() -> None:
         InferenceEngine,
         LogicFinding,
         LogicFlawConfig,
-        Severity,
     )
 
     ie = InferenceEngine(LogicFlawConfig())
@@ -897,7 +894,6 @@ def test_inference_engine_impact_higher_for_critical_cats() -> None:
 def test_inference_engine_reproducibility_static_vs_dynamic() -> None:
     from tools.logic_flaw_engine import (
         DetectorCategory,
-        Evidence,
         InferenceEngine,
         LogicFinding,
         LogicFlawConfig,

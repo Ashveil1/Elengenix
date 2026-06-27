@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Tuple
 
 # ═══════════════════════════════════════════════════════════════════════════
 # 1. DESIGN TOKENS — Colors, Spacing, Typography
@@ -386,9 +386,7 @@ def color_lerp(c1: str, c2: str, t: float) -> str:
         return tuple(int(h[i : i + 2], 16) for i in (0, 2, 4))
 
     def rgb_to_hex(r: int, g: int, b: int) -> str:
-        return (
-            f"#{max(0,min(255,int(r))):02x}{max(0,min(255,int(g))):02x}{max(0,min(255,int(b))):02x}"
-        )
+        return f"#{max(0, min(255, int(r))):02x}{max(0, min(255, int(g))):02x}{max(0, min(255, int(b))):02x}"
 
     r1, g1, b1 = hex_to_rgb(c1)
     r2, g2, b2 = hex_to_rgb(c2)

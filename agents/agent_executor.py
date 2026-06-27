@@ -9,8 +9,6 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import os
-import shlex
 import subprocess
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional
@@ -297,7 +295,7 @@ def _prompt_approval(
     """
     from rich.panel import Panel
 
-    from ui_components import confirm, console
+    from ui_components import console
 
     label_color = "yellow" if risk_level == "PRIVILEGED" else "red"
 
@@ -369,7 +367,6 @@ def execute_write_script(
     Returns:
         Script execution output or error message.
     """
-    import tempfile
     from pathlib import Path as _Path
 
     filename = action_data.get("filename", "agent_script.py").strip()
@@ -555,7 +552,7 @@ def handle_ask_user(
             from prompt_toolkit import prompt as pt_prompt
 
             try:
-                user_text = pt_prompt(f"  > ")
+                user_text = pt_prompt("  > ")
             except (EOFError, KeyboardInterrupt):
                 return "User cancelled input."
             return user_text.strip() if user_text else "No input provided."

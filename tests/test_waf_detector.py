@@ -275,7 +275,7 @@ def test_waf_signatures_compile():
 
 def test_probe_payloads_target_benign():
     """The 'benign_obvious' payload (AAAA) should never be blocked."""
-    from tools.waf_detector import WAF_PROBE_PAYLOADS, SmartWAFDetector
+    from tools.waf_detector import WAF_PROBE_PAYLOADS
 
     benign = [p for p in WAF_PROBE_PAYLOADS if p[0] == "benign_obvious"]
     assert len(benign) == 1

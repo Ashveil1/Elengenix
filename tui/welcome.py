@@ -14,28 +14,22 @@ from __future__ import annotations
 
 import logging
 import os
-import time
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Any, Dict, List, Optional
 
 from rich.align import Align
 from rich.box import HEAVY, ROUNDED, SIMPLE
-from rich.console import Console, Group, RenderResult
-from rich.layout import Layout
-from rich.padding import Padding
+from rich.console import Group, RenderResult
 from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
-from textual.containers import Container, Horizontal, Vertical
+from textual.containers import Container, Horizontal
 from textual.reactive import reactive
-from textual.widget import Widget
 from textual.widgets import Static
 
-from ui_components import console as shared_console
 
-from .themes import THEMES, ThemeManager, get_manager, get_theme
-from .visualizations import SeverityChart
+from .themes import get_theme
 
 logger = logging.getLogger("elengenix.tui.welcome")
 

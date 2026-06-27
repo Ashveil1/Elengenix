@@ -5,9 +5,7 @@ Monochrome theme — Black & White minimalist hacker aesthetic.
 from __future__ import annotations
 
 import logging
-import math
 import os
-import random
 import sys
 import time
 import warnings
@@ -22,7 +20,6 @@ from textual import work
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Container, Horizontal, Vertical
-from textual.geometry import Spacing
 from textual.theme import Theme
 from textual.widget import Widget
 from textual.widgets import Input, RichLog, Static
@@ -123,7 +120,7 @@ HELP_TEXT = """\
 class Sidebar(Container):
     """Right-hand panel — golden-ratio width, monochrome minimal."""
 
-    DEFAULT_CSS = f"""
+    DEFAULT_CSS = """
     Sidebar {{
         width: 38; height: 1fr;
         background: {MANTLE};
@@ -162,23 +159,23 @@ class Sidebar(Container):
         if game_active:
             sidebar_text = (
                 f"[white]┌ {game_frame}[/]\n"
-                f"[dim]─" + "─" * 28 + "[/]\n"
-                f"[white]SHORTCUTS[/]\n"
-                f"  [dim]SPACE[/] Jump / Restart\n"
-                f"  [dim]Q / Esc[/] Quit Game\n"
-                f"[dim]─" + "─" * 28 + "[/]\n"
-                f"[white]DETAILS[/]\n"
+                "[dim]─" + "─" * 28 + "[/]\n"
+                "[white]SHORTCUTS[/]\n"
+                "  [dim]SPACE[/] Jump / Restart\n"
+                "  [dim]Q / Esc[/] Quit Game\n"
+                "[dim]─" + "─" * 28 + "[/]\n"
+                "[white]DETAILS[/]\n"
                 f"  Turns: [white]{turns}[/]  [dim]Tools:[/] {tools_run}\n"
                 f"  [dim]Findings:[/] {findings}\n"
                 f"  Target: [white]{target[:18] or 'none'}[/]\n"
             )
         else:
-            dot = f"[white]●[/]" if status == "ready" else f"[dim]●[/]"
+            dot = "[white]●[/]" if status == "ready" else "[dim]●[/]"
             slabel = "[white]READY[/]" if status == "ready" else "[dim]WORKING[/]"
             if os.environ.get("TEAM_STAGGERING") == "1":
                 slabel = "[white]STAGGER[/]"
             mode_icon = "[white]❄ CHILL[/]" if mode == "CHILL" else "[white]⚔ HUNT[/]"
-            think_tag = f"  [dim]THINK[/]" if thinking else ""
+            think_tag = "  [dim]THINK[/]" if thinking else ""
             team_tag = f"  [dim]TEAM {team}[/]" if team > 1 else ""
             talk_tag = ""
             if talk_to != "all" and team > 0:
@@ -190,7 +187,7 @@ class Sidebar(Container):
             filled = int((pct / 100) * bar_w)
             bar = f"[white]{'█' * filled}[/][dim]{'█' * (bar_w - filled)}[/]"
 
-            target_line = f"\n  [white]{target[:28]}[/]" if target else f"\n  [dim]none[/]"
+            target_line = f"\n  [white]{target[:28]}[/]" if target else "\n  [dim]none[/]"
 
             model_lines = []
             if models:
@@ -200,31 +197,31 @@ class Sidebar(Container):
                     color = AGENT_COLORS.get(i + 1, TEXT)
                     model_lines.append(f"  [{color}]{name}[/] [dim]{short[:20]}[/]")
             else:
-                model_lines.append(f"  [dim]default[/]")
+                model_lines.append("  [dim]default[/]")
 
             sidebar_text = (
-                f"[white]┌ ELENGENIX[/]\n"
+                "[white]┌ ELENGENIX[/]\n"
                 f"  {dot} {mode_icon}  {slabel}{think_tag}{team_tag}{talk_tag}\n"
-                f"[dim]─" + "─" * 28 + "[/]\n"
+                "[dim]─" + "─" * 28 + "[/]\n"
                 f"[white]TARGET[/]{target_line}\n"
-                f"[dim]─" + "─" * 28 + "[/]\n"
-                f"[white]SESSION[/]\n"
+                "[dim]─" + "─" * 28 + "[/]\n"
+                "[white]SESSION[/]\n"
                 f"  [dim]{session[:20]}[/]\n"
                 f"  Mode: [white]{mode}[/] [dim]Turns: {turns}[/]\n"
-                f"[dim]─" + "─" * 28 + "[/]\n"
-                f"[white]SCAN[/]\n"
+                "[dim]─" + "─" * 28 + "[/]\n"
+                "[white]SCAN[/]\n"
                 f"  [dim]Tools:[/] {tools_run}  [dim]Findings:[/] {findings}\n"
-                f"[dim]─" + "─" * 28 + "[/]\n"
-                f"[white]MODELS[/]\n" + "\n".join(model_lines) + "\n"
-                f"[dim]─" + "─" * 28 + "[/]\n"
-                f"[white]CONTEXT[/]\n"
+                "[dim]─" + "─" * 28 + "[/]\n"
+                "[white]MODELS[/]\n" + "\n".join(model_lines) + "\n"
+                "[dim]─" + "─" * 28 + "[/]\n"
+                "[white]CONTEXT[/]\n"
                 f"  {bar}\n"
                 f"  [dim]{tokens}[/dim]/[dim]{limit}[/]  {pct}%\n"
-                f"[dim]─" + "─" * 28 + "[/]\n"
-                f"[white]SHORTCUTS[/]\n"
-                f"  [dim]Ctrl+R[/] Research [dim]Ctrl+M[/] CHILL/HUNT\n"
-                f"  [dim]Ctrl+T[/] Think   [dim]Ctrl+P[/] Model\n"
-                f"  [dim]Ctrl+G[/] Help    [dim]Ctrl+,[/] Settings\n"
+                "[dim]─" + "─" * 28 + "[/]\n"
+                "[white]SHORTCUTS[/]\n"
+                "  [dim]Ctrl+R[/] Research [dim]Ctrl+M[/] CHILL/HUNT\n"
+                "  [dim]Ctrl+T[/] Think   [dim]Ctrl+P[/] Model\n"
+                "  [dim]Ctrl+G[/] Help    [dim]Ctrl+,[/] Settings\n"
             )
         try:
             self.query_one("#sidebar_content", Static).update(sidebar_text)
@@ -236,7 +233,7 @@ class Sidebar(Container):
 class ThinkingWidget(Static):
     """Animated thinking indicator — driven by 30fps master tick (no own timer)."""
 
-    DEFAULT_CSS = f"""ThinkingWidget {{ height: 1; padding: 0 1 0 5; color: {WHITE}; display: none; }}
+    DEFAULT_CSS = """ThinkingWidget {{ height: 1; padding: 0 1 0 5; color: {WHITE}; display: none; }}
     ThinkingWidget.visible {{ display: block; }}"""
 
     def on_mount(self) -> None:
@@ -279,13 +276,13 @@ def _lerp_color(c1: str, c2: str, t: float) -> str:
     t = max(0.0, min(1.0, t))
     r1, g1, b1 = int(c1[1:3], 16), int(c1[3:5], 16), int(c1[5:7], 16)
     r2, g2, b2 = int(c2[1:3], 16), int(c2[3:5], 16), int(c2[5:7], 16)
-    return f"#{int(_lerp(r1,r2,t)):02x}{int(_lerp(g1,g2,t)):02x}{int(_lerp(b2,b1,t)):02x}"
+    return f"#{int(_lerp(r1, r2, t)):02x}{int(_lerp(g1, g2, t)):02x}{int(_lerp(b2, b1, t)):02x}"
 
 
 # ── Status & Progress Bars ─────────────────────────────────────────────
 class StatusBar(Static):
     DEFAULT_CSS = (
-        f"""StatusBar {{ height: 1; padding: 0 1; background: {CRUST}; color: {MUTED}; }}"""
+        """StatusBar {{ height: 1; padding: 0 1; background: {CRUST}; color: {MUTED}; }}"""
     )
 
     def show_action(self, cmd: str, risk: str = "SAFE") -> None:
@@ -302,7 +299,7 @@ class StatusBar(Static):
 
 class ProgressBar(Static):
     DEFAULT_CSS = (
-        f"""ProgressBar {{ height: 1; padding: 0 1; background: {MANTLE}; display: none; }}"""
+        """ProgressBar {{ height: 1; padding: 0 1; background: {MANTLE}; display: none; }}"""
     )
 
     def show_scan(self, tool: str, cur: int, total: int, findings: int) -> None:
@@ -325,11 +322,13 @@ CUSTOM_URL_INPUT_CSS = """
 
 
 class SettingsOverlayWidget(Widget, can_focus=True):
-    DEFAULT_CSS = f"""
+    DEFAULT_CSS = """
     SettingsOverlayWidget {{ layer: overlay; align: center middle; width: 100%; height: 100%; display: none; }}
     SettingsOverlayWidget.visible {{ display: block; }}
-    #settings_panel {{ width: 72; height: auto; max-height: 80%; min-height: 20; background: {BASE}; border: solid {DIM}; padding: 0; }}
-    #settings_header {{ width: 1fr; height: 1; content-align: center middle; background: {BASE}; color: {WHITE}; text-style: bold; border-bottom: solid {DIM}; }}
+    #settings_panel {{ width: 72; height: auto; max-height: 80%; min-height: 20;
+        background: {BASE}; border: solid {DIM}; padding: 0; }}
+    #settings_header {{ width: 1fr; height: 1; content-align: center middle;
+        background: {BASE}; color: {WHITE}; text-style: bold; border-bottom: solid {DIM}; }}
     #settings_content {{ width: 1fr; height: auto; background: transparent; padding: 1 2; }}
     #settings_footer {{ width: 1fr; height: 1; content-align: center middle; color: {MUTED}; background: {CRUST}; }}
     {CUSTOM_URL_INPUT_CSS}
@@ -488,11 +487,13 @@ class SettingsOverlayWidget(Widget, can_focus=True):
 class HelpOverlayWidget(Widget, can_focus=True):
     """Modal overlay for displaying help — Esc to close."""
 
-    DEFAULT_CSS = f"""
+    DEFAULT_CSS = """
     HelpOverlayWidget {{ layer: overlay; align: center middle; width: 100%; height: 100%; display: none; }}
     HelpOverlayWidget.visible {{ display: block; }}
-    #help_panel {{ width: 68; height: auto; max-height: 80%; min-height: 14; background: {BASE}; border: solid {DIM}; padding: 0; overflow-y: auto; }}
-    #help_header {{ width: 1fr; height: 1; content-align: center middle; background: {BASE}; color: {WHITE}; text-style: bold; border-bottom: solid {DIM}; }}
+    #help_panel {{ width: 68; height: auto; max-height: 80%; min-height: 14;
+        background: {BASE}; border: solid {DIM}; padding: 0; overflow-y: auto; }}
+    #help_header {{ width: 1fr; height: 1; content-align: center middle;
+        background: {BASE}; color: {WHITE}; text-style: bold; border-bottom: solid {DIM}; }}
     #help_body {{ width: 1fr; height: auto; background: transparent; padding: 1 2; }}
     #help_footer {{ width: 1fr; height: 1; content-align: center middle; color: {MUTED}; background: {CRUST}; }}
     """
@@ -539,21 +540,28 @@ class ElengenixTextualApp(App):
     CSS = """
 Screen { background: $surface; layers: base overlay; transition: border 500ms; border: solid transparent; }
 Screen.glow { border: heavy $accent; }
-RichLog, Sidebar { scrollbar_color: rgba(128, 128, 128, 0.15); scrollbar_color_hover: $accent; scrollbar_color_active: $primary; }
+RichLog, Sidebar { scrollbar_color: rgba(128, 128, 128, 0.15);
+    scrollbar_color_hover: $accent; scrollbar_color_active: $primary; }
 RichLog:hover, Sidebar:hover { scrollbar_color: $secondary; }
-Sidebar { width: 38; height: 1fr; background: $surface; border-left: solid $secondary; margin: 0; padding: 1 1; overflow-y: auto; }
+Sidebar { width: 38; height: 1fr; background: $surface;
+    border-left: solid $secondary; margin: 0; padding: 1 1; overflow-y: auto; }
 ThinkingWidget { height: 1; padding: 0 1 0 5; color: $primary; display: none; }
 ThinkingWidget.visible { display: block; }
 StatusBar { height: 1; padding: 0 1; background: $panel; color: $secondary; }
 ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
-#header { height: 1; background: $background; color: $text; content-align: center middle; border-bottom: solid $secondary; padding: 0 5; }
+#header { height: 1; background: $background; color: $text;
+    content-align: center middle; border-bottom: solid $secondary; padding: 0 5; }
 #main_row { height: 1fr; layer: base; }
 #chat_col { width: 1fr; height: 1fr; background: $background; }
 #chat_area { height: 1fr; background: $background; padding: 1 3 1 3; overflow-y: auto; }
-#input_row { height: auto; margin: 0 3 1 3; background: $background; border-top: solid $secondary; border-bottom: solid $secondary; border-left: thick $primary; }
+#input_row { height: auto; margin: 0 3 1 3; background: $background;
+    border-top: solid $secondary; border-bottom: solid $secondary;
+    border-left: thick $primary; }
 #user_input { height: 3; border: none; background: $surface; color: $text; padding: 0 3 0 3; }
 #user_input:focus { border: none; }
-#suggest_box { height: auto; max-height: 6; background: $surface; color: $text; min-height: 0; border: none; margin: 0 3 0 3; padding: 0 3; overflow-y: auto; display: none; }
+#suggest_box { height: auto; max-height: 6; background: $surface; color: $text;
+    min-height: 0; border: none; margin: 0 3 0 3; padding: 0 3;
+    overflow-y: auto; display: none; }
 #banner { height: auto; display: block; padding: 2 3 0 3; }
 """
 
@@ -802,7 +810,11 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
                 filled = int(self._smooth_progress * w)
                 bar = f"[white]{'█' * filled}[/][dim]{'█' * (w - filled)}[/]"
                 pb.update(
-                    f"  {bar}  {self._progress_tool}  [dim]({self._progress_cur}/{self._progress_total})[/]  {self._progress_findings} findings"
+                    (
+                        f"  {bar}  {self._progress_tool}  "
+                        f"[dim]({self._progress_cur}/{self._progress_total})[/]  "
+                        f"{self._progress_findings} findings"
+                    )
                 )
             except Exception:
                 pass
@@ -1124,7 +1136,12 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
                     if risk == "DESTRUCTIVE":
                         self.call_from_thread(
                             self._chat_write_system,
-                            f"\n[bold #ff2222]🛡️ [GOVERNANCE] Action blocked: '{cmd}' violates safety/integrity rules.[/bold #ff2222]\n",
+                            (
+                                f"\n[bold #ff2222]shield [GOVERNANCE] "
+                                f"Action blocked: '{cmd}' "
+                                f"violates safety/integrity rules."
+                                f"[/bold #ff2222]\n"
+                            ),
                         )
 
                     if self.mode == "HUNT" and risk == "SAFE":
@@ -1490,7 +1507,7 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
 
                 vs = get_vector_memory().get_memory_stats()
                 self._chat_write_system(
-                    f"Memory: {vs.get('total_memories',0)} entries, {vs.get('unique_targets',0)} targets"
+                    f"Memory: {vs.get('total_memories', 0)} entries, {vs.get('unique_targets', 0)} targets"
                 )
             except Exception as e:
                 self._chat_write_system(f"Stats: {e}")

@@ -346,7 +346,7 @@ class AnalysisPipeline:
                             description=f"Payload bypassed {waf_type} WAF using {', '.join(best.techniques)}",
                             confidence=best.confidence,
                             status="open",
-                            tags=["waf", "bypass", "xss", waf_type],
+                            tags=["wa", "bypass", "xss", waf_type],
                             evidence={
                                 "url": furl,
                                 "waf": waf_type,
@@ -484,7 +484,7 @@ class AnalysisPipeline:
                         description=sf.get("description", ""),
                         confidence=sf.get("confidence", 0.5),
                         status="open",
-                        tags=["ssrf", sf.get("severity", "high")],
+                        tags=["ssr", sf.get("severity", "high")],
                         evidence=sf,
                     )
                 break

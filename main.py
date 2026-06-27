@@ -8,7 +8,6 @@ main.py — Elengenix Professional CLI Entry Point
 """
 
 import argparse
-import asyncio
 import importlib.util
 import json
 import logging
@@ -17,7 +16,6 @@ import re
 import subprocess
 import sys
 import time
-from datetime import datetime, timezone
 from pathlib import Path
 
 # --- Load .env file (API keys, model preferences, etc.) ---
@@ -528,7 +526,7 @@ def main():
             if detection["confidence"] > 0.7:
                 module_name = {
                     "bola": "BOLA/IDOR Tester",
-                    "waf": "WAF/XSS Scanner",
+                    "wa": "WAF/XSS Scanner",
                     "recon": "Reconnaissance",
                     "predict": "Bounty Predictor",
                     "mobile": "Mobile API Tester",
@@ -541,7 +539,7 @@ def main():
                 }.get(detection["action"], detection["action"])
 
                 console.print(f"[bold white]Selected module:[/bold white] {module_name}")
-                console.print(f"[dim]   (Use --manual to override)[/dim]\n")
+                console.print("[dim]   (Use --manual to override)[/dim]\n")
 
                 detected_action = detection.get("action", "ai")
                 detected_module = detection.get("module", "ai")
@@ -658,7 +656,7 @@ def main():
                     )
 
                     if result.available_pocs:
-                        console.print(f"\n[bold]Available PoCs:[/bold]")
+                        console.print("\n[bold]Available PoCs:[/bold]")
                         for poc in result.available_pocs[:5]:
                             console.print(
                                 f"  • {poc.get('source', 'Unknown')}: {poc.get('url', 'N/A')[:60]}"
@@ -676,11 +674,11 @@ def main():
                 console.print(f"\n[bold]Impact:[/bold] {guide.get('impact', 'Unknown')}")
                 console.print(f"[bold]CVSS Base:[/bold] {guide.get('cvss_base', 'N/A')}")
 
-                console.print(f"\n[bold]Common Vectors:[/bold]")
+                console.print("\n[bold]Common Vectors:[/bold]")
                 for vector in guide.get("common_vectors", []):
                     console.print(f"  • {vector}")
 
-                console.print(f"\n[bold]Detection Methods:[/bold]")
+                console.print("\n[bold]Detection Methods:[/bold]")
                 for method in guide.get("detection_methods", []):
                     console.print(f"  • {method}")
 
@@ -695,7 +693,7 @@ def main():
                 )
 
                 if poc:
-                    console.print(f"\n[bold]Generated PoC Template:[/bold]")
+                    console.print("\n[bold]Generated PoC Template:[/bold]")
                     console.print(
                         f"[dim]Language: {poc.language}, Framework: {poc.target_framework}[/dim]"
                     )
@@ -762,7 +760,7 @@ def main():
             if not require_authorized_scan_target(args.target):
                 return
 
-            console.print(f"[bold]Elengenix Autonomous Mode[/bold]")
+            console.print("[bold]Elengenix Autonomous Mode[/bold]")
             console.print(f"Target: [red]{args.target}[/red]")
             console.print(f"Governance: [grey70]{mode}[/grey70]")
             console.print("")
@@ -831,7 +829,7 @@ def main():
             try:
                 response = agent.process_hybrid(
                     f"Perform comprehensive security assessment on {target}. "
-                    f"Use all available tools and techniques to find vulnerabilities.",
+                    "Use all available tools and techniques to find vulnerabilities.",
                     target=target,
                     callback=_hunt_callback,
                     mode="bug_bounty",
@@ -1046,7 +1044,9 @@ def main():
                 # Print summary
                 console.print(f"[bold white]  Score:[/bold white] {assessment['compliance_pct']}%")
                 console.print(
-                    f"  [green]Passed:[/green] {assessment['passed']}  [red]Failed:[/red] {assessment['failed']}  [dim]Not tested:[/dim] {assessment['not_tested']}"
+                    f"  [green]Passed:[/green] {assessment['passed']}  "
+                    f"[red]Failed:[/red] {assessment['failed']}  "
+                    f"[dim]Not tested:[/dim] {assessment['not_tested']}"
                 )
             except Exception as e:
                 print_error(f"Compliance error: {e}")
@@ -1295,13 +1295,13 @@ def main():
                 sev = f.get("severity", "unknown")
                 url = f.get("url", "")
                 console.print(
-                    f"\n[bold red]{i}. {f.get('type','finding').upper()}[/bold red] [dim]({sev}, conf={conf})[/dim]"
+                    f"\n[bold red]{i}. {f.get('type', 'finding').upper()}[/bold red] [dim]({sev}, conf={conf})[/dim]"
                 )
                 console.print(f"[white]{url}[/white]")
                 ev = f.get("evidence", {})
                 if isinstance(ev, dict):
-                    console.print(f"[dim]A: {ev.get('account_a',{})}[/dim]")
-                    console.print(f"[dim]B: {ev.get('account_b',{})}[/dim]")
+                    console.print(f"[dim]A: {ev.get('account_a', {})}[/dim]")
+                    console.print(f"[dim]B: {ev.get('account_b', {})}[/dim]")
 
         elif args.command == "waf":
             from tools.waf_evasion import WAFEvasionEngine
@@ -1372,7 +1372,10 @@ def main():
             for i, r in enumerate(results[:10], 1):
                 status_color = "red" if r.blocked else "bold white"
                 console.print(
-                    f"{i}. [{status_color}]{'BLOCKED' if r.blocked else 'BYPASS'}[/{status_color}] {r.payload[:50]}... (tech: {', '.join(r.techniques)})"
+                    f"{i}. [{status_color}]"
+                    f"{'BLOCKED' if r.blocked else 'BYPASS'}"
+                    f"[/{status_color}] {r.payload[:50]}..."
+                    f" (tech: {', '.join(r.techniques)})"
                 )
 
         elif args.command == "recon":
@@ -1415,7 +1418,9 @@ def main():
 
                 # Summary
                 print_success(
-                    f"Recon complete! Found {result.stats.get('domains', 0)} domains, {result.stats.get('ips', 0)} IPs, {result.stats.get('endpoints', 0)} endpoints"
+                    f"Recon complete! Found {result.stats.get('domains', 0)} domains, "
+                    f"{result.stats.get('ips', 0)} IPs, "
+                    f"{result.stats.get('endpoints', 0)} endpoints"
                 )
 
                 # Priority targets
@@ -1447,7 +1452,7 @@ def main():
                 result = db.update_database(days_back=30)
 
                 if result.get("status") == "success":
-                    print_success(f"CVE database updated successfully!")
+                    print_success("CVE database updated successfully!")
                     console.print(f"  [bold white]Added:[/bold white] {result['added']} new CVEs")
                     console.print(
                         f"  [bold white]Updated:[/bold white] {result['updated']} existing CVEs"
@@ -1739,7 +1744,7 @@ def main():
                         days = top.response_time_hours / 24
                         console.print(f"  Response: ~{days:.1f} days")
                     console.print(f"  Score: {top.score_total:.1f}/100")
-                    console.print(f"\n[red]Start scanning:[/red]")
+                    console.print("\n[red]Start scanning:[/red]")
                     console.print(f"  elengenix deep {top.url}")
                     console.print(f"  elengenix autonomous {top.url} --mode auto")
                 else:
@@ -1826,7 +1831,7 @@ def main():
                 console.print(f"  Duration: {results['duration_seconds']:.0f}s")
 
                 if results["status"] == "paused":
-                    console.print(f"\n[dim]Mission paused. Resume with:[/dim]")
+                    console.print("\n[dim]Mission paused. Resume with:[/dim]")
                     console.print(f"  elengenix resume {results['mission_id']}")
 
             except Exception as e:
@@ -1965,11 +1970,11 @@ def main():
         else:
             # Auto-import command modules so their @command decorators register
             try:
-                import commands.system
+                pass
             except Exception:
                 pass
             try:
-                import commands.worldclass
+                pass
             except Exception:
                 pass
             from commands.registry import CommandRegistry
@@ -2135,7 +2140,7 @@ def _cmd_list_tools():
             ]
         ):
             return "ai"
-        if any(x in n for x in ["waf", "evasion", "dynamic_waf", "edr_"]):
+        if any(x in n for x in ["wa", "evasion", "dynamic_wa", "edr_"]):
             return "waf"
         if any(x in n for x in ["telegram", "bot", "bridge", "gateway"]):
             return "telegram"
@@ -2228,7 +2233,7 @@ def _cmd_list_tools():
         console.print()
     if not all_tools:
         console.print("  [yellow]No tools registered. Run: elengenix doctor[/yellow]")
-    console.print(f"[dim]Full catalog: docs/TOOL_CATALOG.md[/dim]")
+    console.print("[dim]Full catalog: docs/TOOL_CATALOG.md[/dim]")
 
 
 # ── D2: examples — show common usage patterns ──
@@ -2260,7 +2265,7 @@ def _cmd_examples():
         console.print(f"  {desc}")
         console.print(f"    [white]{cmd}[/white]")
         console.print()
-    console.print(f"[dim]Full docs: docs/TOOL_CATALOG.md, README.md[/dim]")
+    console.print("[dim]Full docs: docs/TOOL_CATALOG.md, README.md[/dim]")
 
 
 # ── F1: prefetch — pre-download AI models so first scan is fast ──
@@ -2270,7 +2275,6 @@ def _cmd_prefetch():
 
     Safe to re-run — skips if already cached.
     """
-    import os
     from pathlib import Path
 
     console.print()
@@ -2287,7 +2291,7 @@ def _cmd_prefetch():
             f"  [OK] ChromaDB embedding model: [dim]already cached ({onnx_file.stat().st_size/1024/1024:.1f}MB)[/dim]"
         )
     else:
-        console.print(f"  ChromaDB embedding model (~79MB)...", end="")
+        console.print("  ChromaDB embedding model (~79MB)...", end="")
         try:
             # Trigger chromadb's lazy download
             import chromadb
@@ -2302,12 +2306,12 @@ def _cmd_prefetch():
                 client.delete_collection("prefetch_test")
             except Exception:
                 pass
-            console.print(f"\r  [OK] ChromaDB embedding model: [green]downloaded[/green]")
+            console.print("\r  [OK] ChromaDB embedding model: [green]downloaded[/green]")
         except Exception as e:
             console.print(
                 f"\r  [WARN] ChromaDB embedding: [yellow]{type(e).__name__}: {str(e)[:80]}[/yellow]"
             )
-            console.print(f"         Run scan first; model will download on demand")
+            console.print("         Run scan first; model will download on demand")
 
     # 2. tiktoken (small, ~1MB)
     try:
@@ -2315,7 +2319,7 @@ def _cmd_prefetch():
 
         tiktoken_mod = importlib.import_module("tiktoken")
         tiktoken_mod.get_encoding("cl100k_base")
-        console.print(f"  [OK] tiktoken: [dim]already cached[/dim]")
+        console.print("  [OK] tiktoken: [dim]already cached[/dim]")
     except Exception as e:
         console.print(f"  [WARN] tiktoken: [yellow]{type(e).__name__}[/yellow]")
 
@@ -2353,7 +2357,7 @@ def _cmd_scan_report(args):
     out = getattr(args, "output", None) or f"reports/{p.stem}_report"
 
     console.print()
-    console.print(f"[bold red]Elengenix Report Generator[/bold red]")
+    console.print("[bold red]Elengenix Report Generator[/bold red]")
     console.print(f"  Source: [dim]{p}[/dim]")
     console.print(f"  Format: [cyan]{fmt}[/cyan]")
     console.print()
@@ -2413,7 +2417,9 @@ def _cmd_scan_report(args):
         top_3_findings=sorted(findings, key=lambda x: -x.cvss)[:3],
         risk_score=risk,
         business_impact=(
-            f"Scan identified {len(findings)} findings with max CVSS {risk:.1f}. Risk level: {sev_counts['Critical']} critical, {sev_counts['High']} high."
+            f"Scan identified {len(findings)} findings with max CVSS {risk:.1f}. "
+            f"Risk level: {sev_counts['Critical']} critical, "
+            f"{sev_counts['High']} high."
             if findings
             else "No findings."
         ),
@@ -2503,7 +2509,7 @@ def _cmd_marketplace(args) -> None:
         if not installed:
             console.print("[yellow]No plugins installed[/yellow]")
             console.print(f"[dim]Install dir: {m.install_dir}[/dim]")
-            console.print(f"[dim]Search: python3 main.py marketplace search <query>[/dim]")
+            console.print("[dim]Search: python3 main.py marketplace search <query>[/dim]")
             return
         console.print(f"\n[red]Installed plugins[/red] ({len(installed)})\n")
         for p in installed:
@@ -2528,7 +2534,7 @@ def _cmd_update(args) -> None:
         if release is None:
             console.print(f"[green][OK] Elengenix {u.current_version} is up to date[/green]")
         else:
-            console.print(f"\n[red]New version available![/red]\n")
+            console.print("\n[red]New version available![/red]\n")
             console.print(f"  Current:  [dim]{u.current_version}[/dim]")
             console.print(f"  Latest:   [bold]{release.version}[/bold] ({release.tag})")
             console.print(

@@ -407,9 +407,6 @@ def check_health(interactive: bool = True) -> bool:
 
 
 if __name__ == "__main__":
-    import os
-    import sys
-
     # Ensure the root directory is in sys.path so we can import root modules like ui_components
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     check_health(interactive="--no-interactive" not in sys.argv)

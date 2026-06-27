@@ -50,19 +50,15 @@ import base64
 import collections
 import concurrent.futures
 import hashlib
-import hmac
 import json
 import logging
 import math
 import re
-import socket
-import ssl
 import statistics
-import struct
 import time
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Awaitable, Callable, Dict, Iterable, List, Optional, Sequence, Tuple
+from typing import Any, Awaitable, Dict, Iterable, List, Optional, Sequence, Tuple
 
 try:
     import aiohttp  # type: ignore
@@ -76,9 +72,8 @@ from tools.vuln_engine import (
     VulnClass,
     VulnFinding,
     calculate_cvss,
-    severity_from_cvss,
 )
-from ui_components import console, print_error, print_info, print_success, print_warning
+from ui_components import console
 
 logger = logging.getLogger("elengenix.zero_day_heuristics")
 
@@ -581,18 +576,18 @@ class PrototypePollutionDetector:
 
         # Mass-assignment type confusion: did the response echo an injected
         # privileged field back?
-        for field in ("isadmin", "role", "balance", "verified"):
-            if f'"{field}"' in text or f"'{field}'" in text:
+        for fld in ("isadmin", "role", "balance", "verified"):
+            if f'"{fld}"' in text or f"'{fld}'" in text:
                 if any(s in text for s in ("admin", "999999", "true", "verified")):
                     return Finding(
                         detector=self.name,
-                        title=f"Mass assignment / pollution via __proto__ -> {field}",
+                        title=f"Mass assignment / pollution via __proto__ -> {fld}",
                         severity=SeverityLevel.HIGH,
                         vuln_class=VulnClass.PROTOTYPE_POLLUTION,
                         url=url,
                         method="POST",
                         payload=json.dumps(payload),
-                        evidence=f"Field '{field}' reflects injected value.",
+                        evidence=f"Field '{fld}' reflects injected value.",
                         description=(
                             "Server reflected a sensitive field injected via "
                             "__proto__ pollution. This is a classic "
@@ -739,9 +734,9 @@ class MassAssignmentDetector:
         baseline_len = baseline_resp.get("length", 0)
         baseline_status = baseline_resp.get("status", 0)
 
-        for field, value, expected_echo, severity in MASS_ASSIGN_FIELDS:
+        for fld, value, expected_echo, severity in MASS_ASSIGN_FIELDS:
             poisoned = dict(baseline)
-            poisoned[field] = value
+            poisoned[fld] = value
             resp = await self.http.async_request(
                 method,
                 target,
@@ -764,16 +759,16 @@ class MassAssignmentDetector:
                 findings.append(
                     Finding(
                         detector=self.name,
-                        title=f"Mass assignment: server echoed injected field '{field}'",
+                        title=f"Mass assignment: server echoed injected field '{fld}'",
                         severity=severity,
                         vuln_class=VulnClass.BROKEN_ACCESS,
                         url=target,
                         method=method,
-                        parameter=field,
-                        payload=json.dumps({field: value}),
+                        parameter=fld,
+                        payload=json.dumps({fld: value}),
                         evidence=f"Injected value '{expected_echo}' appears in response.",
                         description=(
-                            f"Server reflected the injected field '{field}' = "
+                            f"Server reflected the injected field '{fld}' = "
                             f"{value!r} back to the client, indicating that the "
                             "endpoint binds arbitrary user input to internal "
                             "domain fields. This is a classic mass-assignment "
@@ -790,23 +785,23 @@ class MassAssignmentDetector:
                         ],
                         confidence=0.85,
                         metadata={
-                            "field": field,
+                            "field": fld,
                             "value": value,
                             "status_changed": status_changed,
                         },
                     )
                 )
-            elif grew_significantly and field in DANGEROUS_FIELDS:
+            elif grew_significantly and fld in DANGEROUS_FIELDS:
                 findings.append(
                     Finding(
                         detector=self.name,
-                        title=f"Mass assignment: response grew after injecting '{field}'",
+                        title=f"Mass assignment: response grew after injecting '{fld}'",
                         severity=SeverityLevel.MEDIUM,
                         vuln_class=VulnClass.BROKEN_ACCESS,
                         url=target,
                         method=method,
-                        parameter=field,
-                        payload=json.dumps({field: value}),
+                        parameter=fld,
+                        payload=json.dumps({fld: value}),
                         evidence=(
                             f"Baseline len={baseline_len}, poisoned len="
                             f"{resp.get('length')}, delta={len_delta}."
@@ -818,7 +813,7 @@ class MassAssignmentDetector:
                         ),
                         remediation="Strip unknown keys before persistence.",
                         confidence=0.5,
-                        metadata={"len_delta": len_delta, "field": field},
+                        metadata={"len_delta": len_delta, "field": fld},
                     )
                 )
         return findings
@@ -1481,10 +1476,10 @@ class RaceConditionDetector:
     def _field_race(bodies: List[str]) -> Optional[str]:
         """Return the first numeric field whose values are non-monotonic."""
         candidates = ("balance", "credits", "amount", "attempts", "retries")
-        for field in candidates:
+        for fld in candidates:
             values: List[float] = []
             for body in bodies:
-                m = re.search(rf'"{field}"\s*:\s*(-?\d+(?:\.\d+)?)', body)
+                m = re.search(rf'"{fld}"\s*:\s*(-?\d+(?:\.\d+)?)', body)
                 if m:
                     try:
                         values.append(float(m.group(1)))
@@ -1495,7 +1490,7 @@ class RaceConditionDetector:
                 # All differences should have the same sign if monotonic.
                 signs = {math.copysign(1.0, d) for d in diffs if d != 0}
                 if len(signs) > 1:
-                    return field
+                    return fld
         return None
 
 
@@ -2186,9 +2181,9 @@ class JWTAlgorithmDetector:
                     evidence=forged,
                     description=(
                         f"Forged JWT with attack pattern '{name}'. This is a "
-                        f"STATIC CANDIDATE — server has NOT been tested. Use "
-                        f"`detect_on_endpoint()` or run live scan to confirm "
-                        f"whether the verifier accepts this token."
+                        "STATIC CANDIDATE — server has NOT been tested. Use "
+                        "`detect_on_endpoint()` or run live scan to confirm "
+                        "whether the verifier accepts this token."
                     ),
                     remediation=(
                         "Reject alg=none. Pin the expected algorithm. Never use "
@@ -2681,7 +2676,7 @@ class FindingGraph:
                     continue
                 for chain in self._cartesian(fids_sorted, chain_len):
                     labels = [self.nodes[c].label.lower() for c in chain if c in self.nodes]
-                    if any(k in l for l in labels for k in priv_keys):
+                    if any(k in lbl for lbl in labels for k in priv_keys):
                         chains.append(
                             {
                                 "chain": chain,
@@ -2880,7 +2875,7 @@ class ZeroDayEngine:
             self.graph.add_finding(f)
 
         console.print(
-            f"[bold #ffffff]ZeroDayEngine[/bold #ffffff] completed: "
+            "[bold #ffffff]ZeroDayEngine[/bold #ffffff] completed: "
             f"[OK] {len(deduped)} unique findings."
         )
         return deduped

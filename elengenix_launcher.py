@@ -389,6 +389,8 @@ class ElengenixApp:
         mission_id = args[0]
         ElengenixUI.print(f"Checking: {mission_id}...", "info")
         try:
+            from tools.smart_scanner import SmartScanner
+
             scanner = SmartScanner.load(mission_id)
             if scanner:
                 status = scanner.get_status()
@@ -408,6 +410,8 @@ class ElengenixApp:
         mission_id = args[0]
         ElengenixUI.print(f"Pausing: {mission_id}...", "info")
         try:
+            from tools.smart_scanner import SmartScanner
+
             scanner = SmartScanner.load(mission_id)
             if scanner:
                 scanner.pause()
@@ -425,6 +429,8 @@ class ElengenixApp:
         mission_id = args[0]
         ElengenixUI.print(f"Resuming: {mission_id}...", "info")
         try:
+            from tools.smart_scanner import SmartScanner
+
             scanner = SmartScanner.load(mission_id)
             if scanner:
                 results = scanner.resume()

@@ -16,13 +16,12 @@ Public API:
 
 from __future__ import annotations
 
-import base64
 import logging
 import re
 import time
 import urllib.parse
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger("elengenix.deserialization_scanner")
 
@@ -148,7 +147,6 @@ class DeserializationScanner:
         Returns:
             DeserScanResult with all test results.
         """
-        import requests
 
         start_time = time.time()
         result = DeserScanResult(target=target_url)

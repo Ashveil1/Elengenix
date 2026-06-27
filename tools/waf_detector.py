@@ -32,10 +32,8 @@ Public API:
 
 from __future__ import annotations
 
-import hashlib
 import logging
 import re
-import time
 import urllib.error
 import urllib.parse
 import urllib.request

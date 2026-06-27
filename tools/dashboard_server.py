@@ -159,7 +159,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
 
     def _generate_dashboard_html(self) -> str:
         """Generate the dashboard HTML."""
-        return f"""<!DOCTYPE html>
+        return """<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -264,7 +264,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
         findings_html = ""
         for f in findings[:100]:  # Limit to 100 for report
             sev_class = f.get("severity", "info")
-            findings_html += f"""
+            findings_html += """
             <div class="finding-item {sev_class}">
                 <h4>[{f.get('severity', 'N/A').upper()}] {f.get('type', 'Unknown')}</h4>
                 <p><strong>Target:</strong> {f.get('target', 'N/A')}</p>
@@ -274,7 +274,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
             </div>
             """
 
-        return f"""<!DOCTYPE html>
+        return """<!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8">

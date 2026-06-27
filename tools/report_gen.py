@@ -6,14 +6,12 @@ Version: 1.0.0
 
 from __future__ import annotations
 
-import html
 import json
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Dict, List, Optional
 from xml.sax.saxutils import escape
 
 logger = logging.getLogger("elengenix.report")
@@ -270,7 +268,7 @@ body {{
 
 def render_finding(f: FindingReport) -> str:
     cwe_str = ", ".join(f.cwe) if f.cwe else "N/A"
-    return f"""
+    return """
     <div class="finding {f.severity.lower()}">
       <div class="finding-header">
         <div>
@@ -406,7 +404,7 @@ def generate_markdown(summary: ExecutiveSummary, findings: List[FindingReport]) 
     lines.append(f"**Risk Level:** **{summary.risk_level}** ({summary.risk_score:.1f}/10)")
     lines.append("")
     lines.append("## Summary")
-    lines.append(f"| Severity | Count |")
+    lines.append("| Severity | Count |")
     lines.append("|----------|-------|")
     lines.append(f"| 🔴 Critical | {summary.critical} |")
     lines.append(f"| 🟠 High | {summary.high} |")

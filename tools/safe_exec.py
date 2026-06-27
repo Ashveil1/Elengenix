@@ -48,13 +48,15 @@ def execute_safely(
           "error":     str,   # non-empty on failure
         }
     """
-    error_result = lambda msg: {
-        "success": False,
-        "stdout": "",
-        "stderr": "",
-        "exit_code": -1,
-        "error": msg,
-    }
+
+    def error_result(msg):
+        return {
+            "success": False,
+            "stdout": "",
+            "stderr": "",
+            "exit_code": -1,
+            "error": msg,
+        }
 
     if not command_str or not command_str.strip():
         return error_result("Empty command.")
@@ -62,11 +64,11 @@ def execute_safely(
     logger.info(f"Executing (shell): {command_str}")
     # Transparent execution markers for CLI
     if "sudo " in command_str or "apt " in command_str or "pip " in command_str:
-        print(f"\n[THOUGHT] Agent is executing a system-level action")
+        print("\n[THOUGHT] Agent is executing a system-level action")
         print(f"[COMMAND] {command_str}")
         if "sudo " in command_str:
             print(
-                f"[RUN]     Privileged action (sudo) requested. Please provide your password if prompted:\n"
+                "[RUN]     Privileged action (sudo) requested. Please provide your password if prompted:\n"
             )
     try:
         result = subprocess.run(
@@ -87,7 +89,7 @@ def execute_safely(
     except subprocess.TimeoutExpired:
         return error_result(f"Command timed out after {timeout}s.")
     except FileNotFoundError:
-        return error_result(f"Shell not found on this system.")
+        return error_result("Shell not found on this system.")
     except Exception as e:
         logger.error(f"Execution error: {e}")
         return error_result(str(e))

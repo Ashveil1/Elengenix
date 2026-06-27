@@ -168,9 +168,9 @@ class BOLAHarness:
         if user_id_a and user_id_b and user_id_a != user_id_b:
             tests.extend(
                 [
-                    (f"/api/users/{user_id_a}", user_id_a, "self", "user_object"),
+                    (f"/api/users/{user_id_a}", user_id_a, "sel", "user_object"),
                     (f"/api/users/{user_id_b}", user_id_b, "cross", "user_object"),
-                    (f"/users/{user_id_a}", user_id_a, "self", "user_object"),
+                    (f"/users/{user_id_a}", user_id_a, "sel", "user_object"),
                     (f"/users/{user_id_b}", user_id_b, "cross", "user_object"),
                 ]
             )
@@ -179,7 +179,7 @@ class BOLAHarness:
         if acct_id_a and acct_id_b and acct_id_a != acct_id_b:
             tests.extend(
                 [
-                    (f"/api/accounts/{acct_id_a}", acct_id_a, "self", "account_object"),
+                    (f"/api/accounts/{acct_id_a}", acct_id_a, "sel", "account_object"),
                     (f"/api/accounts/{acct_id_b}", acct_id_b, "cross", "account_object"),
                 ]
             )

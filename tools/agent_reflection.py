@@ -257,11 +257,11 @@ class AgentReflection:
             # Query: Find negative feedback records
             # Use simple keyword matching since we don't have embeddings here
             words = current_query.lower().split()
-            word_conditions = " OR ".join(f"query LIKE ?" for _ in words)
+            word_conditions = " OR ".join("query LIKE ?" for _ in words)
             params = [f"%{w}%" for w in words]
 
             cursor = conn.execute(
-                f"""
+                """
                 SELECT query, response, feedback, category
                 FROM reflections
                 WHERE sentiment = 'negative'

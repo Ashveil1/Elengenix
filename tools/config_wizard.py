@@ -410,7 +410,7 @@ class ConfigWizard:
 
                 if has_key:
                     if in_team:
-                        status = f"[bold green]ACTIVE (Team)[/bold green]"
+                        status = "[bold green]ACTIVE (Team)[/bold green]"
                         model_display = ", ".join(
                             [f"[{r}] {m}" for r, m in zip(team_roles, team_model_names)]
                         )
@@ -1028,7 +1028,7 @@ class ConfigWizard:
             lines = self.env_file.read_text().splitlines()
 
         # Remove existing line with same key
-        lines = [l for l in lines if not l.startswith(f"{key}=")]
+        lines = [line for line in lines if not line.startswith(f"{key}=")]
 
         # Add new line
         lines.append(f"{key}={value}")
@@ -1048,7 +1048,7 @@ class ConfigWizard:
             return
 
         lines = self.env_file.read_text().splitlines()
-        lines = [l for l in lines if not l.startswith(f"{key}=")]
+        lines = [line for line in lines if not line.startswith(f"{key}=")]
         self.env_file.write_text("\n".join(lines) + "\n")
 
     def _load_yaml_config(self) -> dict:

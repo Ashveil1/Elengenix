@@ -147,7 +147,7 @@ class PatternBasedScanner:
         },
         "go": {
             "sql_injection": [
-                (r"Query\s*\(.*fmt\.Sprintf", "CWE-89", "Formatted SQL query"),
+                (r"Query\s*\(.*fmt\.Sprint", "CWE-89", "Formatted SQL query"),
                 (r"Query\s*\(.*\+.*\+", "CWE-89", "Concatenated SQL query"),
             ],
             "hardcoded_secret": [

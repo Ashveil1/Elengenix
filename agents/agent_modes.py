@@ -15,11 +15,9 @@ import traceback
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
-from tools.cve_database import get_cve_database
 from tools.cvss_calculator import CVSSCalculator
 from tools.governance import Governance
-from tools.mission_state import GraphEdge, GraphNode, MissionState
-from tools.tool_registry import ToolResult
+from tools.mission_state import MissionState
 from tools.vector_memory import remember
 
 logger = logging.getLogger("elengenix.agent.modes")

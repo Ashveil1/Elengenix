@@ -18,7 +18,6 @@ What this test checks:
 from __future__ import annotations
 
 import json
-import os
 import sys
 import threading
 import time
@@ -228,7 +227,7 @@ def test_w3_smart_payload_generator_runs_through_pipeline():
     variants = h["evidence"].get("variants", [])
     generator = h["evidence"].get("generator")
     print(f"[W3] generator={generator}, variant_count={len(variants)}")
-    print(f"[W3] first 4 variants:")
+    print("[W3] first 4 variants:")
     for v in variants[:4]:
         print(f"   - {v['payload'][:80]}")
     assert generator == "smart", f"Expected smart generator, got {generator}"
@@ -405,10 +404,10 @@ def test_w4_integration_summary(mock_server):
     print("W4 INTEGRATION TEST SUMMARY")
     print("=" * 60)
     print(f"[OK] Mock server: {mock_server}")
-    print(f"[OK] W1 AST sandbox: catches eval/subprocess/reverse-shell")
-    print(f"[OK] W1 subprocess sandbox: runs clean code, refuses eval()")
-    print(f"[OK] W2 fingerprint: detects nginx+PHP+WordPress+Drupal+MySQL")
-    print(f"[OK] W2 planner: 4+ steps with fingerprint, more vuln classes")
-    print(f"[OK] W3 smart payload generator: 20+ real XSS variants")
-    print(f"[OK] CoT logger: writes data/cot_logs/*.json")
+    print("[OK] W1 AST sandbox: catches eval/subprocess/reverse-shell")
+    print("[OK] W1 subprocess sandbox: runs clean code, refuses eval()")
+    print("[OK] W2 fingerprint: detects nginx+PHP+WordPress+Drupal+MySQL")
+    print("[OK] W2 planner: 4+ steps with fingerprint, more vuln classes")
+    print("[OK] W3 smart payload generator: 20+ real XSS variants")
+    print("[OK] CoT logger: writes data/cot_logs/*.json")
     print("=" * 60)

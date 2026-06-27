@@ -7,17 +7,14 @@ dependency_manager.py — Elengenix Tool Install Request Flow
 """
 
 import logging
-import os
 import shutil
 import subprocess
 import sys
-import time
-from pathlib import Path
 from typing import List, Optional, Tuple
 
 import questionary
 
-from ui_components import console, print_error, print_success, print_warning
+from ui_components import console, print_error, print_success
 
 logger = logging.getLogger("elengenix.installer")
 
@@ -95,7 +92,7 @@ def request_install(
         return False, f"Could not build install command for {name} via {manager}"
 
     # Show the request
-    console.print(f"\n[bold red]Tool Install Request[/bold red]")
+    console.print("\n[bold red]Tool Install Request[/bold red]")
     console.print(f"  Tool:    [bold white]{name}[/bold white]")
     console.print(f"  Manager: {manager}")
     console.print(f"  Purpose: {purpose}")

@@ -23,7 +23,6 @@ libraries — it uses only Python's standard library.
 from __future__ import annotations
 
 import ast
-import json
 import logging
 import os
 import resource
@@ -35,7 +34,7 @@ import textwrap
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Set
 
 logger = logging.getLogger("elengenix.ai_sandbox")
 
@@ -600,7 +599,7 @@ class SubprocessSandbox:
         """Wrap user code with a small main() harness so we capture exceptions."""
         argv_repr = repr(args or [])
         return textwrap.dedent(
-            f"""\
+            """\
             import sys
             sys.argv = ['sandboxed.py'] + ({argv_repr} or [])
             try:

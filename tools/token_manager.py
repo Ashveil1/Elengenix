@@ -547,7 +547,7 @@ class TokenManager:
 
         # Daily
         daily_pct = status["daily_ratio"] * 100
-        lines.append(f"\n  Today:")
+        lines.append("\n  Today:")
         lines.append(
             f"    Spent: ${status['spent_today']:.2f} / ${status['daily_budget']:.2f} ({daily_pct:.1f}%)"
         )
@@ -560,7 +560,7 @@ class TokenManager:
 
         # By provider today
         if status["today_by_provider"]:
-            lines.append(f"\n    By provider:")
+            lines.append("\n    By provider:")
             for provider, data in status["today_by_provider"].items():
                 lines.append(
                     f"      {provider}: ${data['cost_usd']:.2f} ({data['tokens']:,} tokens)"
@@ -568,7 +568,7 @@ class TokenManager:
 
         # Monthly
         monthly_pct = status["monthly_ratio"] * 100
-        lines.append(f"\n  This Month:")
+        lines.append("\n  This Month:")
         lines.append(
             f"    Spent: ${status['spent_month']:.2f} / ${status['monthly_budget']:.2f} ({monthly_pct:.1f}%)"
         )
@@ -576,7 +576,7 @@ class TokenManager:
         # Alerts
         alerts = self.check_alerts()
         if alerts:
-            lines.append(f"\n  Alerts:")
+            lines.append("\n  Alerts:")
             for alert in alerts:
                 lines.append(f"    {alert}")
 
@@ -630,7 +630,7 @@ def run_cli():
         print(f"  Total: ${cost['total_cost_usd']:.2f} ({cost['total_tokens']:,} tokens)")
 
         if cost["by_provider"]:
-            print(f"\n  By provider:")
+            print("\n  By provider:")
             for provider, data in cost["by_provider"].items():
                 print(f"    {provider}: ${data['cost_usd']:.2f}")
 

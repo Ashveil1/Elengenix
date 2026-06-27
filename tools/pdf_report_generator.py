@@ -216,7 +216,7 @@ class PDFReportGenerator:
                 )
                 refs_section = f"<h4>References:</h4><ul>{refs_html}</ul>"
 
-            finding_html = f"""
+            finding_html = """
             <div class="finding severity-{f.severity}" id="finding-{i}">
                 <div class="finding-header">
                     <span class="finding-number">{i}</span>
@@ -255,7 +255,7 @@ class PDFReportGenerator:
             if count > 0:
                 color = severity_colors.get(sev, "#6b7280")
                 summary_cards.append(
-                    f"""
+                    """
                     <div class="summary-card" style="border-color: {color}">
                         <div class="summary-count" style="color: {color}">{count}</div>
                         <div class="summary-label">{sev.upper()}</div>
@@ -263,7 +263,7 @@ class PDFReportGenerator:
                 """
                 )
 
-        html = f"""<!DOCTYPE html>
+        html = """<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">

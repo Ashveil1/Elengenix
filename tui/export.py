@@ -21,8 +21,6 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from rich.console import Console
-from rich.text import Text
 
 logger = logging.getLogger("elengenix.tui.export")
 
@@ -355,7 +353,7 @@ def export_to_pdf(
         console.print("No findings recorded.")
 
     # Export to SVG (can be converted to PDF)
-    console.save_svg(output_path.replace(".pdf", ".svg"))
+    console.save_svg(output_path.replace(".pd", ".svg"))
 
     logger.info(f"Exported dashboard to SVG (convert to PDF): {output_path}")
     return output_path

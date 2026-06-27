@@ -9,11 +9,8 @@ They verify that the hunt engine actually finds real vulnerabilities.
 from __future__ import annotations
 
 import asyncio
-import json
-import os
 import socket
 import sys
-import time
 from pathlib import Path
 
 import pytest
@@ -343,7 +340,7 @@ def test_hunt_engine_finds_authenticated_bola(target_url):
 
     bola = [f for f in report.findings if f.category == "bola"]
     assert len(bola) >= 1, (
-        f"Expected authenticated BOLA, got none. "
+        "Expected authenticated BOLA, got none. "
         f"Categories: {[f.category for f in report.findings]}"
     )
     # BOLA evidence should mention different users

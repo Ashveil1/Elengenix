@@ -16,7 +16,7 @@ from typing import Dict, List
 def _count_lines(filepath: str) -> int:
     try:
         with open(filepath, "r", encoding="utf-8") as f:
-            return sum(1 for l in f if l.strip())
+            return sum(1 for line in f if line.strip())
     except Exception:
         return 0
 
@@ -47,7 +47,7 @@ def generate_bug_report(
         sev = f.get("severity", "INFO").upper()
         by_sev[sev] = by_sev.get(sev, 0) + 1
 
-    content = f"""#  Bug Bounty Security Report
+    content = """#  Bug Bounty Security Report
 
 **Target:** `{target}`
 **Date:** {now}
@@ -88,7 +88,7 @@ def generate_bug_report(
 """
     if findings:
         for i, f in enumerate(findings, 1):
-            content += f"""### {i}. {f.get('name', 'Finding')}
+            content += """### {i}. {f.get('name', 'Finding')}
 
 | Field | Value |
 |-------|-------|
@@ -100,7 +100,7 @@ def generate_bug_report(
     else:
         content += "_No high-severity vulnerabilities detected by automated scanning. Manual review recommended._\n\n"
 
-    content += f"""---
+    content += """---
 
 ## 4. AI Insights & Recommendations
 

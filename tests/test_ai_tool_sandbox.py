@@ -7,7 +7,6 @@ and SubprocessSandbox.
 from __future__ import annotations
 
 import sys
-import time
 from pathlib import Path
 
 # Make the project root importable
@@ -16,9 +15,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from tools.ai_sandbox import (
     PatternSeverity,
     RealDangerousPatternDetector,
-    SafetyReport,
     SandboxConfig,
-    SandboxResult,
     SubprocessSandbox,
     analyze_code,
     run_sandboxed,

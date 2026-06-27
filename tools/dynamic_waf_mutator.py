@@ -11,12 +11,9 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import os
-import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Union
 
-import requests
 
 from tools.tool_registry import (
     BaseTool,
@@ -29,7 +26,7 @@ from tools.tool_registry import (
 from tools.universal_ai_client import AIClientManager, AIMessage
 from tools.waf_evasion import WAFEvasionEngine
 from tools.waf_signatures import detect_waf_from_response
-from ui_components import console, print_error, print_info, print_success, print_warning
+from ui_components import print_error, print_info, print_success, print_warning
 
 logger = logging.getLogger("elengenix.dynamic_waf_mutator")
 

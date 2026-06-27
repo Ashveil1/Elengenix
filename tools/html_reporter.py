@@ -42,7 +42,7 @@ def generate_html_report(
         name = html.escape(str(f.get("name", "–")))
         url = html.escape(str(f.get("url", "–")))
         det = html.escape(str(f.get("details", "–"))[:150])
-        rows += f"""
+        rows += """
             <tr>
               <td>{name}</td>
               <td><span class="badge bg-{_badge(sev)}">{sev}</span></td>
@@ -53,7 +53,7 @@ def generate_html_report(
     if not rows:
         rows = "<tr><td colspan='4' class='text-center text-muted'>No vulnerabilities found by automated scan.</td></tr>"
 
-    html_content = f"""<!DOCTYPE html>
+    html_content = """<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />

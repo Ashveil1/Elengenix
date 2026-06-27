@@ -101,7 +101,7 @@ class TelegramBridge:
     def notify_mission_started(self, mission_id: str, target: str) -> bool:
         """Notify that a mission has started."""
         message = (
-            f"*Mission Started*\n\n"
+            "*Mission Started*\n\n"
             f"ID: `{mission_id}`\n"
             f"Target: `{target}`\n"
             f"Time: {datetime.now(timezone.utc).strftime('%H:%M UTC')}\n\n"
@@ -178,18 +178,18 @@ class TelegramBridge:
     ) -> bool:
         """Notify about token budget warning."""
         message = (
-            f"*Token Budget Warning*\n\n"
+            "*Token Budget Warning*\n\n"
             f"Mission: `{mission_id}`\n"
             f"Threshold: {threshold:.0%}\n"
             f"Spent: ${spent:.2f} / ${budget:.2f}\n\n"
-            f"Mission will pause at 90% budget"
+            "Mission will pause at 90% budget"
         )
         return self._send_message(message)
 
     def notify_mission_paused(self, mission_id: str, reason: str) -> bool:
         """Notify that mission was paused."""
         message = (
-            f"*Mission Paused*\n\n"
+            "*Mission Paused*\n\n"
             f"Mission: `{mission_id}`\n"
             f"Reason: {reason}\n\n"
             f"Use `/resume {mission_id}` to continue"
@@ -203,7 +203,7 @@ class TelegramBridge:
         duration_min = duration_seconds / 60
 
         message = (
-            f"*Mission Completed*\n\n"
+            "*Mission Completed*\n\n"
             f"Mission: `{mission_id}`\n"
             f"Findings: {findings_count}\n"
             f"Tokens used: {tokens_used:,}\n"
@@ -215,10 +215,10 @@ class TelegramBridge:
     def notify_mission_failed(self, mission_id: str, error: str) -> bool:
         """Notify that mission failed."""
         message = (
-            f"*Mission Failed*\n\n"
+            "*Mission Failed*\n\n"
             f"Mission: `{mission_id}`\n"
             f"Error: {error[:200]}\n\n"
-            f"Check logs for details"
+            "Check logs for details"
         )
         return self._send_message(message)
 
@@ -242,7 +242,7 @@ class TelegramBridge:
     def notify_mission_status(self, mission_id: str, status: Dict[str, Any]) -> bool:
         """Notify current mission status."""
         lines = [
-            f"*Mission Status*\n\n",
+            "*Mission Status*\n\n",
             f"ID: `{mission_id}`\n",
             f"Status: {status.get('status', 'unknown')}\n",
             f"Phase: {status.get('current_phase', 'unknown')}\n",

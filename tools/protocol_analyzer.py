@@ -506,7 +506,11 @@ class ModbusAnalyzer:
                         "unit_id": parsed.get("unit_id"),
                         "address": parsed.get("address") or parsed.get("start_address"),
                     },
-                    remediation="Implement authentication and authorization for write operations. Use secure Modbus (TLS).",
+                    remediation=(
+                        "Implement authentication and authorization"
+                        " for write operations."
+                        " Use secure Modbus (TLS)."
+                    ),
                     cwe_id="CWE-306",
                 )
             )

@@ -122,7 +122,7 @@ def _run_tool(tool_file: str, target: str) -> int:
     try:
         from ui_components import console
 
-        console.print(f"[dim]Running with 10min timeout. Press Ctrl+C to cancel.[/dim]\n")
+        console.print("[dim]Running with 10min timeout. Press Ctrl+C to cancel.[/dim]\n")
 
         # Use current sys.executable to maintain virtual environment
         result = subprocess.run(

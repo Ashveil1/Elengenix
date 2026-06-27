@@ -15,13 +15,11 @@ This is the difference between:
 from __future__ import annotations
 
 import asyncio
-import hashlib
 import json
 import logging
-import re
 import time
-from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from dataclasses import dataclass
+from typing import Any, Callable, Dict, List, Optional
 
 import aiohttp
 
@@ -312,7 +310,7 @@ async def test_mass_assignment(
                                 category="mass_assignment",
                                 endpoint_url=ep.url,
                                 method=ep.method,
-                                evidence=f"role=admin accepted, balance=99999 accepted",
+                                evidence="role=admin accepted, balance=99999 accepted",
                                 payload=json.dumps(test_data),
                                 response_snippet=body[:300],
                                 status_code=r.status,
@@ -364,7 +362,7 @@ async def test_jwt_alg_none(session: aiohttp.ClientSession, ep: Endpoint) -> Lis
                             category="jwt_confusion",
                             endpoint_url=ep.url,
                             method=ep.method,
-                            evidence=f"alg=none token with role=admin accepted as valid",
+                            evidence="alg=none token with role=admin accepted as valid",
                             payload=f"token={none_token[:50]}...",
                             response_snippet=body[:300],
                             status_code=r.status,
@@ -557,7 +555,7 @@ async def test_stored_xss(session: aiohttp.ClientSession, ep: Endpoint) -> List[
                         category="xss_stored",
                         endpoint_url=ep.url,
                         method=ep.method,
-                        evidence=f"Payload persisted and reflected in GET response",
+                        evidence="Payload persisted and reflected in GET response",
                         payload=f"content={payload}",
                         response_snippet=body[:300],
                         status_code=r.status,

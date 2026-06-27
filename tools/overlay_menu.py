@@ -140,7 +140,7 @@ class SettingsOverlay:
             return None
 
         # Backspace in search: remove last char
-        if ch == "\x7f" and self._current_layer == "model_select" and self._search:
+        if ch == "\x07" and self._current_layer == "model_select" and self._search:
             self._search = self._search[:-1]
             self._update_items()
             self._selected_idx = 0
@@ -206,7 +206,7 @@ class SettingsOverlay:
 
         # Scroll indicators
         if start > 0:
-            lines.append(f"\n  \u25b2 more above\n", style="dim #737373")
+            lines.append("\n  \u25b2 more above\n", style="dim #737373")
         if end < total:
             lines.append(f"  \u25bc more below ({total - end})\n", style="dim #737373")
 

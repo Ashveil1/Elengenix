@@ -30,7 +30,7 @@ from rich.text import Text
 
 from tui.dashboard import build_static_renderable
 from tui.themes import THEMES, get_theme
-from tui.visualizations import RiskGauge, SeverityChart, VulnerabilityHeatmap
+from tui.visualizations import RiskGauge, SeverityChart
 from tui.welcome import MissionBriefing, build_welcome_renderable
 
 
@@ -126,7 +126,7 @@ def render_hunt_dashboard(
     footer.append("  [", style=muted)
     footer.append("ELENGENIX", style=f"bold {primary}")
     footer.append("] ", style=muted)
-    footer.append(f"  Risk: ", style=muted)
+    footer.append("  Risk: ", style=muted)
     footer.append(f"{risk_score:.0f}/100 ({risk_level})", style=f"bold {primary}")
     footer.append("  ", style=muted)
     footer.append("•  ", style=primary)

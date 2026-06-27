@@ -346,9 +346,9 @@ class WelcomeWizard:
 
         print(f"\n  To configure {provider_name}:")
         print(f"  1. Get API key: {self._get_signup_url(provider_name)}")
-        print(f"  2. Set environment variable:")
+        print("  2. Set environment variable:")
         print(f"     export {env_key}=your_key_here")
-        print(f"\n  Or add to .env file in this directory")
+        print("\n  Or add to .env file in this directory")
 
         # Ask for key now (optional)
         key = input(f"\n  Paste {provider_name} API key (or Enter to skip): ").strip()
@@ -388,7 +388,7 @@ class WelcomeWizard:
             lines = env_file.read_text().splitlines()
 
         # Remove existing key
-        lines = [l for l in lines if not l.startswith(f"{key}=")]
+        lines = [line for line in lines if not line.startswith(f"{key}=")]
 
         # Add new key
         lines.append(f"{key}={value}")

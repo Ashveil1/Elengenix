@@ -19,7 +19,6 @@ from __future__ import annotations
 
 import json
 import logging
-import textwrap
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -654,7 +653,7 @@ class ComplianceEngine:
                 "error": "#ff8844",
             }
             color = status_color.get(cr["status"], "#888")
-            rows += f"""
+            rows += """
             <tr>
                 <td>{cr['control_id']}</td>
                 <td>{cr['control_title'][:50]}</td>
@@ -675,7 +674,7 @@ class ComplianceEngine:
                 "low": "#44cc44",
                 "info": "#888",
             }
-            sev_bars += f"""
+            sev_bars += """
             <div style="margin:4px 0">
                 <div style="display:flex;justify-content:space-between;font-size:12px">
                     <span>{level.title()}</span><span>{count}</span>
@@ -685,7 +684,7 @@ class ComplianceEngine:
                 </div>
             </div>"""
 
-        html = f"""<!DOCTYPE html>
+        html = """<!DOCTYPE html>
 <html lang="en">
 <head><meta charset="UTF-8">
 <title>Compliance Report - {std.get('name','N/A')}</title>

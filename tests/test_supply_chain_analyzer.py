@@ -368,7 +368,7 @@ class TestMaliciousHooks:
             json.dumps(
                 {
                     "scripts": {
-                        "postinstall": f"node -e \"require('crypto').createHash('sha256').update('{long_b64}')\"",
+                        "postinstall": "node -e \"require('crypto').createHash('sha256').update('{long_b64}')\"",
                     },
                 }
             )

@@ -27,7 +27,6 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import os
 import time
 import uuid
 from datetime import datetime, timezone
@@ -42,7 +41,7 @@ logger = logging.getLogger("elengenix.api_server")
 try:
     from fastapi import BackgroundTasks, FastAPI, HTTPException, WebSocket, WebSocketDisconnect
     from fastapi.middleware.cors import CORSMiddleware
-    from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
+    from fastapi.responses import FileResponse, HTMLResponse
     from pydantic import BaseModel, Field
 
     _HAS_FASTAPI = True
@@ -724,7 +723,7 @@ def run_server(host: str = "0.0.0.0", port: int = 8443, reload: bool = False) ->
         return
     from ui_components import console, print_info, print_success
 
-    console.print(f"[bold red]  Elenginx Enterprise API[/bold red]")
+    console.print("[bold red]  Elenginx Enterprise API[/bold red]")
     print_info(f"  Server: http://{host}:{port}")
     print_info(f"  Docs:   http://{host}:{port}/docs")
     print_info(f"  ReDoc:  http://{host}:{port}/redoc")

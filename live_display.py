@@ -199,7 +199,7 @@ class LiveDisplay:
             bar_len = 20
             filled = int((progress_pct / 100) * bar_len)
             bar = "█" * filled + "░" * (bar_len - filled)
-            stats.append(f"\n[red]Progress:[/red]")
+            stats.append("\n[red]Progress:[/red]")
             stats.append(f"[{bar}] {progress_pct:.0f}%")
 
         return Panel("\n".join(stats), title="[bold]Statistics[/bold]", border_style="bold white")

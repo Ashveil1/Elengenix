@@ -244,8 +244,8 @@ def check_single_subdomain(subdomain: str) -> Optional[Dict]:
                             f"Subdomain '{subdomain}' has a CNAME pointing to "
                             f"{sig['service']} ({cname}), but the resource is unclaimed.\n"
                             f"HTTP fingerprint match: '{matched_fp}'\n\n"
-                            f"An attacker can claim this resource and serve "
-                            f"malicious content under the trusted domain."
+                            "An attacker can claim this resource and serve "
+                            "malicious content under the trusted domain."
                         ),
                         "severity": sig["severity"],
                         "type": "subdomain_takeover",
@@ -258,7 +258,7 @@ def check_single_subdomain(subdomain: str) -> Optional[Dict]:
                     # CNAME matches but resource exists — still noteworthy
                     logger.info(
                         f"{subdomain} → {cname} ({sig['service']}): "
-                        f"CNAME match but resource exists"
+                        "CNAME match but resource exists"
                     )
 
     return None

@@ -7,7 +7,6 @@ import sys
 sys.path.insert(0, "/mnt/data/Elengenix")
 
 from tools.vuln_engine import (
-    ChainLink,
     ExploitChain,
     KillChainPhase,
     PayloadGen,

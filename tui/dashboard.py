@@ -20,29 +20,24 @@ The dashboard is designed to be dropped into any Textual app::
 from __future__ import annotations
 
 import logging
-import math
 import random
 import time
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Dict, List, Optional, Tuple
+from typing import List, Optional
 
-from rich.align import Align
 from rich.box import HEAVY, ROUNDED, SIMPLE
 from rich.console import Group
 from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
-from textual import work
-from textual.containers import Container, Horizontal, Vertical
+from textual.containers import Container, Horizontal
 from textual.reactive import reactive
-from textual.widget import Widget
 from textual.widgets import Static
 
-from ui_components import console as shared_console
 
-from .themes import ThemeManager, get_theme
-from .visualizations import FindingTimeline, RiskGauge, SeverityChart, render_text_panel
+from .themes import get_theme
+from .visualizations import RiskGauge, SeverityChart
 
 logger = logging.getLogger("elengenix.tui.dashboard")
 

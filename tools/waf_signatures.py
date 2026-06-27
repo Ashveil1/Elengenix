@@ -14,7 +14,7 @@ WAF_SIGNATURES = {
     },
     "aws_waf": {
         "headers": ["x-amzn-requestid", "awselb", "x-amz-cf-id", "x-amzn-remapped"],
-        "body": ["aws waf", "requestid"],
+        "body": ["aws wa", "requestid"],
         "cookies": [],
     },
     "modsecurity": {

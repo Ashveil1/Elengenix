@@ -332,7 +332,7 @@ def setup_slot(slot: int, current_provider: str):
             print(f"  {i}. {m}")
 
         m_choice = input(
-            f"\nSelect Model number (or type custom name) [Enter to keep current/default]: "
+            "\nSelect Model number (or type custom name) [Enter to keep current/default]: "
         ).strip()
         if m_choice.isdigit():
             idx = int(m_choice) - 1

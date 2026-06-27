@@ -15,13 +15,8 @@ Covers:
 from __future__ import annotations
 
 import json
-import os
-import shutil
 import sys
-import tempfile
-import time
 from pathlib import Path
-from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -30,19 +25,17 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from tools.ecosystem import (
     SDK_VERSION,
-    BasePlugin,
     Capability,
     PluginAPI,
     PluginHost,
-    PluginInfo,
     PluginManifest,
     PluginState,
     ToolResult,
     get_host,
     reset_host,
 )
-from tools.marketplace import DEFAULT_INSTALL_DIR, LOCAL_INDEX_CACHE, Marketplace, PluginEntry
-from tools.updater import CURRENT_VERSION, ReleaseInfo, Updater, compare_versions, parse_version
+from tools.marketplace import Marketplace, PluginEntry
+from tools.updater import ReleaseInfo, Updater, compare_versions, parse_version
 
 # ──────────────────────────────────────────────────────────────────────────
 # Fixtures
@@ -56,7 +49,7 @@ def temp_plugin_dir(tmp_path):
     plugin_dir.mkdir()
     # Manifest
     (plugin_dir / "plugin.yaml").write_text(
-        f"""name: test_plugin
+        """name: test_plugin
 version: 1.0.0
 author: Test Author
 description: A test plugin
@@ -102,7 +95,7 @@ def temp_disabled_plugin(tmp_path):
     plugin_dir = tmp_path / "disabled_plugin"
     plugin_dir.mkdir()
     (plugin_dir / "plugin.yaml").write_text(
-        f"""name: disabled_plugin
+        """name: disabled_plugin
 version: 1.0.0
 enabled: false
 sdk_version: {SDK_VERSION}
@@ -122,7 +115,7 @@ def temp_bad_plugin(tmp_path):
     plugin_dir = tmp_path / "bad_plugin"
     plugin_dir.mkdir()
     (plugin_dir / "plugin.yaml").write_text(
-        f"""name: bad_plugin
+        """name: bad_plugin
 version: 1.0.0
 sdk_version: {SDK_VERSION}
 """,
@@ -141,7 +134,7 @@ def temp_no_register(tmp_path):
     plugin_dir = tmp_path / "no_register"
     plugin_dir.mkdir()
     (plugin_dir / "plugin.yaml").write_text(
-        f"""name: no_register
+        """name: no_register
 version: 1.0.0
 sdk_version: {SDK_VERSION}
 """,
@@ -170,7 +163,7 @@ class TestPluginManifest:
         path = tmp_path / "p"
         path.mkdir()
         (path / "plugin.yaml").write_text(
-            f"""name: minimal
+            """name: minimal
 version: 0.1.0
 sdk_version: {SDK_VERSION}
 """,
@@ -321,7 +314,7 @@ class TestPluginHost:
         path = tmp_path / "custom_entry"
         path.mkdir()
         (path / "plugin.yaml").write_text(
-            f"""name: custom_entry
+            """name: custom_entry
 version: 1.0.0
 sdk_version: {SDK_VERSION}
 entry_point: my_register.py

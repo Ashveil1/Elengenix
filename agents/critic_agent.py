@@ -17,7 +17,6 @@ import json
 import logging
 import re
 import subprocess
-import time
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from agents.worker_base import BaseWorker, WorkerResult

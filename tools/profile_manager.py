@@ -139,7 +139,7 @@ class ProfileManager:
             options={"rate_limit": 3},
             env_vars={},
             created_by="built-in",
-            tags=["web", "waf", "xss"],
+            tags=["web", "wa", "xss"],
         ),
         "research": CommandProfile(
             name="research",
@@ -506,7 +506,7 @@ def run_cli():
             print(f"  Based on: {based_on}")
             print(f"  Options: {options}")
         else:
-            print(f" Failed to create profile")
+            print(" Failed to create profile")
             sys.exit(1)
 
     elif command == "delete":

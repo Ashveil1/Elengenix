@@ -170,7 +170,7 @@ def test_m11_full_pipeline_e2e(target_server):
     coverage.discover_from_url(f"{target_server}/api/search?q=test", source="subfinder")
     coverage.discover_from_url(f"{target_server}/api/reflect?q=test", source="subfinder")
     coverage.discover_from_url(f"{target_server}/api/admin", source="manual")
-    print(f"  [M6] Discovered 5 endpoints")
+    print("  [M6] Discovered 5 endpoints")
 
     # ── M5: Active fuzzing with evasion payload ──
     # Use evasion (URL-encoded <script>) to bypass WAF
@@ -291,7 +291,7 @@ def test_m11_wiring_in_agent_brain(target_server):
     assert hasattr(agent.learning_engine, "rank_tools")
     assert hasattr(agent.bola_tester, "test_object")
     assert hasattr(agent.waf_detector, "probe")
-    print(f"[WIRING] All 5 modules accessible from agent_brain: OK")
+    print("[WIRING] All 5 modules accessible from agent_brain: OK")
 
 
 def test_m11_real_workflow_simulation(target_server):

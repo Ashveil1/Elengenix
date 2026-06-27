@@ -24,7 +24,7 @@ sys.path.insert(0, str(ROOT))
 
 def test_themes_loaded():
     """All 9 themes must be defined."""
-    from tui.themes import THEMES, get_theme
+    from tui.themes import THEMES
 
     assert "DEFAULT" in THEMES
     assert "CYBERPUNK" in THEMES
@@ -178,7 +178,7 @@ def test_export_to_html():
     import os
     import tempfile
 
-    from tui.export import collect_dashboard_data, export_to_html
+    from tui.export import export_to_html
 
     # Create test data
     test_data = {
@@ -408,7 +408,7 @@ def test_findings_display_sort():
         Finding(id="2", title="Critical", severity="critical", category="sqli", location="/")
     )
     display.add_finding(
-        Finding(id="3", title="Medium", severity="medium", category="ssrf", location="/")
+        Finding(id="3", title="Medium", severity="medium", category="ssr", location="/")
     )
 
     display.set_sort("severity")

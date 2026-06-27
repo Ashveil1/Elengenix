@@ -313,7 +313,7 @@ class HistoryManager:
             if last.command == "recon":
                 suggestions.append(f"scan {last.target} -- Deep scan after recon")
             elif last.command == "scan" and last.findings_count > 0:
-                suggestions.append(f"report -- Generate report from findings")
+                suggestions.append("report -- Generate report from findings")
             elif last.command == "research":
                 suggestions.append(
                     f"poc {last.args.split()[0] if last.args else 'rce'} -- Create PoC"

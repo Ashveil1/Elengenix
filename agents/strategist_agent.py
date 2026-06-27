@@ -53,7 +53,6 @@ class ReconWorker(BaseWorker):
         Returns:
             WorkerResult with discovered findings.
         """
-        import shutil
         import subprocess
 
         findings = []

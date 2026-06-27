@@ -315,13 +315,13 @@ def get_bottom_toolbar(
 
     # Use prompt_toolkit HTML format
     return HTML(
-        f" <b>workspace</b> (~/Elengenix)    "
+        " <b>workspace</b> (~/Elengenix)    "
         f"<b>target</b> ({t_disp})    "
         f"<b>ctrl+r</b>:research[<b>{research_status}</b>]    "
         f"<b>ctrl+m</b>:<b>{mode_display}</b>    "
         f"<b>ctrl+t</b>:think[<b>{think_status}</b>]    "
         f"<b>ctrl+p</b>:<b>{model_display}</b>    "
-        f"<b>status</b> (Ready)"
+        "<b>status</b> (Ready)"
     )
 
 
@@ -524,10 +524,10 @@ def show_model_selector(console: Console, manager) -> Optional[tuple[str, List[s
                         lines = env_path.read_text().splitlines()
                         # Remove old entries
                         lines = [
-                            l
-                            for l in lines
-                            if not l.startswith("CUSTOM_API_BASE=")
-                            and not l.startswith("CUSTOM_API_KEY=")
+                            line
+                            for line in lines
+                            if not line.startswith("CUSTOM_API_BASE=")
+                            and not line.startswith("CUSTOM_API_KEY=")
                         ]
                         lines.append(f"CUSTOM_API_BASE={custom_url}")
                         if custom_key:
@@ -660,7 +660,7 @@ def main(mode: str = "auto", target: str = None):
     mode = "auto"
 
     if in_tmux:
-        console.print(f"[bold cyan]Elengenix Core[/bold cyan] [dim](tmux mode)[/dim]\n")
+        console.print("[bold cyan]Elengenix Core[/bold cyan] [dim](tmux mode)[/dim]\n")
     else:
         # Spacing for clean start (Banner already shown by main.py)
         console.print("  [dim]Signed in with secure profile[/dim]")
@@ -1234,13 +1234,13 @@ def main(mode: str = "auto", target: str = None):
             refl = get_reflection()
             st = refl.get_reflection_stats()
             chat.add(
-                f"[bold #ffffff]Reflection:[/bold #ffffff] Total={st.get('total',0)} Neg={st.get('negative',0)} Pos={st.get('positive',0)}"
+                f"[bold #ffffff]Reflection:[/bold #ffffff] Total={st.get('total', 0)} Neg={st.get('negative', 0)} Pos={st.get('positive', 0)}"
             )
             try:
                 vm = get_vector_memory()
                 vs = vm.get_memory_stats()
                 chat.add(
-                    f"[bold #ffffff]Memory:[/bold #ffffff] Entries={vs.get('total_memories',0)} Targets={vs.get('unique_targets',0)}"
+                    f"[bold #ffffff]Memory:[/bold #ffffff] Entries={vs.get('total_memories', 0)} Targets={vs.get('unique_targets', 0)}"
                 )
             except Exception as e:
                 chat.add(f"[dim]Vector memory unavailable: {e}[/dim]")
@@ -1431,7 +1431,7 @@ def main(mode: str = "auto", target: str = None):
 
             chat.add(f"[dim]   Target: {target or 'not set'}[/dim]")
             chat.add(f"[dim]   Mode: {mode_state[0]}[/dim]")
-            chat.add(f"[dim]   Use /quit to exit, any message to start team scan[/dim]")
+            chat.add("[dim]   Use /quit to exit, any message to start team scan[/dim]")
             return
 
         # /team with arguments (comma-separated models)
@@ -1486,6 +1486,8 @@ def main(mode: str = "auto", target: str = None):
 
             def _stream_run():
                 try:
+                    from tools.universal_ai_client import UniversalAIClient
+
                     # Reuse the agent's already-configured active client
                     active_client = None
                     if hasattr(agent, "client"):
@@ -1802,7 +1804,7 @@ def main(mode: str = "auto", target: str = None):
 
             return "", 0, hidx, False
 
-        if ch in ("\x7f", "\x08"):
+        if ch in ("\x07", "\x08"):
             if cur_pos > 0:
                 buf = buf[: cur_pos - 1] + buf[cur_pos:]
                 cur_pos -= 1

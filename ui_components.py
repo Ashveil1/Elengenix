@@ -149,8 +149,8 @@ def show_cli_banner(mode: str = "agent"):
 def show_arsenal_banner():
     """Display the Security Arsenal banner with vibrant styling."""
     console.print()
-    console.print(f"  [bold #ffffff][INFO] Security Arsenal[/bold #ffffff]")
-    console.print(f"  [dim]Select a tool to begin  |  Press ESC to cancel  |  1.0.0[/dim]")
+    console.print("  [bold #ffffff][INFO] Security Arsenal[/bold #ffffff]")
+    console.print("  [dim]Select a tool to begin  |  Press ESC to cancel  |  1.0.0[/dim]")
     console.print(f"  [dim #737373]{'-' * 70}[/dim #737373]")
     console.print()
 
@@ -271,11 +271,10 @@ def severity_badge(severity: str) -> str:
     """
     sev = severity.lower()
     badge_map = {
-        "info": ("[black on #ffffff] INFO [/black on #ffffff]", "#ffffff"),
+        "info": ("[black on #ffffff] INFO     [/black on #ffffff]", "#ffffff"),
         "high": ("[black on #ffffff] HIGH     [/black on #ffffff]", "#ffffff"),
         "medium": ("[black on #888888] MEDIUM   [/black on #888888]", "#888888"),
         "low": ("[black on #81C784] LOW      [/black on #81C784]", "#81C784"),
-        "info": ("[black on #ffffff] INFO     [/black on #ffffff]", "#ffffff"),
     }
     badge, _ = badge_map.get(sev, ("[black on grey] UNKNOWN [/black on grey]", "grey"))
     return badge
@@ -608,7 +607,7 @@ def show_categorized_menu():
         )
     )
     console.print(
-        f"\n[dim #ffffff]  Enter number or type a command  |  Ctrl+C to quit[/dim #ffffff]\n"
+        "\n[dim #ffffff]  Enter number or type a command  |  Ctrl+C to quit[/dim #ffffff]\n"
     )
 
 
@@ -681,7 +680,11 @@ def create_arsenal_menu() -> List[Dict[str, str]]:
 
 def format_menu_item(number: int, title: str, description: str) -> str:
     """Format a single menu item with vibrant modern styling."""
-    return f"[bold #ffffff]{number:2}.[/bold #ffffff] [bold #ffffff]{title}[/bold #ffffff]  [dim #ffffff]{description}[/dim #ffffff]"
+    return (
+        f"[bold #ffffff]{number:2}.[/bold #ffffff] "
+        f"[bold #ffffff]{title}[/bold #ffffff]  "
+        f"[dim #ffffff]{description}[/dim #ffffff]"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -825,7 +828,7 @@ def show_memory_stats(stats: Dict[str, Any]):
     show_metric_row(metrics)
 
     if stats.get("targets"):
-        console.print(f"  [dim #ffffff]Recent targets:[/dim #ffffff]")
+        console.print("  [dim #ffffff]Recent targets:[/dim #ffffff]")
         for t in stats["targets"][:10]:
             console.print(f"    [#ffffff]->[/#ffffff] {t}")
         console.print()
@@ -996,7 +999,7 @@ def render_sidebar(
     lines.append(gap)
 
     # Session block
-    lines.append(f"  [bold white]SESSION[/bold white]")
+    lines.append("  [bold white]SESSION[/bold white]")
     lines.append(f"  [dim #999999]{session_name}[/dim #999999]")
     lines.append(
         f"  {mode_tag}  [dim #888888]Turns:[/dim #888888] [bold white]{turn_count}[/bold white]"
@@ -1005,17 +1008,17 @@ def render_sidebar(
 
     # Target block
     if target:
-        lines.append(f"  [bold white]TARGET[/bold white]")
+        lines.append("  [bold white]TARGET[/bold white]")
         lines.append(f"  [dim #ffffff]{target}[/dim #ffffff]")
         lines.append(gap)
 
     # Model block
-    lines.append(f"  [bold white]ACTIVE MODEL[/bold white]")
+    lines.append("  [bold white]ACTIVE MODEL[/bold white]")
     lines.append(f"  [dim white]{model}[/dim white]")
     lines.append(gap)
 
     # Context block with bar
-    lines.append(f"  [bold white]CONTEXT USAGE[/bold white]")
+    lines.append("  [bold white]CONTEXT USAGE[/bold white]")
     lines.append(
         f"  [dim #999999]{token_count:,}[/dim #999999] [dim #666666]/ {token_limit:,}[/dim #666666]"
     )
@@ -1023,31 +1026,34 @@ def render_sidebar(
     lines.append(f"  [dim #888888]{token_pct}% of window[/dim #888888]")
     lines.append(gap)
 
-    lines.append(f"  [bold white]SHORTCUTS[/bold white]")
+    lines.append("  [bold white]SHORTCUTS[/bold white]")
     lines.append(
-        f"  [dim #888888]Ctrl+R[/dim #888888][dim #999999] Research  [/dim #999999][dim #888888]Ctrl+B[/dim #888888][dim #999999] Mode[/dim #999999]"
+        "  [dim #888888]Ctrl+R[/dim #888888][dim #999999] Research  [/dim #999999]"
+        "[dim #888888]Ctrl+B[/dim #888888][dim #999999] Mode[/dim #999999]"
     )
     lines.append(
-        f"  [dim #888888]Ctrl+T[/dim #888888][dim #999999] Think     [/dim #999999][dim #888888]Ctrl+P[/dim #888888][dim #999999] Models[/dim #999999]"
+        "  [dim #888888]Ctrl+T[/dim #888888][dim #999999] Think     [/dim #999999]"
+        "[dim #888888]Ctrl+P[/dim #888888][dim #999999] Models[/dim #999999]"
     )
     lines.append(
-        f"  [dim #888888]Ctrl+G[/dim #888888][dim #999999] Help      [/dim #999999][dim #888888]Up/Down[/dim #888888][dim #999999]   History[/dim #999999]"
+        "  [dim #888888]Ctrl+G[/dim #888888][dim #999999] Help      [/dim #999999]"
+        "[dim #888888]Up/Down[/dim #888888][dim #999999]   History[/dim #999999]"
     )
     lines.append(
-        f"  [dim #888888]Ctrl+E[/dim #888888][dim #999999] Settings  (Overlay menu)[/dim #999999]"
+        "  [dim #888888]Ctrl+E[/dim #888888][dim #999999] Settings  (Overlay menu)[/dim #999999]"
     )
 
     # Scroll indicator
     if scroll_info:
         lines.append(gap)
-        lines.append(f"  [bold #ffffff]SCROLL[/bold #ffffff]")
+        lines.append("  [bold #ffffff]SCROLL[/bold #ffffff]")
         lines.append(f"  [dim #ffffff]{scroll_info}[/dim #ffffff]")
-        lines.append(f"  [dim #888888]j/k or Up/Down to scroll[/dim #888888]")
+        lines.append("  [dim #888888]j/k or Up/Down to scroll[/dim #888888]")
 
     # Footer
     lines.append(sep)
     lines.append(
-        f"  [dim #737373][/dim #737373]  [dim #777777]Elengenix AI Agent Framework[/dim #777777]"
+        "  [dim #737373][/dim #737373]  [dim #777777]Elengenix AI Agent Framework[/dim #777777]"
     )
 
     sidebar_text = "\n".join(lines)
@@ -1083,14 +1089,12 @@ def show_command_execution(
         thought: AI's internal reasoning (optional).
         elapsed: Elapsed time in seconds.
     """
-    from rich.rule import Rule
-    from rich.text import Text
 
     status_color = "#ffffff" if success else "#ffffff"
     status_marker = "[OK]" if success else "[FAIL]"
 
     # Trim output for display - show first 12 lines, then ellipsis
-    output_lines = [l for l in result.splitlines() if l.strip()]
+    output_lines = [line for line in result.splitlines() if line.strip()]
     display_lines = output_lines[:12]
     truncated = len(output_lines) > 12
     output_preview = "\n".join(display_lines)

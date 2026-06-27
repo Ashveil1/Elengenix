@@ -136,7 +136,7 @@ class AgentBOLABridge:
                 mission_state.add_fact(
                     fact_id=f"bola:finding:{i}",
                     category="idor",
-                    statement=f"{finding.get('type','idor')} at {finding.get('url','')} (conf={finding.get('confidence')})",
+                    statement=f"{finding.get('type', 'idor')} at {finding.get('url', '')} (conf={finding.get('confidence')})",
                     confidence=finding.get("confidence", 0.5),
                     evidence=finding.get("evidence", {}),
                 )

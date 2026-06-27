@@ -63,7 +63,7 @@ class WAFEvasionEngine:
         except ImportError:
             return {
                 "cloudflare": ["cloudflare", "cf-ray", "__cfduid", "cloudflare-nginx"],
-                "aws_waf": ["aws waf", "awselb", "x-amzn-requestid"],
+                "aws_wa": ["aws wa", "awselb", "x-amzn-requestid"],
                 "modsecurity": ["mod_security", "modsecurity", "id="],
                 "akamai": ["akamaighost", "akamai"],
                 "incapsula": ["incap_ses", "visid_incap"],

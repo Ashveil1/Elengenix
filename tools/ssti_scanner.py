@@ -22,7 +22,7 @@ import re
 import time
 import urllib.parse
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger("elengenix.ssti_scanner")
 

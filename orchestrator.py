@@ -8,7 +8,6 @@ orchestrator.py — Tool Registry Pipeline Orchestrator
 """
 
 import asyncio
-import functools
 import ipaddress
 import json
 import logging
@@ -92,7 +91,9 @@ def is_valid_target(target: str) -> bool:
         pass
     if len(target) > 253 or "." not in target:
         return False
-    return all(re.match(r"^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?$", l) for l in target.split("."))
+    return all(
+        re.match(r"^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?$", part) for part in target.split(".")
+    )
 
 
 def is_in_scope(target: str) -> bool:
@@ -352,7 +353,7 @@ def _recon_to_findings(recon_result: Dict[str, Any], base_url: str) -> List[Dict
                 "type": "recon_http",
                 "severity": "Informational",
                 "url": base_url,
-                "title": f"HTTP {http['status']} | {http.get('title','')[:50]}",
+                "title": f"HTTP {http['status']} | {http.get('title', '')[:50]}",
                 "details": f"Server: {http.get('headers', {}).get('Server', '?')} | Tech: {techs}",
             }
         )
@@ -530,7 +531,7 @@ async def _run_phase2_waf(base_url: str) -> List[Dict[str, Any]]:
                 }
             ]
         else:
-            console.print(f"  [OK] No WAF detected")
+            console.print("  [OK] No WAF detected")
             return []
     except Exception as e:
         logger.error(f"waf_detector failed: {e}")
@@ -884,7 +885,7 @@ async def run_standard_scan(
                                 result.tool_name, finding, "unknown"
                             )
 
-                console.print(f"\n[bold green][OK] Smart scan complete[/bold green]")
+                console.print("\n[bold green][OK] Smart scan complete[/bold green]")
             else:
                 # Modern Tool Registry approach (original)
                 results = await asyncio.wait_for(

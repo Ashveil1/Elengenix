@@ -15,12 +15,11 @@ Public API:
 
 from __future__ import annotations
 
-import asyncio
 import logging
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger("elengenix.race_condition_tester")
 

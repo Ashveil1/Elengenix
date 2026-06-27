@@ -126,7 +126,7 @@ class FileEditor:
             return ExecutionResult(
                 False,
                 "",
-                f"File exists. Use overwrite=True to replace.",
+                "File exists. Use overwrite=True to replace.",
                 "write",
                 {"file": str(path)},
             )
@@ -173,7 +173,7 @@ class FileEditor:
                 return ExecutionResult(
                     False,
                     "",
-                    f"String not found in file. Use search first to verify.",
+                    "String not found in file. Use search first to verify.",
                     "edit",
                     {"file": str(path), "attempted": old_string[:50]},
                 )
@@ -502,11 +502,11 @@ class UniversalExecutor:
 
         # Transparent execution markers for CLI
         if "sudo " in command or "apt " in command or "pip " in command:
-            print(f"\n[THOUGHT] Agent is executing a system-level action")
+            print("\n[THOUGHT] Agent is executing a system-level action")
             print(f"[COMMAND] {command}")
             if "sudo " in command:
                 print(
-                    f"[RUN]     Privileged action (sudo) requested. Please provide your password if prompted:\n"
+                    "[RUN]     Privileged action (sudo) requested. Please provide your password if prompted:\n"
                 )
 
         try:
@@ -789,7 +789,7 @@ class UniversalExecutor:
                 endpoints = result.get("endpoints", [])
                 lines = [f"Found {len(secrets)} secrets, {len(endpoints)} endpoints"]
                 for s in secrets[:5]:
-                    lines.append(f"  [SECRET] {s.get('type','?')}: {str(s.get('value',''))[:80]}")
+                    lines.append(f"  [SECRET] {s.get('type', '?')}: {str(s.get('value', ''))[:80]}")
                 for e in endpoints[:5]:
                     lines.append(f"  [ENDPOINT] {e}")
                 return ExecutionResult(

@@ -182,7 +182,7 @@ class HybridAgent:
         # 3. Finalize
         return self._finalize_mission()
 
-    def _build_council(self) -> "AgentCouncil":
+    def _build_council(self):
         """Build an AgentCouncil with 3 specialized agents.
 
         Falls back to the single `client` for any role that has no dedicated client.
@@ -328,7 +328,7 @@ class HybridAgent:
             state_text += "\n[Tasks]\n"
             for i, t in enumerate(self.tasks):
                 state_text += (
-                    f"  {i}. [{t.get('status','pending').upper()}] {t.get('description','')}\n"
+                    f"  {i}. [{t.get('status', 'pending').upper()}] {t.get('description', '')}\n"
                 )
 
         if self.all_findings:

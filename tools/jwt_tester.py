@@ -23,7 +23,7 @@ import json
 import logging
 import time
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Tuple
 
 logger = logging.getLogger("elengenix.jwt_tester")
 
@@ -180,7 +180,6 @@ class JWTTester:
         Returns:
             JWTScanResult with test results.
         """
-        import requests
 
         start_time = time.time()
         result = JWTScanResult(target=url)
@@ -521,7 +520,7 @@ class JWTTester:
                         JWTResult(
                             test_type="algorithm_confusion_possible",
                             vulnerable=True,
-                            evidence=f"Server responded to HS256 token (may be vulnerable to algorithm confusion)",
+                            evidence="Server responded to HS256 token (may be vulnerable to algorithm confusion)",
                             token=hs_token,
                             severity="High",
                             confidence=0.6,

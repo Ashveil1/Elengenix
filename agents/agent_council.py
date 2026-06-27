@@ -16,7 +16,6 @@ High-risk actions trigger a deliberation vote before execution.
 
 from __future__ import annotations
 
-import json
 import logging
 import queue
 import threading
@@ -539,8 +538,8 @@ class AgentCouncil:
             "",
             "## Resource Usage",
             "",
-            f"| Agent | Tokens |",
-            f"|-------|--------|",
+            "| Agent | Tokens |",
+            "|-------|--------|",
             f"| Strategist ({self.strategist.model_label}) | {self.token_usage.get('strategist', 0):,} |",
             f"| Specialist ({self.specialist.model_label}) | {self.token_usage.get('specialist', 0):,} |",
             f"| Critic ({self.critic.model_label}) | {self.token_usage.get('critic', 0):,} |",

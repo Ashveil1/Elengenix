@@ -298,7 +298,7 @@ async def cmd_bounty(update: Update, context: ContextTypes.DEFAULT_TYPE):
         top = ranked[0]
 
         message = (
-            f"*Top Recommendation*\n\n"
+            "*Top Recommendation*\n\n"
             f"Program: *{top.name}*\n"
             f"Reward: {top.bounty_range}\n"
             f"URL: {top.url}\n"
@@ -358,6 +358,8 @@ async def cmd_mission_status(update: Update, context: ContextTypes.DEFAULT_TYPE)
     mission_id = context.args[0].strip()
 
     try:
+        from tools.smart_scanner import SmartScanner
+
         scanner = SmartScanner.load(mission_id)
         if not scanner:
             await safe_reply(update, f"Mission not found: `{mission_id}`")
@@ -384,6 +386,8 @@ async def cmd_pause(update: Update, context: ContextTypes.DEFAULT_TYPE):
     mission_id = context.args[0].strip()
 
     try:
+        from tools.smart_scanner import SmartScanner
+
         scanner = SmartScanner.load(mission_id)
         if not scanner:
             await safe_reply(update, f"Mission not found: `{mission_id}`")
@@ -407,6 +411,8 @@ async def cmd_resume(update: Update, context: ContextTypes.DEFAULT_TYPE):
     mission_id = context.args[0].strip()
 
     try:
+        from tools.smart_scanner import SmartScanner
+
         scanner = SmartScanner.load(mission_id)
         if not scanner:
             await safe_reply(update, f"Mission not found: `{mission_id}`")
@@ -416,7 +422,7 @@ async def cmd_resume(update: Update, context: ContextTypes.DEFAULT_TYPE):
         results = await run_in_thread(scanner.resume)
 
         message = (
-            f"Mission resumed\n\n"
+            "Mission resumed\n\n"
             f"Status: {results['status']}\n"
             f"Findings: {len(results.get('findings', []))}"
         )
@@ -437,6 +443,8 @@ async def cmd_findings(update: Update, context: ContextTypes.DEFAULT_TYPE):
     mission_id = context.args[0].strip()
 
     try:
+        from tools.smart_scanner import SmartScanner
+
         scanner = SmartScanner.load(mission_id)
         if not scanner:
             await safe_reply(update, f"Mission not found: `{mission_id}`")
@@ -489,6 +497,7 @@ async def cmd_findings(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def cmd_programs(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """List top bug bounty programs."""
+    from tools.bounty_intelligence import BountyIntelligence
 
     api_key = os.environ.get("HACKERONE_API_KEY")
     api_user = os.environ.get("HACKERONE_API_USER")
@@ -509,6 +518,8 @@ async def cmd_programs(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         ranked = await run_in_thread(intel.rank_programs, programs)
 
+        from tools.telegram_bridge import TelegramBridge
+
         bridge = TelegramBridge()
         await bridge.notify_programs_list([p.__dict__ for p in ranked])
 
@@ -526,31 +537,31 @@ async def cmd_settings(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [
             InlineKeyboardButton(
                 f"Notifications: {'ON' if pref.notifications_enabled else 'OFF'}",
-                callback_data=f"toggle_notif_all",
+                callback_data="toggle_notif_all",
             )
         ],
         [
             InlineKeyboardButton(
                 f"Mission Start: {'ON' if pref.notify_mission_start else 'OFF'}",
-                callback_data=f"toggle_notif_mission_start",
+                callback_data="toggle_notif_mission_start",
             )
         ],
         [
             InlineKeyboardButton(
                 f"Mission Complete: {'ON' if pref.notify_mission_complete else 'OFF'}",
-                callback_data=f"toggle_notif_mission_complete",
+                callback_data="toggle_notif_mission_complete",
             )
         ],
         [
             InlineKeyboardButton(
                 f"Findings: {'ON' if pref.notify_findings else 'OFF'}",
-                callback_data=f"toggle_notif_findings",
+                callback_data="toggle_notif_findings",
             )
         ],
         [
             InlineKeyboardButton(
                 f"Warnings: {'ON' if pref.notify_warnings else 'OFF'}",
-                callback_data=f"toggle_notif_warnings",
+                callback_data="toggle_notif_warnings",
             )
         ],
         [InlineKeyboardButton("Favorites", callback_data="show_favorites")],
@@ -559,11 +570,11 @@ async def cmd_settings(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await safe_reply(
         update,
-        f"*Settings*\n\n"
+        "*Settings*\n\n"
         f"Notifications: {'Enabled' if pref.notifications_enabled else 'Disabled'}\n"
         f"Language: {pref.language}\n"
         f"Theme: {pref.theme}\n\n"
-        f"Tap buttons to change settings",
+        "Tap buttons to change settings",
         reply_markup=reply_markup,
     )
 

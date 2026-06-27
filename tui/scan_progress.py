@@ -15,10 +15,8 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass, field
-from datetime import datetime
-from typing import Any, Dict, List, Optional, Tuple
+from typing import List, Optional, Tuple
 
-from rich.align import Align
 from rich.box import ROUNDED, SIMPLE
 from rich.console import Group
 from rich.panel import Panel
@@ -221,7 +219,7 @@ class ScanProgressWidget:
         # Header
         header = Text()
         header.append(f" {self.scan.scan_type} ", style=f"bold {primary}")
-        header.append(f"  Target: ", style=muted)
+        header.append("  Target: ", style=muted)
         header.append(self.scan.target, style=f"bold {text_color}")
 
         # Overall progress bar
@@ -240,19 +238,19 @@ class ScanProgressWidget:
         # Time info
         time_text = Text()
         elapsed = self.scan.elapsed
-        time_text.append(f"  Elapsed: ", style=muted)
+        time_text.append("  Elapsed: ", style=muted)
         time_text.append(f"{int(elapsed):d}s", style=f"bold {text_color}")
         if self.scan.status == "running":
             eta = self.scan.eta
-            time_text.append(f"  ETA: ", style=muted)
+            time_text.append("  ETA: ", style=muted)
             time_text.append(f"{int(eta):d}s", style=f"bold {primary}")
 
         # Findings
         findings_text = Text()
-        findings_text.append(f"  Findings: ", style=muted)
+        findings_text.append("  Findings: ", style=muted)
         findings_text.append(str(self.scan.total_findings), style=f"bold {text_color}")
         if self.scan.current_phase:
-            findings_text.append(f"  Phase: ", style=muted)
+            findings_text.append("  Phase: ", style=muted)
             findings_text.append(self.scan.current_phase, style=f"bold {primary}")
 
         # Phase details table
@@ -274,8 +272,8 @@ class ScanProgressWidget:
             status_icon = {
                 "pending": f"[{muted}]\u25cb[/{muted}]",
                 "running": f"[{primary}]\u25cf[/{primary}]",
-                "completed": f"[#81C784]\u2713[/#81C784]",
-                "failed": f"[#ff5500]\u2717[/#ff5500]",
+                "completed": "[#81C784]\u2713[/#81C784]",
+                "failed": "[#ff5500]\u2717[/#ff5500]",
             }.get(phase.status, f"[{muted}]\u25cb[/{muted}]")
 
             # Progress bar

@@ -17,15 +17,13 @@ from __future__ import annotations
 
 import logging
 import math
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 
 from rich.align import Align
-from rich.box import HEAVY, ROUNDED, SIMPLE
-from rich.console import Console, Group, RenderResult
-from rich.layout import Layout
-from rich.padding import Padding
+from rich.box import ROUNDED, SIMPLE
+from rich.console import Group, RenderResult
 from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
@@ -325,7 +323,7 @@ class ExploitChainDiagram:
             box.append("  +--", style=color)
             box.append(f" {glyph} ", style=f"bold {color}")
             box.append(f"Step {i + 1}: ", style="#888888")
-            box.append(step.title, style=f"bold #ffffff")
+            box.append(step.title, style="bold #ffffff")
             if step.detail:
                 box.append(f"\n  |   {step.detail[:80]}", style="#888888")
             box.append("\n  +", style=color)

@@ -88,7 +88,7 @@ def run_omni_scan(
 
     console.print(
         Panel(
-            f"[bold red]  ELENGENIX FULL-SCALE MISSION v3.0[/bold red]\n"
+            "[bold red]  ELENGENIX FULL-SCALE MISSION v3.0[/bold red]\n"
             f" Target: [red]{safe_target}[/red]\n"
             f"  Tools Available: {tool_count}/{len(available_tools)}\n"
             f" Rate Limit: {rate_limit} concurrent | CVSS: {'' if enable_cvss else ''}",
@@ -183,7 +183,7 @@ def run_omni_scan(
 
     console.print(
         Panel(
-            f"[bold green] MISSION COMPLETE[/bold green]\n"
+            "[bold green] MISSION COMPLETE[/bold green]\n"
             f" Reports: [red]{report_dir}[/red]\n"
             f" Markdown: {report_path}\n"
             f" Dashboard: {html_path}\n"

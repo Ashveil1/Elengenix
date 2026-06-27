@@ -8,7 +8,6 @@ sys.path.insert(0, "/mnt/data/Elengenix")
 
 from tools.perf import (
     AsyncBatcher,
-    FastHTTP,
     SmartCache,
     StreamingAggregator,
     Timer,

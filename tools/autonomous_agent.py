@@ -200,8 +200,8 @@ def _exec_recon(action: AgentAction, state: AgentState) -> List[Dict]:
             )
 
         _display(
-            f"  [recon] {result.stats.get('domains',0)} domains, "
-            f"{result.stats.get('endpoints',0)} endpoints, "
+            f"  [recon] {result.stats.get('domains', 0)} domains, "
+            f"{result.stats.get('endpoints', 0)} endpoints, "
             f"{len(result.findings)} findings"
         )
     except Exception as e:
@@ -305,7 +305,11 @@ def _exec_waf_detect(action: AgentAction, state: AgentState) -> List[Dict]:
                     "severity": "info",
                     "title": f"WAF Detected: {waf_found}",
                     "target": url,
-                    "description": f"{waf_found} WAF detected (confidence: {confidence:.0%}). Attack probe blocked={blocked}",
+                    "description": (
+                        f"{waf_found} WAF detected"
+                        f" (confidence: {confidence:.0%})."
+                        f" Attack probe blocked={blocked}"
+                    ),
                     "source": "waf_detect",
                 }
             )
@@ -576,7 +580,7 @@ def _exec_wayback_recon(action: AgentAction, state: AgentState) -> List[Dict]:
         findings.append(
             {
                 "title": f"Archived endpoint: {url}",
-                "description": f"High-interest historical URL found via Wayback/OTX.",
+                "description": "High-interest historical URL found via Wayback/OTX.",
                 "severity": "info",
                 "source": "wayback",
                 "url": url,
@@ -688,7 +692,7 @@ def _exec_threat_model(action: AgentAction, state: AgentState, ai_client=None) -
                 "Analyze all gathered intelligence and produce an actionable plan. "
                 "Focus on the most promising attack vectors with highest bounty potential."
             ),
-            user=f"""Based on this intelligence, create a threat model and attack plan:
+            user="""Based on this intelligence, create a threat model and attack plan:
 
 {context}
 
@@ -941,7 +945,7 @@ def _exec_subdomain_takeover(action: AgentAction, state: AgentState) -> List[Dic
     from tools.subdomain_takeover import check_subdomains
 
     findings = []
-    _display(f"  [subdomain_takeover] Checking for takeover opportunities...")
+    _display("  [subdomain_takeover] Checking for takeover opportunities...")
 
     # Collect all discovered subdomains from state
     subdomains = state.assets.get("subdomains", [])
@@ -1058,13 +1062,13 @@ def _exec_request_auth(action: AgentAction, state: AgentState) -> List[Dict]:
     print(f"\n  {'='*60}")
     print(f"  [AUTH REQUIRED] Target: {target}")
     print(f"  {'='*60}")
-    print(f"  AI detected an authentication barrier on this target.")
-    print(f"  Please provide ONE of the following:\n")
-    print(f"  Option 1 — Cookie header:")
-    print(f"    Example: session=abc123; token=xyz")
-    print(f"  Option 2 — Authorization header:")
-    print(f"    Example: Bearer eyJhbGciOiJI...")
-    print(f"  Option 3 — Type 'skip' to continue without auth\n")
+    print("  AI detected an authentication barrier on this target.")
+    print("  Please provide ONE of the following:\n")
+    print("  Option 1 — Cookie header:")
+    print("    Example: session=abc123; token=xyz")
+    print("  Option 2 — Authorization header:")
+    print("    Example: Bearer eyJhbGciOiJI...")
+    print("  Option 3 — Type 'skip' to continue without auth\n")
 
     try:
         user_input = input("  🔑 Paste credential: ").strip()
@@ -1078,7 +1082,7 @@ def _exec_request_auth(action: AgentAction, state: AgentState) -> List[Dict]:
                 "title": "Authentication Barrier Detected (Skipped)",
                 "description": (
                     f"Target {target} requires authentication but user chose to skip.\n"
-                    f"Findings behind login may be missed."
+                    "Findings behind login may be missed."
                 ),
                 "severity": "info",
                 "source": "request_auth",
@@ -1103,15 +1107,15 @@ def _exec_request_auth(action: AgentAction, state: AgentState) -> List[Dict]:
     state.assets["authenticated"] = True
 
     print(f"  [AUTH] {cred_type} saved! All future requests will be authenticated.")
-    print(f"  [AUTH] Resuming scan...\n")
+    print("  [AUTH] Resuming scan...\n")
 
     findings.append(
         {
             "title": f"Authentication Acquired ({cred_type})",
             "description": (
                 f"User provided {cred_type} for {target}.\n"
-                f"All subsequent tools (injection_test, bola_probe, param_mine, etc.) "
-                f"will automatically include these credentials in HTTP headers."
+                "All subsequent tools (injection_test, bola_probe, param_mine, etc.) "
+                "will automatically include these credentials in HTTP headers."
             ),
             "severity": "info",
             "source": "request_auth",
@@ -1134,7 +1138,7 @@ def _exec_create_custom_tool(action: AgentAction, state: AgentState, ai_client=N
     target = action.target
     purpose = action.params.get("purpose", "Custom security test")
 
-    _display(f"  [create_custom_tool] AI is writing a custom tool...")
+    _display("  [create_custom_tool] AI is writing a custom tool...")
     _display(f"  [create_custom_tool] Purpose: {purpose}")
     _display(f"  [create_custom_tool] Target: {target}")
 
@@ -1168,7 +1172,7 @@ def _exec_create_custom_tool(action: AgentAction, state: AgentState, ai_client=N
             _display(f"  [create_custom_tool] Reasoning: {tool_spec.ai_reasoning}")
 
             if not creator.create_tool(tool_spec):
-                _display(f"  [create_custom_tool] Tool creation declined or failed")
+                _display("  [create_custom_tool] Tool creation declined or failed")
                 continue
 
             # Execute with self-healing retry loop
@@ -1193,7 +1197,7 @@ def _exec_create_custom_tool(action: AgentAction, state: AgentState, ai_client=N
                     if attempt < max_retries:
                         _display(f"  [create_custom_tool] Error: {result.error}")
                         _display(
-                            f"  [create_custom_tool] Self-healing attempt "
+                            "  [create_custom_tool] Self-healing attempt "
                             f"{attempt + 1}/{max_retries}..."
                         )
                         # AI fixes its own code
@@ -1455,7 +1459,7 @@ def _exec_analyze_findings(
             "You are an expert bug bounty analyst. Analyze findings after each tool run. "
             "Be concise and strategic."
         ),
-        user=f"""Action just completed: {action.name} on {action.target}
+        user="""Action just completed: {action.name} on {action.target}
 
 New findings:
 {findings_text}
@@ -1511,11 +1515,17 @@ def _ai_reflect_on_action(
     content = _ai_call(
         ai_client,
         system=(
-            "You are an offensive security AI with explicit authorization to aggressively test this target for a bug bounty program. "
-            "Evaluate the proposed action for effectiveness. You must be aggressive and accept moderate operational risks (like WAF blocks or temporary rate limits) in order to discover critical vulnerabilities like SQLi, RCE, and BOLA/IDOR. "
-            "ONLY reject the action if it is guaranteed to cause irreversible permanent damage or catastrophic database deletion. Otherwise, approve it."
+            "You are an offensive security AI with explicit authorization to"
+            " aggressively test this target for a bug bounty program."
+            " Evaluate the proposed action for effectiveness. You must be"
+            " aggressive and accept moderate operational risks (like WAF blocks"
+            " or temporary rate limits) in order to discover critical"
+            " vulnerabilities like SQLi, RCE, and BOLA/IDOR."
+            " ONLY reject the action if it is guaranteed to cause irreversible"
+            " permanent damage or catastrophic database deletion."
+            " Otherwise, approve it."
         ),
-        user=f"""Proposed action: {action.name} on {action.target}
+        user="""Proposed action: {action.name} on {action.target}
 Reasoning: {action.reasoning}
 
 Assess the potential consequences. Is this a wise and safe choice for a bug bounty scan?
@@ -1585,22 +1595,36 @@ Available actions (Phase 2 — Active Probing):
   - subdomain_takeover : Check subdomains for cloud resource takeover. Params: {"target": "domain.com"}
 
 Available actions (Phase 2.5 — Authentication):
-  - request_auth       : Ask the human operator for Cookie/Token when you hit 401/403 login barriers. Use this BEFORE exploitation if the target requires login. Params: {"target": "https://..."}
-  - auth_test          : Analyze JWT tokens, test OAuth/OIDC misconfigurations, check session security flags. Params: {"target": "https://..."}
+  - request_auth       : Ask the human operator for Cookie/Token when you hit
+    401/403 login barriers. Use this BEFORE exploitation if the target
+    requires login. Params: {"target": "https://..."}
+  - auth_test          : Analyze JWT tokens, test OAuth/OIDC
+    misconfigurations, check session security flags.
+    Params: {"target": "https://..."}
 
 Available actions (Phase 3 — Exploitation):
   - injection_test     : Test for XSS, SQLi, SSTI, LFI, Open Redirect. Params: {"target": "https://..."}
-  - bola_probe         : BOLA/IDOR vulnerability check with GET/POST/PUT/DELETE methods. Params: {"target": "https://..."}
+  - bola_probe         : BOLA/IDOR vulnerability check with
+    GET/POST/PUT/DELETE methods. Params: {"target": "https://..."}
   - waf_bypass         : Adaptive WAF bypass with payload mutation. Params: {"target": "https://..."}
   - vuln_scan        : Run Python-based vulnerability scanner. Params: {"target": "https://..."}
   - xss_hunt           : Run Dalfox advanced XSS scanner with smart parameter fuzzing. Params: {"target": "https://..."}
-  - ssrf_scan          : Test for SSRF via URL params, cloud metadata endpoints, internal IP ranges. Params: {"target": "https://..."}
-  - graphql_introspect : Auto-discover GraphQL endpoints + test introspection, depth limits, batching. Params: {"target": "https://..."}
-  - race_condition     : Test concurrent requests for TOCTOU and race window vulnerabilities. Params: {"target": "https://..."}
+  - ssrf_scan          : Test for SSRF via URL params, cloud metadata
+    endpoints, internal IP ranges. Params: {"target": "https://..."}
+  - graphql_introspect : Auto-discover GraphQL endpoints + test
+    introspection, depth limits, batching.
+    Params: {"target": "https://..."}
+  - race_condition     : Test concurrent requests for TOCTOU and race
+    window vulnerabilities. Params: {"target": "https://..."}
 
 Available actions (Phase 4 — Advanced / Custom):
-  - zap_active_scan    : Run OWASP ZAP active scan via headless daemon (if installed). Falls back gracefully if ZAP is not available. Params: {"target": "https://..."}
-  - create_custom_tool : Write a custom Python exploit script on-the-fly when existing tools cannot handle a specific CVE or unusual vulnerability. Params: {"target": "https://...", "purpose": "description of what the tool should do"}
+  - zap_active_scan    : Run OWASP ZAP active scan via headless daemon
+    (if installed). Falls back gracefully if ZAP is not available.
+    Params: {"target": "https://..."}
+  - create_custom_tool : Write a custom Python exploit script on-the-fly
+    when existing tools cannot handle a specific CVE or unusual
+    vulnerability. Params: {"target": "https://...",
+    "purpose": "description of what the tool should do"}
 
 Available actions (Strategic):
   - threat_model       : Analyze all intel and create a strategic attack plan.
@@ -1656,15 +1680,27 @@ Available actions (Strategic):
             "- Phase 1: Gather intelligence (recon, wayback, github, osint, vuln_intel, js_recon).\n"
             "- When you have enough intel: use threat_model to create an attack plan.\n"
             "- Phase 2: Execute active probing based on your plan.\n"
-            "- AUTH: If you encounter HTTP 401/403 or login pages, use request_auth to ask the human for credentials BEFORE exploitation.\n"
+            "- AUTH: If you encounter HTTP 401/403 or login pages, use"
+            " request_auth to ask the human for credentials BEFORE"
+            " exploitation.\n"
             "- Phase 3: After auth (if needed), run exploitation tools (injection_test, bola_probe, waf_bypass).\n"
-            "- Phase 4: If existing tools cannot handle a specific CVE or unusual target, use create_custom_tool to write a custom Python exploit.\n"
-            "- CRITICAL RULE: DO NOT repeat the exact same action on the exact same target URL more than once. Look at the 'actions_taken' list. If you see 'bola_probe:https://api.1win.com' there, DO NOT run it again.\n"
-            "- CRITICAL RULE: If you have exhausted all logical attacks for the current attack surface and have no NEW targets/subdomains to pivot to, you MUST select the 'done' action to finish the scan. Do not waste iterations doing nothing.\n"
+            "- Phase 4: If existing tools cannot handle a specific CVE or"
+            " unusual target, use create_custom_tool to write a custom"
+            " Python exploit.\n"
+            "- CRITICAL RULE: DO NOT repeat the exact same action on the"
+            " exact same target URL more than once. Look at the"
+            " 'actions_taken' list. If you see"
+            " 'bola_probe:https://api.1win.com' there, DO NOT run it"
+            " again.\n"
+            "- CRITICAL RULE: If you have exhausted all logical attacks"
+            " for the current attack surface and have no NEW"
+            " targets/subdomains to pivot to, you MUST select the 'done'"
+            " action to finish the scan. Do not waste iterations doing"
+            " nothing.\n"
             "- Pivot to new subdomains/endpoints when interesting assets are found.\n"
             "- Focus on findings with highest bounty potential."
         ),
-        user=f"""{available_actions}
+        user="""{available_actions}
 
 Current scan state:
 {context}
@@ -1801,22 +1837,26 @@ class AutonomousAgent:
                     "threat_model",
                     "analyze",
                 ):
-                    _display(f"  [Reflection] AI is evaluating the consequences of this action...")
+                    _display("  [Reflection] AI is evaluating the consequences of this action...")
                     is_safe, reflection, risk = _ai_reflect_on_action(action, state, self.ai_client)
                     _display(f"  [Reflection] Risk: {risk.upper()} | {reflection}")
 
                     if not is_safe:
-                        _display(f"  [Reflection] ❌ Action self-rejected by AI. Skipping...")
+                        _display("  [Reflection] ❌ Action self-rejected by AI. Skipping...")
                         state.findings.append(
                             {
                                 "title": f"AI Self-Rejected: {action.name}",
-                                "description": f"AI decided not to execute {action.name} due to high risk or low value.\nReflection: {reflection}",
+                                "description": (
+                                    f"AI decided not to execute {action.name}"
+                                    f" due to high risk or low value."
+                                    f"\nReflection: {reflection}"
+                                ),
                                 "severity": "info",
                                 "source": "reflection",
                             }
                         )
                         continue
-                    _display(f"  [Reflection] ✅ Action approved. Executing...")
+                    _display("  [Reflection] ✅ Action approved. Executing...")
                 # ────────────────────────────────────────────────────────
 
                 # Execute chosen action
@@ -1837,9 +1877,9 @@ class AutonomousAgent:
                         save_target_learning(
                             target=state.root_target,
                             learning=(
-                                f"[{f.get('severity','info').upper()}] "
-                                f"{f.get('title','Finding')}: "
-                                f"{f.get('description','')[:300]}"
+                                f"[{f.get('severity', 'info').upper()}] "
+                                f"{f.get('title', 'Finding')}: "
+                                f"{f.get('description', '')[:300]}"
                             ),
                             category=f.get("source", "scan"),
                         )
@@ -2003,7 +2043,7 @@ class AutonomousAgent:
             )
             gen = PDFReportGenerator()
             paths = gen.generate_from_findings(findings, meta)
-            return paths.get("pdf") or paths.get("html")
+            return paths.get("pd") or paths.get("html")
         except Exception as e:
             logger.debug(f"Report generation failed: {e}")
             return None
@@ -2056,7 +2096,7 @@ class AutonomousAgent:
         goal = goal or "Find high-value security vulnerabilities for bug bounty"
 
         _display(f"\n{'='*60}")
-        _display(f" TEAM AEGIS — Autonomous Collaborative Scan")
+        _display(" TEAM AEGIS — Autonomous Collaborative Scan")
         _display(f" Target: {target}")
         _display(f" Goal: {goal}")
         _display(f" Models: {', '.join(active_models)}")
@@ -2110,10 +2150,10 @@ class AutonomousAgent:
                     agent_role="Operator",
                     model_name="human",
                     content=f"Mission briefing: {goal}\nTarget: {target}\n"
-                    f"Available actions: recon, http_probe, waf_detect, vuln_scan, "
-                    f"endpoint_fuzz, bola_probe, header_audit, xss_hunt, cors_scan, "
-                    f"injection_test, subdomain_takeover, param_mine, js_recon, "
-                    f"wayback_recon, threat_model, create_custom_tool",
+                    "Available actions: recon, http_probe, waf_detect, vuln_scan, "
+                    "endpoint_fuzz, bola_probe, header_audit, xss_hunt, cors_scan, "
+                    "injection_test, subdomain_takeover, param_mine, js_recon, "
+                    "wayback_recon, threat_model, create_custom_tool",
                     msg_type="discussion",
                 )
             )

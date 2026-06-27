@@ -231,7 +231,7 @@ class AWSScanner:
                         finding_type="secrets_access",
                         severity="high",
                         confidence=0.8,
-                        description=f"IAM policy allows access to secrets/secrets manager",
+                        description="IAM policy allows access to secrets/secrets manager",
                         evidence={"secret_actions": dangerous_data},
                         remediation="Restrict secrets access to specific secret ARNs. Use rotation policies.",
                     )
@@ -392,7 +392,7 @@ class AWSScanner:
                             finding_type=ftype,
                             severity="critical",
                             confidence=0.9,
-                            description=f"Hardcoded AWS credentials in Terraform file",
+                            description="Hardcoded AWS credentials in Terraform file",
                             evidence={"file": str(tf_path)},
                             remediation="Use environment variables, AWS credentials file, or Terraform Cloud for secrets. Never commit credentials.",
                         )

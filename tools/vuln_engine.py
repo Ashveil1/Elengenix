@@ -6,15 +6,13 @@ Version: 1.0.0
 
 from __future__ import annotations
 
-import asyncio
 import hashlib
 import json
 import logging
 import re
 from dataclasses import dataclass, field
 from enum import Enum
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger("elengenix.vuln_engine")
 
@@ -63,10 +61,10 @@ class VulnClass(Enum):
             "xxe": ["CWE-611"],
             "access": ["CWE-639", "CWE-285"],
             "misconfig": ["CWE-16"],
-            "csrf": ["CWE-352"],
+            "csr": ["CWE-352"],
             "components": ["CWE-1104"],
             "logging": ["CWE-778"],
-            "ssrf": ["CWE-918"],
+            "ssr": ["CWE-918"],
             "deserialization": ["CWE-502"],
             "race": ["CWE-362"],
             "business": ["CWE-840"],

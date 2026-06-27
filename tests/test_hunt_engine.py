@@ -10,7 +10,6 @@ import json
 import sys
 from pathlib import Path
 
-import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
@@ -20,15 +19,8 @@ def test_hunt_engine_imports() -> None:
     """Hunt engine and all phases must be importable."""
     from tools.hunt_engine import (
         HuntEngine,
-        HuntFinding,
-        HuntPhase,
-        HuntReport,
-        Severity,
         compute_risk_score,
         correlate_chains,
-        report_to_console,
-        report_to_dict,
-        save_report,
     )
 
     assert HuntEngine is not None
@@ -47,7 +39,7 @@ def test_target_normalization() -> None:
 
 def test_risk_score_clean() -> None:
     """No findings = None (truly nothing found, not Informational)."""
-    from tools.hunt_engine import HuntFinding, compute_risk_score
+    from tools.hunt_engine import compute_risk_score
 
     score, level = compute_risk_score([])
     assert score == 0.0
@@ -195,7 +187,7 @@ def test_correlation_jwt_idor_chain() -> None:
 
 def test_report_to_dict_serializable() -> None:
     """Report must be JSON-serializable."""
-    from tools.hunt_engine import HuntEngine, HuntFinding, HuntPhase, HuntReport, report_to_dict
+    from tools.hunt_engine import HuntFinding, HuntPhase, HuntReport, report_to_dict
 
     r = HuntReport(target="example.com", started_at="2026-01-01T00:00:00Z")
     r.findings = [HuntFinding(phase="zero_day", category="x", severity="High", title="t")]
@@ -212,7 +204,7 @@ def test_report_to_dict_serializable() -> None:
 
 def test_report_to_console_format() -> None:
     """Console report must contain key sections and be honest."""
-    from tools.hunt_engine import HuntEngine, HuntFinding, HuntPhase, HuntReport, report_to_console
+    from tools.hunt_engine import HuntFinding, HuntPhase, HuntReport, report_to_console
 
     r = HuntReport(target="example.com", started_at="2026-01-01T00:00:00Z")
     r.findings = [

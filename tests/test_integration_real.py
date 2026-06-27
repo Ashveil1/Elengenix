@@ -87,7 +87,7 @@ def test_httpx_real_run_probes_target(report_dir: Path):
 
 def test_smart_orchestrator_smoke_compiles():
     """The SmartOrchestrator must instantiate without error."""
-    from scan_engine_upgrade import FindingCorrelator, ScanState, SmartOrchestrator
+    from scan_engine_upgrade import SmartOrchestrator
 
     orch = SmartOrchestrator(max_concurrency=5)
     assert orch.max_concurrency == 5
@@ -104,8 +104,7 @@ def test_full_pipeline_modules_importable():
     # Core engine
     from agents.agent_logger import ChainOfThoughtLogger
     from agents.agent_planner import StrategicPlanner
-    from orchestrator import is_in_scope, is_valid_target, run_standard_scan
-    from scan_engine_upgrade import FindingCorrelator, ParallelRunner, ScanState, SmartOrchestrator
+    from orchestrator import run_standard_scan
     from tools.governance import Governance
     from tools.payload_mutation import PayloadMutator
 

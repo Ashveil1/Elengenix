@@ -24,10 +24,8 @@ For local scanner testing ONLY.
 from __future__ import annotations
 
 import hashlib
-import json
 import os
 import sqlite3
-import threading
 import time
 
 import jwt
@@ -352,6 +350,6 @@ def health():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5555))
     print(f"Starting vulnerable target on port {port}")
-    print(f"  Endpoints: see GET /")
-    print(f"  WARNING: deliberately vulnerable, LOCAL TESTING ONLY")
+    print("  Endpoints: see GET /")
+    print("  WARNING: deliberately vulnerable, LOCAL TESTING ONLY")
     app.run(host="127.0.0.1", port=port, debug=False, threaded=True)

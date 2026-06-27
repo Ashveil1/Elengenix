@@ -611,20 +611,20 @@ def format_recon_for_display(result: ReconResult) -> str:
     """Format recon results for CLI display."""
     lines = []
     lines.append(f"\n{'='*60}")
-    lines.append(f"Smart Recon Results")
+    lines.append("Smart Recon Results")
     lines.append(f"{'='*60}")
 
-    lines.append(f"\n[Assets Discovered]")
+    lines.append("\n[Assets Discovered]")
     for stat, count in result.stats.items():
         lines.append(f"  {stat}: {count}")
 
-    lines.append(f"\n[Top Priority Targets]")
+    lines.append("\n[Top Priority Targets]")
     priority_findings = [f for f in result.findings if f.get("type") == "priority"]
     for i, finding in enumerate(priority_findings[:5], 1):
         lines.append(f"  {i}. {finding['target']}")
         lines.append(f"     {finding['description']}")
 
-    lines.append(f"\n[Key Findings]")
+    lines.append("\n[Key Findings]")
     key_findings = [f for f in result.findings if f.get("type") in ["finding", "correlation"]]
     for finding in key_findings[:5]:
         lines.append(f"  • [{finding.get('severity', 'info').upper()}] {finding['title']}")

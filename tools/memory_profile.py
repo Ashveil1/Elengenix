@@ -150,7 +150,7 @@ def ai_update_memory(conversation_snippet: str, ai_client=None) -> None:
     if not current_profile:
         current_profile = "(empty — first time meeting this user)"
 
-    prompt = f"""You are analyzing a conversation to update a user's personal memory profile.
+    prompt = """You are analyzing a conversation to update a user's personal memory profile.
 
 Current profile:
 {current_profile}
@@ -263,7 +263,7 @@ def build_memory_prompt_block() -> str:
     verbosity = profile.get("verbosity")
     if verbosity:
         v_map = {
-            "brief": "Keep responses short and to the point.",
+            "brie": "Keep responses short and to the point.",
             "detailed": "Provide thorough, detailed explanations.",
             "normal": "Use balanced response length.",
         }
@@ -306,8 +306,8 @@ def show_memory_summary() -> str:
 
     if not profile:
         return (
-            f"MEMORY.md is empty. Elengenix will learn your preferences\n"
-            f"automatically as you chat.\n"
+            "MEMORY.md is empty. Elengenix will learn your preferences\n"
+            "automatically as you chat.\n"
             f"File location: {_MEMORY_FILE}"
         )
 

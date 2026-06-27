@@ -35,7 +35,6 @@ from __future__ import annotations
 
 import hashlib
 import logging
-import math
 import re
 import time
 import urllib.error
@@ -592,7 +591,7 @@ class ActiveFuzzer:
                     and r.delta.body_hash_changed
                     and r.delta.length_diff_pct > 0.5
                 ):
-                    categories["body_diff"] = categories.get("body_diff", 0) + 1
+                    categories["body_dif"] = categories.get("body_diff", 0) + 1
 
         return {
             "total": len(results),

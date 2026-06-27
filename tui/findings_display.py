@@ -15,12 +15,10 @@ Features:
 
 from __future__ import annotations
 
-import time
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
-from rich.align import Align
 from rich.box import HEAVY, ROUNDED, SIMPLE
 from rich.console import Group
 from rich.panel import Panel
@@ -247,7 +245,7 @@ class FindingsDisplay:
         # Header with statistics
         header = Text()
         header.append(" FINDINGS ", style=f"bold {primary}")
-        header.append(f"  Total: ", style=muted)
+        header.append("  Total: ", style=muted)
         header.append(str(stats["total"]), style=f"bold {text_color}")
         header.append("  |  ", style=muted)
 

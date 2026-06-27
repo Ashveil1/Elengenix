@@ -9,13 +9,9 @@ Design: Apple-level. Linear-inspired. Raycast-speed.
 
 from __future__ import annotations
 
-import asyncio
-import json
 import logging
-import os
 import time
 from datetime import datetime
-from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger("elengenix.dashboard")
@@ -26,10 +22,8 @@ try:
     from textual.app import App, ComposeResult
     from textual.binding import Binding
     from textual.containers import Container, Horizontal, Vertical
-    from textual.message import Message
     from textual.reactive import reactive
     from textual.screen import Screen
-    from textual.theme import Theme as TextualTheme
     from textual.widget import Widget
     from textual.widgets import Button, DataTable, Footer, Header, Input, RichLog, Static
 
@@ -87,19 +81,7 @@ except ImportError:
 # ── Import design system ─────────────────────────────────────────────────
 try:
     from tui_design import (
-        AURORA_THEME,
-        BLOOD_MOON_THEME,
-        DURATION,
-        EASING,
-        MIDNIGHT_THEME,
-        RADIUS,
-        SOLAR_THEME,
-        SPACING,
         Severity,
-        Theme,
-        format_bytes,
-        format_duration,
-        format_number,
     )
 
     _HAS_DESIGN = True
@@ -314,7 +296,7 @@ if _HAS_TEXTUAL:
         BINDINGS = [
             Binding("q", "quit", "Quit"),
             Binding("r", "refresh", "Refresh"),
-            Binding("f", "focus_findings", "Findings"),
+            Binding("", "focus_findings", "Findings"),
             Binding("l", "focus_log", "Log"),
             Binding("i", "focus_input", "Input"),
             Binding("slash", "focus_input", "Command"),

@@ -148,7 +148,7 @@ class CommandSuggester:
             "examples": ["elengenix report findings.json", "Creates PDF/HTML reports"],
             "category": "reporting",
             "requires_target": False,
-            "aliases": ["pdf", "generate"],
+            "aliases": ["pd", "generate"],
         },
         "configure": {
             "description": "Configure AI providers and settings",
@@ -224,7 +224,7 @@ class CommandSuggester:
         "discover": "recon",
         "enum": "recon",
         # WAF typos
-        "waff": "waf",
+        "waf": "waf",
         "firewall": "waf",
         "bypass": "waf",
         # POC typos
@@ -399,7 +399,7 @@ class CommandSuggester:
         # Highlight differences
         SequenceMatcher(None, input_cmd, suggestion)
 
-        return f"""
+        return """
 ┌────────────────────────────────────────────────────────────┐
 │  Did you mean:                                             │
 │                                                            │
@@ -551,7 +551,7 @@ def run_cli():
         info = suggester.get_command_info(input_cmd)
         print(f"\n  [{input_cmd.upper()}]")
         print(f"  {info.get('description', '')}")
-        print(f"\n  Examples:")
+        print("\n  Examples:")
         for ex in info.get("examples", []):
             print(f"    $ {ex}")
 

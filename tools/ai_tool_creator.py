@@ -132,7 +132,7 @@ class AIGovernance:
             if high:
                 logger.info(
                     f"Tool {tool_spec.name} has {len(high)} high-severity "
-                    f"AST hit(s); allowing with warning"
+                    "AST hit(s); allowing with warning"
                 )
 
         # Tier 2: Legacy regex (fast first line)
@@ -246,7 +246,7 @@ class AIToolCreator:
             logger.warning("No AI client available for tool planning")
             return []
 
-        prompt = f"""You are an autonomous security AI. Analyze this target and plan custom tools.
+        prompt = """You are an autonomous security AI. Analyze this target and plan custom tools.
 
 Target: {target}
 Target Info: {target_info or 'Unknown'}
@@ -478,7 +478,7 @@ Respond in JSON format:
         if not self.ai_client:
             return False
 
-        prompt = f"""Improve this security tool based on feedback.
+        prompt = """Improve this security tool based on feedback.
 
 Tool Name: {tool_name}
 Current Code:
@@ -628,9 +628,9 @@ def run_cli():
             print(f"  Reasoning: {spec.ai_reasoning}")
 
             if creator.create_tool(spec):
-                print(f"  [OK] Created successfully")
+                print("  [OK] Created successfully")
             else:
-                print(f"  [FAIL] Creation failed or declined")
+                print("  [FAIL] Creation failed or declined")
 
     elif command == "execute":
         if len(sys.argv) < 3:
@@ -641,7 +641,7 @@ def run_cli():
         result = creator.execute_tool(tool_name)
 
         if result.success:
-            print(f"[OK] Tool executed successfully")
+            print("[OK] Tool executed successfully")
             print(f"Output: {result.output[:500]}")
             print(f"Findings: {len(result.findings)}")
         else:

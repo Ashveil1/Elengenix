@@ -10,11 +10,8 @@ from __future__ import annotations
 
 import asyncio
 import json
-import os
-import shutil
 from pathlib import Path
 
-import pytest
 
 # ── Fix 1: SmartOrchestrator semaphore ─────────────────────────────────────
 # These tests run the actual async function, NOT the real subfinder binary,

@@ -23,10 +23,9 @@ Setup:
 from __future__ import annotations
 
 import json
-import os
 import urllib.error
 import urllib.request
-from typing import Any, List
+from typing import List
 
 PLUGIN_NAME = "ollama_local"
 DEFAULT_OLLAMA_URL = "http://localhost:11434"

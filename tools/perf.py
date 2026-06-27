@@ -9,13 +9,11 @@ from __future__ import annotations
 import asyncio
 import functools
 import hashlib
-import json
 import logging
 import time
 from collections import OrderedDict
 from dataclasses import dataclass, field
-from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional
 
 logger = logging.getLogger("elengenix.perf")
 

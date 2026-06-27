@@ -118,7 +118,7 @@ def _search_duckduckgo(query: str, num_results: int) -> List[Dict]:
             for r in ddgs.text(query, max_results=num_results):
                 results.append(
                     {
-                        "url": r.get("href", ""),
+                        "url": r.get("hre", ""),
                         "title": r.get("title", "Web Result"),
                         "content": r.get("body", ""),
                     }

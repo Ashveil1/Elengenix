@@ -712,7 +712,7 @@ for payload in xss_payloads:
 
     def _generate_generic_poc(self, vuln_type: str, framework: str, language: str) -> str:
         """Generate generic PoC template."""
-        return f"""# {vuln_type.upper()} Test Template
+        return """# {vuln_type.upper()} Test Template
 import requests
 import sys
 
@@ -775,7 +775,7 @@ print(f"Status: {{resp.status_code}}")
                 payout="$6,500",
                 disclosed_at="2023-11-02",
                 summary="Webhook feature allowed requests to internal IPs",
-                key_techniques=["ssrf", "aws_imds", "webhook"],
+                key_techniques=["ssr", "aws_imds", "webhook"],
                 url="https://hackerone.com/reports/345678",
                 reporter="@ssrf_hunter",
             ),
@@ -785,7 +785,7 @@ print(f"Status: {{resp.status_code}}")
         vuln_keywords = {
             "rce": ["rce", "remote code", "command injection", "deserialization"],
             "sqli": ["sql", "sqli", "injection", "database"],
-            "ssrf": ["ssrf", "server-side", "request forgery"],
+            "ssr": ["ssr", "server-side", "request forgery"],
             "idor": ["idor", "insecure direct", "authorization"],
             "xss": ["xss", "cross-site", "scripting"],
             "auth": ["auth", "bypass", "authentication"],
@@ -924,7 +924,7 @@ def run_cli():
             print(f"CVSS Score: {result.cvss_score} ({result.severity})")
             print(f"\nDescription:\n{result.description[:300]}...")
             print(f"\nPrerequisites: {', '.join(result.exploitation_requirements)}")
-            print(f"\nAvailable PoCs:")
+            print("\nAvailable PoCs:")
             for poc in result.available_pocs:
                 print(f"  - {poc['source']}: {poc['url']}")
             print(f"\nConfidence: {result.confidence:.0%}")
@@ -949,7 +949,7 @@ def run_cli():
             print(f"Generated PoC: {arg} on {framework}")
             print(f"{'='*70}")
             print(poc.code)
-            print(f"\nVerification Steps:")
+            print("\nVerification Steps:")
             for step in poc.verification_steps:
                 print(f"  1. {step}")
         else:

@@ -22,14 +22,12 @@ Public API:
 from __future__ import annotations
 
 import hashlib
-import json
 import logging
 import time
 import urllib.error
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger("elengenix.bola_tester")
@@ -259,12 +257,12 @@ class BOLATester:
                 True,
                 0.9,
                 "high",
-                f"B session got 200 for object A can't see (404) — enumeration + read BOLA",
+                "B session got 200 for object A can't see (404) — enumeration + read BOLA",
             )
 
         # Rule 4: A=200, B=500 = server error on B's request
         if status_a == 200 and status_b == 500:
-            return False, 0.3, "low", f"B session caused 500 — possible authZ bypass attempt logged"
+            return False, 0.3, "low", "B session caused 500 — possible authZ bypass attempt logged"
 
         # Default: inconclusive
         return False, 0.0, "low", f"A={status_a}, B={status_b} — no BOLA pattern detected"

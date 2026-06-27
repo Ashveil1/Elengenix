@@ -216,7 +216,7 @@ class BountyFeatureExtractor:
                 triage_speed_days=5.5,
                 frequency=60,
                 common_endpoints=["/api/fetch", "/webhook", "/import", "/preview"],
-                keywords=["ssrf", "server side request", "internal", "169.254"],
+                keywords=["ssr", "server side request", "internal", "169.254"],
             ),
             HistoricalBountyPattern(
                 vuln_type="auth_bypass",
@@ -500,7 +500,7 @@ class BountyPredictor:
         vuln_type = finding.get("type", "Vulnerability")
         target = finding.get("target", finding.get("url", "target"))
 
-        template = f"""# {vuln_type} on {target}
+        template = """# {vuln_type} on {target}
 
 ## Summary
 [Brief description of the vulnerability in 2-3 sentences]
@@ -538,7 +538,7 @@ class BountyPredictor:
             "sqli": ["CVE-2023-1234", "CVE-2022-9876"],
             "xss": ["CVE-2023-5678", "CVE-2022-5432"],
             "idor": ["CVE-2023-9012", "CVE-2022-3456"],
-            "ssrf": ["CVE-2023-7890", "CVE-2022-6789"],
+            "ssr": ["CVE-2023-7890", "CVE-2022-6789"],
             "rce": ["CVE-2023-3456", "CVE-2022-1234"],
             "auth_bypass": ["CVE-2023-5678", "CVE-2022-9012"],
             "s3_bucket": ["CVE-2023-2345", "CVE-2022-7890"],
@@ -588,14 +588,14 @@ def format_prediction_report(predictions: List[BountyPrediction]) -> str:
         lines.append(f"    Severity: {pred.severity_estimate.upper()}")
 
         # Factor breakdown
-        lines.append(f"    Factor Breakdown:")
+        lines.append("    Factor Breakdown:")
         for factor, score in pred.factors.items():
             if score > 0:
                 lines.append(f"      • {factor.replace('_', ' ').title()}: {score:.1f}")
 
         # Suggestions
         if pred.suggestions:
-            lines.append(f"    Suggestions:")
+            lines.append("    Suggestions:")
             for sug in pred.suggestions[:3]:
                 lines.append(f"      {sug}")
 

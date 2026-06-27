@@ -54,7 +54,7 @@ HEADER_FINGERPRINTS: List[Tuple[str, str, str]] = [
     ("via", r"varnish", "varnish"),
     ("cf-ray", r".+", "cloudflare"),
     ("x-amz-cf-id", r".+", "cloudfront"),
-    ("x-azure-ref", r".+", "azure"),
+    ("x-azure-re", r".+", "azure"),
     ("x-akamai-transformed", r".+", "akamai"),
     ("x-sucuri-id", r".+", "sucuri"),
     ("server-timing", r".+", "perf-hints"),
@@ -95,7 +95,7 @@ class TargetFingerprinter:
                                  body="<!DOCTYPE html>... Drupal.settings ...",
                                  cookies={"PHPSESSID": "abc"})
         # result == {"server": "nginx", "language": "php", "cms": "drupal", "framework": None, "cdn": None,
-        #            "waf": None, "db": None, "technologies": ["nginx", "php", "drupal"]}
+        #            "wa": None, "db": None, "technologies": ["nginx", "php", "drupal"]}
     """
 
     DEFAULT_RESULT: Dict[str, Any] = {
@@ -129,7 +129,7 @@ class TargetFingerprinter:
         "go": "postgres",
     }
 
-    CDN_HEADERS: List[str] = ["cf-ray", "x-amz-cf-id", "x-azure-ref", "x-akamai-transformed"]
+    CDN_HEADERS: List[str] = ["cf-ray", "x-amz-cf-id", "x-azure-re", "x-akamai-transformed"]
     WAF_INDICATORS: List[Tuple[str, Optional[str]]] = [
         ("server", "cloudflare"),
         ("server", "sucuri"),
@@ -229,7 +229,7 @@ class TargetFingerprinter:
             if value is None:
                 continue
             if expected is None or expected in value.lower():
-                result["waf"] = value.split("/")[0] if "/" in value else value
+                result["wa"] = value.split("/")[0] if "/" in value else value
                 technologies.append("waf")
                 break
 
@@ -277,9 +277,9 @@ VULN_BY_STACK: Dict[str, List[AttackHypothesis]] = {
             ("_ext_scanner", "_ext_fuzzer", "_ext_sqli"),
         ),
         ("lfi", "PHP LFI/RFI is endemic", ("_ext_fuzzer", "_ext_scanner")),
-        ("xxe", "PHP libxml_disable_entity_loader default ON pre-8.0 was off", ("_ext_scanner",)),
+        ("xxe", "PHP libxml_disable_entity_loader default ON pre-8.0 was of", ("_ext_scanner",)),
         ("rce", "PHP deserialization (unserialize) on session/cache", ("_ext_scanner",)),
-        ("ssrf", "PHP curl/wrappers abused for SSRF", ("_ext_scanner",)),
+        ("ssr", "PHP curl/wrappers abused for SSRF", ("_ext_scanner",)),
         ("ssti", "Twig / Smarty template engines", ("_ext_scanner",)),
     ],
     "aspnet": [
@@ -293,18 +293,18 @@ VULN_BY_STACK: Dict[str, List[AttackHypothesis]] = {
         ("xxe", "Java XML parsers are XXE-prone by default", ("_ext_scanner",)),
         ("deser", "Java deserialization (ysoserial, gadget chains)", ("_ext_scanner",)),
         ("ssti", "Freemarker / Velocity / Thymeleaf SSTI", ("_ext_scanner",)),
-        ("ssrf", "Java URL/HttpURLConnection SSRF", ("_ext_scanner",)),
+        ("ssr", "Java URL/HttpURLConnection SSRF", ("_ext_scanner",)),
     ],
     "python": [
         ("sqli", "Django/Flask SQL via raw SQL or ORM .raw()", ("_ext_scanner",)),
         ("ssti", "Jinja2 SSTI via render_template_string", ("_ext_scanner",)),
         ("deser", "Pickle / PyYAML unsafe load", ("_ext_scanner",)),
-        ("ssrf", "requests/urllib SSRF", ("_ext_scanner",)),
+        ("ssr", "requests/urllib SSRF", ("_ext_scanner",)),
     ],
     "node": [
         ("sqli", "Node+Mongo: NoSQL injection ($where/$ne)", ("_ext_scanner",)),
         ("prototype_pollution", "Express/Node.js proto pollution", ("_ext_scanner",)),
-        ("ssrf", "Node fetch/axios SSRF", ("_ext_scanner",)),
+        ("ssr", "Node fetch/axios SSRF", ("_ext_scanner",)),
         ("ssrf_ssr", "Server-side request forgery via puppeteer", ("_ext_scanner",)),
         ("auth_bypass", "JWT alg=none bypass", ("_ext_scanner",)),
     ],
@@ -315,7 +315,7 @@ VULN_BY_STACK: Dict[str, List[AttackHypothesis]] = {
     ],
     "go": [
         ("sqli", "Go database/sql query concatenation", ("_ext_scanner",)),
-        ("ssrf", "Go net/http client SSRF", ("_ext_scanner",)),
+        ("ssr", "Go net/http client SSRF", ("_ext_scanner",)),
         ("path", "Go path traversal in file servers", ("_ext_scanner",)),
     ],
     "nginx": [
@@ -331,7 +331,7 @@ VULN_BY_STACK: Dict[str, List[AttackHypothesis]] = {
         ("rce", "WebDAV/IIS RCE chains", ("_ext_scanner",)),
     ],
     "cloudflare": [
-        ("ssrf", "Cloudflare may obscure origin but not block SSRF", ("_ext_scanner",)),
+        ("ssr", "Cloudflare may obscure origin but not block SSRF", ("_ext_scanner",)),
         ("origin", "Try Origin IP via DNS history (_ext_recon)", ("_ext_recon", "_ext_scanner")),
     ],
     "wordpress": [
@@ -350,6 +350,7 @@ VULN_BY_STACK: Dict[str, List[AttackHypothesis]] = {
     ],
     "magento": [
         ("rce", "Magento Shoplift / Proxi (CVE-2022-24086)", ("_ext_scanner",)),
+        ("rce", "Magento RCE chains", ("_ext_scanner",)),
         ("lfi", "Magento template LFI", ("_ext_scanner",)),
     ],
     "laravel": [
@@ -363,16 +364,16 @@ VULN_BY_STACK: Dict[str, List[AttackHypothesis]] = {
     ],
     "django": [
         ("sqli", "Django .extra() SQLi", ("_ext_scanner",)),
-        ("ssrf", "Django HTTP request SSRF", ("_ext_scanner",)),
+        ("ssr", "Django HTTP request SSRF", ("_ext_scanner",)),
         ("ssti", "Django template injection via render()", ("_ext_scanner",)),
     ],
     "flask": [
         ("ssti", "Jinja2 SSTI via render_template_string", ("_ext_scanner",)),
-        ("ssrf", "Flask requests SSRF", ("_ext_scanner",)),
+        ("ssr", "Flask requests SSRF", ("_ext_scanner",)),
     ],
     "express": [
         ("prototype_pollution", "Express qs / body-parser pollution", ("_ext_scanner",)),
-        ("ssrf", "Node fetch SSRF", ("_ext_scanner",)),
+        ("ssr", "Node fetch SSRF", ("_ext_scanner",)),
     ],
     "tomcat": [
         ("auth_bypass", "Tomcat manager / host-manager auth bypass", ("_ext_scanner",)),
@@ -412,9 +413,6 @@ VULN_BY_STACK: Dict[str, List[AttackHypothesis]] = {
     "angular": [
         ("xss", "AngularJS template injection", ("_ext_scanner",)),
     ],
-    "magento": [
-        ("rce", "Magento RCE chains", ("_ext_scanner",)),
-    ],
     "cloudfront": [
         ("origin", "Try to find origin via Host header rewrite", ("_ext_scanner",)),
     ],
@@ -422,7 +420,7 @@ VULN_BY_STACK: Dict[str, List[AttackHypothesis]] = {
         ("origin", "Try to find origin via Host header rewrite", ("_ext_scanner",)),
     ],
     "azure": [
-        ("ssrf", "Azure metadata SSRF", ("_ext_scanner",)),
+        ("ssr", "Azure metadata SSRF", ("_ext_scanner",)),
     ],
     "varnish": [
         ("cache_poisoning", "Varnish cache poisoning", ("_ext_scanner",)),
@@ -437,7 +435,7 @@ VULN_BY_STACK: Dict[str, List[AttackHypothesis]] = {
         ("waf_bypass", "WAF in place: try encoding / case mutations", ("_ext_scanner",)),
     ],
     "cdn": [
-        ("ssrf", "CDN in place: may obscure origin SSRF target", ("_ext_scanner",)),
+        ("ssr", "CDN in place: may obscure origin SSRF target", ("_ext_scanner",)),
     ],
     "mongo": [
         ("sqli", "NoSQL injection: $where, $ne, $regex", ("_ext_scanner",)),
@@ -455,13 +453,10 @@ VULN_BY_STACK: Dict[str, List[AttackHypothesis]] = {
         ("sqli", "Oracle DBMS_PIPE / UTL_HTTP abuse", ("_ext_scanner", "_ext_sqli")),
     ],
     "redis": [
-        ("ssrf", "Redis via gopher:// SSRF", ("_ext_scanner",)),
+        ("ssr", "Redis via gopher:// SSRF", ("_ext_scanner",)),
     ],
     "sqlite": [
         ("sqli", "SQLite3 SQLi", ("_ext_scanner",)),
-    ],
-    "mongo": [
-        ("sqli", "Mongo $where injection", ("_ext_scanner",)),
     ],
     "info": [
         ("info", "Information disclosure via Server-Timing", ("_ext_scanner",)),
@@ -616,7 +611,7 @@ class StrategicPlanner:
             tree.steps.append(step)
 
         # 2) AI: ask the LLM for additional high-level ideas
-        planning_prompt = f"""You are a penetration testing strategist.
+        planning_prompt = """You are a penetration testing strategist.
 
 TARGET: {target}
 OBJECTIVE: {objective}

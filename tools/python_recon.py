@@ -20,14 +20,11 @@ All output is structured (list of dicts) for downstream consumption.
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 import socket
-import ssl
 from dataclasses import asdict, dataclass, field
-from pathlib import Path
 from typing import Any, Dict, List, Optional
-from urllib.parse import urljoin, urlparse
+from urllib.parse import urlparse
 
 import requests
 from requests.adapters import HTTPAdapter

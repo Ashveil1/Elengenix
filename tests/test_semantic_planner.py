@@ -12,7 +12,7 @@ from pathlib import Path
 # Make the project root importable
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from agents.agent_dataclasses import AttackPhase, AttackStep, AttackTree
+from agents.agent_dataclasses import AttackPhase, AttackTree
 from agents.agent_planner import (
     VULN_BY_STACK,
     AttackVectorDatabase,

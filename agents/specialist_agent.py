@@ -15,10 +15,9 @@ from __future__ import annotations
 import json
 import logging
 import re
-import shlex
 import subprocess
 import time
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from agents.worker_base import BaseWorker, WorkerResult
 from tools.universal_ai_client import AIMessage
@@ -90,7 +89,7 @@ class ExploitWorker(BaseWorker):
                         "severity": "high",
                         "title": "Potential exploit confirmed",
                         "target": target,
-                        "description": f"Response contains suspicious patterns",
+                        "description": "Response contains suspicious patterns",
                         "evidence": output[:500],
                     }
                 )
@@ -387,7 +386,7 @@ Respond ONLY with valid JSON. No extra text."""
         import asyncio
         from pathlib import Path
 
-        from tools.tool_registry import ToolCategory, ToolResult, registry
+        from tools.tool_registry import registry
 
         tool_name = decision.get("tool", "")
         cmd_target = decision.get("target", target)

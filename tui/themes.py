@@ -16,9 +16,7 @@ the current colours or watch for transition updates.
 from __future__ import annotations
 
 import logging
-import math
 import time
-from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
 
 from rich.style import Style

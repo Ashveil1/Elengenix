@@ -14,13 +14,10 @@ import asyncio
 import logging
 import random
 import re
-import socket
-import ssl
 import time
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Set, Tuple
-from urllib.parse import urljoin, urlparse
+from typing import Any, Dict, List, Optional, Tuple
+from urllib.parse import urlparse
 
 logger = logging.getLogger("elengenix.native_scanner")
 
@@ -289,9 +286,9 @@ class NativeScanner:
                 f"GET {path} HTTP/1.1\r\n"
                 f"Host: {host}\r\n"
                 f"User-Agent: {self.user_agent}\r\n"
-                f"Connection: close\r\n"
-                f"Accept: */*\r\n"
-                f"\r\n"
+                "Connection: close\r\n"
+                "Accept: */*\r\n"
+                "\r\n"
             )
             writer.write(request.encode())
             await writer.drain()
@@ -447,8 +444,6 @@ class NativeScanner:
         except ImportError:
             ui_available = False
         if ui_available:
-            from ui_components import print_info
-
             print_info(f"  [Native] Discovering URLs for {target}...")
         urls = await self.discover_urls(target)
         summary.total_urls = len(urls)
@@ -593,7 +588,7 @@ class NativeScanner:
                         "type": "tech_detected",
                         "severity": "Info",
                         "url": result.url,
-                        "title": f"WordPress detected",
+                        "title": "WordPress detected",
                         "details": f"WordPress CMS at {result.url}",
                     }
                 )
@@ -655,6 +650,7 @@ def run_native_scan(target: str, output_path: Optional[str] = None) -> Dict[str,
 
     if output_path:
         import json
+        from pathlib import Path
 
         Path(output_path).parent.mkdir(parents=True, exist_ok=True)
         with open(output_path, "w") as f:

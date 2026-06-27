@@ -49,7 +49,7 @@ def _format_preflight_context(findings: List[Dict[str, Any]]) -> str:
 
     lines: List[str] = [
         "### ELENGENIX FRAMEWORK PREFLIGHT FINDINGS (already discovered)",
-        f"The framework's pure-Python modules + PythonRecon have already gathered this data.",
+        "The framework's pure-Python modules + PythonRecon have already gathered this data.",
         f"Total: {len(findings)} findings across {len(by_type)} categories.",
         "",
         "Severity breakdown: "
@@ -160,7 +160,7 @@ def process_universal(
         has_thai = bool(re.search(r"[฀-๿]", user_input))
         detected_lang = "Thai" if has_thai else "English"
 
-        chat_prompt = f"""You are Elengenix AI — A Universal AI Agent specialized for Bug Bounty and Security Research.
+        chat_prompt = """You are Elengenix AI — A Universal AI Agent specialized for Bug Bounty and Security Research.
 Intent category: {intent}
 Detected user language: {detected_lang}
 
@@ -188,7 +188,8 @@ Detected user language: {detected_lang}
 
 [SECURITY TOOLS:]
 {tool_list}
-Plus: Built-in Python scanners for SSRF, SSTI, XXE, Deserialization, GraphQL, CORS, JWT, Race Conditions, Business Logic, Supply Chain
+Plus: Built-in Python scanners for SSRF, SSTI, XXE, Deserialization,
+GraphQL, CORS, JWT, Race Conditions, Business Logic, Supply Chain
 
 [GENERAL CAPABILITIES:]
 - File editing, shell commands, package installation
@@ -285,7 +286,7 @@ Plus: Built-in Python scanners for SSRF, SSTI, XXE, Deserialization, GraphQL, CO
         if wants_thai:
             return "Hello! How can I help you?"
         lang_rule = "Respond in Thai ONLY." if wants_thai else "Respond in English ONLY."
-        simple_prompt = f"""You are Elengenix AI 1.0.0.
+        simple_prompt = """You are Elengenix AI 1.0.0.
 User input: "{user_input}"
 Contains Thai characters: {wants_thai}
 
@@ -344,7 +345,7 @@ Keep it short and conversational. No tools. No emojis."""
         recent = history[-10:]
         history_text = "\n".join([f"{m['role'].capitalize()}: {m['content']}" for m in recent])
 
-        step_prompt = f"""{base_prompt_text}
+        step_prompt = """{base_prompt_text}
 
 ### CONVERSATION HISTORY:
 {history_text}
@@ -355,7 +356,10 @@ Keep it short and conversational. No tools. No emojis."""
 ### CURRENT STEP: {step + 1}/{max_steps}
 
 Respond with JSON:
-{{"thought": "...", "action": {{"type": "shell|run_tool|read_file|write_file|edit_file|search_file|search_web|finish", "params": {{...}}}}, "next_step": "..."}}"""
+{{"thought": "...",
+"action": {{"type": "shell|run_tool|read_file|write_file|edit_file|search_file|search_web|finish",
+"params": {{...}}}},
+"next_step": "..."}}"""
 
         # Get AI decision
         try:
@@ -378,7 +382,12 @@ Respond with JSON:
                 logger.warning("All AI providers failed twice in a row. Exiting early.")
                 if callback:
                     callback(ai_unavailable_marker)
-                return f"{ai_unavailable_marker} All AI providers failed after {consecutive_ai_failures} consecutive errors. Check API keys in .env or visit https://aistudio.google.com/apikey to fix Gemini quota."
+                return (
+                    f"{ai_unavailable_marker} All AI providers failed after "
+                    f"{consecutive_ai_failures} consecutive errors. "
+                    f"Check API keys in .env or visit "
+                    f"https://aistudio.google.com/apikey to fix Gemini quota."
+                )
             # Single failure: break and fall through, but if 0 actions taken, signal AI unavailable
             break
 
@@ -492,7 +501,12 @@ Respond with JSON:
 
     # P2.4: If loop exited with 0 actions, AI is likely unavailable
     if len(history) <= 1 and not all_findings:
-        return f"{ai_unavailable_marker} All AI providers failed. {len(history)-1} actions taken. Check API keys in .env or visit https://aistudio.google.com/apikey to fix Gemini quota."
+        return (
+            f"{ai_unavailable_marker} All AI providers failed. "
+            f"{len(history)-1} actions taken. "
+            f"Check API keys in .env or visit "
+            f"https://aistudio.google.com/apikey to fix Gemini quota."
+        )
 
     return f"Universal session reached {max_steps} steps. History: {len(history)} actions."
 
@@ -534,7 +548,7 @@ def _extract_json_from_text(text: str) -> Optional[Dict[str, Any]]:
 
 
 def _build_research_prompt(user_input: str, now_context: str) -> str:
-    return f"""You are Elengenix AI in RESEARCH MODE.
+    return """You are Elengenix AI in RESEARCH MODE.
 
 ### USER QUERY:
 "{user_input}"
@@ -572,7 +586,11 @@ Research Assistant with LIVE INTERNET ACCESS via DuckDuckGo / Tavily search.
 3. Provide answer with source URLs
 
 ### RESPONSE FORMAT:
-Always respond with valid JSON: {{"thought": "...", "action": {{"type": "search_web|finish", "params": {{"query": "..."}}}}, "next_step": "..."}}"""
+Always respond with valid JSON:
+{{"thought": "...",
+"action": {{"type": "search_web|finish",
+"params": {{"query": "..."}}}},
+"next_step": "..."}}"""
 
 
 def _build_bug_bounty_prompt(
@@ -617,7 +635,7 @@ def _build_bug_bounty_prompt(
         else ""
     )
 
-    return f"""You are an autonomous AI security researcher. Your mission: Find vulnerabilities on {target}
+    return """You are an autonomous AI security researcher. Your mission: Find vulnerabilities on {target}
 
 {now_context}
 
@@ -680,11 +698,15 @@ Think step-by-step which tools fit each phase:
 ### YOU HAVE THESE CAPABILITIES -- use them as you see fit:
 
 ### RESPONSE FORMAT:
-Always respond with valid JSON: {{"thought": "...", "action": {{"type": "shell|run_tool|read_file|write_file|edit_file|search_file|search_web|ask_user|finish", "params": {{...}}}}, "next_step": "..."}}"""
+Always respond with valid JSON:
+{{"thought": "...",
+"action": {{"type": "shell|run_tool|read_file|write_file|edit_file|search_file|search_web|ask_user|finish",
+"params": {{...}}}},
+"next_step": "..."}}"""
 
 
 def _build_general_prompt(user_input: str, now_context: str) -> str:
-    return f"""You are Elengenix AI 1.0.0 — A Universal AI Agent.
+    return """You are Elengenix AI 1.0.0 — A Universal AI Agent.
 
 {now_context}
 
@@ -707,7 +729,11 @@ You can help with code, security research, OSINT, system administration, and gen
 - Security scanning
 
 ### RESPONSE FORMAT:
-Always respond with valid JSON: {{"thought": "...", "action": {{"type": "shell|run_tool|read_file|write_file|edit_file|search_file|search_web|finish", "params": {{...}}}}, "next_step": "..."}}
+Always respond with valid JSON:
+{{"thought": "...",
+"action": {{"type": "shell|run_tool|read_file|write_file|edit_file|search_file|search_web|finish",
+"params": {{...}}}},
+"next_step": "..."}}
 
 ### PRINCIPLES:
 1. If you are unsure about a command, think step by step

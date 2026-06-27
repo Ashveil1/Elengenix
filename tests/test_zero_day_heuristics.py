@@ -18,7 +18,6 @@ from __future__ import annotations
 
 import asyncio
 import base64
-import hashlib
 import inspect
 import json
 import socket
@@ -27,7 +26,7 @@ import threading
 import time
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, Optional, Tuple
 from urllib.parse import parse_qs, urlparse
 
 import pytest
@@ -1221,7 +1220,7 @@ def test_engine_deduplicates(mock_server):
 
 def test_engine_severity_ordering(mock_server):
     """Findings should be sorted critical-first by default."""
-    from tools.zero_day_heuristics import ScanConfig, SeverityLevel, ZeroDayEngine
+    from tools.zero_day_heuristics import ScanConfig, ZeroDayEngine
 
     def handler(h: BaseHTTPRequestHandler, ctx: Dict[str, Any]) -> None:
         _respond(h, 200, b"Result: 49", headers={"Content-Type": "text/html"})

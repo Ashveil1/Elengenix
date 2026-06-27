@@ -839,8 +839,8 @@ def report_to_console(report: HuntReport) -> str:
         lines.append("  FORGERY CANDIDATES (generated locally, NOT confirmed)")
         lines.append("  " + "-" * 66)
         lines.append(f"  These {len(static_candidates)} items are forged attack tokens,")
-        lines.append(f"  generated locally and never sent to the target. To confirm,")
-        lines.append(f"  a real JWT-protected endpoint is required for live testing.")
+        lines.append("  generated locally and never sent to the target. To confirm,")
+        lines.append("  a real JWT-protected endpoint is required for live testing.")
         for f in static_candidates[:3]:
             lines.append(f"  [CAND] {f.title[:90]}")
 

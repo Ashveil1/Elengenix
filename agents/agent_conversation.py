@@ -61,7 +61,6 @@ class ConversationManager:
             role: Message role ('user' or 'assistant').
             content: Message content.
         """
-        from tools.memory_persistence import save_message
 
         self.conversation_history.append({"role": role, "content": content})
         max_messages = self.max_history_turns * 2
@@ -126,7 +125,7 @@ class ConversationManager:
         )
 
         try:
-            summary_prompt = f"""Summarize this conversation concisely, keeping key facts and decisions:
+            summary_prompt = """Summarize this conversation concisely, keeping key facts and decisions:
 
 {conversation_text}
 

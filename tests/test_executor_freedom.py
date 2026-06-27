@@ -14,9 +14,8 @@ Tests cover:
 from __future__ import annotations
 
 import sys
-import types
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -29,7 +28,6 @@ from agents.agent_executor import (
     execute_shell_command,
     execute_tool,
     execute_write_script,
-    handle_ask_user,
 )
 from tools.governance import Governance
 from tools.universal_executor import UniversalExecutor

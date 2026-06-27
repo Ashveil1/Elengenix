@@ -395,8 +395,8 @@ class TeamAegis:
         try:
             client = self.clients[0]  # first available AI
             summary = client.simple_chat(
-                f"Summarise the following team discussion in 3-5 sentences. "
-                f"Focus on: key findings, tools used, decisions made, and next steps.\n\n"
+                "Summarise the following team discussion in 3-5 sentences. "
+                "Focus on: key findings, tools used, decisions made, and next steps.\n\n"
                 f"{middle_text}",
                 system_prompt="You are a concise summariser. Output only the summary, no preamble.",
             )
@@ -453,7 +453,7 @@ class TeamAegis:
         except Exception:
             pass
 
-        prompt = f"""## TEAM AEGIS — Security Research Team Collaboration
+        prompt = """## TEAM AEGIS — Security Research Team Collaboration
 
 ### YOUR IDENTITY
 - Role: {role['name']}
@@ -925,7 +925,7 @@ Respond with JSON:
         """
         if self.callback:
             self.callback(f"\n{'='*60}")
-            self.callback(f" TEAM AEGIS ACTIVATED")
+            self.callback(" TEAM AEGIS ACTIVATED")
             self.callback(f" Target: {self.target}")
             self.callback(f" Team Size: {self.team_size} agents")
             self.callback(f"{'='*60}")
@@ -948,7 +948,7 @@ Respond with JSON:
         """Generate a merged report from all agents' findings."""
         lines = [
             f"{'='*60}",
-            f" TEAM AEGIS — ENGAGEMENT REPORT",
+            " TEAM AEGIS — ENGAGEMENT REPORT",
             f" Target: {self.target}",
             f" Rounds: {self.round}",
             f" Team: {', '.join(r['name'] for r in self.roles)}",
@@ -989,7 +989,7 @@ Respond with JSON:
         lines.append(f"TOTAL MESSAGES: {len(self.discussion)}")
 
         lines.append(f"\n{'='*60}")
-        lines.append(f" END OF REPORT")
+        lines.append(" END OF REPORT")
         lines.append(f"{'='*60}")
 
         return "\n".join(lines)

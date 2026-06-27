@@ -34,8 +34,8 @@ import sqlite3
 import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple
-from urllib.parse import parse_qsl, urlencode, urlparse
+from typing import Any, Dict, List, Optional, Tuple
+from urllib.parse import parse_qsl, urlparse
 
 logger = logging.getLogger("elengenix.coverage_analyzer")
 
@@ -516,7 +516,7 @@ class CoverageAnalyzer:
         ]
         placeholders = ",".join("?" * len(high_value))
         rows = cur.execute(
-            f"""
+            """
             SELECT e.url, e.params_json FROM endpoints e
             WHERE e.params_json LIKE '%"id"%'
                OR e.params_json LIKE '%"file"%'

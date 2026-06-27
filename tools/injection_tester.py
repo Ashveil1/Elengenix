@@ -255,7 +255,7 @@ def test_sqli(url: str, params: Optional[List[str]] = None) -> List[Dict]:
                             {
                                 "title": f"SQL Injection (boolean-based) via '{param}'",
                                 "description": (
-                                    f"Significant response difference between true/false conditions.\n"
+                                    "Significant response difference between true/false conditions.\n"
                                     f"TRUE payload length: {true_len}, FALSE: {false_len}, Baseline: {baseline_len}\n"
                                     f"URL: {test_url}"
                                 ),
@@ -411,7 +411,7 @@ def test_open_redirect(url: str, params: Optional[List[str]] = None) -> List[Dic
                             {
                                 "title": f"Open Redirect via '{param}' ({p['type']})",
                                 "description": (
-                                    f"Server redirects to attacker-controlled domain.\n"
+                                    "Server redirects to attacker-controlled domain.\n"
                                     f"Payload: {p['payload']}\n"
                                     f"Redirect Location: {location}\n"
                                     f"URL: {test_url}"

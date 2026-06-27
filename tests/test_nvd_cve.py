@@ -145,7 +145,6 @@ def test_nvd_log4j_vulnerable_range():
 
 def test_nvd_in_hunt_engine():
     """Hunt engine must integrate NVD when scanning a project."""
-    import asyncio
     import socket
 
     # Skip if no target running

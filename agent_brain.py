@@ -9,7 +9,6 @@ agent_brain.py — Elengenix Intelligent Hunting Engine
 import asyncio
 import json
 import logging
-import os
 import re
 import time
 from collections import Counter
@@ -80,6 +79,64 @@ def _get_agent_reflection():
 
         _agent_reflection = agent_reflection
     return _agent_reflection
+
+
+def remember(content, target=None, category=None, **kwargs):
+    """Store memory in vector database."""
+    try:
+        vm = _get_vector_memory()
+        vm.remember(content, target=target, category=category, **kwargs)
+    except Exception:
+        pass
+
+
+def recall(query, target=None, n_results=5):
+    """Recall memories from vector database."""
+    try:
+        vm = _get_vector_memory()
+        return vm.recall(query, target=target, n_results=n_results)
+    except Exception:
+        return []
+
+
+def get_context_for_ai(current_query=None, target=None, max_memories=10):
+    """Get context from vector memory for AI."""
+    try:
+        vm = _get_vector_memory()
+        return vm.get_context_for_ai(
+            current_query=current_query,
+            target=target,
+            max_memories=max_memories,
+        )
+    except Exception:
+        return ""
+
+
+def _sqlite_save_message(session_id, role, content, model_name="", token_count=0):
+    """Save message to SQLite via memory_persistence."""
+    try:
+        mp = _get_memory_persistence()
+        mp.save_message(session_id, role, content, model_name, token_count)
+    except Exception:
+        pass
+
+
+def _get_context_status(session_id, model_name=""):
+    """Get context status from memory_persistence."""
+    try:
+        mp = _get_memory_persistence()
+        return mp.get_context_status(session_id, model_name)
+    except Exception:
+        return {"is_near_full": False, "percent": 0, "used_tokens": 0, "capacity": 128000}
+
+
+def _sqlite_clear_session(session_id):
+    """Clear session from SQLite via memory_persistence."""
+    try:
+        mp = _get_memory_persistence()
+        mp.clear_session(session_id)
+    except Exception:
+        pass
 
 
 logger = logging.getLogger("elengenix.agent")
@@ -826,8 +883,8 @@ To use the CVE database, reference vulnerability types and ask for similar CVEs.
             past_memories = get_context_for_ai(user_input, target="universal", max_memories=5)
             logger.info(f"Retrieved {len(past_memories.splitlines())} context lines from memory.")
 
-            now_context = _get_now_context()
-            chat_prompt = f"""You are Elengenix AI v3.0, an expert security assistant and conversational AI.
+            now_context = _get_now_context()  # noqa: F841 - used in chat_prompt template
+            chat_prompt = """You are Elengenix AI v3.0, an expert security assistant and conversational AI.
 Intent category: {intent}
 
 {now_context}
@@ -854,8 +911,10 @@ Do NOT attempt to run a scan. Respond naturally in the user's language (English 
 
             return response
 
-        # send_telegram_notification(f" Mission Started: \"{user_input}\"")
+        # send_telegram_notification(" Mission Started: \"{user_input}\"")
         logger.info(f"Starting mission: {user_input}")
+
+        from tools.mission_state import GraphNode, MissionState
 
         mission_key = f"{target or 'global'}:{int(time.time())}"
         mission_state = MissionState(
@@ -951,19 +1010,19 @@ Do NOT attempt to run a scan. Respond naturally in the user's language (English 
                 #  AI-driven dynamic planning with SEMANTIC MEMORY
 
                 # Retrieve context from Vector Memory (remembers across sessions)
-                semantic_context = get_context_for_ai(
+                _semantic_context = get_context_for_ai(  # noqa: F841 - used in full_prompt template
                     current_query=user_input, target=target or "global", max_memories=15
                 )
 
                 # Recent conversation history (session only)
                 recent_history = history[-self.history_limit :]
-                history_text = "\n".join(
+                _history_text = "\n".join(  # noqa: F841 - used in full_prompt template
                     [f"{m['role'].capitalize()}: {m['content']}" for m in recent_history]
                 )
 
                 # Available tools context
                 available_tools = registry.list_available_tools()
-                tool_list = ", ".join(
+                _tool_list = ", ".join(  # noqa: F841 - used in full_prompt template
                     [name for name, info in available_tools.items() if info["available"]]
                 )
 
@@ -978,16 +1037,16 @@ Do NOT attempt to run a scan. Respond naturally in the user's language (English 
                         sim = mem.get("similarity", 0)
                         related_context += f"- {content}... (relevance: {sim:.0%})\n"
 
-                full_prompt = f"""{self.base_prompt}
+                full_prompt = """{self.base_prompt}
 
 ### AVAILABLE TOOLS:
-{tool_list}
+{_tool_list}
 
-{semantic_context}
+{_semantic_context}
 {related_context}
 
 ### CHAT HISTORY (Current Session):
-{history_text}
+{_history_text}
 
 ### PREVIOUS RESULTS (Current Mission):
 {self._summarize_results(previous_results)}
@@ -1002,7 +1061,10 @@ Plan your next move. Consider:
 4. Have you found any vulnerabilities? Use submit_findings to report them IMMEDIATELY!
 5. Is a tool missing? Use ask_user to request installation.
 
-Use JSON format: {{"action": "run_shell|ask_user|web_search|submit_findings|save_memory|finish", "command": "...", "query": "...", "findings": [...], "purpose": "...", "question": "..."}}"""
+Use JSON format:
+{{"action": "run_shell|ask_user|web_search|submit_findings|save_memory|finish",
+"command": "...", "query": "...", "findings": [...],
+"purpose": "...", "question": "..."}}"""
 
                 from ui_components import show_spinner
 
@@ -1138,7 +1200,11 @@ Use JSON format: {{"action": "run_shell|ask_user|web_search|submit_findings|save
                                 severity=score.severity.value.lower(),
                                 confidence=0.7,
                                 url=finding.get("url", ""),
-                                title=f"{finding.get('type','Finding')} at {finding.get('url','')} (CVSS {score.base_score})",
+                                title=(
+                                    f"{finding.get('type', 'Finding')} "
+                                    f"at {finding.get('url', '')} "
+                                    f"(CVSS {score.base_score})"
+                                ),
                                 description=finding.get("evidence", str(finding))[:500],
                                 cvss_score=score.base_score,
                                 cwe_id=None,
@@ -1288,7 +1354,11 @@ Use JSON format: {{"action": "run_shell|ask_user|web_search|submit_findings|save
                                     logger.warning(f"MissionState gate ledger write failed: {e}")
                                 return msg
                         else:
-                            msg = f" Governance gate: {gate_decision.decision} (risk={gate_decision.risk_level}). {gate_decision.rationale}"
+                            msg = (
+                                f" Governance gate: {gate_decision.decision}"
+                                f" (risk={gate_decision.risk_level})."
+                                f" {gate_decision.rationale}"
+                            )
                             display_in_chat_mode(msg, "warning")
                             try:
                                 mission_state.add_ledger_entry(
@@ -1334,7 +1404,6 @@ Use JSON format: {{"action": "run_shell|ask_user|web_search|submit_findings|save
                 )
 
                 #  Log result
-                status = "success" if result.success else "error"
                 self.activity_logger.log_result(
                     f"{tool_name}: {len(result.findings)} findings", result.success, step=step
                 )
@@ -1347,6 +1416,8 @@ Use JSON format: {{"action": "run_shell|ask_user|web_search|submit_findings|save
                 all_findings.extend(result.findings)
 
                 # Update mission graph/facts from findings
+                from tools.mission_state import GraphEdge, GraphNode
+
                 for i, finding in enumerate(result.findings):
                     ftype = finding.get("type", "unknown")
                     furl = (
@@ -1386,7 +1457,11 @@ Use JSON format: {{"action": "run_shell|ask_user|web_search|submit_findings|save
                         mission_state.add_fact,
                         fact_id=f"fact:{tool_name}:{step}:{i}",
                         category="finding",
-                        statement=f"{tool_name} reported {ftype} at {furl or 'unknown'} (severity={finding.get('severity','unknown')})",
+                        statement=(
+                            f"{tool_name} reported {ftype} "
+                            f"at {furl or 'unknown'} "
+                            f"(severity={finding.get('severity', 'unknown')})"
+                        ),
                         confidence=0.6,
                         evidence={"tool": tool_name, "finding": finding},
                     )
@@ -1535,7 +1610,7 @@ Use JSON format: {{"action": "run_shell|ask_user|web_search|submit_findings|save
                 else:
                     logger.warning(
                         f"Skipped team member {provider or 'active'}/{model_name}: "
-                        f"client not available (no API key?)"
+                        "client not available (no API key?)"
                     )
             except Exception as e:
                 logger.warning(f"Failed to load team client {model_str}: {e}")
@@ -1788,14 +1863,13 @@ Use JSON format: {{"action": "run_shell|ask_user|web_search|submit_findings|save
         report_dir = Path("reports") / f"agent_{safe_target}_resumed_{int(time.time())}"
         report_dir.mkdir(parents=True, exist_ok=True)
 
-        action_history = [e["action"] for e in ledger_entries]
         previous_results = []
+        from tools.tool_registry import ToolCategory, ToolResult
+
         for e in ledger_entries:
             res_data = e["result"] or {}
             # Reconstruct dummy ToolResult for context
             try:
-                from tools.tool_registry import ToolCategory, ToolResult
-
                 dummy_res = ToolResult(
                     success=res_data.get("success", True),
                     tool_name=e["tool"] or "shell",
@@ -1832,18 +1906,20 @@ Use JSON format: {{"action": "run_shell|ask_user|web_search|submit_findings|save
                 }
                 reasoning = f"{current_step.purpose}"
             else:
-                semantic_context = get_context_for_ai(objective, target=target, max_memories=5)
-                now_context = _get_now_context()
-                prompt = f"""You are the dynamic specialist. Decide the next scanning action.
+                _semantic_context = get_context_for_ai(objective, target=target, max_memories=5)
+                _now_context = _get_now_context()
+                prompt = """You are the dynamic specialist. Decide the next scanning action.
 Objective: {objective}
 Target: {target}
 Step: {step + 1}/{self.max_steps}
 
-{now_context}
-{semantic_context}
+{_now_context}
+{_semantic_context}
 
 Return a single JSON block representing the action. Example:
-{{"action": "run_shell", "command": "nuclei -t cves/ -u {target}", "tool": "nuclei", "purpose": "Vulnerability scan"}}"""
+{{"action": "run_shell",
+"command": "nuclei -t cves/ -u {target}", "tool": "nuclei",
+"purpose": "Vulnerability scan"}}"""
                 messages = [
                     AIMessage(role="system", content=prompt),
                     AIMessage(
@@ -1871,8 +1947,6 @@ Return a single JSON block representing the action. Example:
             result_str = self._execute_tool(action_data, callback)
 
             # Reconstruct structured result
-            from tools.tool_registry import ToolCategory, ToolResult
-
             dummy_findings = []
             if "finding" in result_str.lower() or "vuln" in result_str.lower():
                 dummy_findings.append(

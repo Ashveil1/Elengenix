@@ -612,7 +612,7 @@ def run_cli():
         scanner = SmartScanner(target=target)
         results = scanner.run()
 
-    print(f"\nScan Results:")
+    print("\nScan Results:")
     print(f"  Status: {results['status']}")
     print(f"  Findings: {len(results.get('findings', []))}")
     print(f"  Tokens used: {results['tokens_used']}")

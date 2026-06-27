@@ -1,14 +1,12 @@
 """tests/test_waf_mutator.py — Tests for the Dynamic WAF Bypass Payload Mutator."""
 
 import asyncio
-import json
-from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
-from tools.dynamic_waf_mutator import DynamicWAFMutator, DynamicWAFMutatorTool
-from tools.tool_registry import ToolCategory, ToolResult
+from tools.dynamic_waf_mutator import DynamicWAFMutator
+from tools.tool_registry import ToolCategory
 
 
 class TestDynamicWAFMutator:

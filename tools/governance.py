@@ -237,7 +237,7 @@ class Governance:
             if name == "npm" and "install" in args and "-g" in args:
                 return True
             if (
-                name in {"apt", "apt-get", "dnf", "yum", "brew", "gem", "cargo"}
+                name in {"apt", "apt-get", "dn", "yum", "brew", "gem", "cargo"}
                 and "install" in args
             ):
                 return True

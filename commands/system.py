@@ -6,10 +6,9 @@ Commands: api, compliance, ml-filter
 
 from __future__ import annotations
 
-import sys
 import time
 
-from commands.registry import CommandRegistry, command
+from commands.registry import command
 
 
 @command(
@@ -34,7 +33,7 @@ async def cmd_api(args):
         print_info(f"  ReDoc:     http://{host}:{port}/redoc")
         run_server(host=host, port=port)
     except ImportError as e:
-        print_error(f"API server requires FastAPI: pip install fastapi uvicorn")
+        print_error("API server requires FastAPI: pip install fastapi uvicorn")
     except Exception as e:
         print_error(f"API server error: {e}")
 
@@ -94,7 +93,7 @@ async def cmd_compliance(args):
         if assessment.get("critical_failures", 0) > 0:
             console.print(f"  [red]Critical failures: {assessment['critical_failures']}[/red]")
         console.print(
-            f"  Risk level: [{'red' if assessment.get('critical_failures',0) > 0 else 'green'}]{assessment['risk_level']}[/]"
+            f"  Risk level: [{'red' if assessment.get('critical_failures', 0) > 0 else 'green'}]{assessment['risk_level']}[/]"
         )
     except Exception as e:
         print_error(f"Compliance error: {e}")
@@ -118,7 +117,6 @@ async def cmd_ml_filter(args):
     if not target:
         print_error("Usage: elengenix ml-filter <findings.json> [--output filtered.json]")
         return
-    import json
     import os
 
     if not os.path.exists(target):

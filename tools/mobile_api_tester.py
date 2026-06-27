@@ -194,7 +194,7 @@ class MobileAPITester:
                         finding_type="hardcoded_api_key",
                         severity="critical",
                         confidence=0.9,
-                        description=f"Potential hardcoded API key detected in request",
+                        description="Potential hardcoded API key detected in request",
                         evidence={
                             "pattern_matched": pattern[:50],
                             "location": "url_or_parameter",

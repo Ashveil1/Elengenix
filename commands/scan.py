@@ -7,11 +7,10 @@ import asyncio
 import json
 import logging
 import os
-import sys
 import time
 from pathlib import Path
 
-from ui_components import console, print_error, print_success, prompt_target
+from ui_components import console, prompt_target
 
 
 def handle_scan(args) -> int:
@@ -26,7 +25,6 @@ def handle_scan(args) -> int:
     from shutil import which
 
     from agent import get_agent
-    from bot_utils import send_telegram_notification
     from main import require_authorized_scan_target
 
     # Silence INFO logs during scan
@@ -43,7 +41,7 @@ def handle_scan(args) -> int:
     team_size = len(env_models)
 
     print()
-    console.print(f"\n[bold #ffffff]  ELENGENIX AI SCAN 1.0.0[/bold #ffffff]")
+    console.print("\n[bold #ffffff]  ELENGENIX AI SCAN 1.0.0[/bold #ffffff]")
     console.print(f"  Target: [red]{target}[/red]")
     if team_size >= 2:
         console.print(f"  Team: [red]{team_size} agents[/red]")
@@ -145,19 +143,19 @@ def handle_scan(args) -> int:
     try:
         response = agent.process_universal(
             f"Perform a full security reconnaissance and vulnerability assessment on {target}. "
-            f"Your mission:\n"
-            f"- Use the built-in Python scanners (ssrf_scanner, ssti_scanner, xxe_scanner, etc.)\n"
-            f"- Use shell commands for DNS, HTTP requests, and network operations\n"
+            "Your mission:\n"
+            "- Use the built-in Python scanners (ssrf_scanner, ssti_scanner, xxe_scanner, etc.)\n"
+            "- Use shell commands for DNS, HTTP requests, and network operations\n"
             f"{subdomain_hint}"
             f"{tools_context}"
-            f"TIPS:\n"
-            f"- Use curl for HTTP requests: curl -s https://target.com\n"
-            f"- Use dig for DNS: dig target.com ANY\n"
-            f"- Use Python for scripting: python3 -c 'import requests; ...'\n"
-            f"- You can use pipes (|) and redirects (>) in your shell commands\n"
-            f"- If a tool is missing, ask the user with ask_user action\n"
-            f"- Run actual tools, report results honestly. If something fails, try another approach.\n"
-            f"- IMPORTANT: Write temp files to current directory (./subdomains.txt) NOT /tmp\n",
+            "TIPS:\n"
+            "- Use curl for HTTP requests: curl -s https://target.com\n"
+            "- Use dig for DNS: dig target.com ANY\n"
+            "- Use Python for scripting: python3 -c 'import requests; ...'\n"
+            "- You can use pipes (|) and redirects (>) in your shell commands\n"
+            "- If a tool is missing, ask the user with ask_user action\n"
+            "- Run actual tools, report results honestly. If something fails, try another approach.\n"
+            "- IMPORTANT: Write temp files to current directory (./subdomains.txt) NOT /tmp\n",
             target=target,
             callback=scan_callback,
             mode="bug_bounty",
@@ -167,7 +165,7 @@ def handle_scan(args) -> int:
             import re
 
             safe_response = re.sub(r"\[/?[^\]]+\]", "", response[:2000])
-            console.print(f"\nAI Analysis:")
+            console.print("\nAI Analysis:")
             console.print(f"  {safe_response[:2000]}")
             report_file = Path(f"reports/scan_{target}_{int(time.time())}.md")
             report_file.parent.mkdir(parents=True, exist_ok=True)

@@ -19,7 +19,7 @@ import logging
 import re
 import time
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional
 from urllib.parse import urlparse
 
 logger = logging.getLogger("elengenix.cors_checker")
@@ -127,7 +127,6 @@ class CORSChecker:
         Returns:
             CORSScanResult with test results.
         """
-        import requests
 
         start_time = time.time()
         result = CORSScanResult(target=target_url)

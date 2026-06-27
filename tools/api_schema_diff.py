@@ -20,11 +20,10 @@ Public API:
 
 from __future__ import annotations
 
-import json
 import logging
 import time
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger("elengenix.api_schema_diff")
 
@@ -99,7 +98,6 @@ class APISchemaDiffer:
 
     def __init__(self):
         """Initialize the API schema differ."""
-        pass
 
     def compare_schemas(
         self,
@@ -167,7 +165,6 @@ class APISchemaDiffer:
         Returns:
             SchemaDiff with all detected changes.
         """
-        import requests
 
         # Fetch schemas
         schema1 = self._fetch_schema(url1, headers1)
