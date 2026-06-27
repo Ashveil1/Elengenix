@@ -18,11 +18,12 @@ pip install -r requirements.txt     # Python deps only
 
 ### Run
 ```bash
-python3 main.py <command> [target]  # CLI entry point
-python3 main.py cli                 # Interactive AI chat
-python3 main.py menu                # Interactive menu
-python3 main.py doctor              # System health check
-python3 main.py configure           # API key / provider setup wizard
+python3 main.py                    # Default: launches Textual TUI
+python3 main.py tui                # Textual TUI (full-featured, interactive)
+python3 main.py hunt <target>      # Autonomous hunt mode
+python3 main.py cli-legacy         # Rich CLI (legacy)
+python3 main.py doctor             # System health check
+python3 main.py configure          # API key / provider setup wizard
 ```
 
 ### Test
@@ -52,7 +53,7 @@ main.py                  # CLI entry point — argparse command router (2200+ li
 │   ├── agent_executor.py    # Tool execution (registry, subprocess, shell)
 │   ├── agent_intent.py      # Intent classification
 │   ├── agent_logger.py      # Chain-of-thought logging
-│   ├── agent_helpers.py     # Shared helpers (target extraction, _safe_operation)
+│   ├── agent_helpers.py     # Shared helpers: extract_json, target extraction, _safe_operation
 │   ├── agent_dataclasses.py # AttackTree and shared data structures
 │   ├── agent_universal.py   # Universal mode processor
 │   ├── agent_conversation.py # ConversationManager (extracted from agent_brain)
@@ -69,19 +70,19 @@ main.py                  # CLI entry point — argparse command router (2200+ li
 ├── commands/            # CLI command modules (scan, worldclass, registry, system)
 ├── tui/                 # Textual-based TUI (themes, dashboard, visualizations)
 │   ├── themes.py            # 9 themes: DEFAULT, CYBERPUNK, MATRIX, STEALTH, SYNTHWAVE, OCEAN, FOREST, SUNSET, ARCTIC
-│   ├── dashboard.py         # ThreatDashboard Textual widget
+│   ├── dashboard.py         # ThreatDashboard — wired to cli_textual via Ctrl+D
 │   ├── visualizations.py    # RiskGauge, SeverityChart, VulnerabilityHeatmap, etc.
 │   ├── welcome.py           # WelcomeScreen, ascii_logo, MissionBriefing
 │   ├── hunt_view.py         # Hunt result dashboard, launcher layout
-│   ├── findings_display.py  # Sortable, filterable findings display
-│   ├── scan_progress.py     # Real-time scan progress with phases
+│   ├── findings_display.py  # Sortable, filterable findings display — wired to cli_textual
+│   ├── scan_progress.py     # Real-time scan progress with phases — wired to cli_textual
 │   ├── keyboard_shortcuts.py # Keyboard shortcuts system
 │   ├── main_menu.py         # Interactive main menu system
 │   └── export.py            # HTML/JSON/Markdown export capabilities
 ├── tools/               # 120+ modular security tool modules
 │   ├── tool_registry.py     # BaseTool ABC, ToolRegistry, 17 registered tools
 │   ├── governance.py        # Risk classification (DESTRUCTIVE/PRIVILEGED/SAFE)
-│   ├── universal_ai_client.py # OpenAI-compatible HTTP API client
+│   ├── universal_ai_client.py # OpenAI-compatible HTTP API client (native tool-calling + prompt caching)
 │   ├── vector_memory.py     # ChromaDB semantic recall
 │   ├── cvss_calculator.py   # CVSS 3.1 scoring
 │   ├── cve_database.py      # CVE lookup and similarity search
@@ -145,9 +146,11 @@ User input → _analyze_intent() → [casual|research|scan|security_chat]
         └─ ChainOfThoughtLogger.save_session() → data/cot_logs/
 ```
 
+**Action selection**: Prefers native tool-calling (OpenAI `tools` / Anthropic `tool_use`) when the provider supports it. Falls back to the unified hardened JSON extractor (`agents/agent_helpers.extract_json`) for providers without tool-calling. Temperature is 0.2 for all action-decision calls (deterministic). The model's own `"thought"` field is prepended to history so reasoning self-reinforces across steps.
+
 ### Two AI Client Systems
 - **`LLMClient`** (`llm_client.py`) — Uses native vendor SDKs (google-generativeai, anthropic, cohere, etc.). Sync wrapper over async via shared persistent event loop.
-- **`UniversalAIClient`** (`tools/universal_ai_client.py`) — OpenAI-compatible HTTP API. Works with any provider that supports `/v1/chat/completions`. **This is what the agent uses for chat.**
+- **`UniversalAIClient`** (`tools/universal_ai_client.py`) — OpenAI-compatible HTTP API. Works with any provider that supports `/v1/chat/completions`. **This is what the agent uses for chat.** Supports native tool-calling (OpenAI `tools` param, Anthropic `tool_use`), `ACTION_TOOLS` schema for 9 agent actions, and Anthropic prompt caching via `cache_control: ephemeral`.
 
 ### Tool Execution Path
 1. `ElengenixAgent._execute_tool_registry()` → preferred path (async)
@@ -210,6 +213,17 @@ Most modules are standalone and used directly by agent_brain.py, not through the
 - `ui_components.console` — the one shared Rich Console instance.
 - `tools.tool_registry.registry` — global singleton for tool registration.
 
+### Prompt Interpolation (CRITICAL)
+**Always use f-strings** for prompt templates that contain `{variable}` placeholders. Plain `"""..."""` strings with `{var}` are sent literally to the LLM — the model sees `{target}` instead of the actual target value. This was the source of 20 critical bugs fixed in the overhaul. Example:
+```python
+# CORRECT — f-string interpolates values
+prompt = f"Target: {target}\nObjective: {objective}"
+
+# WRONG — model sees literal braces
+prompt = """Target: {target}\nObjective: {objective}"""
+```
+Use `agents.agent_helpers.extract_json()` for all JSON extraction from LLM responses — it handles fences, trailing commas, smart quotes, and has optional LLM repair-retry.
+
 ### Memory / Persistence
 - **Vector memory**: ChromaDB (`data/vector_memory/`) — cross-session semantic recall via `remember()` / `recall()` from `tools/vector_memory.py`
 - **Structured memory**: SQLite in `data/elengenix.db` — missions, findings, token usage, program cache
@@ -239,6 +253,7 @@ Tests live in `tests/` (42+ test files). Focus areas:
 - **Semantic planning** (`test_semantic_planner.py`): attack tree generation
 - **New scanners** (`test_new_scanners.py`): SSRF, SSTI, XXE, Deserialization, GraphQL, Race Condition, API Schema Diff, CORS, JWT
 - **Critical modules** (`test_critical_modules.py`): Comprehensive tests for all critical modules
+- **Prompt interpolation** (`test_prompt_interpolation.py`): Regression guard for the f-string bug class
 
 Use `_lightweight_agent()` pattern in `test_security.py` to create test instances without full initialization overhead.
 
