@@ -897,8 +897,6 @@ async def run_standard_scan(
                 scored_findings = calculate_cvss_for_results(results)
 
                 # Save CVSS results
-                import json
-
                 cvss_file = report_dir / "cvss_scores.json"
                 cvss_file.write_text(json.dumps(scored_findings, indent=2))
 

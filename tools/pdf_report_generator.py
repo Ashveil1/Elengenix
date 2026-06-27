@@ -23,7 +23,6 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
-from uuid import uuid4
 
 logger = logging.getLogger("elengenix.pdf_report")
 

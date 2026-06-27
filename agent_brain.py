@@ -990,7 +990,7 @@ Do NOT attempt to run a scan. Respond naturally in the user's language (English 
         #  Reset mission state
         action_history = []
         history = [{"role": "user", "content": user_input}]
-        previous_results: List[ToolResult] = []
+        previous_results: List = []
         all_findings: List[Dict] = []
 
         for step in range(self.max_steps):

@@ -847,7 +847,7 @@ def show_findings_summary(findings: List[Dict[str, Any]]):
     console.print()
 
     # Group by severity
-    severity_counts = {"info": 0, "high": 0, "medium": 0, "low": 0, "info": 0}
+    severity_counts = {"info": 0, "high": 0, "medium": 0, "low": 0}
     for f in findings:
         sev = f.get("severity", "info").lower()
         if sev in severity_counts:
