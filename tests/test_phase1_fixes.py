@@ -12,7 +12,6 @@ import asyncio
 import json
 from pathlib import Path
 
-
 # ── Fix 1: SmartOrchestrator semaphore ─────────────────────────────────────
 # These tests run the actual async function, NOT the real subfinder binary,
 # to keep the test suite fast and avoid network dependencies. We use a

@@ -28,7 +28,6 @@ from textual.containers import Container, Horizontal
 from textual.reactive import reactive
 from textual.widgets import Static
 
-
 from .themes import get_theme
 
 logger = logging.getLogger("elengenix.tui.welcome")

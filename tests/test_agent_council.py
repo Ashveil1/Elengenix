@@ -3,7 +3,6 @@
 import json
 from unittest.mock import MagicMock
 
-
 from agents.agent_council import AgentCouncil, CouncilMessage, MessageType, SharedInbox
 from agents.critic_agent import CriticAgent
 from agents.specialist_agent import _heuristic_findings

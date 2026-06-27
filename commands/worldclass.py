@@ -10,7 +10,6 @@ Registers commands that expose the flagship engines:
 
 from __future__ import annotations
 
-
 from commands.registry import command
 
 
