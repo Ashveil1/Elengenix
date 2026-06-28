@@ -1,1 +1,0 @@
-print("RUNNER_OK")

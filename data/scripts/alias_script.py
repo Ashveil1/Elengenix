@@ -1,1 +1,0 @@
-print("SCRIPT_ALIAS_OK")

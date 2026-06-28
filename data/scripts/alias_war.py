@@ -1,1 +1,0 @@
-print("WAR_OK")

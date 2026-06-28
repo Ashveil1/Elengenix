@@ -1,1 +1,0 @@
-print("WRITE_SCRIPT_OK")

@@ -1,1 +1,0 @@
-print("WRITE_AND_EXEC_ALIAS_OK")

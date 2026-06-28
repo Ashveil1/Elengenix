@@ -46,6 +46,9 @@ data/cot_logs/
 data/scan_state/
 data/missions/
 
+# Sandbox-generated scripts (overwritten by test_ai_tool_sandbox)
+data/scripts/
+
 # Runtime data files (generated, not source)
 data/ml_profiles.json
 data/watchman_state.json

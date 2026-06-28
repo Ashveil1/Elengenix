@@ -1,1 +1,0 @@
-print("DISPATCH_OK")
