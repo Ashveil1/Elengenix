@@ -115,3 +115,6 @@ docs/*development*.md
 docs/*bugfix*.md
 docs/*final*.md
 docs/*tui-improvements*.md
+dist/
+build/
+*.egg-info/

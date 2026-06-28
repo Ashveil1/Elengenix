@@ -1,13 +1,118 @@
 [build-system]
-requires = ["setuptools>=68.0"]
-build-backend = "setuptools.backends._legacy:_Backend"
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
 
 [project]
 name = "elengenix"
 version = "1.0.0"
 description = "Autonomous AI Agent Framework for Security Research"
+readme = "README.md"
 license = {text = "GPL-3.0-only"}
 requires-python = ">=3.10"
+authors = [
+    {name = "Elengenix Project"},
+]
+keywords = [
+    "security", "pentesting", "bug-bounty", "vulnerability",
+    "ai-agent", "automation", "oscp", "reconnaissance", "cvss",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Information Technology",
+    "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Security",
+    "Topic :: Software Development :: Testing",
+]
+
+dependencies = [
+    # Core
+    "pyyaml>=6.0",
+    "requests>=2.31.0",
+    "python-dotenv>=1.0.0",
+    # AI / LLM SDKs
+    "openai",
+    "anthropic",
+    "google-generativeai",
+    "cohere",
+    "huggingface-hub",
+    "replicate",
+    # Telegram
+    "python-telegram-bot",
+    # CLI UI
+    "rich>=13.0.0",
+    "questionary>=2.0.0",
+    "prompt_toolkit>=3.0.0",
+    "textual>=0.41.0",
+    # Async
+    "nest-asyncio>=1.6.0",
+    "tenacity>=8.0.0",
+    # Token counting
+    "tiktoken",
+    # Vector memory
+    "chromadb",
+    "sentence-transformers",
+    # Web intelligence
+    "trafilatura",
+    "googlesearch-python",
+    "duckduckgo-search",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-asyncio",
+    "black",
+    "isort",
+    "flake8",
+    "mypy",
+    "ruff",
+]
+
+[project.scripts]
+elengenix = "main:main"
+
+[project.urls]
+Homepage = "https://github.com/Ashveil1/Elengenix"
+Repository = "https://github.com/Ashveil1/Elengenix"
+Issues = "https://github.com/Ashveil1/Elengenix/issues"
+
+[tool.setuptools]
+py-modules = [
+    "main",
+    "agent",
+    "agent_brain",
+    "cli",
+    "cli_textual",
+    "orchestrator",
+    "ui_components",
+    "live_display",
+    "wizard",
+    "scan_engine_upgrade",
+    "tools_menu",
+    "bot",
+    "bot_utils",
+    "file_relationship_mapper",
+    "dependency_manager",
+    "tui_design",
+    "elengenix_launcher",
+]
+packages = [
+    "agents",
+    "commands",
+    "tui",
+    "tools",
+    "redteam_agent",
+]
+include-package-data = true
+
+[tool.setuptools.package-data]
+"*" = ["*.txt", "*.yaml", "*.md", "*.json"]
 
 [tool.pytest.ini_options]
 minversion = "7.0"
