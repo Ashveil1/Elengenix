@@ -332,6 +332,17 @@ class ElengenixAgent:
         except Exception as e:
             logger.warning(f"Failed to initialize centralized AnalysisPipeline: {e}")
 
+        #  Deep LLM Vulnerability Reasoning Engine
+        # This engine makes the LLM actively analyse tool output, hypothesise
+        # vulnerabilities, and generate creative payloads — not just chain tools.
+        self.vuln_reasoning = None
+        try:
+            from tools.vuln_reasoning import VulnReasoningEngine
+
+            self.vuln_reasoning = VulnReasoningEngine(client=self.client)
+        except Exception as e:
+            logger.warning(f"Failed to initialize VulnReasoningEngine: {e}")
+
         #  Skill Registry (Tool Awareness)
         self.skill_registry = None
         try:
@@ -1509,6 +1520,57 @@ Use JSON format:
                         mission_state=mission_state,
                         callback=callback,
                     )
+
+                # ── DEEP LLM VULNERABILITY REASONING ──────────────────
+                # The LLM actively analyses tool output to find non-obvious
+                # vulnerability patterns, hypothesise attack vectors, and
+                # suggest next tests — going beyond static tool chaining.
+                if self.vuln_reasoning and result and result.findings is not None:
+                    try:
+                        tool_output_str = json.dumps(
+                            {"findings": result.findings, "error": result.error_message},
+                            default=str,
+                        )
+                        analysis = self.vuln_reasoning.analyze_output(
+                            target=target or "global",
+                            tool_name=tool_name,
+                            tool_output=tool_output_str,
+                            previous_findings=all_findings[-10:],
+                            tech_stack=getattr(self, "_last_fingerprint", None) or {},
+                        )
+                        if analysis.hypotheses:
+                            display_in_chat_mode(
+                                f"[Deep Reasoning] {len(analysis.hypotheses)} hypotheses generated",
+                                "thought",
+                            )
+                            if callback:
+                                top_hyp = analysis.hypotheses[0]
+                                callback(
+                                    f"Hypothesis: {top_hyp.title} "
+                                    f"({top_hyp.vuln_class}, confidence={top_hyp.confidence:.0%})"
+                                )
+                            # Add hypotheses to history so the LLM sees them
+                            hyp_text = "\n".join(
+                                f"- {h.title} [{h.vuln_class}] conf={h.confidence:.0%}: {h.reasoning[:100]}"
+                                for h in analysis.hypotheses[:5]
+                            )
+                            history.append(
+                                {
+                                    "role": "assistant",
+                                    "content": f"Deep analysis found {len(analysis.hypotheses)} hypotheses:\n{hyp_text}",
+                                }
+                            )
+                            # Add coverage gaps as suggestions
+                            if analysis.coverage_gaps:
+                                gaps_text = "\n".join(f"- {g}" for g in analysis.coverage_gaps[:3])
+                                history.append(
+                                    {
+                                        "role": "user",
+                                        "content": f"Coverage gaps to consider:\n{gaps_text}",
+                                    }
+                                )
+                    except Exception as e:
+                        logger.debug(f"Deep reasoning failed: {e}")
 
                 # Mark step as completed in attack tree
                 if self.current_tree and step < len(self.current_tree.steps):
