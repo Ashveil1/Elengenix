@@ -229,7 +229,7 @@ class TargetFingerprinter:
             if value is None:
                 continue
             if expected is None or expected in value.lower():
-                result["wa"] = value.split("/")[0] if "/" in value else value
+                result["waf"] = value.split("/")[0] if "/" in value else value
                 technologies.append("waf")
                 break
 

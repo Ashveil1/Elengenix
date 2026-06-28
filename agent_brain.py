@@ -762,7 +762,10 @@ To use the CVE database, reference vulnerability types and ask for similar CVEs.
         """
         from agents.agent_helpers import extract_json
 
-        result = extract_json(text, expect="object", repair_client=self.client)
+        # repair_client is optional — only available when the agent has a
+        # fully-initialised LLM client.  Tests and lightweight agents skip it.
+        repair_client = getattr(self, "client", None)
+        result = extract_json(text, expect="object", repair_client=repair_client)
         return result if isinstance(result, dict) else None
 
     def _execute_tool(

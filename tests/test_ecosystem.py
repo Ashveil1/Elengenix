@@ -10,9 +10,15 @@ Covers:
 - Updater version comparison
 - Lifecycle (unload, reload)
 - Error handling (bad manifest, import failure, etc.)
+
+Note: Some tests hit the network and are marked as integration.
 """
 
 from __future__ import annotations
+
+import pytest
+
+pytestmark = pytest.mark.integration
 
 import json
 import sys

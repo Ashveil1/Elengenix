@@ -598,12 +598,13 @@ class SubprocessSandbox:
     def _wrap_code(code: str, args: Optional[List[str]]) -> str:
         """Wrap user code with a small main() harness so we capture exceptions."""
         argv_repr = repr(args or [])
+        code_repr = repr(code)
         return textwrap.dedent(
-            """\
+            f"""\
             import sys
             sys.argv = ['sandboxed.py'] + ({argv_repr} or [])
             try:
-                exec(compile({code!r}, '<sandboxed>', 'exec'), {{'__name__': '__sandbox__'}})
+                exec(compile({code_repr}, '<sandboxed>', 'exec'), {{'__name__': '__sandbox__'}})
                 sys.exit(0)
             except SystemExit as _e:
                 # Honor explicit sys.exit

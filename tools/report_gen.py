@@ -268,27 +268,44 @@ body {{
 
 def render_finding(f: FindingReport) -> str:
     cwe_str = ", ".join(f.cwe) if f.cwe else "N/A"
-    return """
-    <div class="finding {f.severity.lower()}">
+    sev_class = f.severity.lower()
+    sev = f.severity
+    sev_icon = f.severity_icon
+    title = escape(f.title)
+    url = escape(f.url)
+    desc = escape(f.description)
+    vuln_class = escape(f.vuln_class)
+    cwe_escaped = escape(cwe_str)
+    cvss = f.cvss
+    confidence_pct = int(f.confidence * 100)
+    fid = f.id
+    cve_block = (
+        f'<div class="meta-item"><strong>CVE:</strong> {escape(f.cve)}</div>' if f.cve else ""
+    )
+    evidence_block = f'<div class="evidence-block">{escape(f.evidence)}</div>' if f.evidence else ""
+    impact = escape(f.impact)
+    remediation = escape(f.remediation)
+    return f"""
+    <div class="finding {sev_class}">
       <div class="finding-header">
         <div>
-          <div class="finding-title">{f.severity_icon} {escape(f.title)}</div>
-          <div class="finding-url">{escape(f.url)}</div>
+          <div class="finding-title">{sev_icon} {title}</div>
+          <div class="finding-url">{url}</div>
         </div>
-        <div class="finding-sev sev-{f.severity}">{f.severity}</div>
+        <div class="finding-sev sev-{sev}">{sev}</div>
       </div>
-      <div class="finding-detail">{escape(f.description)}</div>
+      <div class="finding-detail">{desc}</div>
       <div class="meta-row">
-        <div class="meta-item"><strong>CVSS:</strong> {f.cvss}</div>
-        <div class="meta-item"><strong>Class:</strong> {escape(f.vuln_class)}</div>
-        <div class="meta-item"><strong>CWE:</strong> {escape(cwe_str)}</div>
-        {f'<div class="meta-item"><strong>CVE:</strong> {escape(f.cve)}</div>' if f.cve else ''}
-        <div class="meta-item"><strong>Confidence:</strong> {int(f.confidence * 100)}%</div>
-        <div class="meta-item"><strong>ID:</strong> {f.id}</div>
+        <div class="meta-item"><strong>CVSS:</strong> {cvss}</div>
+        <div class="meta-item"><strong>Class:</strong> {vuln_class}</div>
+        <div class="meta-item"><strong>CWE:</strong> {cwe_escaped}</div>
+        {cve_block}
+        <div class="meta-item"><strong>Confidence:</strong> {confidence_pct}%</div>
+        <div class="meta-item"><strong>ID:</strong> {fid}</div>
       </div>
-      {f'<div class="evidence-block">{escape(f.evidence)}</div>' if f.evidence else ''}
-      <div class="finding-detail" style="margin-top:12px;"><strong style="color:#ff8888;">Impact:</strong> {escape(f.impact)}</div>
-      <div class="finding-detail"><strong style="color:#5dd870;">Remediation:</strong> {escape(f.remediation)}</div>
+      {evidence_block}
+      <div class="finding-detail" style="margin-top:12px;"><strong style="color:#ff8888;">Impact:</strong> {impact}</div>
+      <div class="finding-detail"><strong style="color:#5dd870;">Remediation:</strong> {remediation}</div>
     </div>
     """
 

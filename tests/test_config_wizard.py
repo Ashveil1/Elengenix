@@ -113,8 +113,9 @@ class TestConfigWizardRoleSetup:
         os.environ.clear()
         os.environ.update(self.original_env)
 
+    @patch("tools.config_wizard.ConfigWizard._fetch_remote_models", return_value=[])
     @patch("tools.config_wizard.console.input")
-    def test_configure_team_role_gemini_provider_and_model(self, mock_input):
+    def test_configure_team_role_gemini_provider_and_model(self, mock_input, mock_fetch):
         """Test interactive role configuration simulation for Gemini provider."""
         # index 2 = Gemini (Google), index 2 = gemini-3.1-pro
         mock_input.side_effect = ["2", "2"]
@@ -131,8 +132,9 @@ class TestConfigWizardRoleSetup:
         # Verify environment variable sync
         assert "gemini/gemini-3.1-pro" in os.environ.get("ACTIVE_MODELS", "")
 
+    @patch("tools.config_wizard.ConfigWizard._fetch_remote_models", return_value=[])
     @patch("tools.config_wizard.console.input")
-    def test_configure_team_role_custom_model_identifier(self, mock_input):
+    def test_configure_team_role_custom_model_identifier(self, mock_input, mock_fetch):
         """Test interactive role configuration using a custom model name identifier."""
         # index 3 = OpenAI (GPT-4), Custom Model index (7), custom model identifier
         mock_input.side_effect = ["3", "7", "gpt-custom-model"]

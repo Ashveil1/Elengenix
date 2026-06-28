@@ -200,7 +200,8 @@ class LearningEngine:
         # SQL-based recall
         cur = self._conn.cursor()
         placeholders = ",".join("?" * len(tech_stack))
-        query = """
+        vuln_clause = "AND vuln_class = ?" if vuln_class else ""
+        query = f"""
             SELECT *, (
                 SELECT COUNT(*) FROM exploits e2
                 WHERE e2.tool = exploits.tool
@@ -214,7 +215,7 @@ class LearningEngine:
             FROM exploits
             WHERE (
                 tech_stack_json LIKE ?
-                {"AND vuln_class = ?" if vuln_class else ""}
+                {vuln_clause}
             )
               AND success = 1
             ORDER BY confidence DESC, timestamp DESC
@@ -304,7 +305,7 @@ class LearningEngine:
         where = " AND ".join(conditions) if conditions else "1=1"
 
         rows = cur.execute(
-            """
+            f"""
             SELECT tool,
                    SUM(success) * 1.0 / COUNT(*) as success_rate,
                    COUNT(*) as sample_size

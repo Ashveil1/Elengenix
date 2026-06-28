@@ -10,6 +10,10 @@ from __future__ import annotations
 
 import asyncio
 import socket
+
+import pytest
+
+pytestmark = pytest.mark.integration
 import sys
 from pathlib import Path
 

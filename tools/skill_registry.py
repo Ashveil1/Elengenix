@@ -219,6 +219,66 @@ class SkillRegistry:
                 "Built-in",
                 use_cases=["XSS detection", "SQLi detection", "parameter fuzzing"],
             ),
+            # External tools (checked at runtime, may be MISSING)
+            Skill(
+                "subfinder",
+                "Subdomain discovery tool",
+                "recon",
+                "subfinder",
+                SkillStatus.MISSING,
+                "go install -v github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest",
+                use_cases=["subdomain enumeration", "subdomain discovery", "recon"],
+            ),
+            Skill(
+                "httpx",
+                "Fast HTTP probe and fingerprinter",
+                "recon",
+                "httpx",
+                SkillStatus.MISSING,
+                "go install -v github.com/projectdiscovery/httpx/cmd/httpx@latest",
+                use_cases=["http probing", "web service discovery", "tech fingerprinting"],
+            ),
+            Skill(
+                "nuclei",
+                "Template-based vulnerability scanner",
+                "scanner",
+                "nuclei",
+                SkillStatus.MISSING,
+                "go install -v github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest",
+                use_cases=[
+                    "XSS detection",
+                    "vulnerability scanning",
+                    "CVE detection",
+                    "template scanning",
+                ],
+            ),
+            Skill(
+                "dalfox",
+                "XSS scanner for parameter analysis",
+                "scanner",
+                "dalfox",
+                SkillStatus.MISSING,
+                "go install -v github.com/hahwul/dalfox/v2@latest",
+                use_cases=["XSS detection", "cross-site scripting", "parameter fuzzing"],
+            ),
+            Skill(
+                "katana",
+                "Next-generation crawling framework",
+                "recon",
+                "katana",
+                SkillStatus.MISSING,
+                "go install -v github.com/projectdiscovery/katana/cmd/katana@latest",
+                use_cases=["crawling", "endpoint discovery", "content discovery"],
+            ),
+            Skill(
+                "trufflehog",
+                "Secret scanner for repositories and files",
+                "secret_detection",
+                "trufflehog",
+                SkillStatus.MISSING,
+                "go install -v github.com/trufflesecurity/trufflehog/v3@latest",
+                use_cases=["secret detection", "API key discovery", "credential scanning"],
+            ),
         ]
 
         for skill in default_skills:
@@ -249,13 +309,14 @@ class SkillRegistry:
 
         # Keyword matching map
         keyword_map = {
-            "xss": ["dalfox", "nuclei"],
-            "subdomain": ["_ext_recon"],
-            "port": ["_ext_scanners"],
-            "vulnerability": ["_ext_scanners"],
+            "xss": ["dalfox", "nuclei", "active_fuzzer"],
+            "subdomain": ["subfinder", "httpx"],
+            "port": ["httpx"],
+            "vulnerability": ["nuclei"],
             "secret": ["trufflehog"],
             "crawl": ["katana"],
-            "fuzz": ["_ext_fuzzers"],
+            "fuzz": ["active_fuzzer", "dalfox"],
+            "recon": ["subfinder", "httpx", "katana"],
         }
 
         for skill in self.skills.values():

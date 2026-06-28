@@ -170,6 +170,7 @@ def _find_latest_report(target_clean: str) -> Path | None:
     return matches[0] if matches else None
 
 
+@pytest.mark.integration
 def test_cli_e2e_against_httpbin(mock_server):
     """Full end-to-end: subprocess main.py scan httpbin.org, assert findings + report.
 
@@ -230,6 +231,7 @@ def test_cli_e2e_against_httpbin(mock_server):
     ), f"no findings rows in table. Report:\n{report_text[:2000]}"
 
 
+@pytest.mark.integration
 def test_cli_e2e_unreachable_target_does_not_hang():
     """Scan against an invalid format target should fail fast with clear error."""
     # Use a target with shell metacharacters → should be rejected by validator

@@ -1,6 +1,10 @@
 import asyncio
 from pathlib import Path
 
+import pytest
+
+pytestmark = pytest.mark.integration
+
 from orchestrator import run_elengenix_modules
 
 

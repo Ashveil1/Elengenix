@@ -296,7 +296,7 @@ if _HAS_TEXTUAL:
         BINDINGS = [
             Binding("q", "quit", "Quit"),
             Binding("r", "refresh", "Refresh"),
-            Binding("", "focus_findings", "Findings"),
+            Binding("f", "focus_findings", "Findings"),
             Binding("l", "focus_log", "Log"),
             Binding("i", "focus_input", "Input"),
             Binding("slash", "focus_input", "Command"),
