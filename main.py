@@ -183,7 +183,7 @@ def require_authorized_scan_target(target: str) -> bool:
     from orchestrator import is_in_scope, normalize_target
 
     normalized = normalize_target(target)
-    if not is_in_scope(target):
+    if not is_in_scope(normalized):
         print_error(f"[FAIL] SCOPE VIOLATION: '{normalized}' is not in the authorized scope")
         console.print("[dim]Configure scope with scope.txt or ELENGENIX_SCOPE.[/dim]")
         return False
@@ -213,6 +213,13 @@ def show_banner():
 
 
 def main():
+    # Depth guard for recursive profile expansion (max 3 levels)
+    _main_depth = getattr(main, "_depth", 0) + 1
+    main._depth = _main_depth
+    if _main_depth > 3:
+        print_error("Profile expansion exceeded maximum depth (3)")
+        main._depth = 0
+        return
     ensure_path_priorities()
     show_banner()
 
@@ -527,7 +534,7 @@ def main():
             if detection["confidence"] > 0.7:
                 module_name = {
                     "bola": "BOLA/IDOR Tester",
-                    "wa": "WAF/XSS Scanner",
+                    "waf": "WAF/XSS Scanner",
                     "recon": "Reconnaissance",
                     "predict": "Bounty Predictor",
                     "mobile": "Mobile API Tester",
@@ -591,6 +598,7 @@ def main():
             from cli_textual import main as cli_textual_main
 
             cli_textual_main()
+            return
 
         elif args.command == "gateway":
             bot_path = Path(__file__).parent / "bot.py"
@@ -599,32 +607,38 @@ def main():
                 return
             console.print("[red]Starting Telegram Gateway...[/red]")
             subprocess.run([sys.executable, str(bot_path)])
+            return
 
         elif args.command == "doctor":
             from tools.doctor import check_health
 
             console.print("[red]Running system health check...[/red]")
             check_health()
+            return
 
         elif args.command == "configure":
             from tools.config_wizard import run_config_wizard
 
             run_config_wizard()
+            return
 
         elif args.command == "cli":
             from cli_textual import main as cli_textual_main
 
             cli_textual_main()
+            return
 
         elif args.command in ("tui", "cli-textual", "clitest"):
             from cli_textual import main as cli_textual_main
 
             cli_textual_main()
+            return
 
         elif args.command == "cli-legacy":
             from cli import main as cli_main
 
             cli_main()
+            return
 
         elif args.command == "research":
             """Vulnerability Research Engine - Research CVEs and generate PoCs."""
@@ -701,6 +715,7 @@ def main():
                     console.print(
                         f"\n[dim]Save to file with: elengenix research {target} > poc.py[/dim]"
                     )
+                    return
 
         elif args.command == "poc":
             """Generate custom PoC for vulnerability type."""
@@ -735,6 +750,7 @@ def main():
                 console.print(f"\n{poc.code}")
             else:
                 print_error(f"Could not generate PoC for {args.target}")
+            return
 
         elif args.command == "autonomous":
             """Fully autonomous AI mode - AI controls everything."""
@@ -796,6 +812,7 @@ def main():
                 print_success("Autonomous scan complete!")
             else:
                 print_error(f"Scan failed: {result.summary}")
+            return
 
         elif args.command == "hunt":
             """Hybrid mode: AI Strategist + Specialist with full analysis pipeline."""
@@ -850,11 +867,13 @@ def main():
                 print_info("Hybrid hunt interrupted by user")
             except Exception as e:
                 print_error(f"Hybrid hunt error: {e}")
+            return
 
         elif args.command == "arsenal":
             from tools_menu import show_tools_menu
 
             show_tools_menu()
+            return
 
         elif args.command == "sast":
             from ui_components import print_error, print_info, print_success, show_section
@@ -961,6 +980,7 @@ def main():
                     console.print(f"[green][OK] Report:[/green] {html_path}")
                 except Exception as e:
                     logger.debug("Failed to generate SAST HTML report: %s", e)
+            return
 
         elif args.command == "cloud":
             from ui_components import print_error, print_info, print_success, show_section
@@ -986,6 +1006,7 @@ def main():
                 print_success(f"Cloud scan complete — {total} findings")
             except Exception as e:
                 print_error(f"Cloud scan error: {e}")
+            return
 
         elif args.command == "mobile":
             from ui_components import print_error, print_info, print_success, show_section
@@ -1010,6 +1031,7 @@ def main():
                 print_success(f"Mobile API analysis complete — {total} findings")
             except Exception as e:
                 print_error(f"Mobile API error: {e}")
+            return
 
         elif args.command == "compliance":
             """Enterprise compliance assessment (PCI DSS, SOC2, ISO 27001, OWASP)."""
@@ -1051,6 +1073,7 @@ def main():
                 )
             except Exception as e:
                 print_error(f"Compliance error: {e}")
+            return
 
         elif args.command == "soc":
             """SOC Analyzer — Security Log Intelligence."""
@@ -1075,6 +1098,7 @@ def main():
                 print_success(f"SOC analysis complete — {len(result.get('alerts', []))} alerts")
             except Exception as e:
                 print_error(f"SOC analyzer error: {e}")
+            return
 
         elif args.command == "api":
             """Enterprise REST API server."""
@@ -1098,6 +1122,7 @@ def main():
                 from ui_components import print_error
 
                 print_error(f"API server error: {e}")
+            return
 
         elif args.command == "dashboard":
             from ui_components import print_error, print_info, print_success, show_section
@@ -1121,10 +1146,12 @@ def main():
                     run_minimal()
                 except Exception as e:
                     logger.warning("Dashboard minimal fallback failed: %s", e)
+            return
 
         elif args.command == "update":
             # New: use the Updater class to check for and apply updates
             _cmd_update(args)
+            return
 
         elif args.command == "memory":
             from ui_components import create_status_table, print_info, show_section
@@ -1214,6 +1241,7 @@ def main():
 
             except Exception as e:
                 print_error(f"Memory system error: {e}")
+            return
 
         elif args.command == "bola":
             from tools.bola_harness import BOLAHarness, parse_headers_input
@@ -1303,6 +1331,7 @@ def main():
                 if isinstance(ev, dict):
                     console.print(f"[dim]A: {ev.get('account_a', {})}[/dim]")
                     console.print(f"[dim]B: {ev.get('account_b', {})}[/dim]")
+            return
 
         elif args.command == "waf":
             from tools.waf_evasion import WAFEvasionEngine
@@ -1378,6 +1407,7 @@ def main():
                     f"[/{status_color}] {r.payload[:50]}..."
                     f" (tech: {', '.join(r.techniques)})"
                 )
+            return
 
         elif args.command == "recon":
             from tools.smart_recon import SmartReconEngine, format_recon_for_display
@@ -1439,6 +1469,7 @@ def main():
             except Exception as e:
                 print_error(f"Recon failed: {e}")
                 logger.exception("Smart recon failed")
+            return
 
         elif args.command == "cve-update":
             from tools.cve_database import get_cve_database
@@ -1467,6 +1498,7 @@ def main():
             except Exception as e:
                 print_error(f"CVE update error: {e}")
                 console.print("[dim]Run 'elengenix doctor' to check system status.[/dim]")
+            return
 
         elif args.command == "evasion":
             from tools.edr_evasion import EDREvasionEngine, format_edr_report
@@ -1567,6 +1599,7 @@ def main():
                     target_edr=target_edr or None, objectives=obj_list or None
                 )
                 console.print(format_edr_report(plan))
+            return
 
         elif args.command == "report":
             from tools.pdf_report_generator import (
@@ -1639,6 +1672,7 @@ def main():
             except Exception as e:
                 print_error(f"Report generation failed: {e}")
                 logger.exception("Report generation failed")
+            return
 
         elif args.command == "profile":
             """Profile management - list, create, delete profiles."""
@@ -1704,6 +1738,7 @@ def main():
                 else:
                     print_error(f"Unknown profile command: {subcommand}")
                     console.print("Usage: elengenix profile [list|create|delete]")
+            return
 
         elif args.command in ["programs", "intel", "bounty"]:  # Phase 1: Intelligence Discovery
             """Discover and rank bug bounty programs from HackerOne."""
@@ -1786,6 +1821,7 @@ def main():
                 args.command = "quick"
                 args.target = top.url.replace("https://", "").replace("http://", "")
                 # Fall through to quick command handler
+            return
 
         elif args.command == "mission":
             """Mission control - start autonomous scanning mission."""
@@ -1838,6 +1874,7 @@ def main():
             except Exception as e:
                 print_error(f"Mission failed: {e}")
                 logger.exception("Mission failed")
+            return
 
         elif args.command == "pause":
             """Pause a running mission."""
@@ -1857,6 +1894,7 @@ def main():
 
             scanner.pause()
             print_success(f"Mission {mission_id} paused")
+            return
 
         elif args.command == "resume":
             """Resume a paused mission."""
@@ -1880,6 +1918,7 @@ def main():
             print_success(f"Mission {mission_id} resumed")
             console.print(f"  Status: {results['status']}")
             console.print(f"  Findings: {len(results.get('findings', []))}")
+            return
 
         elif args.command == "history":
             """Command history management."""
@@ -1934,6 +1973,7 @@ def main():
 
             else:
                 console.print(history_mgr.format_history_list())
+            return
 
         elif args.command in ["quick", "deep", "bounty", "stealth", "web"]:
             """Profile shortcuts - one-command execution."""

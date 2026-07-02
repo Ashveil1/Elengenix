@@ -614,7 +614,7 @@ def execute_tool_subprocess(tool_name: str, target: str) -> ToolResult:
         "port_scan": [
             "python3",
             "-c",
-            "import socket; [print(p) for p in range(1,1024) if socket.socket().connect_ex(('{target}', p)) == 0]",
+            f"import socket; [print(p) for p in range(1,1024) if socket.socket().connect_ex(({repr(target)}, p)) == 0]",
         ],
     }
 

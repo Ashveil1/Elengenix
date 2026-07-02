@@ -1,9 +1,10 @@
 """test_report_gen.py — Tests for report generator."""
 
 import json
+from pathlib import Path
 import sys
 
-sys.path.insert(0, "/mnt/data/Elengenix")
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from tools.report_gen import (
     ExecutiveSummary,

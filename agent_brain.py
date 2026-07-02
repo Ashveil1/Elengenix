@@ -34,6 +34,8 @@ _payload_mutation = None
 _agent_reflection = None
 _smart_orchestrator = None
 _hybrid_agent = None
+_vuln_finder = None
+
 
 
 def _get_vector_memory():
@@ -79,6 +81,15 @@ def _get_agent_reflection():
 
         _agent_reflection = agent_reflection
     return _agent_reflection
+
+
+def _get_vuln_finder():
+    global _vuln_finder
+    if _vuln_finder is None:
+        from tools import vuln_finder
+
+        _vuln_finder = vuln_finder
+    return _vuln_finder
 
 
 def remember(content, target=None, category=None, **kwargs):
@@ -600,11 +611,6 @@ class ElengenixAgent:
             if hasattr(self, "client") and hasattr(self.client, "active_client"):
                 model_name = getattr(self.client.active_client, "model", "")
 
-            if model_name and "claude" in model_name.lower():
-                pass
-            else:
-                pass
-
             compress_prompt = (
                 "Summarize the following conversation turns into a concise summary "
                 "that preserves all important information, decisions, and findings. "
@@ -911,7 +917,8 @@ If the intent is 'security_chat', provide expert cybersecurity advice or code ex
 Do NOT attempt to run a scan. Respond naturally in the user's language (English or Thai)."""
 
             messages = self._build_chat_messages(chat_prompt, user_input)
-            response = (self.client.chat(messages).content or "").strip()
+            chat_response = self.client.chat(messages)
+            response = (chat_response.content if chat_response else "").strip()
 
             if response:
                 self._append_history("user", user_input)
@@ -943,6 +950,17 @@ Do NOT attempt to run a scan. Respond naturally in the user's language (English 
                 props={"target": mission_state.target},
             )
         )
+
+        #  INITIALIZE VULNFINDER ENGINE (Adaptive Vulnerability Finder)
+        vf_module = _get_vuln_finder()
+        vuln_finder = vf_module.VulnFinder(
+            target=target or "global",
+            max_steps=self.max_steps,
+            budget_limit=50.0,
+        )
+        escalation_engine = vuln_finder.escalation
+        chaining_engine = vuln_finder.chaining
+        logger.info(f"VulnFinder initialized for target: {target}")
 
         #  REMEMBER: Store this mission start in vector memory
         remember(
@@ -1001,6 +1019,23 @@ Do NOT attempt to run a scan. Respond naturally in the user's language (English 
             display_in_chat_mode("[Smart Scan] Starting upgraded scan engine", "system")
             return self.run_smart_scan(target, report_dir)
 
+        #  Initialize meta-cognitive components
+        from tools.vuln_hunter_core import (
+            BeliefState,
+            CoverageMap,
+            NegativeResultStore,
+            ReflectEngine,
+            VerificationPipeline,
+        )
+
+        belief_state = BeliefState(mission_key)
+        coverage_map = CoverageMap(mission_key, target or "global")
+        negative_store = NegativeResultStore(mission_key)
+        verification_pipeline = VerificationPipeline(agent=self)
+        reflect_engine = ReflectEngine(adapt_after=5, max_steps_without_findings=8)
+        self._last_reflection = None
+        self._cycle_findings_count = 0
+
         #  Reset mission state
         action_history = []
         history = [{"role": "user", "content": user_input}]
@@ -1008,8 +1043,32 @@ Do NOT attempt to run a scan. Respond naturally in the user's language (English 
         all_findings: List[Dict] = []
 
         for step in range(self.max_steps):
-            # Determine next action
-            if self.current_tree and step < len(self.current_tree.steps):
+            # ── REFLECTION PHASE (before deciding next action) ─────
+            # Uses _cycle_findings_count from previous iteration
+            reflection = reflect_engine.reflect(
+                cycle=step,
+                coverage_map=coverage_map,
+                belief_state=belief_state,
+                recent_findings_count=self._cycle_findings_count,
+            )
+            self._last_reflection = reflection
+            if self.cot_logger:
+                self.cot_logger.log(
+                    step=step,
+                    context=user_input,
+                    reasoning=f"Reflection: {reflection.status} — {reflection.recommendation[:80]}",
+                    action="reflect",
+                    result=f"coverage_gaps={len(coverage_map.get_gaps())}, beliefs={len(belief_state.get_active_beliefs())}",
+                    confidence=0.9,
+                )
+            if reflection.switch_strategy:
+                display_in_chat_mode(
+                    f"[Reflection] Strategy switch needed: {reflection.recommendation[:100]}",
+                    "warning",
+                )
+
+            # Determine next action (skip tree if reflection says switch)
+            if self.current_tree and step < len(self.current_tree.steps) and not reflection.switch_strategy:
                 # Follow strategic plan
                 current_step = self.current_tree.steps[step]
                 tool_name = current_step.tool_name
@@ -1072,12 +1131,25 @@ Do NOT attempt to run a scan. Respond naturally in the user's language (English 
 ### MISSION STATE SNAPSHOT (Graph/Facts/Hypotheses):
 {_mission_snapshot}
 
+{coverage_map.prompt_context(max_gaps=8)}
+
+{belief_state.prompt_context()}
+
+{reflect_engine.prompt_context(recent=3)}
+
+{negative_store.get_prompt_context(max_items=5)}
+
 Plan your next move. Consider:
 1. What do we know from previous sessions about this target?
 2. What shell command would be most effective now? (Think freely — use pipes, redirects, scripting)
 3. Do you need to research a vulnerability or tech stack? Use web_search.
 4. Have you found any vulnerabilities? Use submit_findings to report them IMMEDIATELY!
 5. Is a tool missing? Use ask_user to request installation.
+6. Check COVERAGE GAPS above — are there untested vulnerability classes on known endpoints?
+7. Check ACTIVE HYPOTHESES above — prioritize testing hypotheses with HIGH confidence.
+8. Check REFLECTION above — if strategy is stuck, try a completely different approach.
+9. Check PREVIOUSLY TESTED above — don't repeat the same test on the same endpoint.
+10. When you report a finding submit_findings, include the SPECIFIC endpoint and vulnerability type so coverage tracking can update.
 
 Use JSON format:
 {{"action": "run_shell|ask_user|web_search|submit_findings|save_memory|finish",
@@ -1214,6 +1286,37 @@ Use JSON format:
                                 if cve.exploit_available:
                                     summary += " [EXPLOIT AVAILABLE]"
 
+                # Add verification & coverage stats
+                try:
+                    verdicts = verification_pipeline.get_all_verdicts()
+                    actionable = [v for v in verdicts if v.is_actionable()]
+                    fps = [v for v in verdicts if v.status == "false_positive"]
+                    summary += "\n\n VERIFICATION RESULTS:"
+                    summary += f"\n Total findings: {len(verdicts)}"
+                    summary += f"\n Actionable (confirmed+proven+exploitable): {len(actionable)}"
+                    summary += f"\n False positives discarded: {len(fps)}"
+                    if actionable:
+                        summary += f"\n Top verdicts:"
+                        for v in actionable[:3]:
+                            summary += f"\n  [{v.status.upper()}] {v.vuln_class} at {v.endpoint} (confidence: {v.confidence:.0%})"
+                except Exception as e:
+                    logger.debug(f"Verification stats failed: {e}")
+
+                try:
+                    summary += f"\n\n COVERAGE: {coverage_map.summary()}"
+                except Exception as e:
+                    logger.debug(f"Coverage stats failed: {e}")
+
+                try:
+                    ref_hist = reflect_engine.history
+                    if ref_hist:
+                        switches = sum(1 for r in ref_hist if r.switch_strategy)
+                        summary += f"\n\n REFLECTION: {len(ref_hist)} cycles, {switches} strategy switches"
+                        if reflect_engine.consecutive_no_findings > 0:
+                            summary += f" (consecutive no-findings: {reflect_engine.consecutive_no_findings})"
+                except Exception as e:
+                    logger.debug(f"Reflection stats failed: {e}")
+
                 # Generate bounty report
                 try:
                     from tools.bounty_reporter import BountyReporter, FindingArtifact
@@ -1326,7 +1429,7 @@ Use JSON format:
                                     f"Approve high-risk action?\n\nTool: {tool_name}\nPurpose: {purpose}",
                                     default=False,
                                 )
-                            except Exception:
+                            except ImportError:
                                 approved = False
 
                             if approved:
@@ -1443,7 +1546,139 @@ Use JSON format:
                     display_in_chat_mode(f"{tool_name} failed: {result.error_message}", "error")
 
                 previous_results.append(result)
-                all_findings.extend(result.findings)
+
+                # ── COVERAGE TRACKING & VERIFICATION ──────────────────
+                endpoint_tested = action_data.get("command", tool_name)[:100]
+                vuln_class_tested = action_data.get("purpose", "general")[:50]
+                verified_findings = []
+
+                # Record that this endpoint/vuln-class combo was tested
+                coverage_map.register_endpoint(endpoint_tested)
+                coverage_map.record_test(endpoint_tested, vuln_class_tested)
+
+                if result.findings:
+                    for finding in result.findings:
+                        f_endpoint = (
+                            finding.get("url")
+                            or finding.get("endpoint")
+                            or finding.get("host")
+                            or endpoint_tested
+                        )
+                        f_class = (
+                            (finding.get("type") or finding.get("vuln_class") or "unknown").lower()
+                        )
+
+                        # Register endpoint in coverage map
+                        coverage_map.register_endpoint(f_endpoint)
+                        coverage_map.record_test(f_endpoint, f_class)
+
+                        # Run verification pipeline
+                        try:
+                            verdict = verification_pipeline.verify_finding(
+                                finding, target=target, callback=callback
+                            )
+                            if verdict.is_actionable():
+                                coverage_map.record_finding(f_endpoint, f_class)
+                                verified_findings.append(finding)
+                                belief_state.add_belief(
+                                    vuln_class=f_class,
+                                    target_endpoint=f_endpoint,
+                                    reasoning=finding.get("evidence", str(finding))[:200],
+                                    confidence=verdict.confidence,
+                                    evidence=[{"verdict": verdict.to_dict()}],
+                                )
+                                if callback:
+                                    callback(
+                                        f"  [VERIFIED] {f_class} at {f_endpoint} "
+                                        f"(status: {verdict.status})"
+                                    )
+                            else:
+                                coverage_map.record_negative(
+                                    f_endpoint, f_class,
+                                    reason=f"Verification failed: {verdict.status}"
+                                )
+                                negative_store.record(
+                                    endpoint=f_endpoint,
+                                    vuln_class=f_class,
+                                    tool_used=tool_name,
+                                    payload_or_command=str(finding)[:200],
+                                    reason=f"verification: {verdict.status}",
+                                )
+                                if callback:
+                                    callback(
+                                        f"  [DISCARDED] {f_class} at {f_endpoint} "
+                                        f"({verdict.status})"
+                                    )
+                        except Exception as e:
+                            logger.debug(f"Verification failed: {e}")
+                            coverage_map.record_finding(f_endpoint, f_class)
+                            verified_findings.append(finding)
+                else:
+                    # No findings from this tool — record negative result
+                    negative_store.record(
+                        endpoint=endpoint_tested,
+                        vuln_class=vuln_class_tested,
+                        tool_used=tool_name,
+                        payload_or_command=action_data.get("command", ""),
+                        reason="no vulnerabilities detected",
+                    )
+
+                # Register discovered endpoints from raw tool output (recon URLs, etc.)
+                if result.output:
+                    for _url in re.findall(
+                        r'https?://[^\s<>"\'\]\)]+', result.output
+                    ):
+                        _clean = _url.rstrip(".,;:!?)]}>")
+                        coverage_map.register_endpoint(_clean)
+
+                self._cycle_findings_count = len(verified_findings)
+
+                # Replace raw findings with verified findings
+                original_findings = list(result.findings)
+                result.findings.clear()
+                result.findings.extend(verified_findings)
+                all_findings.extend(verified_findings)
+                if len(verified_findings) < len(original_findings) and callback:
+                    callback(
+                        f"  Filtered {len(original_findings) - len(verified_findings)} "
+                        f"false/unverified findings"
+                    )
+
+                # ── ESCALATION ENGINE: Try to escalate low-severity findings ──
+                for finding in verified_findings:
+                    severity = finding.get("severity", "").lower()
+                    if severity in ["low", "medium"]:
+                        escalation_path = escalation_engine.can_escalate(finding)
+                        if escalation_path:
+                            logger.info(
+                                f"Escalation possible for {finding.get('type')}: "
+                                f"{escalation_path.next_steps}"
+                            )
+                            vuln_finder.add_finding(finding)
+
+                # ── CHAINING ENGINE: Try to chain related findings ──
+                if len(all_findings) >= 2:
+                    chainable = chaining_engine.find_chainable_findings(all_findings[-10:])
+                    for f1, f2 in chainable:
+                        chain = chaining_engine.analyze_chain([f1, f2])
+                        if chain:
+                            chained_finding = {
+                                "type": f"chain:{chain.chain_type}",
+                                "severity": chain.combined_severity,
+                                "description": chain.impact_description,
+                                "findings": [f1, f2],
+                                "url": f1.get("url", ""),
+                            }
+                            all_findings.append(chained_finding)
+                            vuln_finder.add_finding(chained_finding)
+                            if callback:
+                                callback(
+                                    f"  Chained findings: {f1.get('type')} + {f2.get('type')} "
+                                    f"→ {chain.combined_severity}"
+                                )
+                            logger.info(
+                                f"Chained findings: {chain.chain_type} → {chain.combined_severity}"
+                            )
 
                 # Update mission graph/facts from findings
                 from tools.mission_state import GraphEdge, GraphNode
@@ -1536,7 +1771,7 @@ Use JSON format:
                             tool_name=tool_name,
                             tool_output=tool_output_str,
                             previous_findings=all_findings[-10:],
-                            tech_stack=getattr(self, "_last_fingerprint", None) or {},
+                            tech_stack=self._fingerprint_cache.get(target, {}),
                         )
                         if analysis.hypotheses:
                             display_in_chat_mode(

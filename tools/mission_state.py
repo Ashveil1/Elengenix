@@ -354,6 +354,38 @@ class MissionState:
             )
         self.touch()
 
+    def list_facts(self, limit: int = 50) -> List[Dict[str, Any]]:
+        """List facts for this mission.
+
+        Args:
+            limit: Maximum number of facts to return.
+
+        Returns:
+            List of fact dictionaries.
+        """
+        with _get_conn() as conn:
+            rows = conn.execute(
+                """
+                SELECT fact_id, category, statement, confidence, evidence_json, created_at
+                FROM facts
+                WHERE mission_id = ?
+                ORDER BY created_at DESC
+                LIMIT ?
+                """,
+                (self.mission_id, limit),
+            ).fetchall()
+            return [
+                {
+                    "fact_id": row[0],
+                    "category": row[1],
+                    "statement": row[2],
+                    "confidence": row[3],
+                    "evidence": _uj(row[4]) if row[4] else {},
+                    "created_at": row[5],
+                }
+                for row in rows
+            ]
+
     def upsert_hypothesis(
         self,
         hyp_id: str,

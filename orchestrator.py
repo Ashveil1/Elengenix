@@ -358,7 +358,7 @@ def _recon_to_findings(recon_result: Dict[str, Any], base_url: str) -> List[Dict
                 "type": "endpoint",
                 "severity": "Low" if d.get("status") in (200, 301, 302) else "Informational",
                 "url": d.get("url"),
-                "title": f"Discovered endpoint: {d.get('url').split('/')[-1]}",
+                "title": f"Discovered endpoint: {(d.get('url') or '').split('/')[-1] or 'unknown'}",
                 "details": f"Status: {d.get('status')} | Length: {d.get('length')}",
             }
         )

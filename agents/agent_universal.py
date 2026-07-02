@@ -166,10 +166,10 @@ Detected user language: {detected_lang}
 
 {now_context}
 
-### 🧠 LONG-TERM PROFILE:
+### [PROFILE] LONG-TERM PROFILE:
 {profile_context}
 
-### 🧠 PAST CONVERSATIONS (RELEVANT CONTEXT):
+### [MEMORY] PAST CONVERSATIONS (RELEVANT CONTEXT):
 {past_memories}
 
 {reflection_caution}
@@ -221,7 +221,7 @@ GraphQL, CORS, JWT, Race Conditions, Business Logic, Supply Chain
             )
             return direct
         if has_thai:
-            return "Hello! I am Elengenix AI, your security research assistant. How can I help you?"
+            return "สวัสดีครับ! ผมคือ Elengenix AI ผู้ช่วยวิจัยความปลอดภัย มีอะไรให้ช่วยไหมครับ?"
         return (
             "Hello! I'm Elengenix AI, your security research assistant. How can I help you today?"
         )
@@ -565,7 +565,7 @@ def _extract_json_from_text(text: str) -> Optional[Dict[str, Any]]:
 
 
 def _build_research_prompt(user_input: str, now_context: str) -> str:
-    return """You are Elengenix AI in RESEARCH MODE.
+    return f"""You are Elengenix AI in RESEARCH MODE.
 
 ### USER QUERY:
 "{user_input}"
@@ -652,7 +652,7 @@ def _build_bug_bounty_prompt(
         else ""
     )
 
-    return """You are an autonomous AI security researcher. Your mission: Find vulnerabilities on {target}
+    return f"""You are an autonomous AI security researcher. Your mission: Find vulnerabilities on {target}
 
 {now_context}
 
@@ -664,7 +664,7 @@ You have access to these security tools. CHOOSE which to use based on the situat
 Additional tools available:
 {available_list}
 
-{"MISSING TOOLS (can request install):" + "\n" + missing_list if missing_list else ""}
+{"MISSING TOOLS (can request install):" + chr(10) + missing_list if missing_list else ""}
 
 ### TOOL RECOMMENDATION:
 If a tool is missing and would be useful, ask the user with a format like:
@@ -723,7 +723,7 @@ Always respond with valid JSON:
 
 
 def _build_general_prompt(user_input: str, now_context: str) -> str:
-    return """You are Elengenix AI 1.0.0 — A Universal AI Agent.
+    return f"""You are Elengenix AI 1.0.0 — A Universal AI Agent.
 
 {now_context}
 

@@ -1338,8 +1338,8 @@ def _exec_zap_active_scan(action: AgentAction, state: AgentState) -> List[Dict]:
         _display("  [zap_active_scan] zaproxy not installed — falling back to built-in tools")
         return findings
 
-    zap_api_key = "elengenix-zap-key"
-    zap_proxy = "http://127.0.0.1:8080"
+    zap_api_key = os.environ.get("ZAP_API_KEY", "elengenix-zap-key")
+    zap_proxy = os.environ.get("ZAP_PROXY", "http://127.0.0.1:8080")
 
     try:
         zap = ZAPv2(apikey=zap_api_key, proxies={"http": zap_proxy, "https": zap_proxy})

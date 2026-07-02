@@ -132,7 +132,7 @@ HELP_TEXT = """\
 class Sidebar(Container):
     """Right-hand panel — golden-ratio width, monochrome minimal."""
 
-    DEFAULT_CSS = """
+    DEFAULT_CSS = f"""
     Sidebar {{
         width: 38; height: 1fr;
         background: {MANTLE};
@@ -246,7 +246,7 @@ class Sidebar(Container):
 class ThinkingWidget(Static):
     """Animated thinking indicator — driven by 30fps master tick (no own timer)."""
 
-    DEFAULT_CSS = """ThinkingWidget {{ height: 1; padding: 0 1 0 5; color: {WHITE}; display: none; }}
+    DEFAULT_CSS = f"""ThinkingWidget {{ height: 1; padding: 0 1 0 5; color: {WHITE}; display: none; }}
     ThinkingWidget.visible {{ display: block; }}"""
 
     def on_mount(self) -> None:
@@ -295,7 +295,7 @@ def _lerp_color(c1: str, c2: str, t: float) -> str:
 # ── Status & Progress Bars ─────────────────────────────────────────────
 class StatusBar(Static):
     DEFAULT_CSS = (
-        """StatusBar {{ height: 1; padding: 0 1; background: {CRUST}; color: {MUTED}; }}"""
+        f"""StatusBar {{ height: 1; padding: 0 1; background: {CRUST}; color: {MUTED}; }}"""
     )
 
     def show_action(self, cmd: str, risk: str = "SAFE") -> None:
@@ -312,7 +312,7 @@ class StatusBar(Static):
 
 class ProgressBar(Static):
     DEFAULT_CSS = (
-        """ProgressBar {{ height: 1; padding: 0 1; background: {MANTLE}; display: none; }}"""
+        f"""ProgressBar {{ height: 1; padding: 0 1; background: {MANTLE}; display: none; }}"""
     )
 
     def show_scan(self, tool: str, cur: int, total: int, findings: int) -> None:
@@ -335,7 +335,7 @@ CUSTOM_URL_INPUT_CSS = """
 
 
 class SettingsOverlayWidget(Widget, can_focus=True):
-    DEFAULT_CSS = """
+    DEFAULT_CSS = f"""
     SettingsOverlayWidget {{ layer: overlay; align: center middle; width: 100%; height: 100%; display: none; }}
     SettingsOverlayWidget.visible {{ display: block; }}
     #settings_panel {{ width: 72; height: auto; max-height: 80%; min-height: 20;
@@ -501,7 +501,7 @@ class SettingsOverlayWidget(Widget, can_focus=True):
 class HelpOverlayWidget(Widget, can_focus=True):
     """Modal overlay for displaying help — Esc to close."""
 
-    DEFAULT_CSS = """
+    DEFAULT_CSS = f"""
     HelpOverlayWidget {{ layer: overlay; align: center middle; width: 100%; height: 100%; display: none; }}
     HelpOverlayWidget.visible {{ display: block; }}
     #help_panel {{ width: 68; height: auto; max-height: 80%; min-height: 14;

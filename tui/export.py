@@ -15,6 +15,7 @@ Public API:
 
 from __future__ import annotations
 
+import html as html_module
 import json
 import logging
 from datetime import datetime
@@ -44,7 +45,7 @@ def export_to_html(
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{title}</title>
+    <title>{html_module.escape(title)}</title>
     <style>
         body {{
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -133,14 +134,14 @@ def export_to_html(
     <div class="container">
         <div class="header">
             <h1>ELENGENIX</h1>
-            <div class="target">Target: {dashboard_data.get('target', 'Unknown')}</div>
+            <div class="target">Target: {html_module.escape(str(dashboard_data.get('target', 'Unknown')))}</div>
             <p>Exported: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
         </div>
 
         <div class="metrics">
             <div class="metric-card">
                 <h3>RISK SCORE</h3>
-                <div class="value {dashboard_data.get('risk_level', 'info')}">
+                <div class="value {dashboard_data.get('risk_level', 'info') if dashboard_data.get('risk_level', 'info') in ['critical', 'high', 'medium', 'low', 'info'] else 'info'}">
                     {dashboard_data.get('risk_score', 0)}
                 </div>
             </div>
@@ -164,11 +165,15 @@ def export_to_html(
 
     for finding in dashboard_data.get("findings", []):
         severity = finding.get("severity", "info").lower()
+        title_escaped = html_module.escape(str(finding.get('title', 'Unknown')))
+        location_escaped = html_module.escape(str(finding.get('location', '')))
+        severity_escaped = html_module.escape(str(finding.get('severity', 'info')))
+        timestamp_escaped = html_module.escape(str(finding.get('timestamp', '')))
         html_content += f"""
             <div class="finding">
-                <div class="title {severity}">{finding.get('title', 'Unknown')}</div>
+                <div class="title {severity}">{title_escaped}</div>
                 <div class="meta">
-                    {finding.get('location', '')} | {finding.get('severity', 'info')} | {finding.get('timestamp', '')}
+                    {location_escaped} | {severity_escaped} | {timestamp_escaped}
                 </div>
             </div>
 """
@@ -286,23 +291,23 @@ def export_to_markdown(
     return output_path
 
 
-def export_to_pdf(
+def export_to_svg(
     dashboard_data: Dict[str, Any],
     output_path: str,
     title: str = "Elengenix Scan Report",
 ) -> str:
-    """Export dashboard data to a PDF file using Rich console.
+    """Export dashboard data to an SVG file using Rich console.
 
-    Note: This requires the 'rich' library and generates a text-based PDF.
-    For better PDF quality, consider using reportlab or weasyprint.
+    Note: Rich does not support native PDF export. This generates an SVG instead.
+    For actual PDF generation, use export_to_html() and convert with weasyprint.
 
     Args:
         dashboard_data: Dictionary containing dashboard data.
-        output_path: Path to save the PDF file.
+        output_path: Path to save the SVG file.
         title: Title for the report.
 
     Returns:
-        Path to the exported PDF file.
+        Path to the exported SVG file.
     """
     from rich.console import Console
     from rich.panel import Panel
@@ -351,11 +356,15 @@ def export_to_pdf(
     else:
         console.print("No findings recorded.")
 
-    # Export to SVG (can be converted to PDF)
-    console.save_svg(output_path.replace(".pd", ".svg"))
+    # Export to SVG (Rich doesn't support PDF natively)
+    if output_path.endswith(".pdf"):
+        svg_path = output_path[:-4] + ".svg"
+    else:
+        svg_path = output_path + ".svg"
+    console.save_svg(svg_path)
 
-    logger.info(f"Exported dashboard to SVG (convert to PDF): {output_path}")
-    return output_path
+    logger.info(f"Exported dashboard to SVG: {svg_path}")
+    return svg_path
 
 
 def collect_dashboard_data(

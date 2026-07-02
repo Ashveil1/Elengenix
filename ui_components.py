@@ -287,7 +287,6 @@ def severity_color(severity: str) -> str:
         severity: One of 'info', 'high', 'medium', 'low', 'info'.
     """
     color_map = {
-        "info": "#ffffff",
         "high": "#ffffff",
         "medium": "#888888",
         "low": "#81C784",

@@ -23,6 +23,19 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
+try:
+    from textual.widgets import Static
+
+    _TEXTUAL_AVAILABLE = True
+except ImportError:
+    _TEXTUAL_AVAILABLE = False
+
+    class Static:
+        """Fallback when Textual is not available."""
+
+        def __init__(self, *args, **kwargs):
+            pass
+
 
 @dataclass
 class ScanPhase:
@@ -95,7 +108,7 @@ SCAN_PHASES = [
 ]
 
 
-class ScanProgressWidget:
+class ScanProgressWidget(Static):
     """Enhanced scan progress visualization with phase tracking.
 
     Features:
@@ -111,7 +124,8 @@ class ScanProgressWidget:
         print(widget.render())
     """
 
-    def __init__(self):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
         self.scan: Optional[ScanProgress] = None
         self._start_time: Optional[float] = None
 

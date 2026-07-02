@@ -346,7 +346,7 @@ class AnalysisPipeline:
                             description=f"Payload bypassed {waf_type} WAF using {', '.join(best.techniques)}",
                             confidence=best.confidence,
                             status="open",
-                            tags=["wa", "bypass", "xss", waf_type],
+                            tags=["waf", "bypass", "xss", waf_type],
                             evidence={
                                 "url": furl,
                                 "waf": waf_type,
@@ -439,16 +439,17 @@ class AnalysisPipeline:
         mission_state: MissionState,
     ) -> None:
         try:
-            from tools.cors_checker import check_cors
+            from tools.cors_checker import CORSChecker
 
             web_endpoints = []
             for finding in result.findings:
                 furl = finding.get("url", "")
                 if furl and ("http://" in furl or "https://" in furl):
                     web_endpoints.append(furl)
+            checker = CORSChecker()
             for endpoint in web_endpoints[:5]:
-                cors_result = check_cors(endpoint)
-                for issue in cors_result.get("issues", []):
+                cors_result = checker.check(endpoint)
+                for issue in cors_result.results:
                     mission_state.upsert_hypothesis(
                         hyp_id=f"cors:{endpoint[:60]}",
                         title=f"CORS Misconfiguration: {issue.get('reason', '')}",
@@ -475,7 +476,7 @@ class AnalysisPipeline:
                     continue
                 if "?" not in furl:
                     continue
-                ssrf_engine = SSRFScanner(base_url=furl, rate_limit_rps=0.5)
+                ssrf_engine = SSRFScanner()
                 ssrf_findings = ssrf_engine.scan(url=furl)
                 for sf in ssrf_findings:
                     mission_state.upsert_hypothesis(
@@ -484,7 +485,7 @@ class AnalysisPipeline:
                         description=sf.get("description", ""),
                         confidence=sf.get("confidence", 0.5),
                         status="open",
-                        tags=["ssr", sf.get("severity", "high")],
+                        tags=["ssrf", sf.get("severity", "high")],
                         evidence=sf,
                     )
                 break

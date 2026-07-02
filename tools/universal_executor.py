@@ -45,10 +45,11 @@ class FileEditor:
         try:
             path = Path(file_path).resolve()
             # Security: Must be within project directory
-            if not str(path).startswith(str(self.base_dir)):
-                logger.warning(f"Path outside base dir blocked: {file_path}")
-                return None
+            path.relative_to(self.base_dir)
             return path
+        except ValueError:
+            logger.warning(f"Path outside base dir blocked: {file_path}")
+            return None
         except Exception as e:
             logger.error(f"Invalid path: {e}")
             return None

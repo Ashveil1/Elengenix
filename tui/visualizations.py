@@ -132,6 +132,8 @@ class VulnerabilityHeatmap:
         """Build the heatmap as a Rich ``Panel``."""
         n_cols = len(self.vuln_types)
         # Pick a column width that fits the requested width.
+        if not self.endpoints:
+            return Text("(no endpoints)", style="dim")
         col_w = max(3, min(10, (self.width - len(self.endpoints[0]) - 4) // max(1, n_cols)))
         table = Table(
             show_header=True,

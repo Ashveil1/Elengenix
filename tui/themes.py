@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import logging
 import time
-from typing import Dict, List, Optional, Tuple
+from typing import Callable, Dict, List, Optional, Tuple
 
 from rich.style import Style
 from rich.text import Text
@@ -29,6 +29,35 @@ class Easing:
     EASE_IN = "ease_in"
     EASE_OUT = "ease_out"
     EASE_IN_OUT = "ease_in_out"
+
+    @staticmethod
+    def apply(easing_type: str, t: float, start: float, end: float) -> float:
+        """Apply easing function to interpolate between start and end.
+
+        Args:
+            easing_type: The easing function type.
+            t: Progress from 0.0 to 1.0.
+            start: Start value.
+            end: End value.
+
+        Returns:
+            Interpolated value.
+        """
+        t = max(0.0, min(1.0, t))
+
+        if easing_type == Easing.LINEAR:
+            return start + (end - start) * t
+        elif easing_type == Easing.EASE_IN:
+            return start + (end - start) * (t * t)
+        elif easing_type == Easing.EASE_OUT:
+            return start + (end - start) * (1 - (1 - t) * (1 - t))
+        elif easing_type == Easing.EASE_IN_OUT:
+            if t < 0.5:
+                return start + (end - start) * (2 * t * t)
+            else:
+                return start + (end - start) * (1 - (-2 * t + 2) ** 2 / 2)
+        else:
+            return start + (end - start) * t
 
 
 logger = logging.getLogger("elengenix.tui.themes")
@@ -550,7 +579,7 @@ class ThemeManager:
         self._transition_start: float = 0.0
         self._transition_duration: float = 0.5
         self._easing: str = "ease_in_out_cubic"
-        self._listeners: List[callable] = []
+        self._listeners: List[Callable] = []
         self._last_colors: Dict[str, str] = dict(self._from_colors)
 
     # -- Public API --------------------------------------------------------
@@ -741,11 +770,15 @@ def get_theme(name: str) -> Dict[str, str]:
 __all__ = [
     "THEMES",
     "THEME_TOKENS",
+    "DEFAULT",
     "CYBERPUNK",
     "MATRIX",
     "STEALTH",
     "SYNTHWAVE",
-    "DEFAULT",
+    "OCEAN",
+    "FOREST",
+    "SUNSET",
+    "ARCTIC",
     "ThemeManager",
     "get_manager",
     "get_theme",

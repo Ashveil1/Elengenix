@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Set
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -251,8 +251,8 @@ def _render_heatmap(findings: List[Any], theme_name: str) -> Panel:
     muted = theme.get("muted", "#888888")
 
     # Build endpoint x category matrix
-    endpoints: List[str] = set()
-    categories: List[str] = set()
+    endpoints: Set[str] = set()
+    categories: Set[str] = set()
     matrix: Dict[tuple, int] = {}
 
     for f in findings:

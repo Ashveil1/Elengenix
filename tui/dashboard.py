@@ -171,6 +171,7 @@ class ThreatDashboard(Container):
         self._max_findings = 50
         self._max_markers = 16
         self._max_scans = 6
+        self._current_layout: str = "default"
 
     # -- Compose ------------------------------------------------------------
 
@@ -522,7 +523,11 @@ class ThreatDashboard(Container):
 
         text = Text()
         for y, row in enumerate(grid):
-            for ch, style in row:
+            for item in row:
+                if isinstance(item, str):
+                    ch, style = item, None
+                else:
+                    ch, style = item
                 if ch == " ":
                     text.append(" ")
                 elif style:

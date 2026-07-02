@@ -13,6 +13,8 @@ Features:
 
 from __future__ import annotations
 
+import subprocess
+
 import logging
 import os
 from pathlib import Path
@@ -428,7 +430,7 @@ def run_scan_menu() -> None:
 
     # Run scan
     print(f"\nStarting {scan_type} on {target}...")
-    os.system(f"python3 main.py scan {target}")
+    subprocess.run(["python3", "main.py", "scan", target], check=False)
 
 
 def run_tools_menu() -> None:
@@ -561,7 +563,7 @@ def run_recon_menu() -> None:
     target = questionary.text("Enter target domain:").ask()
     if target:
         print(f"\nStarting reconnaissance on {target}...")
-        os.system(f"python3 main.py recon {target}")
+        subprocess.run(["python3", "main.py", "recon", target], check=False)
 
 
 def run_reports_menu() -> None:

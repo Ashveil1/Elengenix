@@ -370,8 +370,6 @@ class SmartOrchestrator:
         root: Path = project_root if project_root is not None else Path(".").resolve()
         self.file_graph = FileRelationshipGraph(root).build()
         return self.file_graph
-        self.file_graph = FileRelationshipGraph(project_root).build()
-        return self.file_graph
 
     async def run_smart_scan(
         self,
@@ -469,7 +467,7 @@ class SmartOrchestrator:
         try:
             # Strategy 1: git diff against HEAD
             result = subprocess.run(
-                ["git", "dif", "--name-only", "HEAD"],
+                ["git", "diff", "--name-only", "HEAD"],
                 capture_output=True,
                 text=True,
                 timeout=10,

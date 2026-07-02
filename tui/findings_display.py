@@ -25,6 +25,19 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
+try:
+    from textual.widgets import Static
+
+    _TEXTUAL_AVAILABLE = True
+except ImportError:
+    _TEXTUAL_AVAILABLE = False
+
+    class Static:
+        """Fallback when Textual is not available."""
+
+        def __init__(self, *args, **kwargs):
+            pass
+
 # Severity configuration
 SEVERITY_CONFIG = {
     "critical": {"color": "#ff003c", "badge": "CRIT", "priority": 0},
@@ -93,7 +106,7 @@ class FindingFilter:
         return True
 
 
-class FindingsDisplay:
+class FindingsDisplay(Static):
     """Sortable, filterable findings display widget.
 
     Features:
@@ -114,12 +127,13 @@ class FindingsDisplay:
         print(display.render())
     """
 
-    def __init__(self, max_display: int = 50):
+    def __init__(self, max_display: int = 50, **kwargs):
         """Initialize the findings display.
 
         Args:
             max_display: Maximum number of findings to display.
         """
+        super().__init__(**kwargs)
         self.findings: List[Finding] = []
         self.max_display = max_display
         self.sort_by: str = "severity"
@@ -216,6 +230,8 @@ class FindingsDisplay:
         for f in self.findings:
             if not f.is_false_positive:
                 severity = f.severity.lower()
+                if severity == "informational":
+                    severity = "info"
                 if severity in stats:
                     stats[severity] += 1
                 stats["total"] += 1
