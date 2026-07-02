@@ -6,7 +6,6 @@
 ### Autonomous AI Agent Framework for Security Research
 
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue?style=flat-square)](https://python.org)
-[![Go](https://img.shields.io/badge/Go-1.20%2B-00ADD8?style=flat-square)](https://golang.org)
 [![License](https://img.shields.io/badge/License-GPL-green?style=flat-square)](LICENSE)
 [![Tests](https://github.com/Ashveil1/Elengenix/actions/workflows/test.yml/badge.svg)](https://github.com/Ashveil1/Elengenix/actions/workflows/test.yml)
 
