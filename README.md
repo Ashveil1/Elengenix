@@ -47,10 +47,7 @@ Elengenix exists to close this gap — to give researchers a collaborator that u
 **Prerequisites:** Python 3.10+, Go 1.20+
 
 ```bash
-git clone https://github.com/Ashveil1/Elengenix.git && cd Elengenix
-
-# Install dependencies (Python + Go security tools)
-chmod +x setup.sh && ./setup.sh
+pip install elengenix
 
 # Verify environment
 elengenix doctor
@@ -58,8 +55,6 @@ elengenix doctor
 # Configure AI providers
 elengenix configure
 ```
-
-*Supports Android via Termux: `chmod +x termux_setup.sh && ./termux_setup.sh`*
 
 ---
 
