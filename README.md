@@ -43,7 +43,7 @@ Elengenix exists to close this gap — to give researchers a collaborator that u
 
 ## Quick Start
 
-**Prerequisites:** Python 3.10+, Go 1.20+
+**Prerequisites:** Python 3.10+
 
 ```bash
 pip install elengenix
