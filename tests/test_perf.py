@@ -99,18 +99,23 @@ def test_timeit_decorator():
 
 
 def test_async_batcher():
-    async def run():
-        batcher = AsyncBatcher(concurrency=3, timeout=5)
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        async def run():
+            batcher = AsyncBatcher(concurrency=3, timeout=5)
 
-        async def task(x):
-            await asyncio.sleep(0.01)
-            return x * 2
+            async def task(x):
+                await asyncio.sleep(0.01)
+                return x * 2
 
-        results = await batcher.run_all([task(i) for i in range(10)])
-        assert len(results) == 10
-        return results
+            results = await batcher.run_all([task(i) for i in range(10)])
+            assert len(results) == 10
+            return results
 
-    results = asyncio.run(run())
+        results = loop.run_until_complete(run())
+    finally:
+        loop.close()
     assert all(r is not None for r in results)
     print(f"[OK] test_async_batcher ({len(results)} tasks)")
 

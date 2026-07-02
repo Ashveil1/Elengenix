@@ -36,6 +36,17 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 
+def _safe_run(coro):
+    """Run a coroutine in a fresh event loop to avoid 'Event loop is closed' errors."""
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        return loop.run_until_complete(coro)
+    finally:
+        asyncio.set_event_loop(None)
+        loop.close()
+
+
 # ═══════════════════════════════════════════════════════════════════════════
 #  MOCK HTTP SERVER
 # ═══════════════════════════════════════════════════════════════════════════
@@ -250,7 +261,7 @@ def test_prototype_pollution_canary_reflected(mock_server):
 
     _register_route("POST", "/proto", handler)
     det = PrototypePollutionDetector()
-    findings = asyncio.run(det.detect(f"{mock_server}/proto"))
+    findings = _safe_run(det.detect(f"{mock_server}/proto"))
     assert findings, "expected at least one finding"
     titles = [f.title.lower() for f in findings]
     assert any("canary" in t or "stack" in t or "prototype" in t for t in titles)
@@ -266,7 +277,7 @@ def test_prototype_pollution_no_false_positive_on_clean(mock_server):
 
     _register_route("POST", "/clean", handler)
     det = PrototypePollutionDetector()
-    findings = asyncio.run(det.detect(f"{mock_server}/clean"))
+    findings = _safe_run(det.detect(f"{mock_server}/clean"))
     # No canary reflection, no stack trace, no entropy spike, no echo.
     # Filter: anomaly detector shouldn't fire on a small text body.
     high_or_crit = [f for f in findings if f.severity.value in ("high", "critical")]
@@ -292,7 +303,7 @@ def test_prototype_pollution_stack_trace_detection(mock_server):
 
     _register_route("POST", "/proto-error", handler)
     det = PrototypePollutionDetector()
-    findings = asyncio.run(det.detect(f"{mock_server}/proto-error"))
+    findings = _safe_run(det.detect(f"{mock_server}/proto-error"))
     assert any("stack trace" in f.title.lower() or "error" in f.title.lower() for f in findings)
     print(f"[OK] test_prototype_pollution_stack_trace_detection findings={len(findings)}")
 
@@ -306,7 +317,7 @@ def test_prototype_pollution_gadget_mention_upgrades_severity(mock_server):
 
     _register_route("POST", "/gadget", handler)
     det = PrototypePollutionDetector()
-    findings = asyncio.run(det.detect(f"{mock_server}/gadget"))
+    findings = _safe_run(det.detect(f"{mock_server}/gadget"))
     relevant = [f for f in findings if "canary" in f.title.lower()]
     assert relevant
     assert relevant[0].severity == SeverityLevel.HIGH
@@ -337,7 +348,7 @@ def test_mass_assignment_reflects_isadmin(mock_server):
 
     _register_route("POST", "/users", handler)
     det = MassAssignmentDetector()
-    findings = asyncio.run(det.detect(f"{mock_server}/users"))
+    findings = _safe_run(det.detect(f"{mock_server}/users"))
     titles = [f.title for f in findings]
     assert any("isAdmin" in t for t in titles), f"no isAdmin finding: {titles}"
     sev_map = {"critical": 5, "high": 4, "medium": 3, "low": 2, "info": 1}
@@ -360,7 +371,7 @@ def test_mass_assignment_clean_response_no_findings(mock_server):
 
     _register_route("POST", "/clean", handler)
     det = MassAssignmentDetector()
-    findings = asyncio.run(det.detect(f"{mock_server}/clean"))
+    findings = _safe_run(det.detect(f"{mock_server}/clean"))
     high_or_crit = [f for f in findings if f.severity.value in ("high", "critical")]
     assert high_or_crit == []
     print(f"[OK] test_mass_assignment_clean_response_no_findings findings={len(findings)}")
@@ -382,7 +393,7 @@ def test_mass_assignment_response_growth(mock_server):
 
     _register_route("POST", "/profile", handler)
     det = MassAssignmentDetector()
-    findings = asyncio.run(det.detect(f"{mock_server}/profile"))
+    findings = _safe_run(det.detect(f"{mock_server}/profile"))
     titles = [f.title for f in findings]
     assert any("balance" in t or "grew" in t for t in titles)
     print(f"[OK] test_mass_assignment_response_growth findings={len(findings)}")
@@ -405,7 +416,7 @@ def test_deserialization_java_magic_bytes(mock_server):
     _register_route("GET", "/java-obj", handler)
     _register_route("POST", "/java-obj", handler)
     det = InsecureDeserializationDetector()
-    findings = asyncio.run(det.detect(f"{mock_server}/java-obj"))
+    findings = _safe_run(det.detect(f"{mock_server}/java-obj"))
     langs = [f.metadata.get("language") for f in findings if f.metadata.get("language")]
     assert "java" in langs, f"no java finding: {[f.title for f in findings]}"
     print(f"[OK] test_deserialization_java_magic_bytes langs={set(langs)}")
@@ -422,7 +433,7 @@ def test_deserialization_python_pickle_reflection(mock_server):
 
     _register_route("GET", "/pickle", handler)
     det = InsecureDeserializationDetector()
-    findings = asyncio.run(det.detect(f"{mock_server}/pickle"))
+    findings = _safe_run(det.detect(f"{mock_server}/pickle"))
     langs = [f.metadata.get("language") for f in findings if f.metadata.get("language")]
     assert "python" in langs
     print(f"[OK] test_deserialization_python_pickle_reflection langs={set(langs)}")
@@ -437,7 +448,7 @@ def test_deserialization_php_serialized_object(mock_server):
 
     _register_route("GET", "/php", handler)
     det = InsecureDeserializationDetector()
-    findings = asyncio.run(det.detect(f"{mock_server}/php"))
+    findings = _safe_run(det.detect(f"{mock_server}/php"))
     langs = [f.metadata.get("language") for f in findings if f.metadata.get("language")]
     assert "php" in langs
     print(f"[OK] test_deserialization_php_serialized_object langs={set(langs)}")
@@ -454,7 +465,7 @@ def test_deserialization_dotnet_viewstate(mock_server):
 
     _register_route("GET", "/aspx", handler)
     det = InsecureDeserializationDetector()
-    findings = asyncio.run(det.detect(f"{mock_server}/aspx"))
+    findings = _safe_run(det.detect(f"{mock_server}/aspx"))
     langs = [f.metadata.get("language") for f in findings if f.metadata.get("language")]
     assert "dotnet" in langs
     print(f"[OK] test_deserialization_dotnet_viewstate langs={set(langs)}")
@@ -470,7 +481,7 @@ def test_deserialization_clean_response_no_findings(mock_server):
     _register_route("GET", "/clean", handler)
     _register_route("POST", "/clean", handler)
     det = InsecureDeserializationDetector()
-    findings = asyncio.run(det.detect(f"{mock_server}/clean"))
+    findings = _safe_run(det.detect(f"{mock_server}/clean"))
     assert findings == [], f"unexpected findings: {[f.title for f in findings]}"
     print("[OK] test_deserialization_clean_response_no_findings")
 
@@ -491,7 +502,7 @@ def test_smuggling_clean_single_response_no_findings(mock_server):
     for m in ("GET", "POST", "PUT", "DELETE", "PATCH"):
         _register_route(m, "/", handler)
     det = HTTPSmugglingDetector(timeout=2.0)
-    findings = asyncio.run(det.detect(f"{mock_server}/"))
+    findings = _safe_run(det.detect(f"{mock_server}/"))
     # No multi-response, no 400 with ambiguity keyword. Should be empty.
     assert findings == [], f"unexpected findings: {[f.title for f in findings]}"
     print("[OK] test_smuggling_clean_single_response_no_findings")
@@ -509,7 +520,7 @@ def test_smuggling_ambiguous_error_response_flagged(mock_server):
     for m in ("GET", "POST", "PUT", "DELETE", "PATCH"):
         _register_route(m, "/", handler)
     det = HTTPSmugglingDetector(timeout=2.0)
-    findings = asyncio.run(det.detect(f"{mock_server}/"))
+    findings = _safe_run(det.detect(f"{mock_server}/"))
     # Either multi-response or single with the keyword should match.
     titles = [f.title.lower() for f in findings]
     assert any("smuggling" in t for t in titles), f"no smuggling finding: {titles}"
@@ -538,7 +549,7 @@ def test_smuggling_multi_response_flagged(mock_server):
     for m in ("GET", "POST", "PUT", "DELETE", "PATCH"):
         _register_route(m, "/", handler)
     det = HTTPSmugglingDetector(timeout=2.0)
-    findings = asyncio.run(det.detect(f"{mock_server}/"))
+    findings = _safe_run(det.detect(f"{mock_server}/"))
     crit = [f for f in findings if f.severity.value == "critical"]
     assert crit, f"no critical finding: {[f.title for f in findings]}"
     print(f"[OK] test_smuggling_multi_response_flagged findings={len(findings)}")
@@ -564,7 +575,7 @@ def test_race_condition_status_variation(mock_server):
 
     _register_route("POST", "/race", handler)
     det = RaceConditionDetector()
-    findings = asyncio.run(det.detect(f"{mock_server}/race", concurrency=10))
+    findings = _safe_run(det.detect(f"{mock_server}/race", concurrency=10))
     assert any("status code" in f.title.lower() for f in findings), [f.title for f in findings]
     print(f"[OK] test_race_condition_status_variation findings={len(findings)}")
 
@@ -583,7 +594,7 @@ def test_race_condition_field_race(mock_server):
 
     _register_route("POST", "/race-balance", handler)
     det = RaceConditionDetector()
-    findings = asyncio.run(det.detect(f"{mock_server}/race-balance", concurrency=8))
+    findings = _safe_run(det.detect(f"{mock_server}/race-balance", concurrency=8))
     field_findings = [f for f in findings if "balance" in f.title.lower()]
     assert field_findings, [f.title for f in findings]
     print(f"[OK] test_race_condition_field_race findings={len(findings)}")
@@ -598,7 +609,7 @@ def test_race_condition_clean_no_findings(mock_server):
 
     _register_route("GET", "/race-clean", handler)
     det = RaceConditionDetector()
-    findings = asyncio.run(det.detect(f"{mock_server}/race-clean", concurrency=8))
+    findings = _safe_run(det.detect(f"{mock_server}/race-clean", concurrency=8))
     high_or_crit = [f for f in findings if f.severity.value in ("high", "critical")]
     assert high_or_crit == []
     print(f"[OK] test_race_condition_clean_no_findings findings={len(findings)}")
@@ -634,7 +645,7 @@ def test_ssti_jinja2_reflection(mock_server):
 
     _register_route("GET", "/search", handler)
     det = SSTIDetector()
-    findings = asyncio.run(det.detect(f"{mock_server}/search", context={"param": "q"}))
+    findings = _safe_run(det.detect(f"{mock_server}/search", context={"param": "q"}))
     titles = [f.title for f in findings]
     assert any("49" in t for t in titles), titles
     crit = [f for f in findings if f.severity.value == "critical"]
@@ -656,7 +667,7 @@ def test_ssti_stack_trace_signature(mock_server):
 
     _register_route("GET", "/render", handler)
     det = SSTIDetector()
-    findings = asyncio.run(det.detect(f"{mock_server}/render", context={"param": "q"}))
+    findings = _safe_run(det.detect(f"{mock_server}/render", context={"param": "q"}))
     titles = [f.title.lower() for f in findings]
     assert any("jinja" in t or "template engine" in t or "stack trace" in t for t in titles)
     print(f"[OK] test_ssti_stack_trace_signature findings={len(findings)}")
@@ -676,7 +687,7 @@ def test_ssti_clean_no_findings(mock_server):
 
     _register_route("GET", "/clean", handler)
     det = SSTIDetector()
-    findings = asyncio.run(det.detect(f"{mock_server}/clean", context={"param": "q"}))
+    findings = _safe_run(det.detect(f"{mock_server}/clean", context={"param": "q"}))
     high_or_crit = [f for f in findings if f.severity.value in ("high", "critical")]
     assert high_or_crit == []
     print(f"[OK] test_ssti_clean_no_findings findings={len(findings)}")
@@ -751,7 +762,7 @@ def test_graphql_introspection_enabled_flagged(mock_server):
 
     _register_route("POST", "/graphql", handler)
     det = GraphQLIntrospectionDetector()
-    findings = asyncio.run(det.detect(mock_server, context={"endpoint": f"{mock_server}/graphql"}))
+    findings = _safe_run(det.detect(mock_server, context={"endpoint": f"{mock_server}/graphql"}))
     titles = [f.title.lower() for f in findings]
     assert any("introspection" in t for t in titles)
     assert any("sensitive" in t for t in titles)
@@ -779,7 +790,7 @@ def test_graphql_introspection_disabled_no_high(mock_server):
 
     _register_route("POST", "/graphql", handler)
     det = GraphQLIntrospectionDetector()
-    findings = asyncio.run(det.detect(mock_server, context={"endpoint": f"{mock_server}/graphql"}))
+    findings = _safe_run(det.detect(mock_server, context={"endpoint": f"{mock_server}/graphql"}))
     high = [f for f in findings if f.severity.value == "high"]
     assert high == [], [f.title for f in high]
     print(f"[OK] test_graphql_introspection_disabled_no_high findings={len(findings)}")
@@ -794,7 +805,7 @@ def test_graphql_endpoint_discovery(mock_server):
 
     _register_route("POST", "/graphql", handler)
     det = GraphQLIntrospectionDetector()
-    findings = asyncio.run(det.detect(mock_server))
+    findings = _safe_run(det.detect(mock_server))
     # Even with introspection disabled-by-error, we should reach the endpoint.
     assert findings
     print(f"[OK] test_graphql_endpoint_discovery findings={len(findings)}")
@@ -864,7 +875,7 @@ def test_jwt_detect_on_endpoint_accepts_alg_none(mock_server):
 
     _register_route("GET", "/protected", handler)
     det = JWTAlgorithmDetector()
-    findings = asyncio.run(det.detect_on_endpoint(f"{mock_server}/protected"))
+    findings = _safe_run(det.detect_on_endpoint(f"{mock_server}/protected"))
     crit = [f for f in findings if f.severity.value == "critical"]
     assert crit, f"no critical finding: {[f.title for f in findings]}"
     print(f"[OK] test_jwt_detect_on_endpoint_accepts_alg_none findings={len(findings)}")
@@ -883,7 +894,7 @@ def test_jwt_detect_on_endpoint_rejects_attacks(mock_server):
 
     _register_route("GET", "/strict", handler)
     det = JWTAlgorithmDetector()
-    findings = asyncio.run(det.detect_on_endpoint(f"{mock_server}/strict"))
+    findings = _safe_run(det.detect_on_endpoint(f"{mock_server}/strict"))
     assert findings == [], [f.title for f in findings]
     print("[OK] test_jwt_detect_on_endpoint_rejects_attacks")
 
@@ -908,7 +919,7 @@ def test_smart_anomaly_baseline_then_5xx_anomaly(mock_server):
 
     _register_route("GET", "/anom", handler)
     det = SmartAnomalyDetector()
-    findings = asyncio.run(det.detect(f"{mock_server}/anom", baseline_count=4))
+    findings = _safe_run(det.detect(f"{mock_server}/anom", baseline_count=4))
     assert any("500" in f.evidence or "server error" in f.evidence for f in findings), [
         f.evidence for f in findings
     ]
@@ -925,7 +936,7 @@ def test_smart_anomaly_no_findings_on_uniform(mock_server):
     _register_route("GET", "/uniform", handler)
     det = SmartAnomalyDetector()
     # Use a slightly larger baseline so length/status z-scores are stable.
-    findings = asyncio.run(det.detect(f"{mock_server}/uniform", baseline_count=5))
+    findings = _safe_run(det.detect(f"{mock_server}/uniform", baseline_count=5))
     # We accept timing-based noise under heavy CI load — only length/status
     # findings count for this negative test.
     length_or_status = [f for f in findings if "length" in f.evidence or "status" in f.evidence]
@@ -1138,7 +1149,7 @@ def test_engine_end_to_end(mock_server):
     )
     engine = ZeroDayEngine(config=config)
     try:
-        findings = asyncio.run(engine.scan(f"{mock_server}/api"))
+        findings = _safe_run(engine.scan(f"{mock_server}/api"))
     finally:
         engine.close()
     titles = [f.title for f in findings]
@@ -1178,7 +1189,7 @@ def test_engine_scan_as_vulns_returns_vulnfindings(mock_server):
     )
     engine = ZeroDayEngine(config=config)
     try:
-        vulns = asyncio.run(engine.scan_as_vulns(f"{mock_server}/ssti"))
+        vulns = _safe_run(engine.scan_as_vulns(f"{mock_server}/ssti"))
     finally:
         engine.close()
     assert vulns, "expected at least one VulnFinding"
@@ -1210,7 +1221,7 @@ def test_engine_deduplicates(mock_server):
     )
     engine = ZeroDayEngine(config=config)
     try:
-        findings = asyncio.run(engine.scan(f"{mock_server}/dedup"))
+        findings = _safe_run(engine.scan(f"{mock_server}/dedup"))
     finally:
         engine.close()
     titles = [f.title for f in findings]
@@ -1240,7 +1251,7 @@ def test_engine_severity_ordering(mock_server):
     )
     engine = ZeroDayEngine(config=config)
     try:
-        findings = asyncio.run(engine.scan(f"{mock_server}/order"))
+        findings = _safe_run(engine.scan(f"{mock_server}/order"))
     finally:
         engine.close()
     rank = {"critical": 5, "high": 4, "medium": 3, "low": 2, "info": 1}
@@ -1271,7 +1282,7 @@ def test_engine_correlates_into_graph(mock_server):
     )
     engine = ZeroDayEngine(config=config)
     try:
-        findings = asyncio.run(engine.scan(f"{mock_server}/graph"))
+        findings = _safe_run(engine.scan(f"{mock_server}/graph"))
     finally:
         engine.close()
     finding_nodes = [n for n in engine.graph.nodes.values() if n.kind == "finding"]
@@ -1296,7 +1307,7 @@ def test_engine_run_zero_day_scan_helper(mock_server):
         _respond(h, 200, b"Result: blank", headers={"Content-Type": "text/html"})
 
     _register_route("GET", "/helper", handler)
-    vulns = asyncio.run(
+    vulns = _safe_run(
         run_zero_day_scan(
             f"{mock_server}/helper",
             enable_ssti=True,
@@ -1395,7 +1406,7 @@ def test_jwt_endpoint_discovery():
         assert isinstance(endpoints, list)
         assert len(endpoints) == 0
 
-    asyncio.run(go())
+    _safe_run(go())
 
 
 def test_jwt_looks_like_jwt_helper():
@@ -1424,7 +1435,7 @@ def test_zero_day_findings_have_honest_labels():
                 # Every JWT finding on httpbin (no JWT endpoints) must be labeled as candidate
                 assert "CANDIDATE" in f.title
 
-    asyncio.run(go())
+    _safe_run(go())
 
 
 if __name__ == "__main__":

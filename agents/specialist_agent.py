@@ -357,7 +357,7 @@ Respond ONLY with valid JSON. No extra text."""
         if action == "run_tool":
             return self._run_tool(decision, target)
         elif action == "run_shell":
-            return self._run_shell(decision, description)
+            return self._run_shell(decision, target, description)
         elif action in ("fuzz", "fuzzing"):
             return self.fuzzer_worker.execute(target)
         elif action in ("exploit", "verify_exploit"):
@@ -437,11 +437,12 @@ Respond ONLY with valid JSON. No extra text."""
                 metadata={"tool": tool_name},
             )
 
-    def _run_shell(self, decision: Dict[str, Any], description: str) -> WorkerResult:
+    def _run_shell(self, decision: Dict[str, Any], target: str, description: str) -> WorkerResult:
         """Execute a shell command with governance gating.
 
         Args:
             decision: AI decision dict with "command".
+            target: Primary target for governance check.
             description: Human-readable task description for logging.
 
         Returns:
@@ -461,7 +462,7 @@ Respond ONLY with valid JSON. No extra text."""
         if self.governance:
             gate = self.governance.gate(
                 mission_id="specialist",
-                target="target",
+                target=target,
                 action={"type": "run_shell", "command": command},
             )
             if not gate.allowed:

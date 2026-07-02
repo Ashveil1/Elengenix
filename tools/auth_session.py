@@ -24,7 +24,10 @@ import re
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Set, Tuple
 
-import aiohttp
+try:
+    import aiohttp
+except ImportError:
+    aiohttp = None  # type: ignore[assignment]
 
 logger = logging.getLogger("elengenix.auth")
 

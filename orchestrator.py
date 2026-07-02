@@ -22,10 +22,8 @@ from tools.perf import FastHTTP, SmartCache, Timer, cached
 # Safe import for nest_asyncio (for async compatibility)
 try:
     import nest_asyncio
-
-    nest_asyncio.apply()
 except ImportError:
-    pass  # nest_asyncio not available, but not critical for orchestrator
+    nest_asyncio = None  # not critical for orchestrator
 
 from rich.panel import Panel
 

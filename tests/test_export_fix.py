@@ -1,4 +1,4 @@
-"""tests/test_export_fix.py — Tests for export_to_html XSS escaping and export_to_pdf SVG output."""
+"""tests/test_export_fix.py — Tests for export_to_html XSS escaping and export_to_svg output."""
 
 import sys
 import os
@@ -6,7 +6,7 @@ import tempfile
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from tui.export import export_to_html, export_to_pdf
+from tui.export import export_to_html, export_to_svg
 
 
 def test_export_to_html_escapes_xss():
@@ -47,9 +47,9 @@ def test_export_to_html_writes_file():
         assert "ELENGENIX" in content
 
 
-def test_export_to_pdf_returns_svg():
+def test_export_to_svg_returns_svg():
     with tempfile.TemporaryDirectory() as tmpdir:
-        output_path = os.path.join(tmpdir, "report.pdf")
+        output_path = os.path.join(tmpdir, "report.svg")
         data = {
             "target": "example.com",
             "risk_score": 50,
@@ -57,16 +57,15 @@ def test_export_to_pdf_returns_svg():
                 {"title": "Test Finding", "severity": "HIGH", "location": "/api"}
             ],
         }
-        result = export_to_pdf(data, output_path)
-        # Should return .svg path even when .pdf was requested
+        result = export_to_svg(data, output_path)
         assert result.endswith(".svg")
         assert os.path.exists(result)
 
 
-def test_export_to_pdf_no_findings():
+def test_export_to_svg_no_findings():
     with tempfile.TemporaryDirectory() as tmpdir:
-        output_path = os.path.join(tmpdir, "empty.pdf")
+        output_path = os.path.join(tmpdir, "empty.svg")
         data = {"target": "example.com", "risk_score": 0, "findings": []}
-        result = export_to_pdf(data, output_path)
+        result = export_to_svg(data, output_path)
         assert result.endswith(".svg")
         assert os.path.exists(result)

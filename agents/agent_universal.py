@@ -12,7 +12,7 @@ import re
 import time
 from typing import Any, Callable, Dict, List, Optional
 
-from agents.agent_helpers import _get_memory_profile_context, _get_now_context
+from agents.agent_helpers import _get_memory_profile_context, _get_now_context, extract_json
 from agents.agent_intent import analyze_intent
 from tools.agent_reflection import AgentReflection
 from tools.cvss_calculator import CVSSCalculator
@@ -405,21 +405,14 @@ Respond with JSON:
 
         # Parse JSON
         thought = ""
-        try:
-            decision = (
-                json.loads(response_text)
-                if response_text.startswith("{")
-                else _extract_json_from_text(response_text)
-            )
-            if not decision:
-                action_data = {"type": "finish"}
-            else:
-                thought = decision.get("thought", "")
-                action_data = decision.get("action", decision)
-                if isinstance(action_data, dict) and "type" not in action_data:
-                    action_data = {"type": "shell", "params": action_data}
-        except (json.JSONDecodeError, ValueError):
+        decision = extract_json(response_text)
+        if not decision:
             action_data = {"type": "finish"}
+        else:
+            thought = decision.get("thought", "")
+            action_data = decision.get("action", decision)
+            if isinstance(action_data, dict) and "type" not in action_data:
+                action_data = {"type": "shell", "params": action_data}
 
         if callback and thought:
             callback(f"thought:{thought}")
@@ -548,20 +541,6 @@ def _append_history(history: List[Dict[str, str]], role: str, content: str) -> N
     """Append to an in-memory conversation history list."""
     history.append({"role": role, "content": content})
 
-
-def _extract_json_from_text(text: str) -> Optional[Dict[str, Any]]:
-    """Try to extract JSON object from response text."""
-    try:
-        return json.loads(text)
-    except json.JSONDecodeError:
-        pass
-    match = re.search(r"\{.*\}", text, re.DOTALL)
-    if match:
-        try:
-            return json.loads(match.group())
-        except json.JSONDecodeError:
-            pass
-    return None
 
 
 def _build_research_prompt(user_input: str, now_context: str) -> str:

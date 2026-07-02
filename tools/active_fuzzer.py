@@ -591,7 +591,7 @@ class ActiveFuzzer:
                     and r.delta.body_hash_changed
                     and r.delta.length_diff_pct > 0.5
                 ):
-                    categories["body_dif"] = categories.get("body_diff", 0) + 1
+                    categories["body_diff"] = categories.get("body_diff", 0) + 1
 
         return {
             "total": len(results),

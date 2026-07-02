@@ -19,10 +19,8 @@ from typing import Any, Dict, List
 # Safe import for nest_asyncio (for async compatibility)
 try:
     import nest_asyncio
-
-    nest_asyncio.apply()
 except ImportError:
-    pass  # nest_asyncio not available, but not critical for omni_scan
+    nest_asyncio = None  # not critical for omni_scan
 
 from rich.panel import Panel
 from rich.progress import BarColumn, Progress, SpinnerColumn, TextColumn

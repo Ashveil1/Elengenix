@@ -55,7 +55,7 @@ def temp_plugin_dir(tmp_path):
     plugin_dir.mkdir()
     # Manifest
     (plugin_dir / "plugin.yaml").write_text(
-        """name: test_plugin
+        f"""name: test_plugin
 version: 1.0.0
 author: Test Author
 description: A test plugin
@@ -101,7 +101,7 @@ def temp_disabled_plugin(tmp_path):
     plugin_dir = tmp_path / "disabled_plugin"
     plugin_dir.mkdir()
     (plugin_dir / "plugin.yaml").write_text(
-        """name: disabled_plugin
+        f"""name: disabled_plugin
 version: 1.0.0
 enabled: false
 sdk_version: {SDK_VERSION}
@@ -121,7 +121,7 @@ def temp_bad_plugin(tmp_path):
     plugin_dir = tmp_path / "bad_plugin"
     plugin_dir.mkdir()
     (plugin_dir / "plugin.yaml").write_text(
-        """name: bad_plugin
+        f"""name: bad_plugin
 version: 1.0.0
 sdk_version: {SDK_VERSION}
 """,
@@ -140,7 +140,7 @@ def temp_no_register(tmp_path):
     plugin_dir = tmp_path / "no_register"
     plugin_dir.mkdir()
     (plugin_dir / "plugin.yaml").write_text(
-        """name: no_register
+        f"""name: no_register
 version: 1.0.0
 sdk_version: {SDK_VERSION}
 """,
@@ -169,7 +169,7 @@ class TestPluginManifest:
         path = tmp_path / "p"
         path.mkdir()
         (path / "plugin.yaml").write_text(
-            """name: minimal
+            f"""name: minimal
 version: 0.1.0
 sdk_version: {SDK_VERSION}
 """,
@@ -320,7 +320,7 @@ class TestPluginHost:
         path = tmp_path / "custom_entry"
         path.mkdir()
         (path / "plugin.yaml").write_text(
-            """name: custom_entry
+            f"""name: custom_entry
 version: 1.0.0
 sdk_version: {SDK_VERSION}
 entry_point: my_register.py

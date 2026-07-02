@@ -795,7 +795,7 @@ Respond with valid JSON only."""
                 # Critical findings - prioritize immediate action
                 if severity in ("critical", "high"):
                     if finding_type == "secret":
-                        return "secret_scan"
+                        return "trufflehog"
                     if finding_type in ("rce", "remote_code_execution"):
                         return "vuln_verify"
                     if finding_type in ("sqli", "sql_injection"):
@@ -992,7 +992,7 @@ Respond with valid JSON only."""
                 additional_steps.append(
                     AttackStep(
                         phase=AttackPhase.EXPLOITATION,
-                        tool_name="secret_scan",
+                        tool_name="trufflehog",
                         target=target_url,
                         purpose="Deep secret scan for additional credentials",
                         depends_on=[],

@@ -21,7 +21,10 @@ import time
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional
 
-import aiohttp
+try:
+    import aiohttp
+except ImportError:
+    aiohttp = None  # type: ignore[assignment]
 
 from tools.endpoint_discovery import Endpoint
 
