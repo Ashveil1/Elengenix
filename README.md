@@ -1,4 +1,7 @@
 
+<p align="center">
+  <img src="assets/elengenix.png" alt="Elengenix Terminal User Interface" width="850">
+</p>
 
 ### Autonomous AI Agent Framework for Security Research
 
@@ -8,10 +11,6 @@
 [![Tests](https://github.com/Ashveil1/Elengenix/actions/workflows/test.yml/badge.svg)](https://github.com/Ashveil1/Elengenix/actions/workflows/test.yml)
 
 </div>
-
-<p align="center">
-  <img src="assets/elengenix.png" alt="Elengenix Terminal User Interface" width="850">
-</p>
 
 > [!IMPORTANT]
 > **LEGAL & SECURITY DISCLAIMER:** This framework is designed strictly for educational purposes, authorized security research, and defensive penetration testing. The authors are not responsible for any misuse, unauthorized targeting, or damage caused by the autonomous execution capabilities of this tool. Users are solely responsible for ensuring full legal authorization before initiating any scans or test sequences.
