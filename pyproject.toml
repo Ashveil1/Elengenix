@@ -110,6 +110,8 @@ packages = [
     "tui",
     "tools",
     "redteam_agent",
+    "prompts",
+    "knowledge",
 ]
 include-package-data = true
 
