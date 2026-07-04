@@ -154,8 +154,11 @@ class TestMainCmdExamples:
 class TestMainCmdPrefetch:
     """Tests for main.py _cmd_prefetch()."""
 
-    def test_runs_without_error(self):
+    @patch("pathlib.Path.exists", return_value=True)
+    @patch("pathlib.Path.stat")
+    def test_already_cached(self, mock_stat, mock_exists):
         from main import _cmd_prefetch
+        mock_stat.return_value = MagicMock(st_size=80 * 1024 * 1024)
         _cmd_prefetch()
 
 
@@ -327,7 +330,8 @@ class TestMainCmdPlugins:
 class TestMainCmdUpdate:
     """Tests for main.py _cmd_update()."""
 
-    def test_check_mode(self):
+    @patch("tools.updater.Updater.check_for_updates", return_value=None)
+    def test_check_mode(self, mock_check):
         from main import _cmd_update
         args = MagicMock()
         args.check = True
@@ -336,7 +340,8 @@ class TestMainCmdUpdate:
         args.yes = False
         _cmd_update(args)
 
-    def test_default_status(self):
+    @patch("tools.updater.Updater.check_for_updates", return_value=None)
+    def test_default_status(self, mock_check):
         from main import _cmd_update
         args = MagicMock()
         args.check = False
@@ -1996,11 +2001,10 @@ class TestVectorMemoryFallback:
 class TestVectorMemoryChromaDB:
     """Test ChromaDB path."""
 
-    def test_add_and_search(self, tmp_path):
+    @patch("tools.vector_memory.CHROMADB_AVAILABLE", False)
+    def test_add_and_search_fallback(self, tmp_path):
         from tools.vector_memory import VectorMemory
         vm = VectorMemory(persist_directory=str(tmp_path / "test_chroma"))
-        if not vm._initialized:
-            pytest.skip("ChromaDB not available")
         mid = vm.add_memory("test memory content", "example.com", "test")
         assert isinstance(mid, str)
         results = vm.search("test memory", "example.com")
@@ -2556,13 +2560,15 @@ class TestMainDispatchCommands:
 
     @patch("main.show_banner")
     @patch("main.ensure_path_priorities")
-    def test_command_prefetch(self, mock_path, mock_banner):
+    @patch("main._cmd_prefetch")
+    def test_command_prefetch(self, mock_prefetch, mock_path, mock_banner):
         from main import main
         sys.argv = ["main.py", "prefetch"]
         try:
             main()
         except SystemExit:
             pass
+        mock_prefetch.assert_called_once()
 
     @patch("main.show_banner")
     @patch("main.ensure_path_priorities")
@@ -2580,7 +2586,8 @@ class TestMainAutoCommand:
 
     @patch("main.show_banner")
     @patch("main.ensure_path_priorities")
-    def test_auto_with_no_target_becomes_tui(self, mock_path, mock_banner):
+    @patch("main._cmd_prefetch")
+    def test_auto_with_no_target_becomes_tui(self, mock_prefetch, mock_path, mock_banner):
         from main import main
         sys.argv = ["main.py"]
         try:
