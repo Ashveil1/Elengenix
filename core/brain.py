@@ -236,7 +236,8 @@ class ElengenixAgent:
         )
 
         #  Absolute Path Resolution for Prompts
-        self.base_dir = Path(__file__).parent.absolute()
+        #  Note: __file__ is in core/, but prompts/ is in project root
+        self.base_dir = Path(__file__).parent.parent.absolute()
         prompt_path = self.base_dir / "prompts" / "system_prompt.txt"
 
         if not prompt_path.exists():
