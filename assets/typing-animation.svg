@@ -1,42 +1,33 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 65">
   <defs>
     <style>
-      @keyframes blink { 0%,49%{opacity:1} 50%,100%{opacity:0} }
       .bg { fill: #000000; }
       .term { fill: #0a0a0a; stroke: #1a1a1a; stroke-width: 1; }
       .prompt { font-family: 'SF Mono','Fira Code','Consolas',monospace; font-size: 14px; fill: #555555; }
-      .typed { font-family: 'SF Mono','Fira Code','Consolas',monospace; font-size: 14px; fill: #999999; }
-      .cursor { fill: #ffffff; animation: blink 1s step-end infinite; }
+      .cmd { font-family: 'SF Mono','Fira Code','Consolas',monospace; font-size: 14px; fill: #999999; }
+      .ok { font-family: 'SF Mono','Fira Code','Consolas',monospace; font-size: 14px; fill: #22c55e; }
+      .warn { font-family: 'SF Mono','Fira Code','Consolas',monospace; font-size: 14px; fill: #eab308; }
+      .dim { font-family: 'SF Mono','Fira Code','Consolas',monospace; font-size: 14px; fill: #555555; }
     </style>
-    <clipPath id="r1"><rect x="88" y="25" width="0" height="20">
-      <animate attributeName="width" from="0" to="200" dur="2.4s" begin="0s" fill="freeze" repeatCount="8"/>
-      <animate attributeName="width" from="200" to="0" dur="0.3s" begin="2.8s" fill="freeze" repeatCount="8"/>
-    </rect></clipPath>
-    <clipPath id="r2"><rect x="88" y="25" width="0" height="20">
-      <animate attributeName="width" from="0" to="250" dur="2.4s" begin="3.2s" fill="freeze" repeatCount="8"/>
-      <animate attributeName="width" from="250" to="0" dur="0.3s" begin="5.6s" fill="freeze" repeatCount="8"/>
-    </rect></clipPath>
-    <clipPath id="r3"><rect x="88" y="25" width="0" height="20">
-      <animate attributeName="width" from="0" to="230" dur="2.4s" begin="6s" fill="freeze" repeatCount="8"/>
-      <animate attributeName="width" from="230" to="0" dur="0.3s" begin="8.4s" fill="freeze" repeatCount="8"/>
-    </rect></clipPath>
   </defs>
 
   <rect width="700" height="65" class="bg" rx="6"/>
   <rect x="10" y="8" width="680" height="48" class="term" rx="4"/>
+
   <circle cx="24" cy="20" r="4" fill="#444444"/>
   <circle cx="38" cy="20" r="4" fill="#2a2a2a"/>
   <circle cx="52" cy="20" r="4" fill="#2a2a2a"/>
-  <text x="72" y="40" class="prompt">$</text>
 
-  <!-- Text lines FIRST (rendered behind cursor) -->
-  <text x="88" y="40" class="typed" clip-path="url(#r1)">elengenix scan target.com</text>
-  <text x="88" y="40" class="typed" clip-path="url(#r2)">120+ tools, AI reasoning, real-time</text>
-  <text x="88" y="40" class="typed" clip-path="url(#r3)">find vulns before attackers do</text>
+  <text x="72" y="32" class="prompt">$</text>
+  <text x="88" y="32" class="cmd">elengenix scan target.com</text>
 
-  <!-- Cursor LAST (rendered on top of everything) -->
-  <rect x="86" y="26" width="8" height="18" class="cursor">
-    <animateTransform attributeName="transform" type="translate" values="0,0;200,0;200,0;0,0;0,0" keyTimes="0;0.3;0.35;0.4;1" dur="8s" repeatCount="indefinite"/>
-  </rect>
+  <text x="72" y="44" class="ok">[OK]</text>
+  <text x="108" y="44" class="dim">Recon: 42 endpoints, 3 ports</text>
+
+  <text x="320" y="44" class="ok">[OK]</text>
+  <text x="356" y="44" class="dim">WAF: Cloudflare (0.95)</text>
+
+  <text x="540" y="44" class="warn">[!]</text>
+  <text x="566" y="44" class="dim">3 findings</text>
 
 </svg>
