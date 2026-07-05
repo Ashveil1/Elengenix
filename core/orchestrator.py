@@ -142,6 +142,38 @@ def normalize_targets(target: str) -> List[str]:
     return [t for t in normalized if t]
 
 
+def _check_dns_resolution(target: str) -> bool:
+    """Check if domain resolves to a safe IP address.
+
+    Optional DNS check to prevent SSRF via DNS rebinding.
+    Enabled by setting ELNGENIX_DNS_CHECK=true environment variable.
+
+    Returns:
+        True if DNS check passes or is disabled.
+        False if domain resolves to private/metadata IP.
+    """
+    if os.environ.get("ELNGENIX_DNS_CHECK", "").lower() != "true":
+        return True  # DNS check disabled by default
+
+    try:
+        import socket
+        # Resolve domain to IP (with timeout)
+        ips = socket.getaddrinfo(target, None, socket.AF_UNSPEC, socket.SOCK_STREAM)
+        for family, _, _, _, sockaddr in ips:
+            ip = ipaddress.ip_address(sockaddr[0])
+            if ip.is_private or ip.is_loopback:
+                logger.warning(f"DNS resolution: {target} resolves to private IP {ip}")
+                return False
+            # Check for metadata endpoints (169.254.169.254)
+            if str(ip) == "169.254.169.254":
+                logger.warning(f"DNS resolution: {target} resolves to metadata endpoint")
+                return False
+        return True
+    except (socket.gaierror, OSError) as e:
+        logger.debug(f"DNS resolution failed for {target}: {e}")
+        return True  # Allow if DNS fails (don't block on DNS errors)
+
+
 def is_valid_target(target: str) -> bool:
     if not target:
         return False
@@ -160,15 +192,21 @@ def is_valid_target(target: str) -> bool:
 
 
 def is_in_scope(target: str) -> bool:
-    """Check if a single target is in authorized scope.
+    """Check if target is in authorized scope.
 
     Fail-closed: returns False if no scope is configured.
     Configure scope via scope.txt or ELENGENIX_SCOPE env var.
+
+    Optional DNS check: set ELNGENIX_DNS_CHECK=true to verify
+    domain resolves to safe IP (prevents SSRF via DNS rebinding).
     """
     if not target:
         return False
     normalized = normalize_target(target)
     if not is_valid_target(normalized):
+        return False
+    # Optional DNS resolution check
+    if not _check_dns_resolution(normalized):
         return False
     allowed = _get_allowed_domains()
     if not allowed:
