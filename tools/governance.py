@@ -3,11 +3,11 @@
 Governance & permission gates for autonomous security operations.
 
 Risk classification:
-  DESTRUCTIVE  → Blocked unconditionally (rm -rf /, dd, mkfs, fork bomb)
-  PRIVILEGED   → Requires user approval  (sudo, install, write to /etc, /usr)
-  SAFE         → Always allowed          (everything else)
+  DESTRUCTIVE  → Requires user approval (rm -rf /, dd, mkfs, fork bomb)
+  PRIVILEGED   → Requires user approval (sudo, install, write to /etc, /usr)
+  SAFE         → Always allowed (everything else)
 
-The default is full freedom.  Only truly dangerous patterns are denied.
+All non-SAFE commands show a popup for user approval.
 """
 
 from __future__ import annotations
@@ -77,7 +77,7 @@ class Governance:
     """Policy engine to gate actions.
 
     Rules:
-      DESTRUCTIVE → ``decision = "deny"``, never executed.
+      DESTRUCTIVE → ``decision = "needs_approval"``, user must confirm.
       PRIVILEGED  → ``decision = "needs_approval"`` unless
                     ``require_approval_high_risk`` is ``False``.
       SAFE        → ``decision = "allow"``, always.
@@ -107,10 +107,7 @@ class Governance:
         "/sys",
     )
 
-    # ── Patterns: if matched → DESTRUCTIVE (blocked) ──────────────────
-    # Covers shell forms that token parsing might miss, including nested
-    # quoted commands passed to bash/python and classic system-destroying
-    # one-liners.
+    # ── Patterns: if matched → DESTRUCTIVE (requires approval) ──────────
     _DESTRUCTIVE = re.compile(
         r"\brm\b[^\n;&|]*(?:-[^\n;&|]*[rf][^\n;&|]*)[^\n;&|]*(?:\s|=)(/|/\*|\*|/etc|/boot|/usr|/var|/lib|/bin|/sbin|/sys|/proc|/dev)(?:\s|$)"
         r"|\b(?:shred|wipe|srm)\b[^\n;&|]*(?:\s|=)(/|/\*|\*|/etc|/boot|/usr|/var|/lib|/bin|/sbin|/sys|/proc|/dev)(?:\s|$)"
@@ -132,8 +129,6 @@ class Governance:
     )
 
     # ── Patterns: if matched → PRIVILEGED (needs approval) ────────────
-    # Includes pipe-to-shell (curl|bash, wget|sh) which need user review
-    # but are legitimate for installing security tools.
     _PRIVILEGED = re.compile(
         r"^\s*sudo\s"
         r"|pip\s+install"
@@ -158,7 +153,7 @@ class Governance:
     def __init__(self, require_approval_high_risk: bool = True):
         self.require_approval_high_risk = require_approval_high_risk
         #  Session-level auto-approve toggle.
-        #  When True, PRIVILEGED commands are allowed without prompting
+        #  When True, PRIVILEGED/DESTRUCTIVE commands are allowed without prompting
         #  for the remainder of the current process session.
         self.auto_approve_privileged: bool = False
         init_db()
@@ -338,18 +333,29 @@ class Governance:
     ) -> GateDecision:
         """Return a decision for *action*.
 
-        DESTRUCTIVE commands are unconditionally denied.
-        PRIVILEGED commands require interactive user approval.
+        DESTRUCTIVE commands require user approval (popup).
+        PRIVILEGED commands require user approval (popup).
         SAFE commands are always allowed.
         """
         risk = self.classify_risk(action)
 
         if risk == "DESTRUCTIVE":
+            # Auto-approve mode: user granted blanket approval this session
+            if self.auto_approve_privileged:
+                decision = GateDecision(
+                    allowed=True,
+                    risk_level=risk,
+                    decision="allow",
+                    rationale="Auto-approve mode active (user granted session-wide approval).",
+                )
+                self.audit(mission_id, target, action, decision)
+                return decision
+
             decision = GateDecision(
                 allowed=False,
                 risk_level=risk,
-                decision="deny",
-                rationale="Destructive command blocked by governance policy.",
+                decision="needs_approval",
+                rationale="Destructive command requires human approval.",
             )
             self.audit(mission_id, target, action, decision)
             return decision

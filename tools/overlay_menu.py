@@ -27,7 +27,7 @@ MENU_ITEMS = [
     {"id": "agent_setup", "label": "Agent Setup", "icon": "[1]"},
     {"id": "api_keys", "label": "API Keys", "icon": "[2]"},
     {"id": "rate_limits", "label": "Rate Limits", "icon": "[3]"},
-    {"id": "skills", "label": "Skills & Tools", "icon": "[4]"},
+    {"id": "mcp_servers", "label": "MCP Servers", "icon": "[4]"},
     {"id": "mode_settings", "label": "Mode Settings", "icon": "[5]"},
 ]
 
@@ -59,6 +59,35 @@ class SettingsOverlay:
         self._editing_provider = ""
         self._items: List[Dict] = []
         self._update_items()
+
+    def render(self) -> Panel:
+        """Render the settings overlay as a Rich Panel."""
+        title = self._get_title()
+        lines = []
+        
+        for i, item in enumerate(self._items):
+            label = item.get("label", "")
+            if not label:
+                lines.append("")
+                continue
+            
+            # Highlight selected item
+            if i == self._selected_idx:
+                lines.append(f"[bold white]> {label}[/bold white]")
+            else:
+                lines.append(f"  {label}")
+        
+        content = "\n".join(lines) if lines else "[dim]No items[/dim]"
+        
+        from rich.text import Text
+        text = Text.from_markup(content)
+        
+        return Panel(
+            text,
+            title=f"[bold]{title}[/bold]",
+            border_style="white",
+            padding=(1, 2),
+        )
 
     def handle_char(self, ch: str) -> Optional[str]:
         """Process a single key character. Returns 'exit', 'saved', 'error', or None."""
@@ -112,120 +141,35 @@ class SettingsOverlay:
         # Enter
         if ch in ("\r", "\n"):
             return self._handle_enter()
+        # Space - toggle MCP server
+        if ch == " ":
+            return self._handle_space()
         # Esc - if it's a bare ESC (length 1), exit
         if ch == "\x1b" and len(ch) == 1:
             if self._current_layer == "main":
                 return "exit"
             return self._go_back()
-        # B for back
-        if ch.lower() == "b":
-            if self._current_layer == "main":
-                return "exit"
-            self._go_back()
-            return None
-        # Q to quit overlay
-        if ch.lower() == "q":
-            return "exit"
 
-        # In model_select, any printable char starts search filtering
-        if (
-            self._current_layer == "model_select"
-            and ch.isprintable()
-            and len(ch) == 1
-            and not ch.isspace()
-        ):
-            self._search += ch
-            self._update_items()
-            self._selected_idx = 0
+    def _handle_space(self) -> Optional[str]:
+        """Handle Space key - toggle MCP server."""
+        if self._current_layer != "mcp_servers":
             return None
-
-        # Backspace in search: remove last char
-        if ch == "\x07" and self._current_layer == "model_select" and self._search:
-            self._search = self._search[:-1]
-            self._update_items()
-            self._selected_idx = 0
-            return None
-
-            return None
-
-    def _adjust_scroll(self) -> None:
-        """Keep the selected item centered in the visible window."""
+        
         if not self._items:
-            return
-        total = len(self._items)
-        margin = 2
-        # If selection goes above scroll window
-        if self._selected_idx < self._scroll_offset + margin:
-            self._scroll_offset = max(0, self._selected_idx - margin)
-        # If selection goes below scroll window
-        if self._selected_idx > self._scroll_offset + self._max_visible - margin - 1:
-            self._scroll_offset = min(
-                total - self._max_visible,
-                self._selected_idx - self._max_visible + margin + 1,
-            )
-        # Clamp
-        self._scroll_offset = max(0, min(self._scroll_offset, total - self._max_visible))
-
-    def render(self) -> Panel:
-        """Build a Rich Panel representing the current overlay state."""
-        try:
-            width = min(int(self.console.width * 0.7), 78)
-        except AttributeError:
-            width = 70
-        if width < 30:
-            width = 30
-
-        title = self._get_title()
-        lines = Text()
-        lines.append(f"\n{title}\n", style="bold #ffffff")
-        lines.append("=" * 40 + "\n\n", style="#ffffff")
-
-        # Show search text in model_select
-        if self._current_layer == "model_select" and self._search:
-            lines.append(f"  Search: {self._search}\n\n", style="dim #555555")
-
-        # Show a scrollable window of items
-        total = len(self._items)
-        start = self._scroll_offset
-        end = min(start + self._max_visible, total)
-
-        for i in range(start, end):
-            item = self._items[i]
-            label = item.get("label", "???")
-            if not label:
-                lines.append("\n")
-                continue
-            is_selected = i == self._selected_idx
-            if is_selected:
-                prefix = "\u25b6 "
-                style = "bold #ffffff on #333333"
-            else:
-                prefix = "  "
-                style = "white on #0a0a0a"
-            lines.append(f"{prefix} {label}\n", style=style)
-
-        # Scroll indicators
-        if start > 0:
-            lines.append("\n  \u25b2 more above\n", style="dim #737373")
-        if end < total:
-            lines.append(f"  \u25bc more below ({total - end})\n", style="dim #737373")
-
-        # Footer
-        lines.append("\n")
-        if self._current_layer == "main":
-            lines.append("[j/k or Arrow: Navigate]  [Enter: Select]  [q/B: Exit]\n", style="dim")
-        else:
-            lines.append("[j/k or Arrow: Navigate]  [Enter: Select]  [q/B: Back]\n", style="dim")
-
-        panel = Panel(
-            Align.center(lines, vertical="middle"),
-            box=ROUNDED,
-            width=width,
-            style="on #0a0a0a",
-            border_style="#ffffff",
-            padding=(1, 2),
-        )
-        return panel
+            return None
+        
+        idx = min(self._selected_idx, len(self._items) - 1)
+        item = self._items[idx]
+        action = item.get("action", "")
+        
+        if action == "mcp_toggle":
+            server_name = item.get("server_name", "")
+            if server_name:
+                self._toggle_mcp_server(server_name)
+                self._update_items()
+                return "toggled"
+        
+        return None
 
     def _handle_enter(self) -> Optional[str]:
         """Handle Enter on selected item."""
@@ -264,6 +208,23 @@ class SettingsOverlay:
                 self._rate_limits[rpm] = max(self._rate_limits[rpm] - 5, 1)
             return None
 
+        # MCP actions
+        if action == "mcp_toggle":
+            server_name = item.get("server_name", "")
+            if server_name:
+                self._toggle_mcp_server(server_name)
+            return None
+
+        if action == "mcp_add":
+            self._current_layer = "mcp_add"
+            self._selected_idx = 0
+            self._update_items()
+            return None
+
+        if action == "mcp_defaults":
+            self._add_mcp_defaults()
+            return None
+
         return self._navigate_to(item_id)
 
     def _go_back(self) -> Optional[str]:
@@ -276,7 +237,8 @@ class SettingsOverlay:
             "agent_setup": "main",
             "api_keys": "main",
             "rate_limits": "main",
-            "skills": "main",
+            "mcp_servers": "main",
+            "mcp_add": "mcp_servers",
             "mode_settings": "main",
             "provider_select": "agent_setup",
             "model_select": "provider_select",
@@ -295,7 +257,7 @@ class SettingsOverlay:
                 self._selected_idx = 0
                 self._update_items()
                 return None
-            if item_id in ("agent_setup", "api_keys", "rate_limits", "skills", "mode_settings"):
+            if item_id in ("agent_setup", "api_keys", "rate_limits", "mcp_servers", "mode_settings"):
                 self._current_layer = item_id
                 self._selected_idx = 0
                 self._update_items()
@@ -379,7 +341,8 @@ class SettingsOverlay:
             "api_keys": self._build_api_key_items,
             "api_key_edit": self._build_api_key_edit_items,
             "rate_limits": self._build_rate_limit_items,
-            "skills": self._build_skills_items,
+            "mcp_servers": self._build_mcp_items,
+            "mcp_add": self._build_mcp_add_items,
             "mode_settings": self._build_mode_items,
         }
         self._items = builders.get(self._current_layer, lambda: [])()
@@ -589,6 +552,58 @@ class SettingsOverlay:
             {"id": "back_to_main", "label": "[BACK] Back to Settings", "action": "back"},
         ]
 
+    def _build_mcp_items(self):
+        """Build MCP servers list with status indicators."""
+        items = [{"id": "", "label": "--- MCP SERVERS ---", "action": ""}]
+        
+        try:
+            from mcp.config import get_config_manager
+            from mcp.manager import get_mcp_manager
+            
+            manager = get_config_manager()
+            config = manager.config
+            mcp_manager = get_mcp_manager()
+            
+            if config.servers:
+                for name, server in config.servers.items():
+                    # Check if server is actually running
+                    is_running = mcp_manager.is_running and server.enabled
+                    
+                    if is_running:
+                        indicator = "[bold red]\u25cf[/bold red]"  # Red = connected
+                    else:
+                        indicator = "[grey50]\u25cb[/grey50]"  # Gray = not connected
+                    
+                    status_text = "connected" if is_running else "disabled"
+                    items.append({
+                        "id": f"mcp_toggle_{name}",
+                        "label": f"  {indicator} {name} [dim]({status_text})[/dim]",
+                        "action": "mcp_toggle",
+                        "server_name": name,
+                    })
+            else:
+                items.append({"id": "", "label": "  (no servers configured)", "action": ""})
+        except Exception as e:
+            items.append({"id": "", "label": f"  Error: {e}", "action": ""})
+        
+        items.append({"id": "", "label": "", "action": ""})
+        items.append({"id": "mcp_add", "label": "[+] Add Server", "action": "mcp_add"})
+        items.append({"id": "mcp_defaults", "label": "[*] Add Defaults", "action": "mcp_defaults"})
+        items.append({"id": "", "label": "", "action": ""})
+        items.append({"id": "back_to_main", "label": "[BACK] Back to Settings", "action": "back"})
+        return items
+
+    def _build_mcp_add_items(self):
+        """Build MCP add server form."""
+        return [
+            {"id": "", "label": "--- ADD MCP SERVER ---", "action": ""},
+            {"id": "", "label": "  Server name:", "action": ""},
+            {"id": "", "label": "  Command (e.g., npx):", "action": ""},
+            {"id": "", "label": "  Arguments (space-separated):", "action": ""},
+            {"id": "", "label": "", "action": ""},
+            {"id": "back_to_mcp", "label": "[BACK] Back to MCP", "action": "back"},
+        ]
+
     # ── Model cache ─────────────────────────────────────────────
 
     def _fetch_models(self, provider: str) -> None:
@@ -710,7 +725,7 @@ class SettingsOverlay:
                     self.agent._team_aegis_clients = self.agent._init_team_aegis_clients()
                 # Re-create planner with new client
                 if hasattr(self.agent, "planner") and self.agent.planner:
-                    from agent_brain import StrategicPlanner
+                    from core.brain import StrategicPlanner
 
                     self.agent.planner = StrategicPlanner(new_manager)
                 self.agent.conversation_history = saved_history
@@ -768,6 +783,55 @@ class SettingsOverlay:
             config.append({"provider": "", "model": ""})
         return config[:3]
 
+    def _toggle_mcp_server(self, server_name: str) -> None:
+        """Toggle MCP server enabled/disabled and start/stop."""
+        try:
+            from mcp.config import get_config_manager
+            from mcp.manager import get_mcp_manager
+            
+            manager = get_config_manager()
+            config = manager.config
+            mcp_manager = get_mcp_manager()
+            
+            if server_name in config.servers:
+                server = config.servers[server_name]
+                server.enabled = not server.enabled
+                manager.save()
+                
+                # Start/stop MCP manager based on any server being enabled
+                has_enabled = any(s.enabled for s in config.servers.values())
+                if has_enabled and not mcp_manager.is_running:
+                    mcp_manager.start()
+                elif not has_enabled and mcp_manager.is_running:
+                    mcp_manager.stop()
+        except Exception as e:
+            logger.debug(f"Failed to toggle MCP server: {e}")
+
+    def _add_mcp_defaults(self) -> None:
+        """Add default MCP servers."""
+        try:
+            from mcp.config import get_config_manager
+            
+            manager = get_config_manager()
+            config = manager.config
+            
+            defaults = {
+                "sequential-thinking": {"command": "npx", "args": ["-y", "@modelcontextprotocol/server-sequential-thinking"]},
+                "reasoning-server": {"command": "npx", "args": ["-y", "mcp-reasoning-server"]},
+                "chain-of-recursive-thoughts": {"command": "npx", "args": ["-y", "@modelcontextprotocol/server-chain-of-recursive-thoughts"]},
+                "mcp-thinking": {"command": "npx", "args": ["-y", "mcp-thinking"]},
+                "mcp-structured-thinking": {"command": "npx", "args": ["-y", "mcp-structured-thinking"]},
+                "memory": {"command": "npx", "args": ["-y", "@modelcontextprotocol/server-memory"]},
+            }
+            
+            for name, server_data in defaults.items():
+                if name not in config.servers:
+                    manager.add_server(name, server_data["command"], server_data["args"])
+            
+            self._update_items()
+        except Exception as e:
+            logger.debug(f"Failed to add MCP defaults: {e}")
+
     def _get_title(self) -> str:
         titles = {
             "main": "[CONFIG] ELENGENIX SETTINGS",
@@ -778,7 +842,8 @@ class SettingsOverlay:
             "api_keys": "[KEYS] API KEYS",
             "api_key_edit": "[EDIT] EDIT API KEY",
             "rate_limits": "[RATE] RATE LIMITS",
-            "skills": "[SKILLS] SKILLS & TOOLS",
+            "mcp_servers": "[MCP] MCP SERVERS",
+            "mcp_add": "[MCP] ADD SERVER",
             "mode_settings": "[MODE] MODE SETTINGS",
             "custom_url": "[CUSTOM] ENTER API URL",
         }

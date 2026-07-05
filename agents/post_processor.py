@@ -1,0 +1,468 @@
+"""
+agents/post_processor.py — Post-Execution Processing
+
+Handles all processing that happens AFTER a tool is executed in the
+scan loop: coverage tracking, finding verification, escalation,
+chaining, mission state updates, analysis pipeline, and memory
+persistence.
+
+Extracted from agent_brain.py process_query() lines 1550-1831.
+"""
+
+from __future__ import annotations
+
+import json
+import logging
+import re
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional
+
+if TYPE_CHECKING:
+    from agents.scan_context import ScanContext
+
+logger = logging.getLogger("elengenix.post_processor")
+
+
+def _safe_operation(name: str, fn, *args, **kwargs):
+    """Call fn(*args, **kwargs), logging and swallowing exceptions."""
+    try:
+        return fn(*args, **kwargs)
+    except Exception as e:
+        logger.debug(f"{name} failed: {e}")
+
+
+class PostExecutionProcessor:
+    """Processes results after tool execution.
+
+    Reads from and updates ScanContext (shared reference). Does not
+    return meaningful values — all side effects go through the state
+    objects in ScanContext.
+
+    Args:
+        analysis_pipeline: The 14-analyzer AnalysisPipeline instance.
+        vuln_reasoning: Optional deep LLM reasoning engine.
+        planner: Optional StrategicPlanner for adaptive strategy.
+        vuln_finder: Optional VulnFinder for escalation/chaining.
+        callback: Optional callback for live output.
+    """
+
+    def __init__(
+        self,
+        analysis_pipeline=None,
+        vuln_reasoning=None,
+        planner=None,
+        vuln_finder=None,
+        callback: Optional[Callable] = None,
+    ):
+        self.analysis_pipeline = analysis_pipeline
+        self.vuln_reasoning = vuln_reasoning
+        self.planner = planner
+        self.vuln_finder = vuln_finder
+        self.callback = callback
+
+    def process(
+        self,
+        ctx: "ScanContext",
+        result: Any,
+        tool_name: str,
+        action_data: Dict[str, Any],
+        step: int,
+    ) -> None:
+        """Run all post-execution processing.
+
+        This is the main entry point. It orchestrates all sub-processors
+        in the correct order.
+
+        Args:
+            ctx: The scan context (will be updated in place).
+            result: The tool execution result (ToolResult).
+            tool_name: Name of the tool that was executed.
+            action_data: The action dict that was executed.
+            step: Current step number.
+        """
+        if result is None:
+            return
+
+        # Record result in context
+        ctx.add_result(result)
+
+        # Group 1: Coverage tracking & verification
+        verified_findings = self._process_coverage_and_verification(
+            ctx, result, tool_name, action_data, step
+        )
+
+        # Group 2: Escalation & chaining
+        self._process_escalation_and_chaining(ctx, verified_findings)
+
+        # Group 3: Mission state updates
+        self._process_mission_state(ctx, result, tool_name, step)
+
+        # Group 4: Analysis pipeline & deep reasoning
+        self._process_analysis(ctx, result, tool_name, action_data, step)
+
+        # Group 5: Attack tree & adaptive strategy
+        self._process_strategy(ctx, result, tool_name, step)
+
+    def _process_coverage_and_verification(
+        self,
+        ctx: "ScanContext",
+        result: Any,
+        tool_name: str,
+        action_data: Dict[str, Any],
+        step: int,
+    ) -> List[Dict[str, Any]]:
+        """Track coverage, verify findings, record negatives.
+
+        Returns:
+            List of verified findings (filtered from raw findings).
+        """
+        endpoint_tested = action_data.get("command", tool_name)[:100]
+        vuln_class_tested = action_data.get("purpose", "general")[:50]
+        verified_findings: List[Dict[str, Any]] = []
+
+        # Register endpoint in coverage map
+        if ctx.coverage_map:
+            ctx.coverage_map.register_endpoint(endpoint_tested)
+            ctx.coverage_map.record_test(endpoint_tested, vuln_class_tested)
+
+        if result.findings:
+            for finding in result.findings:
+                f_endpoint = (
+                    finding.get("url")
+                    or finding.get("endpoint")
+                    or finding.get("host")
+                    or endpoint_tested
+                )
+                f_class = (
+                    (finding.get("type") or finding.get("vuln_class") or "unknown").lower()
+                )
+
+                # Register in coverage map
+                if ctx.coverage_map:
+                    ctx.coverage_map.register_endpoint(f_endpoint)
+                    ctx.coverage_map.record_test(f_endpoint, f_class)
+
+                # Run verification pipeline
+                verified = self._verify_finding(
+                    ctx, finding, f_endpoint, f_class, tool_name
+                )
+                if verified:
+                    verified_findings.append(finding)
+                # If not verified, it's already recorded as negative in _verify_finding
+        else:
+            # No findings — record negative result
+            if ctx.negative_results:
+                ctx.negative_results.record(
+                    endpoint=endpoint_tested,
+                    vuln_class=vuln_class_tested,
+                    tool_used=tool_name,
+                    payload_or_command=action_data.get("command", ""),
+                    reason="no vulnerabilities detected",
+                )
+
+        # Extract URLs from raw output for coverage
+        if result.output and ctx.coverage_map:
+            for url_match in re.findall(r'https?://[^\s<>"\'\]\)]+', result.output):
+                clean_url = url_match.rstrip(".,;:!?)]}>")
+                ctx.coverage_map.register_endpoint(clean_url)
+
+        # Replace raw findings with verified findings
+        original_count = len(result.findings)
+        result.findings.clear()
+        result.findings.extend(verified_findings)
+        ctx.add_findings(verified_findings)
+
+        if len(verified_findings) < original_count and self.callback:
+            self.callback(
+                f"  Filtered {original_count - len(verified_findings)} "
+                f"false/unverified findings"
+            )
+
+        return verified_findings
+
+    def _verify_finding(
+        self,
+        ctx: "ScanContext",
+        finding: Dict[str, Any],
+        endpoint: str,
+        vuln_class: str,
+        tool_name: str,
+    ) -> bool:
+        """Verify a single finding through the verification pipeline.
+
+        Returns:
+            True if the finding is verified/actionable.
+        """
+        if ctx.verification_pipeline is None:
+            # No verification pipeline — accept all findings
+            if ctx.coverage_map:
+                ctx.coverage_map.record_finding(endpoint, vuln_class)
+            return True
+
+        try:
+            verdict = ctx.verification_pipeline.verify_finding(
+                finding, target=ctx.target, callback=self.callback
+            )
+            if verdict.is_actionable():
+                if ctx.coverage_map:
+                    ctx.coverage_map.record_finding(endpoint, vuln_class)
+                if ctx.belief_state:
+                    ctx.belief_state.add_belief(
+                        vuln_class=vuln_class,
+                        target_endpoint=endpoint,
+                        reasoning=finding.get("evidence", str(finding))[:200],
+                        confidence=verdict.confidence,
+                        evidence=[{"verdict": verdict.to_dict()}],
+                    )
+                if self.callback:
+                    self.callback(
+                        f"  [VERIFIED] {vuln_class} at {endpoint} "
+                        f"(status: {verdict.status})"
+                    )
+                return True
+            else:
+                # Not verified — record as negative
+                if ctx.coverage_map:
+                    ctx.coverage_map.record_negative(
+                        endpoint, vuln_class,
+                        reason=f"Verification failed: {verdict.status}"
+                    )
+                if ctx.negative_results:
+                    ctx.negative_results.record(
+                        endpoint=endpoint,
+                        vuln_class=vuln_class,
+                        tool_used=tool_name,
+                        payload_or_command=str(finding)[:200],
+                        reason=f"verification: {verdict.status}",
+                    )
+                if self.callback:
+                    self.callback(
+                        f"  [DISCARDED] {vuln_class} at {endpoint} "
+                        f"({verdict.status})"
+                    )
+                return False
+        except Exception as e:
+            logger.debug(f"Verification failed: {e}")
+            # On error, accept the finding
+            if ctx.coverage_map:
+                ctx.coverage_map.record_finding(endpoint, vuln_class)
+            return True
+
+    def _process_escalation_and_chaining(
+        self,
+        ctx: "ScanContext",
+        verified_findings: List[Dict[str, Any]],
+    ) -> None:
+        """Check for escalation paths and finding chains."""
+        if not verified_findings:
+            return
+
+        # Escalation engine
+        if self.vuln_finder and self.vuln_finder.escalation:
+            for finding in verified_findings:
+                severity = finding.get("severity", "").lower()
+                if severity in ["low", "medium"]:
+                    try:
+                        escalation_path = self.vuln_finder.escalation.can_escalate(finding)
+                        if escalation_path:
+                            logger.info(
+                                f"Escalation possible for {finding.get('type')}: "
+                                f"{escalation_path.next_steps}"
+                            )
+                            self.vuln_finder.add_finding(finding)
+                    except Exception as e:
+                        logger.debug(f"Escalation check failed: {e}")
+
+        # Chaining engine
+        if self.vuln_finder and self.vuln_finder.chaining and ctx.has_findings:
+            try:
+                recent_findings = ctx.all_findings[-10:]
+                chainable = self.vuln_finder.chaining.find_chainable_findings(recent_findings)
+                for f1, f2 in chainable:
+                    chain = self.vuln_finder.chaining.analyze_chain([f1, f2])
+                    if chain:
+                        chained_finding = {
+                            "type": f"chain:{chain.chain_type}",
+                            "severity": chain.combined_severity,
+                            "description": chain.impact_description,
+                            "findings": [f1, f2],
+                            "url": f1.get("url", ""),
+                        }
+                        ctx.add_finding(chained_finding)
+                        self.vuln_finder.add_finding(chained_finding)
+                        if self.callback:
+                            self.callback(
+                                f"  Chained findings: {f1.get('type')} + {f2.get('type')} "
+                                f"-> {chain.combined_severity}"
+                            )
+                        logger.info(
+                            f"Chained findings: {chain.chain_type} -> {chain.combined_severity}"
+                        )
+            except Exception as e:
+                logger.debug(f"Chaining check failed: {e}")
+
+    def _process_mission_state(
+        self,
+        ctx: "ScanContext",
+        result: Any,
+        tool_name: str,
+        step: int,
+    ) -> None:
+        """Update mission state graph with findings."""
+        if ctx.mission_state is None:
+            return
+
+        try:
+            from tools.mission_state import GraphEdge, GraphNode
+        except ImportError:
+            return
+
+        for i, finding in enumerate(result.findings):
+            ftype = finding.get("type", "unknown")
+            furl = (
+                finding.get("url", "")
+                or finding.get("subdomain", "")
+                or finding.get("host", "")
+            )
+            node_id = furl or f"finding:{tool_name}:{step}:{i}"
+
+            _safe_operation(
+                "MissionState upsert_node",
+                ctx.mission_state.upsert_node,
+                GraphNode(
+                    node_id=node_id,
+                    node_type="finding",
+                    props={
+                        "type": ftype,
+                        "severity": finding.get("severity"),
+                        "tool": tool_name,
+                        "raw": finding,
+                    },
+                ),
+            )
+            _safe_operation(
+                "MissionState upsert_edge",
+                ctx.mission_state.upsert_edge,
+                GraphEdge(
+                    edge_id=f"edge:{ctx.target}:{node_id}:{tool_name}:{step}:{i}",
+                    src_id=ctx.target,
+                    dst_id=node_id,
+                    edge_type="has_finding",
+                    props={"tool": tool_name},
+                ),
+            )
+            _safe_operation(
+                "MissionState add_fact",
+                ctx.mission_state.add_fact,
+                fact_id=f"fact:{tool_name}:{step}:{i}",
+                category="finding",
+                statement=(
+                    f"{tool_name} reported {ftype} "
+                    f"at {furl or 'unknown'} "
+                    f"(severity={finding.get('severity', 'unknown')})"
+                ),
+                confidence=0.6,
+                evidence={"tool": tool_name, "finding": finding},
+            )
+
+    def _process_analysis(
+        self,
+        ctx: "ScanContext",
+        result: Any,
+        tool_name: str,
+        action_data: Dict[str, Any],
+        step: int,
+    ) -> None:
+        """Run analysis pipeline and deep LLM reasoning."""
+        # Analysis pipeline (14 analyzers)
+        if self.analysis_pipeline:
+            try:
+                self.analysis_pipeline.run_all(
+                    result=result,
+                    tool_name=tool_name,
+                    target=ctx.target,
+                    step=step,
+                    mission_key=ctx.mission_key,
+                    mission_state=ctx.mission_state,
+                    callback=self.callback,
+                )
+            except Exception as e:
+                logger.debug(f"Analysis pipeline failed: {e}")
+
+        # Deep LLM vulnerability reasoning
+        if self.vuln_reasoning and result and result.findings is not None:
+            try:
+                tool_output_str = json.dumps(
+                    {"findings": result.findings, "error": result.error_message},
+                    default=str,
+                )
+                analysis = self.vuln_reasoning.analyze_output(
+                    target=ctx.target or "global",
+                    tool_name=tool_name,
+                    tool_output=tool_output_str,
+                    previous_findings=ctx.all_findings[-10:],
+                )
+                if analysis.hypotheses:
+                    if self.callback:
+                        top_hyp = analysis.hypotheses[0]
+                        self.callback(
+                            f"Hypothesis: {top_hyp.title} "
+                            f"({top_hyp.vuln_class}, confidence={top_hyp.confidence:.0%})"
+                        )
+                    # Add hypotheses to history
+                    hyp_text = "\n".join(
+                        f"- {h.title} [{h.vuln_class}] conf={h.confidence:.0%}: {h.reasoning[:100]}"
+                        for h in analysis.hypotheses[:5]
+                    )
+                    ctx.append_history(
+                        "assistant",
+                        f"Deep analysis found {len(analysis.hypotheses)} hypotheses:\n{hyp_text}",
+                    )
+                    # Add coverage gaps as suggestions
+                    if analysis.coverage_gaps:
+                        gaps_text = "\n".join(
+                            f"- {g}" for g in analysis.coverage_gaps[:3]
+                        )
+                        ctx.append_history(
+                            "user",
+                            f"Coverage gaps to consider:\n{gaps_text}",
+                        )
+            except Exception as e:
+                logger.debug(f"Deep reasoning failed: {e}")
+
+    def _process_strategy(
+        self,
+        ctx: "ScanContext",
+        result: Any,
+        tool_name: str,
+        step: int,
+    ) -> None:
+        """Mark attack tree step and run adaptive strategy."""
+        # Mark step as completed in attack tree
+        if ctx.attack_tree and step < len(ctx.attack_tree.steps):
+            ctx.attack_tree.steps[step].completed = True
+            ctx.attack_tree.steps[step].result = result
+            ctx.attack_tree.steps[step].findings = result.findings
+
+        # Adaptive strategy
+        if self.planner and result.findings:
+            for finding in result.findings:
+                try:
+                    new_steps = self.planner.adapt_strategy(ctx.attack_tree, finding)
+                    if new_steps and self.callback:
+                        self.callback(f" Adapted strategy: +{len(new_steps)} new steps")
+
+                        # Remember strategy adaptation
+                        try:
+                            from tools.vector_memory import remember
+
+                            remember(
+                                f"Strategy adapted based on finding: {finding.get('type', 'unknown')}. "
+                                f"Added {len(new_steps)} new steps.",
+                                ctx.target or "global",
+                                "strategy_adaptation",
+                                trigger_finding=finding.get("type", "unknown"),
+                            )
+                        except Exception:
+                            pass
+                except Exception as e:
+                    logger.debug(f"Adaptive strategy failed: {e}")

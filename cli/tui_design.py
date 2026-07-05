@@ -1,0 +1,575 @@
+"""
+tui_design.py — Elengenix Apple-level TUI Design System
+Design tokens, themes, animations, and reusable style primitives.
+Inspired by Apple Human Interface Guidelines + Linear + Raycast aesthetics.
+Version: 1.0.0
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from enum import Enum
+from typing import Dict, List, Tuple
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 1. DESIGN TOKENS — Colors, Spacing, Typography
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+class Severity(Enum):
+    """Vulnerability severity levels with associated colors."""
+
+    CRITICAL = ("#ff3b30", "●")  # Apple red
+    HIGH = ("#ff9500", "●")  # Apple orange
+    MEDIUM = ("#ffcc00", "●")  # Apple yellow
+    LOW = ("#34c759", "●")  # Apple green
+    INFO = ("#5ac8fa", "●")  # Apple blue
+
+    def __init__(self, color: str, glyph: str):
+        self.color = color
+        self.glyph = glyph
+
+
+# ── Spacing scale (4px base) ─────────────────────────────────────────────
+SPACING = {
+    "xs": 1,
+    "sm": 2,
+    "md": 4,
+    "lg": 8,
+    "xl": 12,
+    "2xl": 16,
+    "3xl": 24,
+    "4xl": 32,
+}
+
+# ── Border radius scale ─────────────────────────────────────────────────
+RADIUS = {
+    "none": 0,
+    "sm": 2,
+    "md": 4,
+    "lg": 8,
+    "xl": 12,
+    "2xl": 16,
+    "full": 9999,
+}
+
+# ── Animation durations (ms) ─────────────────────────────────────────────
+DURATION = {
+    "instant": 50,
+    "fast": 150,
+    "normal": 250,
+    "slow": 400,
+    "slower": 600,
+}
+
+# ── Easing curves (cubic-bezier) ─────────────────────────────────────────
+EASING = {
+    "linear": "linear",
+    "easeIn": "cubic-bezier(0.4, 0, 1, 1)",
+    "easeOut": "cubic-bezier(0, 0, 0.2, 1)",
+    "easeInOut": "cubic-bezier(0.4, 0, 0.2, 1)",
+    "spring": "cubic-bezier(0.34, 1.56, 0.64, 1)",  # iOS spring
+}
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 2. THEMES — Dark, Light, High Contrast, Custom
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+@dataclass(frozen=True)
+class Theme:
+    """A complete color theme. Apple-inspired palette."""
+
+    name: str
+    is_dark: bool
+
+    # Surfaces (backgrounds, in elevation order)
+    bg_base: str  # Main background
+    bg_mantle: str  # Slightly elevated
+    bg_crust: str  # Header/footer
+    bg_surface: str  # Cards
+    bg_overlay: str  # Modals (with alpha)
+
+    # Text
+    text_primary: str
+    text_secondary: str
+    text_muted: str
+    text_dim: str
+
+    # Borders
+    border_subtle: str
+    border_default: str
+    border_strong: str
+
+    # Accent
+    accent: str  # Primary action
+    accent_hover: str
+    success: str
+    warning: str
+    danger: str
+    info: str
+
+    # Effects
+    shadow: str  # Box shadow color
+    glow: str  # Focus glow
+
+
+# ── DARK: "Midnight" — primary theme ────────────────────────────────────
+DARK = Theme(
+    name="Midnight",
+    is_dark=True,
+    bg_base="#000000",
+    bg_mantle="#0a0a0a",
+    bg_crust="#111111",
+    bg_surface="#1a1a1a",
+    bg_overlay="rgba(0,0,0,0.85)",
+    text_primary="#ffffff",
+    text_secondary="#d1d1d6",
+    text_muted="#8e8e93",
+    text_dim="#48484a",
+    border_subtle="#1c1c1e",
+    border_default="#2c2c2e",
+    border_strong="#3a3a3c",
+    accent="#0a84ff",
+    accent_hover="#409cff",
+    success="#30d158",
+    warning="#ff9f0a",
+    danger="#ff453a",
+    info="#64d2ff",
+    shadow="rgba(0,0,0,0.5)",
+    glow="rgba(10,132,255,0.4)",
+)
+
+# ── LIGHT: "Aurora" — bright clean ───────────────────────────────────────
+LIGHT = Theme(
+    name="Aurora",
+    is_dark=False,
+    bg_base="#ffffff",
+    bg_mantle="#f2f2f7",
+    bg_crust="#e5e5ea",
+    bg_surface="#ffffff",
+    bg_overlay="rgba(255,255,255,0.9)",
+    text_primary="#000000",
+    text_secondary="#3c3c43",
+    text_muted="#8e8e93",
+    text_dim="#c7c7cc",
+    border_subtle="#e5e5ea",
+    border_default="#d1d1d6",
+    border_strong="#8e8e93",
+    accent="#007aff",
+    accent_hover="#0a84ff",
+    success="#34c759",
+    warning="#ff9500",
+    danger="#ff3b30",
+    info="#5ac8fa",
+    shadow="rgba(0,0,0,0.1)",
+    glow="rgba(0,122,255,0.3)",
+)
+
+# ── HUNT: "Blood Moon" — offensive mode, red accent ──────────────────────
+HUNT = Theme(
+    name="Blood Moon",
+    is_dark=True,
+    bg_base="#000000",
+    bg_mantle="#0d0000",
+    bg_crust="#1a0000",
+    bg_surface="#260000",
+    bg_overlay="rgba(20,0,0,0.92)",
+    text_primary="#ff5555",
+    text_secondary="#ff8888",
+    text_muted="#aa3333",
+    text_dim="#661111",
+    border_subtle="#1a0000",
+    border_default="#330000",
+    border_strong="#660000",
+    accent="#ff2222",
+    accent_hover="#ff5555",
+    success="#ff6666",
+    warning="#ffaa00",
+    danger="#ff0000",
+    info="#ff8888",
+    shadow="rgba(255,0,0,0.3)",
+    glow="rgba(255,34,34,0.5)",
+)
+
+# ── HIGH CONTRAST: "Solar" — accessibility ──────────────────────────────
+HIGH_CONTRAST = Theme(
+    name="Solar",
+    is_dark=True,
+    bg_base="#000000",
+    bg_mantle="#000000",
+    bg_crust="#000000",
+    bg_surface="#0d0d0d",
+    bg_overlay="rgba(0,0,0,0.95)",
+    text_primary="#ffffff",
+    text_secondary="#ffff00",
+    text_muted="#00ff00",
+    text_dim="#888888",
+    border_subtle="#444444",
+    border_default="#888888",
+    border_strong="#ffffff",
+    accent="#00ffff",
+    accent_hover="#ffff00",
+    success="#00ff00",
+    warning="#ffff00",
+    danger="#ff0000",
+    info="#00ffff",
+    shadow="rgba(255,255,0,0.5)",
+    glow="rgba(0,255,255,0.6)",
+)
+
+THEMES: Dict[str, Theme] = {
+    "dark": DARK,
+    "midnight": DARK,
+    "light": LIGHT,
+    "aurora": LIGHT,
+    "hunt": HUNT,
+    "blood-moon": HUNT,
+    "high-contrast": HIGH_CONTRAST,
+    "solar": HIGH_CONTRAST,
+}
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 3. TYPOGRAPHY — Font scales inspired by Apple SF Pro
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+@dataclass(frozen=True)
+class TypeStyle:
+    """Typography token."""
+
+    family: str
+    size: int
+    weight: str
+    line_height: float
+    letter_spacing: float = 0.0
+    uppercase: bool = False
+
+
+LARGE_TITLE = TypeStyle("SF Pro Display", 34, "bold", 1.2, -0.5)
+TITLE_1 = TypeStyle("SF Pro Display", 28, "bold", 1.25, -0.3)
+TITLE_2 = TypeStyle("SF Pro Display", 22, "bold", 1.3, -0.2)
+TITLE_3 = TypeStyle("SF Pro Text", 20, "semibold", 1.35)
+HEADLINE = TypeStyle("SF Pro Text", 17, "semibold", 1.4)
+BODY = TypeStyle("SF Pro Text", 14, "normal", 1.5)
+BODY_EMPHASIS = TypeStyle("SF Pro Text", 14, "semibold", 1.5)
+CALLOUT = TypeStyle("SF Pro Text", 13, "normal", 1.45)
+SUBHEADLINE = TypeStyle("SF Pro Text", 12, "normal", 1.4)
+FOOTNOTE = TypeStyle("SF Pro Text", 11, "normal", 1.4, 0.2)
+CAPTION_1 = TypeStyle("SF Pro Text", 11, "normal", 1.3, 0.2)
+CAPTION_2 = TypeStyle("SF Pro Text", 10, "normal", 1.3, 0.3)
+MONO = TypeStyle("SF Mono", 13, "normal", 1.4)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 4. ICONS — Apple SF Symbols-style glyphs
+# ═══════════════════════════════════════════════════════════════════════════
+
+ICONS = {
+    # Status
+    "check": "✓",
+    "cross": "✕",
+    "warning": "⚠",
+    "info": "ⓘ",
+    "error": "⨯",
+    "circle": "●",
+    "circle_o": "○",
+    # Arrows
+    "arrow_up": "↑",
+    "arrow_down": "↓",
+    "arrow_left": "←",
+    "arrow_right": "→",
+    "chevron_up": "⌃",
+    "chevron_dn": "⌄",
+    # Security
+    "shield": "🛡",
+    "shield_ok": "✓",
+    "lock": "⌬",
+    "key": "⚷",
+    "bug": "⚞",
+    "skull": "☠",
+    "target": "◎",
+    # Actions
+    "play": "▶",
+    "pause": "⏸",
+    "stop": "⏹",
+    "refresh": "↻",
+    "search": "⌕",
+    "settings": "⚙",
+    "menu": "≡",
+    "close": "✕",
+    "add": "+",
+    "remove": "−",
+    "edit": "✎",
+    "save": "💾",
+    "trash": "🗑",
+    # Status indicators
+    "online": "●",
+    "offline": "○",
+    "busy": "◐",
+    "away": "◑",
+    # Network
+    "wifi": "⌒",
+    "globe": "◯",
+    "cloud": "☁",
+    "server": "▤",
+    "database": "▥",
+    # Misc
+    "star": "★",
+    "heart": "♥",
+    "fire": "▲",
+    "lightning": "⚡",
+    "rocket": "➤",
+    "gem": "◆",
+    "diamond": "◇",
+    "trophy": "♔",
+    "medal": "◉",
+}
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 5. ANIMATIONS — Pre-built animation primitives
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+class EasingFn:
+    """Cubic-bezier easing functions for smooth animations."""
+
+    @staticmethod
+    def linear(t: float) -> float:
+        return t
+
+    @staticmethod
+    def ease_in(t: float) -> float:
+        return t * t
+
+    @staticmethod
+    def ease_out(t: float) -> float:
+        return 1 - (1 - t) * (1 - t)
+
+    @staticmethod
+    def ease_in_out(t: float) -> float:
+        if t < 0.5:
+            return 2 * t * t
+        return 1 - 2 * (1 - t) * (1 - t)
+
+    @staticmethod
+    def spring(t: float) -> float:
+        """iOS-style spring with overshoot."""
+        import math
+
+        return 1 - math.exp(-6 * t) * math.cos(8 * t)
+
+    @staticmethod
+    def bounce(t: float) -> float:
+        """Bounce easing."""
+        if t < 0.5:
+            return 2 * t * t
+        t = t - 0.5
+        return 0.5 + 1.5 * (1 - (1 - t) * (1 - t))
+
+
+def lerp(a: float, b: float, t: float) -> float:
+    """Linear interpolation."""
+    return a + (b - a) * t
+
+
+def color_lerp(c1: str, c2: str, t: float) -> str:
+    """Interpolate between two hex colors."""
+
+    def hex_to_rgb(h: str) -> Tuple[int, int, int]:
+        h = h.lstrip("#")
+        if len(h) == 3:
+            h = "".join(c * 2 for c in h)
+        return tuple(int(h[i : i + 2], 16) for i in (0, 2, 4))
+
+    def rgb_to_hex(r: int, g: int, b: int) -> str:
+        return f"#{max(0, min(255, int(r))):02x}{max(0, min(255, int(g))):02x}{max(0, min(255, int(b))):02x}"
+
+    r1, g1, b1 = hex_to_rgb(c1)
+    r2, g2, b2 = hex_to_rgb(c2)
+    return rgb_to_hex(
+        lerp(r1, r2, t),
+        lerp(g1, g2, t),
+        lerp(b1, b2, t),
+    )
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 6. STATUS — Connection, scan, model, and agent status
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+@dataclass
+class Status:
+    """Real-time status display."""
+
+    state: str  # "ready" | "thinking" | "scanning" | "offline" | "error"
+    label: str
+    detail: str = ""
+    pulse: bool = False
+    color: str = ""
+
+    @classmethod
+    def ready(cls) -> "Status":
+        return cls("ready", "READY", "", False, "#30d158")
+
+    @classmethod
+    def thinking(cls, detail: str = "") -> "Status":
+        return cls("thinking", "THINKING", detail, True, "#5ac8fa")
+
+    @classmethod
+    def scanning(cls, detail: str = "") -> "Status":
+        return cls("scanning", "SCANNING", detail, True, "#ff9500")
+
+    @classmethod
+    def offline(cls, detail: str = "") -> "Status":
+        return cls("offline", "OFFLINE", detail, False, "#ff453a")
+
+    @classmethod
+    def error(cls, detail: str = "") -> "Status":
+        return cls("error", "ERROR", detail, True, "#ff3b30")
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 7. PROGRESS — Visual progress with steps, ETA, throughput
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+@dataclass
+class Step:
+    """A single step in a multi-step operation."""
+
+    name: str
+    status: str = "pending"  # pending | running | done | error
+    duration_ms: int = 0
+    detail: str = ""
+
+    @property
+    def icon(self) -> str:
+        return {
+            "pending": "○",
+            "running": "◐",
+            "done": "✓",
+            "error": "✕",
+        }.get(self.status, "?")
+
+
+@dataclass
+class Progress:
+    """Multi-step progress tracker."""
+
+    steps: List[Step] = field(default_factory=list)
+    current: int = 0
+    started_at: float = 0.0
+
+    @property
+    def percent(self) -> float:
+        if not self.steps:
+            return 0.0
+        done = sum(1 for s in self.steps if s.status == "done")
+        return (done / len(self.steps)) * 100
+
+    def render_bar(self, width: int = 40) -> str:
+        """Render ASCII progress bar."""
+        filled = int(self.percent / 100 * width)
+        bar = "█" * filled + "░" * (width - filled)
+        return f"[{bar}] {self.percent:5.1f}%"
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 8. SMART FORMATTERS — Bytes, duration, numbers
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+def format_bytes(n: int) -> str:
+    """Format bytes to human-readable string."""
+    for unit in ("B", "KB", "MB", "GB", "TB"):
+        if abs(n) < 1024.0:
+            return f"{n:3.1f}{unit}"
+        n /= 1024.0
+    return f"{n:.1f}PB"
+
+
+def format_duration(seconds: float) -> str:
+    """Format seconds to human-readable duration."""
+    if seconds < 1:
+        return f"{int(seconds*1000)}ms"
+    if seconds < 60:
+        return f"{seconds:.1f}s"
+    if seconds < 3600:
+        m, s = divmod(int(seconds), 60)
+        return f"{m}m {s}s"
+    h, m = divmod(int(seconds), 3600)
+    return f"{h}h {m}m"
+
+
+def format_number(n: int) -> str:
+    """Format number with thousands separator."""
+    return f"{n:,}"
+
+
+def truncate(text: str, max_len: int, suffix: str = "…") -> str:
+    """Truncate text to max length, adding suffix if needed."""
+    if len(text) <= max_len:
+        return text
+    return text[: max_len - len(suffix)] + suffix
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 9. CONVENIENCE EXPORTS
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+def get_theme(name: str = "dark") -> Theme:
+    """Get a theme by name (case-insensitive)."""
+    return THEMES.get(name.lower(), DARK)
+
+
+def list_themes() -> List[str]:
+    """List all available theme names."""
+    return list(THEMES.keys())
+
+
+__all__ = [
+    "Severity",
+    "SPACING",
+    "RADIUS",
+    "DURATION",
+    "EASING",
+    "Theme",
+    "DARK",
+    "LIGHT",
+    "HUNT",
+    "HIGH_CONTRAST",
+    "THEMES",
+    "TypeStyle",
+    "LARGE_TITLE",
+    "TITLE_1",
+    "TITLE_2",
+    "TITLE_3",
+    "HEADLINE",
+    "BODY",
+    "BODY_EMPHASIS",
+    "CALLOUT",
+    "SUBHEADLINE",
+    "FOOTNOTE",
+    "CAPTION_1",
+    "CAPTION_2",
+    "MONO",
+    "ICONS",
+    "EasingFn",
+    "lerp",
+    "color_lerp",
+    "Status",
+    "Step",
+    "Progress",
+    "format_bytes",
+    "format_duration",
+    "format_number",
+    "truncate",
+    "get_theme",
+    "list_themes",
+]

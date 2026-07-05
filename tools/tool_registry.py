@@ -17,7 +17,7 @@ from typing import Any, Callable, Dict, List, Optional, Type, Union
 
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
-from ui_components import console
+from cli.ui_components import console
 
 logger = logging.getLogger("elengenix.tools")
 

@@ -13,10 +13,32 @@ import json
 import logging
 import os
 import re
+import shutil
 import subprocess
 import sys
 import time
 from pathlib import Path
+
+
+def _ensure_config_files():
+    """Copy example config files if they don't exist."""
+    project_root = Path(__file__).parent
+    
+    # Copy mcp.json.example -> mcp.json
+    mcp_example = project_root / "mcp.json.example"
+    mcp_config = project_root / "mcp.json"
+    if mcp_example.exists() and not mcp_config.exists():
+        shutil.copy2(mcp_example, mcp_config)
+    
+    # Copy .env.example -> .env
+    env_example = project_root / ".env.example"
+    env_config = project_root / ".env"
+    if env_example.exists() and not env_config.exists():
+        shutil.copy2(env_example, env_config)
+
+
+# Run on import
+_ensure_config_files()
 
 logger = logging.getLogger("elengenix.main")
 
@@ -41,7 +63,7 @@ from rich.console import Console
 from rich.panel import Panel
 
 try:
-    from ui_components import (
+    from cli.ui_components import (
         console,
         print_error,
         print_info,
@@ -169,7 +191,7 @@ def is_authorized_scan_target(target: str) -> bool:
     if not validate_target(target):
         return False
 
-    from orchestrator import is_in_scope
+    from core.orchestrator import is_in_scope
 
     return is_in_scope(target)
 
@@ -180,7 +202,7 @@ def require_authorized_scan_target(target: str) -> bool:
         print_error("[FAIL] SECURITY ERROR: Invalid target format")
         return False
 
-    from orchestrator import is_in_scope, normalize_target
+    from core.orchestrator import is_in_scope, normalize_target
 
     normalized = normalize_target(target)
     if not is_in_scope(normalized):
@@ -207,7 +229,7 @@ def ensure_path_priorities() -> None:
 
 def show_banner():
     """Clean minimal banner."""
-    from ui_components import show_main_banner
+    from cli.ui_components import show_main_banner
 
     show_main_banner()
 
@@ -337,6 +359,22 @@ def main():
     parser.add_argument("--host", type=str, default="0.0.0.0", help="Bind address for API server")
     parser.add_argument("--port", type=int, default=8443, help="Port for API server")
 
+    # Scan-specific arguments
+    parser.add_argument(
+        "--phase",
+        type=str,
+        default=None,
+        choices=["recon", "waf", "fuzz", "bola", "learn", "coverage"],
+        help="Run only a specific scan phase (e.g., --phase recon)",
+    )
+    parser.add_argument(
+        "--interactive",
+        type=str,
+        default=None,
+        choices=["bola", "waf", "recon"],
+        help="Run interactive mode for advanced testing (e.g., --interactive bola)",
+    )
+
     args, _ = parser.parse_known_args()
 
     # Set environment variable for smart scan mode (propagates to watchman/bot)
@@ -403,7 +441,7 @@ def main():
 
     if args.command and args.command not in valid_commands and args.command != "auto":
         from tools.command_suggest import CommandSuggester
-        from ui_components import confirm
+        from cli.ui_components import confirm
 
         suggester = CommandSuggester()
         correction = suggester.suggest_correction(args.command)
@@ -447,9 +485,7 @@ def main():
     # e.g. 'elengenix bb', 'elengenix hack', 'elengenix red' (no target needed)
     from tools.auto_detector import CommandSimplifier
 
-    _simplified = CommandSimplifier.simplify(args.command)
-    if _simplified != args.command:
-        args.command = _simplified
+    CommandSimplifier.apply_to_args(args)
 
     # If no command or target is specified and it's "auto" (default), run the TUI
     if args.command == "auto" and not args.target:
@@ -595,7 +631,7 @@ def main():
             return
 
         elif args.command == "universal":
-            from cli_textual import main as cli_textual_main
+            from cli.textual import main as cli_textual_main
 
             cli_textual_main()
             return
@@ -622,20 +658,32 @@ def main():
             run_config_wizard()
             return
 
+        elif args.command == "mcp":
+            from mcp.server import MCPServer
+
+            console.print("[bold cyan]Starting MCP Server...[/bold cyan]")
+            server = MCPServer()
+            if args.target == "http":
+                port = args.rate_limit if args.rate_limit != 5 else 8080
+                server.start_http(port=port)
+            else:
+                server.start_stdio()
+            return
+
         elif args.command == "cli":
-            from cli_textual import main as cli_textual_main
+            from cli.textual import main as cli_textual_main
 
             cli_textual_main()
             return
 
         elif args.command in ("tui", "cli-textual", "clitest"):
-            from cli_textual import main as cli_textual_main
+            from cli.textual import main as cli_textual_main
 
             cli_textual_main()
             return
 
         elif args.command == "cli-legacy":
-            from cli import main as cli_main
+            from cli.interactive import main as cli_main
 
             cli_main()
             return
@@ -643,7 +691,7 @@ def main():
         elif args.command == "research":
             """Vulnerability Research Engine - Research CVEs and generate PoCs."""
             from tools.vuln_researcher import VulnerabilityResearcher
-            from ui_components import print_error, print_success
+            from cli.ui_components import print_error, print_success
 
             researcher = VulnerabilityResearcher()
 
@@ -720,7 +768,7 @@ def main():
         elif args.command == "poc":
             """Generate custom PoC for vulnerability type."""
             from tools.vuln_researcher import VulnerabilityResearcher
-            from ui_components import print_error, print_success
+            from cli.ui_components import print_error, print_success
 
             if not args.target:
                 console.print(
@@ -755,7 +803,7 @@ def main():
         elif args.command == "autonomous":
             """Fully autonomous AI mode - AI controls everything."""
             from tools.autonomous_agent import AutonomousAgent
-            from ui_components import print_error, print_success, print_warning
+            from cli.ui_components import print_error, print_success, print_warning
 
             if not args.target:
                 console.print("Usage: elengenix autonomous <target> [--mode {strict|ask|auto}]")
@@ -816,7 +864,7 @@ def main():
 
         elif args.command == "hunt":
             """Hybrid mode: AI Strategist + Specialist with full analysis pipeline."""
-            from ui_components import print_error, print_info, print_success, show_section
+            from cli.ui_components import print_error, print_info, print_success, show_section
 
             show_section("ELENGENIX HYBRID HUNT MODE")
 
@@ -836,7 +884,7 @@ def main():
             if not require_authorized_scan_target(target):
                 return
 
-            from agent import get_agent
+            from core.agent import get_agent
 
             agent = get_agent()
 
@@ -870,13 +918,13 @@ def main():
             return
 
         elif args.command == "arsenal":
-            from tools_menu import show_tools_menu
+            from cli.tools_menu import show_tools_menu
 
             show_tools_menu()
             return
 
         elif args.command == "sast":
-            from ui_components import print_error, print_info, print_success, show_section
+            from cli.ui_components import print_error, print_info, print_success, show_section
 
             show_section("SAST — Static Application Security Testing")
             target = args.target or console.input("[red]File or directory to scan[/red]: ").strip()
@@ -983,7 +1031,7 @@ def main():
             return
 
         elif args.command == "cloud":
-            from ui_components import print_error, print_info, print_success, show_section
+            from cli.ui_components import print_error, print_info, print_success, show_section
 
             show_section("Cloud / IaC Security Review")
             target = (
@@ -1009,7 +1057,7 @@ def main():
             return
 
         elif args.command == "mobile":
-            from ui_components import print_error, print_info, print_success, show_section
+            from cli.ui_components import print_error, print_info, print_success, show_section
 
             show_section("Mobile API Analyzer")
             target = (
@@ -1035,7 +1083,7 @@ def main():
 
         elif args.command == "compliance":
             """Enterprise compliance assessment (PCI DSS, SOC2, ISO 27001, OWASP)."""
-            from ui_components import print_error, print_info, print_success, show_section
+            from cli.ui_components import print_error, print_info, print_success, show_section
 
             show_section("Enterprise Compliance Assessment")
             target = (
@@ -1077,7 +1125,7 @@ def main():
 
         elif args.command == "soc":
             """SOC Analyzer — Security Log Intelligence."""
-            from ui_components import print_error, print_info, print_success, show_section
+            from cli.ui_components import print_error, print_info, print_success, show_section
 
             show_section("SOC Analyzer — Security Log Intelligence")
             target = (
@@ -1102,7 +1150,7 @@ def main():
 
         elif args.command == "api":
             """Enterprise REST API server."""
-            from ui_components import print_info, print_success, show_section
+            from cli.ui_components import print_info, print_success, show_section
 
             show_section("Elengenix Enterprise API Server")
             host = getattr(args, "host", "0.0.0.0")
@@ -1115,17 +1163,17 @@ def main():
                 print_info(f"  API Docs:  http://{host}:{port}/docs")
                 run_server(host=host, port=port)
             except ImportError as e:
-                from ui_components import print_error
+                from cli.ui_components import print_error
 
                 print_error(f"API server requires FastAPI: pip install fastapi uvicorn ({e})")
             except Exception as e:
-                from ui_components import print_error
+                from cli.ui_components import print_error
 
                 print_error(f"API server error: {e}")
             return
 
         elif args.command == "dashboard":
-            from ui_components import print_error, print_info, print_success, show_section
+            from cli.ui_components import print_error, print_info, print_success, show_section
 
             show_section("Elenginx Security Dashboard")
             target = args.target
@@ -1154,7 +1202,7 @@ def main():
             return
 
         elif args.command == "memory":
-            from ui_components import create_status_table, print_info, show_section
+            from cli.ui_components import create_status_table, print_info, show_section
 
             try:
                 from tools.vector_memory import get_vector_memory as vm_get
@@ -1190,7 +1238,7 @@ def main():
                     ).ask()
                 except Exception:
                     # Fallback to numbered menu
-                    from ui_components import prompt_choice
+                    from cli.ui_components import prompt_choice
 
                     idx = prompt_choice(
                         ["Search memories", "List all targets", "Clear target memory", "Back"]
@@ -1233,7 +1281,7 @@ def main():
                 elif mem_choice == "Clear target memory":
                     target = console.input("[red]Target to clear[/red]: ")
                     if target:
-                        from ui_components import confirm
+                        from cli.ui_components import confirm
 
                         if confirm(f"Delete all memories for '{target}'?", default=False):
                             vm.delete_target_memories(target)
@@ -1245,7 +1293,7 @@ def main():
 
         elif args.command == "bola":
             from tools.bola_harness import BOLAHarness, parse_headers_input
-            from ui_components import print_error, print_info, print_success, show_section
+            from cli.ui_components import print_error, print_info, print_success, show_section
 
             show_section("BOLA/IDOR Differential Harness")
             base_url = (
@@ -1335,7 +1383,7 @@ def main():
 
         elif args.command == "waf":
             from tools.waf_evasion import WAFEvasionEngine
-            from ui_components import (
+            from cli.ui_components import (
                 print_error,
                 print_info,
                 print_success,
@@ -1411,7 +1459,7 @@ def main():
 
         elif args.command == "recon":
             from tools.smart_recon import SmartReconEngine, format_recon_for_display
-            from ui_components import (
+            from cli.ui_components import (
                 print_error,
                 print_info,
                 print_success,
@@ -1473,7 +1521,7 @@ def main():
 
         elif args.command == "cve-update":
             from tools.cve_database import get_cve_database
-            from ui_components import print_error, print_info, print_success, show_section
+            from cli.ui_components import print_error, print_info, print_success, show_section
 
             show_section("CVE Database Update")
             print_info("Fetching latest CVEs from NVD (National Vulnerability Database)...")
@@ -1502,7 +1550,7 @@ def main():
 
         elif args.command == "evasion":
             from tools.edr_evasion import EDREvasionEngine, format_edr_report
-            from ui_components import (
+            from cli.ui_components import (
                 print_error,
                 print_info,
                 print_success,
@@ -1575,7 +1623,7 @@ def main():
                 console.print(format_edr_report(result))
 
                 # Save to file
-                from ui_components import confirm
+                from cli.ui_components import confirm
 
                 if confirm("Save payload to file?", default=False):
                     timestamp = int(time.time())
@@ -1607,7 +1655,7 @@ def main():
                 ReportMetadata,
                 format_report_summary,
             )
-            from ui_components import print_error, print_info, print_success, show_section
+            from cli.ui_components import print_error, print_info, print_success, show_section
 
             show_section("Professional Report Generator")
 
@@ -1677,7 +1725,7 @@ def main():
         elif args.command == "profile":
             """Profile management - list, create, delete profiles."""
             from tools.profile_manager import ProfileManager
-            from ui_components import print_error, print_info, print_success
+            from cli.ui_components import print_error, print_info, print_success
 
             manager = ProfileManager()
 
@@ -1743,7 +1791,7 @@ def main():
         elif args.command in ["programs", "intel", "bounty"]:  # Phase 1: Intelligence Discovery
             """Discover and rank bug bounty programs from HackerOne."""
             from tools.bounty_intelligence import BountyIntelligence
-            from ui_components import print_error, print_info, print_success, print_warning
+            from cli.ui_components import print_error, print_info, print_success, print_warning
 
             # Check for API credentials
             api_key = os.environ.get("HACKERONE_API_KEY")
@@ -1815,7 +1863,7 @@ def main():
             console.print(f"  Start scan: [red]elengenix quick {top.url}[/red]")
 
             # Offer to start scanning
-            from ui_components import confirm
+            from cli.ui_components import confirm
 
             if confirm("Start scanning now?", default=False):
                 args.command = "quick"
@@ -1826,7 +1874,7 @@ def main():
         elif args.command == "mission":
             """Mission control - start autonomous scanning mission."""
             from tools.smart_scanner import SmartScanner
-            from ui_components import print_error, print_info, print_success
+            from cli.ui_components import print_error, print_info, print_success
 
             if not args.target:
                 print_error("Usage: elengenix mission <target>")
@@ -1879,7 +1927,7 @@ def main():
         elif args.command == "pause":
             """Pause a running mission."""
             from tools.smart_scanner import SmartScanner
-            from ui_components import print_error, print_info, print_success
+            from cli.ui_components import print_error, print_info, print_success
 
             if not args.target:
                 print_error("Usage: elengenix pause <mission_id>")
@@ -1899,7 +1947,7 @@ def main():
         elif args.command == "resume":
             """Resume a paused mission."""
             from tools.smart_scanner import SmartScanner
-            from ui_components import print_error, print_info, print_success
+            from cli.ui_components import print_error, print_info, print_success
 
             if not args.target:
                 print_error("Usage: elengenix resume <mission_id>")
@@ -1923,7 +1971,7 @@ def main():
         elif args.command == "history":
             """Command history management."""
             from tools.history_manager import get_history_manager
-            from ui_components import print_error, print_info, print_success
+            from cli.ui_components import print_error, print_info, print_success
 
             history_mgr = get_history_manager()
 
@@ -1965,7 +2013,7 @@ def main():
                     print_info("Try: elengenix quick <target>")
 
             elif subcommand == "clear":
-                from ui_components import confirm
+                from cli.ui_components import confirm
 
                 if confirm("Clear all history?"):
                     history_mgr.clear_history()
@@ -1978,7 +2026,7 @@ def main():
         elif args.command in ["quick", "deep", "bounty", "stealth", "web"]:
             """Profile shortcuts - one-command execution."""
             from tools.profile_manager import ProfileManager
-            from ui_components import print_error, print_success
+            from cli.ui_components import print_error, print_success
 
             manager = ProfileManager()
 
@@ -2018,7 +2066,7 @@ def main():
             if _cmd_def:
                 import asyncio as _asyncio
 
-                from ui_components import console as _console
+                from cli.ui_components import console as _console
 
                 try:
                     loop = _asyncio.new_event_loop()
@@ -2051,7 +2099,7 @@ def main():
             )
         sys.exit(0)
     except Exception as e:
-        from ui_components import confirm, print_error
+        from cli.ui_components import confirm, print_error
 
         # Log to file for debugging, but keep console clean
         logger.debug("Full Traceback:", exc_info=True)

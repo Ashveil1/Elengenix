@@ -7,11 +7,13 @@ config.yaml
 .env
 .env.*
 MEMORY.md
+mcp.json
 
 # But track the examples
 !config.yaml.example
 !.env.example
 !MEMORY.md.example
+!mcp.json.example
 
 # Reports and discovered data
 reports/
@@ -118,3 +120,16 @@ docs/*tui-improvements*.md
 dist/
 build/
 *.egg-info/
+
+# MiMoCode agent state
+.mimocode/
+
+# Agent/AI tool files (not project code)
+AGENTS.md
+MEMORY.md
+opencode.json
+.mcp.json
+_missing_requirements.txt
+
+# Cache directories
+.cache/

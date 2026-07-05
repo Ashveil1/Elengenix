@@ -1,6 +1,6 @@
-from agent_brain import ElengenixAgent
+from core.brain import ElengenixAgent
 from main import is_authorized_scan_target
-from orchestrator import is_valid_target, normalize_target
+from core.orchestrator import is_valid_target, normalize_target
 from tools.governance import Governance
 
 
@@ -12,17 +12,23 @@ def _lightweight_agent() -> ElengenixAgent:
     return agent
 
 
-def test_execute_tool_blocks_destructive_rm_rf():
-    """DESTRUCTIVE commands like rm -rf / must be unconditionally blocked."""
+def test_execute_tool_destructive_requires_approval():
+    """DESTRUCTIVE commands now show popup for user approval (not auto-blocked)."""
     agent = _lightweight_agent()
-    result = agent._execute_tool({"action": "run_shell", "command": "rm -rf /"})
-    assert "blocked" in result.lower() or "denied" in result.lower()
+    # Mock the popup to return "deny"
+    from unittest.mock import patch
+    with patch('agents.agent_executor._prompt_approval', return_value=(False, False)):
+        result = agent._execute_tool({"action": "run_shell", "command": "rm -rf /"})
+    assert "rejected" in result.lower() or "blocked" in result.lower() or "deny" in result.lower()
 
 
-def test_execute_tool_blocks_destructive_dd():
+def test_execute_tool_destructive_dd_requires_approval():
+    """DESTRUCTIVE dd commands now show popup for user approval."""
     agent = _lightweight_agent()
-    result = agent._execute_tool({"action": "run_shell", "command": "dd if=/dev/zero of=/dev/sda"})
-    assert "blocked" in result.lower() or "denied" in result.lower()
+    from unittest.mock import patch
+    with patch('agents.agent_executor._prompt_approval', return_value=(False, False)):
+        result = agent._execute_tool({"action": "run_shell", "command": "dd if=/dev/zero of=/dev/sda"})
+    assert "rejected" in result.lower() or "blocked" in result.lower() or "deny" in result.lower()
 
 
 def test_execute_tool_allows_metacharacters():
@@ -71,13 +77,13 @@ def test_target_validation_and_normalization():
 
 def test_authorized_scan_target_allows_when_scope_unset(monkeypatch):
     """Without configured scope, valid public targets remain allowed."""
-    monkeypatch.setattr("orchestrator.ALLOWED_DOMAINS", set())
+    monkeypatch.setattr("core.orchestrator.ALLOWED_DOMAINS", set())
     assert is_authorized_scan_target("example.com") is True
 
 
 def test_authorized_scan_target_enforces_scope(monkeypatch):
     """Configured scope must gate scan-capable entrypoints."""
-    monkeypatch.setattr("orchestrator.ALLOWED_DOMAINS", {"example.com"})
+    monkeypatch.setattr("core.orchestrator.ALLOWED_DOMAINS", {"example.com"})
     assert is_authorized_scan_target("example.com") is True
     assert is_authorized_scan_target("https://api.example.com/v1/search") is True
     assert is_authorized_scan_target("other.com") is False
@@ -85,5 +91,5 @@ def test_authorized_scan_target_enforces_scope(monkeypatch):
 
 def test_authorized_scan_target_rejects_invalid_before_scope(monkeypatch):
     """Invalid shell-like targets remain blocked before scope checks matter."""
-    monkeypatch.setattr("orchestrator.ALLOWED_DOMAINS", {"example.com"})
+    monkeypatch.setattr("core.orchestrator.ALLOWED_DOMAINS", {"example.com"})
     assert is_authorized_scan_target("example.com; rm -rf /") is False

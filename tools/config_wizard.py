@@ -17,7 +17,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional
 
-from ui_components import console, print_error, print_info, print_success, print_warning
+from cli.ui_components import console, print_error, print_info, print_success, print_warning
 
 logger = logging.getLogger(__name__)
 
@@ -294,11 +294,12 @@ class ConfigWizard:
             console.print("  [3] Manage Integrations (Tavily, VulnCheck, etc.)")
             console.print("  [4] Configure Default Target")
             console.print("  [5] Configure Rate Limits")
-            console.print("  [6] View configuration status")
-            console.print("  [7] Check system (Health Check)")
+            console.print("  [6] Configure MCP Servers")
+            console.print("  [7] View configuration status")
+            console.print("  [8] Check system (Health Check)")
             console.print("  [0] Exit")
 
-            choice = console.input("\nSelect [0-7]: ").strip()
+            choice = console.input("\nSelect [0-8]: ").strip()
 
             if choice == "1":
                 self._manage_all_providers()
@@ -311,14 +312,16 @@ class ConfigWizard:
             elif choice == "5":
                 self._setup_rate_limits()
             elif choice == "6":
-                self._show_status()
+                self._configure_mcp()
             elif choice == "7":
+                self._show_status()
+            elif choice == "8":
                 self._health_check()
             elif choice == "0":
                 console.print("\n[dim]Saving configuration...[/dim]")
                 break
             else:
-                print_warning("Please select 0-7")
+                print_warning("Please select 0-8")
 
     def _manage_all_providers(self) -> None:
         """Multi-provider manager — show all providers in one table."""
@@ -1304,6 +1307,81 @@ class ConfigWizard:
         self._save_env_var("ACTIVE_MODELS", models_str)
 
         print_success(f"Configured {role_name} AI: {pkey}/{selected_model} successfully!")
+
+    def _configure_mcp(self) -> None:
+        """Configure MCP servers."""
+        from mcp.config import get_config_manager, MCPConfig, MCPServerConfig
+
+        console.print("\n[bold cyan]MCP Server Configuration[/bold cyan]")
+        console.print("[dim]MCP (Model Context Protocol) allows AI agents to use external tools.[/dim]\n")
+
+        while True:
+            manager = get_config_manager()
+            config = manager.config
+
+            # Show current servers
+            if config.servers:
+                console.print("[bold]Current MCP Servers:[/bold]")
+                for name, server in config.servers.items():
+                    status = "[green]ON[/green]" if server.enabled else "[red]OFF[/red]"
+                    console.print(f"  {status} {name}: {server.command} {' '.join(server.args)}")
+            else:
+                console.print("[dim]No MCP servers configured.[/dim]")
+
+            console.print("\n[bold]Options:[/bold]")
+            console.print("  [1] Add server")
+            console.print("  [2] Remove server")
+            console.print("  [3] Enable/Disable server")
+            console.print("  [4] Add default servers")
+            console.print("  [0] Back")
+
+            choice = console.input("\nSelect [0-4]: ").strip()
+
+            if choice == "1":
+                name = console.input("Server name: ").strip()
+                command = console.input("Command (e.g., npx): ").strip()
+                args_str = console.input("Arguments (space-separated): ").strip()
+                args = args_str.split() if args_str else []
+
+                if name and command:
+                    manager.add_server(name, command, args)
+                    print_success(f"Added server: {name}")
+                else:
+                    print_error("Name and command are required")
+
+            elif choice == "2":
+                name = console.input("Server name to remove: ").strip()
+                if name:
+                    manager.remove_server(name)
+                    print_success(f"Removed server: {name}")
+
+            elif choice == "3":
+                name = console.input("Server name: ").strip()
+                if name in config.servers:
+                    enabled = console.input("Enable? (y/n): ").strip().lower() == "y"
+                    manager.enable_server(name, enabled)
+                    print_success(f"Updated server: {name}")
+                else:
+                    print_error(f"Server not found: {name}")
+
+            elif choice == "4":
+                # Add default MCP servers
+                defaults = {
+                    "sequential-thinking": {"command": "npx", "args": ["-y", "@modelcontextprotocol/server-sequential-thinking"]},
+                    "chain-of-recursive-thoughts": {"command": "npx", "args": ["-y", "recursive-thinking-mcp"]},
+                    "mcp-structured-thinking": {"command": "npx", "args": ["-y", "structured-thinking"]},
+                    "memory": {"command": "npx", "args": ["-y", "@modelcontextprotocol/server-memory"]},
+                }
+                for name, server_data in defaults.items():
+                    if name not in config.servers:
+                        manager.add_server(name, server_data["command"], server_data["args"])
+                        print_success(f"Added default server: {name}")
+                print_success("Default servers added")
+
+            elif choice == "0":
+                break
+            else:
+                print_warning("Please select 0-4")
 
 
 def run_config_wizard() -> None:

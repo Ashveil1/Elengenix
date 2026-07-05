@@ -63,6 +63,10 @@ dependencies = [
     "trafilatura>=1.6.0",
     "googlesearch-python>=1.2.0",
     "duckduckgo-search>=4.0.0",
+    # MCP (Model Context Protocol) - requires npm/node
+    # Sequential Thinking: npx -y mcp-sequential-thinking
+    # Memory: npx -y @modelcontextprotocol/server-memory
+    # Filesystem: npx -y @modelcontextprotocol/server-filesystem
 ]
 
 [project.optional-dependencies]
@@ -138,3 +142,8 @@ known_first_party = ["tools", "agents", "tui", "commands"]
 max-line-length = 100
 ignore = ["E501", "W503", "E203"]
 exclude = ["venv", "__pycache__", ".git"]
+
+[tool.pyrefly]
+disable-search-path-heuristics = true
+search-path = ["."]
+
