@@ -145,15 +145,19 @@ def normalize_targets(target: str) -> List[str]:
 def _check_dns_resolution(target: str) -> bool:
     """Check if domain resolves to a safe IP address.
 
-    Optional DNS check to prevent SSRF via DNS rebinding.
-    Enabled by setting ELNGENIX_DNS_CHECK=true environment variable.
+    DNS resolution is mandatory for domain targets to prevent SSRF via DNS rebinding.
+    IP literals skip this check (already validated by is_valid_target).
 
     Returns:
-        True if DNS check passes or is disabled.
+        True if DNS check passes or target is an IP literal.
         False if domain resolves to private/metadata IP.
     """
-    if os.environ.get("ELNGENIX_DNS_CHECK", "").lower() != "true":
-        return True  # DNS check disabled by default
+    # Skip DNS check for IP literals (already validated)
+    try:
+        ipaddress.ip_address(target)
+        return True  # IP literal, no DNS needed
+    except ValueError:
+        pass  # Not an IP, continue with DNS check
 
     try:
         import socket
@@ -195,10 +199,8 @@ def is_in_scope(target: str) -> bool:
     """Check if target is in authorized scope.
 
     Fail-closed: returns False if no scope is configured.
+    DNS resolution is mandatory for domains to prevent SSRF via DNS rebinding.
     Configure scope via scope.txt or ELENGENIX_SCOPE env var.
-
-    Optional DNS check: set ELNGENIX_DNS_CHECK=true to verify
-    domain resolves to safe IP (prevents SSRF via DNS rebinding).
     """
     if not target:
         return False
