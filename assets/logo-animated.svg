@@ -26,35 +26,57 @@
         95%  { clip-path: inset(0 0% 0 0); }
         100% { clip-path: inset(0 100% 0 0); }
       }
-      @keyframes cursorBlink2 {
-        0%, 49% { opacity: 1; }
-        50%, 100% { opacity: 0; }
-      }
       .bg { fill: #000000; }
-      .block-letter {
-        font-family: 'Courier New', 'Lucida Console', monospace;
-        font-size: 72px;
+      .block-shadow {
+        font-family: 'Impact', 'Arial Black', sans-serif;
+        font-size: 74px;
+        font-weight: 900;
+        fill: #222222;
+        letter-spacing: 4px;
+        transform: translate(3px, 3px);
+      }
+      .block-outline {
+        font-family: 'Impact', 'Arial Black', sans-serif;
+        font-size: 74px;
+        font-weight: 900;
+        fill: none;
+        stroke: #ffffff;
+        stroke-width: 2px;
+        letter-spacing: 4px;
+      }
+      .block-fill {
+        font-family: 'Impact', 'Arial Black', sans-serif;
+        font-size: 74px;
+        font-weight: 900;
+        fill: #000000;
+        letter-spacing: 4px;
+      }
+      .block-top {
+        font-family: 'Impact', 'Arial Black', sans-serif;
+        font-size: 74px;
         font-weight: 900;
         fill: #ffffff;
-        letter-spacing: 6px;
+        letter-spacing: 4px;
+        clip-path: inset(0 0 50% 0);
       }
-      .shadow {
-        font-family: 'Courier New', 'Lucida Console', monospace;
-        font-size: 72px;
+      .block-bottom {
+        font-family: 'Impact', 'Arial Black', sans-serif;
+        font-size: 74px;
         font-weight: 900;
-        fill: #333333;
-        letter-spacing: 6px;
+        fill: #cccccc;
+        letter-spacing: 4px;
+        clip-path: inset(50% 0 0 0);
       }
       .sub {
         font-family: 'Courier New', monospace;
         font-size: 11px;
-        fill: #666666;
+        fill: #555555;
         letter-spacing: 3px;
         text-transform: uppercase;
       }
-      .term-bg { fill: #0a0a0a; stroke: #222222; stroke-width: 1; }
-      .prompt { font-family: 'Courier New', monospace; font-size: 13px; fill: #888888; }
-      .typed { font-family: 'Courier New', monospace; font-size: 13px; fill: #aaaaaa; }
+      .term-bg { fill: #0a0a0a; stroke: #1a1a1a; stroke-width: 1; }
+      .prompt { font-family: 'Courier New', monospace; font-size: 13px; fill: #666666; }
+      .typed { font-family: 'Courier New', monospace; font-size: 13px; fill: #888888; }
       .cursor { fill: #ffffff; animation: cursorBlink 1s step-end infinite; }
       .dot { fill: #ffffff; }
       .dot-dim { fill: #333333; }
@@ -64,42 +86,51 @@
   <!-- Background -->
   <rect width="800" height="180" class="bg"/>
 
-  <!-- Shadow layer (3D effect) -->
-  <text x="403" y="75" text-anchor="middle" class="shadow">ELNGENIX</text>
+  <!-- Shadow layer (3D depth) -->
+  <text x="403" y="78" text-anchor="middle" class="block-shadow">ELNGENIX</text>
 
-  <!-- Main text layer -->
-  <text x="400" y="72" text-anchor="middle" class="block-letter">ELNGENIX</text>
+  <!-- Outline layer (white border) -->
+  <text x="400" y="75" text-anchor="middle" class="block-outline">ELNGENIX</text>
+
+  <!-- Fill layer (black inside) -->
+  <text x="400" y="75" text-anchor="middle" class="block-fill">ELNGENIX</text>
+
+  <!-- Top half (white) -->
+  <text x="400" y="75" text-anchor="middle" class="block-top">ELNGENIX</text>
+
+  <!-- Bottom half (gray - creates depth) -->
+  <text x="400" y="75" text-anchor="middle" class="block-bottom">ELNGENIX</text>
 
   <!-- Subtitle -->
-  <text x="400" y="100" text-anchor="middle" class="sub">Autonomous AI Security Research Agent</text>
+  <text x="400" y="105" text-anchor="middle" class="sub">Autonomous AI Security Research Agent</text>
 
   <!-- Terminal window -->
-  <rect x="170" y="115" width="460" height="40" class="term-bg" rx="3"/>
+  <rect x="170" y="118" width="460" height="40" class="term-bg" rx="3"/>
 
   <!-- Terminal dots -->
-  <circle cx="186" cy="126" r="3" class="dot-dim"/>
-  <circle cx="198" cy="126" r="3" class="dot-dim"/>
-  <circle cx="210" cy="126" r="3" class="dot-dim"/>
+  <circle cx="186" cy="129" r="3" class="dot-dim"/>
+  <circle cx="198" cy="129" r="3" class="dot-dim"/>
+  <circle cx="210" cy="129" r="3" class="dot-dim"/>
 
   <!-- Prompt -->
-  <text x="228" y="138" class="prompt">$</text>
+  <text x="228" y="141" class="prompt">$</text>
 
   <!-- Typed text 1 -->
-  <text x="242" y="138" class="typed" style="animation: type1 8s linear infinite;">
+  <text x="242" y="141" class="typed" style="animation: type1 8s linear infinite;">
     <tspan>elengenix scan target.com</tspan>
   </text>
 
   <!-- Typed text 2 -->
-  <text x="242" y="138" class="typed" style="animation: type2 8s linear infinite;">
+  <text x="242" y="141" class="typed" style="animation: type2 8s linear infinite;">
     <tspan>120+ tools · AI reasoning · real-time</tspan>
   </text>
 
   <!-- Typed text 3 -->
-  <text x="242" y="138" class="typed" style="animation: type3 8s linear infinite;">
+  <text x="242" y="141" class="typed" style="animation: type3 8s linear infinite;">
     <tspan>find vulnerabilities before attackers do</tspan>
   </text>
 
   <!-- Cursor -->
-  <rect x="242" y="125" width="7" height="15" class="cursor"/>
+  <rect x="242" y="128" width="7" height="15" class="cursor"/>
 
 </svg>
