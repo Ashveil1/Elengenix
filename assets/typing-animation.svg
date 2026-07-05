@@ -5,6 +5,12 @@
       .term { fill: #0a0a0a; stroke: #1a1a1a; stroke-width: 1; }
       .prompt { font-family: 'SF Mono','Fira Code','Consolas',monospace; font-size: 14px; fill: #555555; }
       .cmd { font-family: 'SF Mono','Fira Code','Consolas',monospace; font-size: 14px; fill: #999999; }
+      .l1 { opacity:0; animation: show1 9s infinite; }
+      .l2 { opacity:0; animation: show2 9s infinite; }
+      .l3 { opacity:0; animation: show3 9s infinite; }
+      @keyframes show1 { 0%{opacity:0} 1%{opacity:1} 30%{opacity:1} 35%{opacity:0} 100%{opacity:0} }
+      @keyframes show2 { 0%{opacity:0} 38%{opacity:0} 40%{opacity:1} 68%{opacity:1} 73%{opacity:0} 100%{opacity:0} }
+      @keyframes show3 { 0%{opacity:0} 78%{opacity:0} 80%{opacity:1} 98%{opacity:1} 100%{opacity:0} }
     </style>
   </defs>
 
@@ -16,6 +22,9 @@
   <circle cx="52" cy="16" r="4" fill="#2a2a2a"/>
 
   <text x="72" y="30" class="prompt">$</text>
-  <text x="88" y="30" class="cmd">elengenix scan target.com</text>
+
+  <text x="88" y="30" class="cmd l1">elengenix scan target.com</text>
+  <text x="88" y="30" class="cmd l2">120+ tools, AI reasoning, real-time</text>
+  <text x="88" y="30" class="cmd l3">find vulnerabilities before attackers do</text>
 
 </svg>
