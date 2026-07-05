@@ -77,13 +77,13 @@ def test_target_validation_and_normalization():
 
 def test_authorized_scan_target_allows_when_scope_unset(monkeypatch):
     """Without configured scope, valid public targets remain allowed."""
-    monkeypatch.setattr("core.orchestrator.ALLOWED_DOMAINS", set())
+    monkeypatch.setattr("core.orchestrator._allowed_domains", set())
     assert is_authorized_scan_target("example.com") is True
 
 
 def test_authorized_scan_target_enforces_scope(monkeypatch):
     """Configured scope must gate scan-capable entrypoints."""
-    monkeypatch.setattr("core.orchestrator.ALLOWED_DOMAINS", {"example.com"})
+    monkeypatch.setattr("core.orchestrator._allowed_domains", {"example.com"})
     assert is_authorized_scan_target("example.com") is True
     assert is_authorized_scan_target("https://api.example.com/v1/search") is True
     assert is_authorized_scan_target("other.com") is False
@@ -91,5 +91,5 @@ def test_authorized_scan_target_enforces_scope(monkeypatch):
 
 def test_authorized_scan_target_rejects_invalid_before_scope(monkeypatch):
     """Invalid shell-like targets remain blocked before scope checks matter."""
-    monkeypatch.setattr("core.orchestrator.ALLOWED_DOMAINS", {"example.com"})
+    monkeypatch.setattr("core.orchestrator._allowed_domains", {"example.com"})
     assert is_authorized_scan_target("example.com; rm -rf /") is False

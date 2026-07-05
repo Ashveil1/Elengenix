@@ -42,7 +42,6 @@ from tools.waf_detector import SmartWAFDetector
 from cli.ui_components import console
 
 # ── Setup ───────────────────────────────────────────────────
-logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(message)s")
 logger = logging.getLogger("elengenix.orchestrator")
 
 
@@ -56,15 +55,33 @@ def load_allowed_domains(scope_file: str = "scope.txt") -> Set[str]:
 
     scope_path = Path(scope_file)
     if scope_path.exists():
-        with open(scope_path, "r", encoding="utf-8") as f:
-            for line in f:
-                clean_line = line.strip().lower()
-                if clean_line and not clean_line.startswith("#"):
-                    domains.add(clean_line)
+        try:
+            with open(scope_path, "r", encoding="utf-8") as f:
+                for line in f:
+                    clean_line = line.strip().lower()
+                    if clean_line and not clean_line.startswith("#"):
+                        domains.add(clean_line)
+        except Exception as e:
+            logger.warning(f"Failed to read scope file {scope_path}: {e}")
     return domains
 
 
-ALLOWED_DOMAINS = load_allowed_domains()
+# Lazy-loaded scope (not at module level)
+_allowed_domains: Optional[Set[str]] = None
+
+
+def _get_allowed_domains() -> Set[str]:
+    """Lazy load allowed domains."""
+    global _allowed_domains
+    if _allowed_domains is None:
+        _allowed_domains = load_allowed_domains()
+    return _allowed_domains
+
+
+def reload_scope() -> None:
+    """Force reload scope from file/env."""
+    global _allowed_domains
+    _allowed_domains = load_allowed_domains()
 
 
 def normalize_target(target: str) -> str:
@@ -74,7 +91,14 @@ def normalize_target(target: str) -> str:
     if target.startswith(("http://", "https://")):
         parsed = urlparse(target)
         target = parsed.netloc or parsed.path.split("/")[0]
-    if ":" in target and not target.startswith("["):
+    # Handle IPv6 with brackets: [::1]:8080 → ::1
+    if target.startswith("["):
+        bracket_end = target.find("]")
+        if bracket_end > 0:
+            target = target[1:bracket_end]
+    # Handle IPv4 with port: 1.2.3.4:80 → 1.2.3.4
+    # But NOT IPv6 (multiple colons)
+    elif ":" in target and target.count(":") == 1:
         target = target.split(":")[0]
     return target.rstrip(".")
 
@@ -82,11 +106,13 @@ def normalize_target(target: str) -> str:
 def is_valid_target(target: str) -> bool:
     if not target:
         return False
+    # Try IP address (handles both IPv4 and IPv6)
     try:
         ip = ipaddress.ip_address(target)
         return not (ip.is_private or ip.is_loopback)
     except ValueError:
         pass
+    # Domain validation
     if len(target) > 253 or "." not in target:
         return False
     return all(
@@ -100,10 +126,11 @@ def is_in_scope(target: str) -> bool:
     normalized = normalize_target(target)
     if not is_valid_target(normalized):
         return False
-    if not ALLOWED_DOMAINS:
+    allowed = _get_allowed_domains()
+    if not allowed:
         return True
-    return normalized in ALLOWED_DOMAINS or any(
-        normalized.endswith(f".{a}") for a in ALLOWED_DOMAINS
+    return normalized in allowed or any(
+        normalized.endswith(f".{a}") for a in allowed
     )
 
 
