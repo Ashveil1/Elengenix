@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 200">
+  <style>
+    @keyframes colorCycle {
+      0%   { filter: brightness(1) saturate(0); }
+      25%  { filter: brightness(1) saturate(0); }
+      30%  { filter: brightness(1) saturate(1); }
+      50%  { filter: brightness(1) saturate(1); }
+      55%  { filter: brightness(1) saturate(0); }
+      100% { filter: brightness(1) saturate(0); }
+    }
+    .logo { animation: colorCycle 4s ease-in-out infinite; }
+  </style>
+
+  <!-- White version (default) with color animation -->
+  <image href="elengenix.png" x="0" y="0" width="800" height="200" class="logo"/>
+
+  <!-- Red version overlay (fades in and out) -->
+  <style>
+    @keyframes redPulse {
+      0%   { opacity: 0; }
+      40%  { opacity: 0; }
+      50%  { opacity: 1; }
+      60%  { opacity: 1; }
+      70%  { opacity: 0; }
+      100% { opacity: 0; }
+    }
+    .red { animation: redPulse 4s ease-in-out infinite; mix-blend-mode: screen; }
+  </style>
+  <image href="elengenix-red.png" x="0" y="0" width="800" height="200" class="red"/>
+
+</svg>
