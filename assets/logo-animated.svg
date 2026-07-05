@@ -1,105 +1,62 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 180">
   <defs>
+    <clipPath id="textClip">
+      <text x="400" y="72" text-anchor="middle" font-family="Impact, Arial Black, sans-serif" font-size="76" font-weight="900" letter-spacing="2">ELNGENIX</text>
+    </clipPath>
     <style>
-      @keyframes cursorBlink {
-        0%, 49% { opacity: 1; }
-        50%, 100% { opacity: 0; }
-      }
-      @keyframes type1 {
-        0%   { clip-path: inset(0 100% 0 0); }
-        25%  { clip-path: inset(0 0% 0 0); }
-        30%  { clip-path: inset(0 0% 0 0); }
-        35%  { clip-path: inset(0 100% 0 0); }
-        100% { clip-path: inset(0 100% 0 0); }
-      }
-      @keyframes type2 {
-        0%   { clip-path: inset(0 100% 0 0); }
-        40%  { clip-path: inset(0 100% 0 0); }
-        65%  { clip-path: inset(0 0% 0 0); }
-        70%  { clip-path: inset(0 0% 0 0); }
-        75%  { clip-path: inset(0 100% 0 0); }
-        100% { clip-path: inset(0 100% 0 0); }
-      }
-      @keyframes type3 {
-        0%   { clip-path: inset(0 100% 0 0); }
-        80%  { clip-path: inset(0 0% 0 0); }
-        95%  { clip-path: inset(0 0% 0 0); }
-        100% { clip-path: inset(0 100% 0 0); }
-      }
+      @keyframes cursorBlink { 0%,49%{opacity:1} 50%,100%{opacity:0} }
+      @keyframes type1 { 0%{clip-path:inset(0 100% 0 0)} 25%{clip-path:inset(0 0% 0 0)} 30%{clip-path:inset(0 0% 0 0)} 35%{clip-path:inset(0 100% 0 0)} 100%{clip-path:inset(0 100% 0 0)} }
+      @keyframes type2 { 0%{clip-path:inset(0 100% 0 0)} 40%{clip-path:inset(0 100% 0 0)} 65%{clip-path:inset(0 0% 0 0)} 70%{clip-path:inset(0 0% 0 0)} 75%{clip-path:inset(0 100% 0 0)} 100%{clip-path:inset(0 100% 0 0)} }
+      @keyframes type3 { 0%{clip-path:inset(0 100% 0 0)} 80%{clip-path:inset(0 0% 0 0)} 95%{clip-path:inset(0 0% 0 0)} 100%{clip-path:inset(0 100% 0 0)} }
+      @keyframes cursorBlink { 0%,49%{opacity:1} 50%,100%{opacity:0} }
       .bg { fill: #000000; }
-      .block-shadow {
-        font-family: 'Impact', 'Arial Black', sans-serif;
-        font-size: 74px;
-        font-weight: 900;
-        fill: #222222;
-        letter-spacing: 4px;
-        transform: translate(3px, 3px);
-      }
-      .block-outline {
-        font-family: 'Impact', 'Arial Black', sans-serif;
-        font-size: 74px;
-        font-weight: 900;
-        fill: none;
-        stroke: #ffffff;
-        stroke-width: 2px;
-        letter-spacing: 4px;
-      }
-      .block-fill {
-        font-family: 'Impact', 'Arial Black', sans-serif;
-        font-size: 74px;
-        font-weight: 900;
-        fill: #000000;
-        letter-spacing: 4px;
-      }
-      .block-top {
-        font-family: 'Impact', 'Arial Black', sans-serif;
-        font-size: 74px;
-        font-weight: 900;
-        fill: #ffffff;
-        letter-spacing: 4px;
-        clip-path: inset(0 0 50% 0);
-      }
-      .block-bottom {
-        font-family: 'Impact', 'Arial Black', sans-serif;
-        font-size: 74px;
-        font-weight: 900;
-        fill: #cccccc;
-        letter-spacing: 4px;
-        clip-path: inset(50% 0 0 0);
-      }
-      .sub {
-        font-family: 'Courier New', monospace;
-        font-size: 11px;
-        fill: #555555;
-        letter-spacing: 3px;
-        text-transform: uppercase;
-      }
+      .main-text { font-family: Impact, 'Arial Black', sans-serif; font-size: 76px; font-weight: 900; letter-spacing: 2px; }
+      .sub { font-family: 'Courier New', monospace; font-size: 11px; fill: #555555; letter-spacing: 3px; text-transform: uppercase; }
       .term-bg { fill: #0a0a0a; stroke: #1a1a1a; stroke-width: 1; }
       .prompt { font-family: 'Courier New', monospace; font-size: 13px; fill: #666666; }
       .typed { font-family: 'Courier New', monospace; font-size: 13px; fill: #888888; }
       .cursor { fill: #ffffff; animation: cursorBlink 1s step-end infinite; }
-      .dot { fill: #ffffff; }
       .dot-dim { fill: #333333; }
+      .scanline { stroke: #ffffff; stroke-width: 1; opacity: 0.15; }
     </style>
   </defs>
 
   <!-- Background -->
   <rect width="800" height="180" class="bg"/>
 
-  <!-- Shadow layer (3D depth) -->
-  <text x="403" y="78" text-anchor="middle" class="block-shadow">ELNGENIX</text>
+  <!-- LAYER 1: Deepest shadow (offset 5px down, 5px right) -->
+  <text x="405" y="77" text-anchor="middle" class="main-text" fill="#111111">ELNGENIX</text>
 
-  <!-- Outline layer (white border) -->
-  <text x="400" y="75" text-anchor="middle" class="block-outline">ELNGENIX</text>
+  <!-- LAYER 2: Shadow (offset 3px down, 3px right) -->
+  <text x="403" y="75" text-anchor="middle" class="main-text" fill="#1a1a1a">ELNGENIX</text>
 
-  <!-- Fill layer (black inside) -->
-  <text x="400" y="75" text-anchor="middle" class="block-fill">ELNGENIX</text>
+  <!-- LAYER 3: Mid shadow (offset 2px down, 2px right) -->
+  <text x="402" y="74" text-anchor="middle" class="main-text" fill="#222222">ELNGENIX</text>
 
-  <!-- Top half (white) -->
-  <text x="400" y="75" text-anchor="middle" class="block-top">ELNGENIX</text>
+  <!-- LAYER 4: Outer white outline -->
+  <text x="400" y="72" text-anchor="middle" class="main-text" fill="none" stroke="#ffffff" stroke-width="3">ELNGENIX</text>
 
-  <!-- Bottom half (gray - creates depth) -->
-  <text x="400" y="75" text-anchor="middle" class="block-bottom">ELNGENIX</text>
+  <!-- LAYER 5: Inner black fill -->
+  <text x="400" y="72" text-anchor="middle" class="main-text" fill="#000000">ELNGENIX</text>
+
+  <!-- LAYER 6: White inner outline (creates double-border effect) -->
+  <text x="400" y="72" text-anchor="middle" class="main-text" fill="none" stroke="#ffffff" stroke-width="1.5">ELNGENIX</text>
+
+  <!-- Scanlines through text (vertical stripes) -->
+  <g clip-path="url(#textClip)" opacity="0.12">
+    <line x1="320" y1="0" x2="320" y2="180" class="scanline"/>
+    <line x1="335" y1="0" x2="335" y2="180" class="scanline"/>
+    <line x1="350" y1="0" x2="350" y2="180" class="scanline"/>
+    <line x1="365" y1="0" x2="365" y2="180" class="scanline"/>
+    <line x1="380" y1="0" x2="380" y2="180" class="scanline"/>
+    <line x1="395" y1="0" x2="395" y2="180" class="scanline"/>
+    <line x1="410" y1="0" x2="410" y2="180" class="scanline"/>
+    <line x1="425" y1="0" x2="425" y2="180" class="scanline"/>
+    <line x1="440" y1="0" x2="440" y2="180" class="scanline"/>
+    <line x1="455" y1="0" x2="455" y2="180" class="scanline"/>
+    <line x1="470" y1="0" x2="470" y2="180" class="scanline"/>
+    <line x1="485" y1="0" x2="485" y2="180" class="scanline"/>
+  </g>
 
   <!-- Subtitle -->
   <text x="400" y="105" text-anchor="middle" class="sub">Autonomous AI Security Research Agent</text>
