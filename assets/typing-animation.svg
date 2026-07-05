@@ -2,46 +2,45 @@
   <defs>
     <style>
       @keyframes blink { 0%,49%{opacity:1} 50%,100%{opacity:0} }
-
-      /* Line 1: appear 0-30%, hold 30-35%, disappear 35-40% */
-      @keyframes line1 { 0%{opacity:0} 2%{opacity:1} 30%{opacity:1} 35%{opacity:0} 100%{opacity:0} }
-
-      /* Line 2: appear 40-70%, hold 70-75%, disappear 75-80% */
-      @keyframes line2 { 0%{opacity:0} 40%{opacity:0} 42%{opacity:1} 70%{opacity:1} 75%{opacity:0} 100%{opacity:0} }
-
-      /* Line 3: appear 80-95%, hold 95-98%, disappear 98-100% */
-      @keyframes line3 { 0%{opacity:0} 80%{opacity:0} 82%{opacity:1} 95%{opacity:1} 100%{opacity:0} }
+      @keyframes reveal1 { 0%{width:0} 2%{width:0} 30%{width:200px} 100%{width:200px} }
+      @keyframes reveal2 { 0%{width:0} 40%{width:0} 68%{width:250px} 100%{width:250px} }
+      @keyframes reveal3 { 0%{width:0} 78%{width:0} 96%{width:230px} 100%{width:230px} }
+      @keyframes hide1 { 0%{opacity:1} 32%{opacity:1} 36%{opacity:0} 100%{opacity:0} }
+      @keyframes hide2 { 0%{opacity:1} 70%{opacity:1} 74%{opacity:0} 100%{opacity:0} }
+      @keyframes hide3 { 0%{opacity:1} 97%{opacity:1} 100%{opacity:0} }
 
       .bg { fill: #000000; }
       .term { fill: #0a0a0a; stroke: #1a1a1a; stroke-width: 1; }
-      .dot { fill: #333333; }
       .prompt { font-family: 'SF Mono','Fira Code','Consolas',monospace; font-size: 14px; fill: #555555; }
-      .line { font-family: 'SF Mono','Fira Code','Consolas',monospace; font-size: 14px; fill: #999999; opacity: 0; }
+      .typed { font-family: 'SF Mono','Fira Code','Consolas',monospace; font-size: 14px; fill: #999999; }
       .cursor { fill: #ffffff; animation: blink 1s step-end infinite; }
+
+      .line1 { animation: hide1 8s linear infinite; }
+      .line2 { opacity:0; animation: hide2 8s linear infinite; }
+      .line3 { opacity:0; animation: hide3 8s linear infinite; }
+
+      .mask1 { animation: reveal1 8s linear infinite; }
+      .mask2 { opacity:0; animation: reveal2 8s linear infinite; }
+      .mask3 { opacity:0; animation: reveal3 8s linear infinite; }
     </style>
+    <clipPath id="clip1"><rect x="88" y="25" width="0" height="20" class="mask1"/></clipPath>
+    <clipPath id="clip2"><rect x="88" y="25" width="0" height="20" class="mask2"/></clipPath>
+    <clipPath id="clip3"><rect x="88" y="25" width="0" height="20" class="mask3"/></clipPath>
   </defs>
 
   <rect width="700" height="65" class="bg" rx="6"/>
   <rect x="10" y="8" width="680" height="48" class="term" rx="4"/>
 
-  <!-- dots -->
   <circle cx="24" cy="20" r="4" fill="#444444"/>
   <circle cx="38" cy="20" r="4" fill="#2a2a2a"/>
   <circle cx="52" cy="20" r="4" fill="#2a2a2a"/>
 
-  <!-- prompt (always visible) -->
   <text x="72" y="40" class="prompt">$</text>
-
-  <!-- cursor (follows prompt position, blinks) -->
   <rect x="86" y="26" width="8" height="18" class="cursor"/>
 
-  <!-- line 1 -->
-  <text x="88" y="40" class="line" style="animation: line1 8s linear infinite;">elengenix scan target.com</text>
-
-  <!-- line 2 -->
-  <text x="88" y="40" class="line" style="animation: line2 8s linear infinite;">120+ tools, AI reasoning, real-time</text>
-
-  <!-- line 3 -->
-  <text x="88" y="40" class="line" style="animation: line3 8s linear infinite;">find vulns before attackers do</text>
+  <!-- Lines with clip-path reveal -->
+  <text x="88" y="40" class="typed line1" clip-path="url(#clip1)">elengenix scan target.com</text>
+  <text x="88" y="40" class="typed line2" clip-path="url(#clip2)">120+ tools, AI reasoning, real-time</text>
+  <text x="88" y="40" class="typed line3" clip-path="url(#clip3)">find vulns before attackers do</text>
 
 </svg>
