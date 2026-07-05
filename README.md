@@ -1,233 +1,313 @@
+<div align="center">
 
-<p align="center">
-  <img src="assets/elengenix.png" alt="Elengenix Terminal User Interface" width="850">
-</p>
+# <img src="assets/elengenix.png" alt="Elengenix" width="120">
 
-### Autonomous AI Agent Framework for Security Research
+### Elengenix — Autonomous AI Security Research Framework
 
-[![Python](https://img.shields.io/badge/Python-3.10%2B-blue?style=flat-square)](https://python.org)
-[![License](https://img.shields.io/badge/License-GPL-green?style=flat-square)](LICENSE)
-[![Tests](https://github.com/Ashveil1/Elengenix/actions/workflows/test.yml/badge.svg)](https://github.com/Ashveil1/Elengenix/actions/workflows/test.yml)
+*Reasoning-driven vulnerability discovery that thinks like a penetration tester.*
+
+[![Python](https://img.shields.io/badge/Python-3.10+-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
+[![License](https://img.shields.io/badge/License-GPL_3.0-green?style=for-the-badge)](LICENSE)
+[![Tests](https://img.shields.io/badge/Tests-379%20passing-brightgreen?style=for-the-badge)](https://github.com/Ashveil1/Elengenix/actions)
+[![MCP](https://img.shields.io/badge/MCP-Supported-blueviolet?style=for-the-badge)](https://modelcontextprotocol.io)
 
 </div>
-
-> [!IMPORTANT]
-> **LEGAL & SECURITY DISCLAIMER:** This framework is designed strictly for educational purposes, authorized security research, and defensive penetration testing. The authors are not responsible for any misuse, unauthorized targeting, or damage caused by the autonomous execution capabilities of this tool. Users are solely responsible for ensuring full legal authorization before initiating any scans or test sequences.
 
 ---
 
 ## What is Elengenix?
 
-Elengenix is an open-source framework that turns security research into a reasoning problem. Rather than scripting fixed attack sequences, it deploys an AI agent that reads a target, builds an attack tree, selects tools, interprets findings, and adapts its strategy in real-time — the same way a skilled penetration tester thinks.
+Elengenix is an **autonomous AI agent** that performs security research by *thinking* through problems — not by following checklists. It reads a target, builds an attack tree, selects tools, interprets findings, and adapts its strategy in real-time, just like a skilled penetration tester.
 
-It is designed to be **provider-agnostic**, **mobile-deployable** (Termux), and **safe by design**: every command passes through a governance engine that blocks destructive operations without limiting research flexibility.
-
----
-
-## Why It Exists
-
-The current state of security tooling has a fundamental gap: tools are powerful, but brittle. They require deep expertise to chain together, produce unfiltered noise, and cannot reason about what a finding actually means in the context of a target's architecture.
-
-Elengenix exists to close this gap — to give researchers a collaborator that understands both the technical and business dimensions of a vulnerability, can estimate its exploitability and payout value, and documents the full chain of evidence automatically.
-
----
-
-## Core Design Principles
-
-- **Reasoning over rules** — The agent dynamically constructs its attack plan from a live understanding of the target, not a predefined checklist.
-- **Multi-model collaboration** — Up to 3 AI models work as a team (Strategist, Recon Lead, Exploit Analyst), cross-validating findings and sharing context.
-- **Safety without friction** — A governance layer classifies every action as SAFE, PRIVILEGED, or DESTRUCTIVE. Dangerous commands are blocked; sensitive ones require user confirmation; safe ones execute immediately.
-- **Memory across sessions** — Findings, decisions, and context persist across sessions via semantic vector memory (ChromaDB / SQLite FTS5 fallback).
+```
+User: "Find vulnerabilities in example.com"
+    │
+    ▼
+┌─────────────────────────────────────────────────────────┐
+│  AI Reasoning Engine                                     │
+│  ├── Strategic Planning (Attack Tree Generation)        │
+│  ├── Tool Selection (120+ security tools)               │
+│  ├── Finding Analysis (CVSS, CVE matching)              │
+│  └── Strategy Adaptation (real-time re-planning)        │
+└─────────────────────────────────────────────────────────┘
+    │
+    ▼
+┌─────────────────────────────────────────────────────────┐
+│  Governance Layer                                       │
+│  ├── SAFE → Execute immediately                         │
+│  ├── PRIVILEGED → Ask user approval                     │
+│  └── DESTRUCTIVE → Block with popup                     │
+└─────────────────────────────────────────────────────────┘
+    │
+    ▼
+Reports: findings.json, CVSS scores, CVE references
+```
 
 ---
 
 ## Quick Start
 
-**Prerequisites:** Python 3.10+
+### Install
 
 ```bash
 pip install elengenix
+```
 
-# Verify environment
+### First Run
+
+```bash
+# System health check
 elengenix doctor
 
 # Configure AI providers
 elengenix configure
+
+# Start scanning
+elengenix scan example.com
 ```
 
----
+### TUI Mode
 
-## Usage
-
-### Terminal UI
 ```bash
 elengenix tui
 ```
 
-Two operational modes:
-- **CHILL** — Safe research, chat, code review. Tool execution disabled.
-- **HUNT** — Full autonomous vulnerability hunting.
+<div align="center">
 
 | Key | Action |
-|-----|--------|
-| `Ctrl+M` | Toggle CHILL / HUNT |
-| `Ctrl+S` | Settings overlay |
+|:---:|--------|
+| `Ctrl+M` | Toggle CHILL / HUNT mode |
+| `Ctrl+,` | Settings (MCP, AI providers) |
 | `Ctrl+G` | Help |
+| `Ctrl+D` | Dashboard |
 
-### Slash Commands
-```
-/target <domain>        Set target scope
-/mode <chill|hunt>      Switch mode
-/talk <1|2|3|all>       Route to specific agent in the team
-/session <new|list|load> Manage sessions
-/stats                  Memory & scan statistics
-```
+</div>
 
-### CLI Commands
-```bash
-elengenix scan <target>       # Full automated scan pipeline
-elengenix autonomous <target> # Fully autonomous mode
-elengenix sast <path>         # Static code analysis
-elengenix research <cve>      # CVE / exploit research
-elengenix watchman            # 24/7 monitoring daemon
-elengenix scan <target> -q    # Quiet mode: suppress phase-by-phase output
-```
+---
 
-### Phase 0: Elengenix Framework Pre-flight
+## Features
 
-Every `elengenix scan` invocation starts with **Phase 0: Pre-flight**, which runs
-5 pure-Python modules + a PythonRecon fallback to produce baseline findings
-**without requiring any third-party tool or AI provider**. This guarantees
-actionable output even when the network is rate-limited, AI quota is exhausted,
-or no scanners are installed.
+### 🧠 AI-Powered Reasoning
+
+Elengenix doesn't just run tools — it **thinks** about what to do next:
+
+- **Attack Tree Planning** — Generates strategic attack plans based on detected tech stack
+- **Dynamic Re-planning** — Adapts strategy based on findings and coverage gaps
+- **Cross-session Memory** — Remembers what worked on past targets (ChromaDB + SQLite FTS5)
+- **Multi-model Team** — Up to 3 AI models collaborate (Strategist, Recon Lead, Exploit Analyst)
+
+### 🛡️ Safety by Design
+
+Every command passes through a **Governance Layer** before execution:
+
+| Risk Level | Action | Example |
+|:----------:|--------|---------|
+| **SAFE** | Execute immediately | `nmap`, `curl`, `python3` |
+| **PRIVILEGED** | Ask user approval | `sudo apt install`, `pip install` |
+| **DESTRUCTIVE** | Show popup (Allow/Allow Always/Deny) | `rm -rf /`, `dd`, `mkfs` |
+
+### 🔍 Pre-flight Scanner (No AI Required)
+
+Even without AI providers, Elengenix produces actionable findings:
 
 | Phase | Module | What it does |
 |:-----:|--------|--------------|
-| 1 | `PythonRecon` | HTTP probe, directory discovery, port scan, subdomain enumeration, parameter discovery (interest-based delta) |
-| 2 | `SmartWAFDetector` | Probe-based WAF detection + suggested evasions (Cloudflare, Akamai, ModSecurity, etc.) |
-| 3 | `ActiveFuzzer` | XSS / SQLi / SSTI payload testing on top-3 discovered parameters |
-| 4 | `BOLATester` | Differential IDOR testing on endpoints with user/account/profile path tokens |
-| 5 | `LearningEngine` | Records every finding to a per-target SQLite database |
-| 6 | `CoverageAnalyzer` | Tracks endpoint coverage and untested paths |
+| 1 | `PythonRecon` | HTTP probe, directory discovery, port scan, subdomain enum |
+| 2 | `SmartWAFDetector` | WAF detection + evasion suggestions |
+| 3 | `ActiveFuzzer` | XSS / SQLi / SSTI payload testing |
+| 4 | `BOLATester` | Differential IDOR testing |
+| 5 | `LearningEngine` | Records findings to SQLite |
+| 6 | `CoverageAnalyzer` | Tracks endpoint coverage |
 
-The preflight findings are passed to the AI agent (if available) as context and
-saved to `reports/<target>_<timestamp>/elengenix_findings.json`.
+### 🔌 MCP Integration
 
-### elengenix_findings.json format
+Full support for Model Context Protocol — configure MCP servers via:
 
-```json
-[
-  {
-    "tool": "python_recon",
-    "type": "param_discovery",
-    "severity": "Low",
-    "url": "https://target.com/api/users",
-    "title": "Interesting parameter: q (GET)",
-    "details": "Delta: 42% (baseline=1200, test=1700)"
-  }
-]
+```bash
+# Via TUI (Ctrl+, → MCP Servers)
+# Via configure wizard
+elengenix configure  # → option 6
+
+# Or edit mcp.json directly
 ```
 
-Fields: `tool`, `type` (recon_http|endpoint|port|subdomain|param_discovery|waf|xss|sqli|bola),
-`severity` (Critical|High|Medium|Low|Informational), `url`, `title`, `details`.
+Default MCP servers included:
+- `sequential-thinking` — Structured problem-solving
+- `chain-of-recursive-thoughts` — Deep recursive analysis
+- `mcp-structured-thinking` — Step-by-step planning
+- `memory` — Cross-session memory
 
-### When AI is unavailable
+---
 
-If the configured AI provider (Gemini, OpenAI, NVIDIA NIM, etc.) returns errors
-— usually due to quota exhaustion, invalid API key, or network issues — Elengenix
-**does not produce an empty report**. Instead it auto-generates a report from
-preflight findings:
+## CLI Commands
 
-- **Severity breakdown** — count by Critical/High/Medium/Low/Informational
-- **Type breakdown** — count by finding type
-- **High-priority targets** — top 10 Critical/High findings with URLs
-- **Recommended next steps** — numbered list of follow-up actions
-- **AI provider fix instructions** — link to https://aistudio.google.com/apikey
+### Core
 
-A prominent yellow banner is printed when AI is unavailable. Fix AI access:
-1. Check API keys in `.env` (GEMINI_API_KEY, OPENAI_API_KEY, etc.)
-2. Verify provider quota at https://aistudio.google.com/apikey
-3. Or reconfigure with `python3 main.py configure`
+```bash
+elengenix scan <target>                    # Full automated scan
+elengenix scan <target> --phase recon      # Run specific phase only
+elengenix scan <target> --interactive bola # Interactive mode (advanced)
+elengenix tui                              # Textual TUI
+elengenix configure                        # Setup wizard
+elengenix doctor                           # System health check
+```
+
+### Multi-target
+
+```bash
+elengenix scan "example.com, api.example.com, admin.example.com"
+```
+
+### Shortcuts
+
+| Shortcut | Expands to | Description |
+|:--------:|------------|-------------|
+| `bb` | `scan --phase bola` | BOLA testing |
+| `check` | `scan --phase recon` | Quick recon |
+| `test` | `scan --phase waf` | WAF detection |
+| `hack` | `ai` | AI chat mode |
 
 ---
 
 ## Architecture
 
 ```
-User Input ──► Governance Gate ──► AI Reasoning Engine
-                                          │
-                     ┌────────────────────┼────────────────────┐
-                     ▼                    ▼                    ▼
-               Attack Planner      Tool Registry         Analysis Pipeline
-               (Dynamic tree)      (90+ tools)           (BOLA, CVSS, WAF,
-                                                          SOC, Exploit Chain)
-                                          │
-                                   Vector Memory
-                                   (Cross-session recall)
+┌──────────────────────────────────────────────────────────────┐
+│                        main.py                               │
+│                    (CLI Entry Point)                          │
+└──────────────────────────┬───────────────────────────────────┘
+                           │
+          ┌────────────────┴────────────────┐
+          ▼                                 ▼
+┌─────────────────────┐          ┌─────────────────────┐
+│   core/brain.py     │          │  core/orchestrator.py│
+│   (AI Reasoning)    │          │  (Pipeline Engine)   │
+└─────────┬───────────┘          └──────────┬──────────┘
+          │                                  │
+          ▼                                  ▼
+┌─────────────────────┐          ┌─────────────────────┐
+│  DecisionEngine     │          │  PhaseRegistry       │
+│  (AI chooses next)  │          │  (6-phase pipeline)  │
+└─────────┬───────────┘          └──────────┬──────────┘
+          │                                  │
+          ▼                                  ▼
+┌─────────────────────┐          ┌─────────────────────┐
+│  PostProcessor      │          │  ScopeManager        │
+│  (Analyze results)  │          │  (Target validation) │
+└─────────┬───────────┘          └──────────┬──────────┘
+          │                                  │
+          └────────────────┬─────────────────┘
+                           ▼
+                  ┌─────────────────┐
+                  │  Tool Registry  │
+                  │  (120+ tools)   │
+                  └─────────────────┘
 ```
 
 ---
 
-## AI Providers Supported
+## Configuration
 
-OpenAI · Anthropic · Google Gemini · Groq · NVIDIA NIM · Mistral · DeepSeek · Perplexity · OpenRouter · Ollama (local)
+### MCP Servers (mcp.json)
+
+```json
+{
+  "mcpServers": {
+    "sequential-thinking": {
+      "type": "local",
+      "command": ["npx", "-y", "@modelcontextprotocol/server-sequential-thinking"]
+    },
+    "memory": {
+      "type": "local",
+      "command": ["npx", "-y", "@modelcontextprotocol/server-memory"]
+    }
+  }
+}
+```
+
+Auto-copied from `mcp.json.example` on first run.
+
+### AI Providers
+
+Supported: OpenAI, Anthropic, Google Gemini, NVIDIA NIM, Groq, DeepSeek, Ollama (local)
+
+```bash
+elengenix configure  # Interactive setup wizard
+```
 
 ---
 
 ## Testing
 
 ```bash
+# Full test suite
 python3 -m pytest tests/ -v
+
+# Stable suite (no network)
+python3 -m pytest tests/test_tui.py tests/test_security.py tests/test_core_modules.py -v
 ```
 
-Test coverage includes: governance enforcement, native shell execution policy, target validation, multi-agent coordination, and session management.
+**379+ tests** covering: governance, shell execution, target validation, MCP protocol, scan pipeline, and more.
 
 ---
 
 ## Project Structure
 
 ```
-main.py              # CLI router
-agent_brain.py       # Core AI reasoning engine
-cli_textual.py       # Terminal UI (Textual)
-tools/
-  governance.py      # Risk classification engine
-  multi_agent.py     # Team Aegis collaboration (up to 3 models)
-  analysis_pipeline.py  # Post-finding analysis (CVSS, BOLA, chains)
-  vector_memory.py   # Semantic memory (ChromaDB / SQLite FTS5)
-  safe_exec.py       # Governance-gated native shell execution
-tests/               # pytest test suite
-knowledge/           # Security methodology documentation
+Elengenix/
+├── main.py                 # CLI entry point
+├── core/                   # Core engine
+│   ├── brain.py            # AI reasoning engine
+│   ├── orchestrator.py     # Pipeline orchestrator
+│   ├── agent.py            # Agent singleton
+│   └── scan_engine.py      # Smart scan engine
+├── agents/                 # Agent subsystem
+│   ├── scan_context.py     # Central state object
+│   ├── prompt_builder.py   # AI prompt assembly
+│   ├── decision_engine.py  # AI decision making
+│   ├── post_processor.py   # Result processing
+│   └── scan_loop.py        # Main execution loop
+├── pipeline/               # Pipeline modules
+│   ├── scope.py            # Target validation
+│   ├── phase_registry.py   # Configurable phases
+│   └── unified.py          # Unified pipeline entry
+├── mcp/                    # MCP integration
+│   ├── server.py           # MCP server
+│   ├── client.py           # MCP client
+│   ├── config.py           # MCP configuration
+│   └── manager.py          # MCP lifecycle
+├── tools/                  # 120+ security tools
+├── cli/                    # UI components
+├── tui/                    # Textual TUI
+├── commands/               # CLI commands
+└── tests/                  # 379+ tests
 ```
 
 ---
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for code standards, logging conventions, and security rules.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
-**Core rules:** 4-space indent · type hints everywhere · raw shell only behind governance · API keys in `.env` only
+**Core rules:**
+- 4-space indentation
+- Type hints everywhere
+- Shell commands only behind Governance
+- API keys in `.env` only
+- Use MCP thinking tools before coding
 
 ---
 
 ## License
 
-- **License**: GPL-3.0 — see [LICENSE](LICENSE) for details.
-
----
-
-## ⚡ Compute Sponsorship & API Integration
-
-We are incredibly grateful to the **AMD AI Cloud** program for sponsoring the high-performance compute infrastructure powered by **AMD Instinct™ MI300X** accelerators.
-
-Rather than competing with general-purpose frontier models, Elengenix is built on a **hybrid-intelligence model**:
-- **Downstream Utility Specialization** — We leverage local AMD accelerators to pre-process large security data sets, run high-frequency log parsing, and train specialized, lightweight helper models (e.g., 7B/8B parameter models) for specific local formatting and regex extraction tasks.
-- **Frontier API Orchestration** — The main strategic planners, multi-agent consensus logic, and high-level reasoning systems are designed to consume frontier APIs like Claude and GPT. These models act as the master orchestrators that direct our local utilities.
+GPL-3.0 — see [LICENSE](LICENSE)
 
 ---
 
 <div align="center">
 
-*Built by independent security researchers, for the open-source security community.*
+**Built for the open-source security community.**
+
+[![GitHub Stars](https://img.shields.io/github/stars/Ashveil1/Elengenix?style=social)](https://github.com/Ashveil1/Elengenix)
 
 </div>
