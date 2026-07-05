@@ -707,7 +707,7 @@ async def _run_phase3_fuzz(
                         {
                             "tool": "active_fuzzer",
                             "type": "xss",
-                            "severity": "High",
+                            "severity": "Unverified",  # CVSS engine will determine actual severity
                             "url": fr.url,
                             "title": f"Possible XSS: payload {fr.payload[:30]}",
                             "details": fr.reasoning,
@@ -720,7 +720,7 @@ async def _run_phase3_fuzz(
                         {
                             "tool": "active_fuzzer",
                             "type": "sqli",
-                            "severity": "Critical",
+                            "severity": "Unverified",  # CVSS engine will determine actual severity
                             "url": fr.url,
                             "title": f"Possible SQLi: payload {fr.payload[:30]}",
                             "details": fr.reasoning,
@@ -746,9 +746,18 @@ async def _run_phase4_bola(
     """Phase 4: BOLA / IDOR testing."""
     console.print("[bold red][Phase 4] BOLA / IDOR Testing[/bold red]")
     try:
+        # Check for real credentials from environment
+        # BOLA testing requires authenticated sessions to work properly
+        session_a = os.environ.get("BOLA_SESSION_A")
+        session_b = os.environ.get("BOLA_SESSION_B")
+
+        if not session_a or not session_b:
+            console.print("  [dim][SKIP] BOLA: No credentials configured (set BOLA_SESSION_A/BOLA_SESSION_B)[/dim]")
+            return []
+
         bola = BOLATester()
-        bola.register_session("user_a", cookies={"session": "user_a_token"})
-        bola.register_session("user_b", cookies={"session": "user_b_token"})
+        bola.register_session("user_a", cookies={"session": session_a})
+        bola.register_session("user_b", cookies={"session": session_b})
 
         # Determine BOLA target from Phase 1 recon
         bola_target_url = f"{base_url}/api/users/{{id}}"
@@ -1023,15 +1032,25 @@ async def run_standard_scan(
                 )
 
                 # Calculate CVSS scores from smart scan state
+                scored_findings = []
                 if state and state.results:
-                    from tools.cvss_calculator import CVSSCalculator
+                    scored_findings = calculate_cvss_for_results(
+                        list(state.results.values())
+                    )
 
-                    calculator = CVSSCalculator(use_ai=False)
-                    for result in state.results.values():
-                        for finding in result.findings:
-                            calculator.calculate_from_tool_result(
-                                result.tool_name, finding, "unknown"
-                            )
+                    # Save CVSS results
+                    cvss_file = report_dir / "cvss_scores.json"
+                    cvss_file.write_text(json.dumps(scored_findings, indent=2))
+
+                # Show correlated findings summary
+                if correlator and hasattr(correlator, "get_clusters"):
+                    clusters = correlator.get_clusters()
+                    if clusters:
+                        console.print(f"\n[bold]Correlated Findings: {len(clusters)} clusters[/bold]")
+
+                # Print findings summary
+                if state and state.results:
+                    print_findings_summary(list(state.results.values()))
 
                 console.print("\n[bold green][OK] Smart scan complete[/bold green]")
             else:
