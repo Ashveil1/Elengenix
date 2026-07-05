@@ -1,10 +1,10 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 750 140">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 750 80">
   <defs>
     <style>
       .bg { fill: #000000; }
       .term { fill: #0a0a0a; stroke: #1a1a1a; stroke-width: 1; }
-      .prompt { font-family: 'SF Mono','Fira Code','Consolas',monospace; font-size: 16px; fill: #555555; }
-      .typed { font-family: 'SF Mono','Fira Code','Consolas',monospace; font-size: 16px; fill: #999999; }
+      .prompt { font-family: 'SF Mono','Fira Code','Consolas',monospace; font-size: 20px; fill: #555555; }
+      .typed { font-family: 'SF Mono','Fira Code','Consolas',monospace; font-size: 20px; fill: #999999; }
       .t1 { opacity:0; animation: a 9s linear infinite; }
       .t2 { opacity:0; animation: b 9s linear infinite; }
       .t3 { opacity:0; animation: c 9s linear infinite; }
@@ -14,20 +14,12 @@
     </style>
   </defs>
 
-  <!-- Terminal box - bigger, no dots -->
-  <rect width="750" height="140" class="bg" rx="8"/>
-  <rect x="15" y="15" width="720" height="110" class="term" rx="6"/>
+  <rect width="750" height="80" class="bg" rx="8"/>
+  <rect x="15" y="15" width="720" height="50" class="term" rx="6"/>
 
-  <!-- Prompt closer to left edge -->
-  <text x="35" y="60" class="prompt">$</text>
-  <text x="55" y="60" class="typed t1">elengenix scan target.com</text>
-  <text x="55" y="60" class="typed t2">120+ tools, AI reasoning</text>
-  <text x="55" y="60" class="typed t3">find vulns before attackers</text>
-
-  <!-- Prompt line 2 -->
-  <text x="35" y="90" class="prompt">$</text>
-  <text x="55" y="90" class="typed t1" style="animation-delay:0.2s">python3 -m pytest tests/ -v</text>
-  <text x="55" y="90" class="typed t2" style="animation-delay:0.2s">400 passed in 8.42s</text>
-  <text x="55" y="90" class="typed t3" style="animation-delay:0.2s">all tests green</text>
+  <text x="35" y="48" class="prompt">$</text>
+  <text x="60" y="48" class="typed t1">elengenix scan target.com</text>
+  <text x="60" y="48" class="typed t2">120+ tools, AI reasoning</text>
+  <text x="60" y="48" class="typed t3">find vulns before attackers</text>
 
 </svg>
