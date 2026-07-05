@@ -1,8 +1,6 @@
 <div align="center">
 
-<img src="assets/elengenix.png" alt="Elengenix" width="600">
-
-# Elengenix
+<img src="assets/logo-animated.svg" alt="Elengenix" width="100%">
 
 ### Autonomous AI Security Research Framework
 
@@ -12,6 +10,7 @@
 [![License](https://img.shields.io/badge/License-GPL_3.0-red?style=for-the-badge)](LICENSE)
 [![Tests](https://img.shields.io/badge/Tests-379%20passing-white?style=for-the-badge)](https://github.com/Ashveil1/Elengenix/actions)
 [![MCP](https://img.shields.io/badge/MCP-Supported-red?style=for-the-badge)](https://modelcontextprotocol.io)
+[![Security](https://img.shields.io/badge/Security-Governance-red?style=for-the-badge)](https://github.com/Ashveil1/Elengenix)
 
 </div>
 
@@ -68,22 +67,29 @@ elengenix configure
 elengenix scan example.com
 ```
 
-### TUI Mode
+### Terminal Demo
 
-```bash
-elengenix tui
 ```
-
-<div align="center">
-
-| Key | Action |
-|:---:|--------|
-| `Ctrl+M` | Toggle CHILL / HUNT mode |
-| `Ctrl+,` | Settings (MCP, AI providers) |
-| `Ctrl+G` | Help |
-| `Ctrl+D` | Dashboard |
-
-</div>
+┌─────────────────────────────────────────────────────────────┐
+│  $ elengenix scan example.com                               │
+│                                                             │
+│  [Phase 0] Pre-flight Scan                                 │
+│  [OK] Recon: 42 endpoints, 3 ports, 12 subdomains          │
+│  [OK] WAF: Cloudflare (conf=0.95)                          │
+│  [OK] Fuzz: 128 tests, 3 interesting                       │
+│                                                             │
+│  [Phase 1] AI-Driven Analysis                              │
+│  [AI] Detected: PHP 8.2, MySQL 8.0, WordPress 6.4         │
+│  [AI] Attack tree: SQLi → XSS → SSRF → LFI                 │
+│  [AI] Testing SQL injection on /api/users...                │
+│  [FOUND] Critical: SQL Injection at /api/users?id=          │
+│  [FOUND] High: Reflected XSS at /search?q=                 │
+│                                                             │
+│  [Report] reports/example_com_2024/                         │
+│  - elengenix_findings.json (5 findings)                     │
+│  - cvss_scores.json (2 Critical, 1 High)                   │
+└─────────────────────────────────────────────────────────────┘
+```
 
 ---
 
@@ -92,6 +98,17 @@ elengenix tui
 ### AI-Powered Reasoning
 
 Elengenix doesn't just run tools — it **thinks** about what to do next:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    AI REASONING CYCLE                        │
+│                                                             │
+│   [PLAN] ──► [EXECUTE] ──► [ANALYZE] ──► [ADAPT]          │
+│      │                                         │            │
+│      └─────────────────────────────────────────┘            │
+│                    (continuous loop)                         │
+└─────────────────────────────────────────────────────────────┘
+```
 
 - **Attack Tree Planning** — Generates strategic attack plans based on detected tech stack
 - **Dynamic Re-planning** — Adapts strategy based on findings and coverage gaps

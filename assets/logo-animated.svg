@@ -1,0 +1,85 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 200">
+  <defs>
+    <style>
+      @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.7; }
+      }
+      @keyframes glow {
+        0%, 100% { filter: drop-shadow(0 0 5px #DC143C); }
+        50% { filter: drop-shadow(0 0 20px #DC143C); }
+      }
+      @keyframes scan {
+        0% { transform: translateX(-100%); }
+        100% { transform: translateX(100%); }
+      }
+      @keyframes blink {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0; }
+      }
+      .title { 
+        font-family: 'Courier New', monospace; 
+        font-size: 48px; 
+        font-weight: bold; 
+        fill: #FFFFFF;
+        animation: glow 2s ease-in-out infinite;
+      }
+      .subtitle { 
+        font-family: 'Courier New', monospace; 
+        font-size: 18px; 
+        fill: #DC143C;
+        animation: pulse 2s ease-in-out infinite;
+      }
+      .scan-line { 
+        fill: none; 
+        stroke: #DC143C; 
+        stroke-width: 2;
+        animation: scan 3s linear infinite;
+      }
+      .cursor { 
+        fill: #DC143C; 
+        animation: blink 1s step-end infinite;
+      }
+      .hex-bg { 
+        fill: #0D1117; 
+        stroke: #DC143C; 
+        stroke-width: 0.5;
+        opacity: 0.3;
+      }
+    </style>
+  </defs>
+  
+  <!-- Background -->
+  <rect width="800" height="200" fill="#0D1117"/>
+  
+  <!-- Hex grid background -->
+  <g class="hex-bg">
+    <polygon points="50,25 75,40 75,70 50,85 25,70 25,40" />
+    <polygon points="100,25 125,40 125,70 100,85 75,70 75,40" />
+    <polygon points="150,25 175,40 175,70 150,85 125,70 125,40" />
+    <polygon points="200,25 225,40 225,70 200,85 175,70 175,40" />
+    <polygon points="250,25 275,40 275,70 250,85 225,70 225,40" />
+    <polygon points="600,25 625,40 625,70 600,85 575,70 575,40" />
+    <polygon points="650,25 675,40 675,70 650,85 625,70 625,40" />
+    <polygon points="700,25 725,40 725,70 700,85 675,70 675,40" />
+    <polygon points="750,25 775,40 775,70 750,85 725,70 725,40" />
+  </g>
+  
+  <!-- Scan line animation -->
+  <line x1="0" y1="100" x2="800" y2="100" class="scan-line"/>
+  
+  <!-- Main title -->
+  <text x="400" y="90" text-anchor="middle" class="title">ELNGENIX</text>
+  
+  <!-- Subtitle -->
+  <text x="400" y="130" text-anchor="middle" class="subtitle">AUTONOMOUS AI SECURITY RESEARCH</text>
+  
+  <!-- Blinking cursor -->
+  <rect x="400" y="145" width="10" height="20" class="cursor"/>
+  
+  <!-- Corner decorations -->
+  <path d="M20,20 L40,20 L40,30" stroke="#DC143C" stroke-width="2" fill="none"/>
+  <path d="M780,20 L760,20 L760,30" stroke="#DC143C" stroke-width="2" fill="none"/>
+  <path d="M20,180 L40,180 L40,170" stroke="#DC143C" stroke-width="2" fill="none"/>
+  <path d="M780,180 L760,180 L760,170" stroke="#DC143C" stroke-width="2" fill="none"/>
+</svg>
