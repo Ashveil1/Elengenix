@@ -16,7 +16,7 @@
 
 </div>
 
----
+<img src="assets/red-divider.svg" width="100%">
 
 ## What is Elengenix?
 
@@ -46,7 +46,7 @@ User: "Find vulnerabilities in example.com"
 Reports: findings.json, CVSS scores, CVE references
 ```
 
----
+<img src="assets/red-divider.svg" width="100%">
 
 ## Quick Start
 
@@ -93,7 +93,7 @@ elengenix scan example.com
 └─────────────────────────────────────────────────────────────┘
 ```
 
----
+<img src="assets/red-divider.svg" width="100%">
 
 ## Features
 
@@ -116,6 +116,8 @@ Elengenix doesn't just run tools — it **thinks** about what to do next:
 - **Dynamic Re-planning** — Adapts strategy based on findings and coverage gaps
 - **Cross-session Memory** — Remembers what worked on past targets (ChromaDB + SQLite FTS5)
 - **Multi-model Team** — Up to 3 AI models collaborate (Strategist, Recon Lead, Exploit Analyst)
+
+<img src="assets/red-divider.svg" width="100%">
 
 ### Safety by Design
 
@@ -158,7 +160,7 @@ Default MCP servers included:
 - `mcp-structured-thinking` — Step-by-step planning
 - `memory` — Cross-session memory
 
----
+<img src="assets/red-divider.svg" width="100%">
 
 ## CLI Commands
 
@@ -188,7 +190,7 @@ elengenix scan "example.com, api.example.com, admin.example.com"
 | `test` | `scan --phase waf` | WAF detection |
 | `hack` | `ai` | AI chat mode |
 
----
+<img src="assets/red-divider.svg" width="100%">
 
 ## Architecture
 
@@ -225,7 +227,7 @@ elengenix scan "example.com, api.example.com, admin.example.com"
                   └─────────────────┘
 ```
 
----
+<img src="assets/red-divider.svg" width="100%">
 
 ## Configuration
 
@@ -256,7 +258,7 @@ Supported: OpenAI, Anthropic, Google Gemini, NVIDIA NIM, Groq, DeepSeek, Ollama 
 elengenix configure  # Interactive setup wizard
 ```
 
----
+<img src="assets/red-divider.svg" width="100%">
 
 ## Testing
 
@@ -270,7 +272,7 @@ python3 -m pytest tests/test_tui.py tests/test_security.py tests/test_core_modul
 
 **379+ tests** covering: governance, shell execution, target validation, MCP protocol, scan pipeline, and more.
 
----
+<img src="assets/red-divider.svg" width="100%">
 
 ## Project Structure
 
@@ -304,7 +306,7 @@ Elengenix/
 └── tests/                  # 379+ tests
 ```
 
----
+<img src="assets/red-divider.svg" width="100%">
 
 ## Contributing
 
@@ -317,13 +319,13 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 - API keys in `.env` only
 - Use MCP thinking tools before coding
 
----
+<img src="assets/red-divider.svg" width="100%">
 
 ## License
 
 GPL-3.0 — see [LICENSE](LICENSE)
 
----
+<img src="assets/red-divider.svg" width="100%">
 
 <div align="center">
 
