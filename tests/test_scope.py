@@ -258,4 +258,6 @@ class TestBackwardCompatibility:
 
         assert normalize_target("example.com") == "example.com"
         assert is_valid_target("example.com") is True
-        assert is_in_scope("example.com") is True
+        # is_in_scope returns False when no scope configured (fail-closed)
+        # This is correct behavior — configure scope.txt or ELENGENIX_SCOPE
+        assert is_in_scope("example.com") is False

@@ -76,9 +76,9 @@ def test_target_validation_and_normalization():
 
 
 def test_authorized_scan_target_allows_when_scope_unset(monkeypatch):
-    """Without configured scope, valid public targets remain allowed."""
+    """Without configured scope, targets are denied (fail-closed)."""
     monkeypatch.setattr("core.orchestrator._allowed_domains", set())
-    assert is_authorized_scan_target("example.com") is True
+    assert is_authorized_scan_target("example.com") is False
 
 
 def test_authorized_scan_target_enforces_scope(monkeypatch):

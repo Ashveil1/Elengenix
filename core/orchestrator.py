@@ -85,21 +85,38 @@ def reload_scope() -> None:
 
 
 def normalize_target(target: str) -> str:
+    """Normalize a target URL or domain.
+
+    Handles:
+    - URLs with scheme (http://, https://)
+    - URLs with userinfo (user:pass@host)
+    - URLs with port (host:8080)
+    - IPv4 addresses with port
+    - IPv6 addresses with brackets and port
+    - Bare domains
+    """
     if not target:
         return ""
     target = target.strip().lower()
+
+    # Handle URLs with scheme
     if target.startswith(("http://", "https://")):
         parsed = urlparse(target)
-        target = parsed.netloc or parsed.path.split("/")[0]
+        # Use hostname (not netloc) to avoid userinfo issues
+        # hostname strips userinfo and port correctly
+        target = parsed.hostname or parsed.path.split("/")[0]
+
     # Handle IPv6 with brackets: [::1]:8080 → ::1
     if target.startswith("["):
         bracket_end = target.find("]")
         if bracket_end > 0:
             target = target[1:bracket_end]
+
     # Handle IPv4 with port: 1.2.3.4:80 → 1.2.3.4
     # But NOT IPv6 (multiple colons)
     elif ":" in target and target.count(":") == 1:
         target = target.split(":")[0]
+
     return target.rstrip(".")
 
 
@@ -121,6 +138,11 @@ def is_valid_target(target: str) -> bool:
 
 
 def is_in_scope(target: str) -> bool:
+    """Check if target is in authorized scope.
+
+    Fail-closed: returns False if no scope is configured.
+    Configure scope via scope.txt or ELENGENIX_SCOPE env var.
+    """
     if not target:
         return False
     normalized = normalize_target(target)
@@ -128,7 +150,9 @@ def is_in_scope(target: str) -> bool:
         return False
     allowed = _get_allowed_domains()
     if not allowed:
-        return True
+        # Fail-closed: no scope configured = deny all
+        logger.warning("No scope configured — denying all targets. Set scope.txt or ELENGENIX_SCOPE.")
+        return False
     return normalized in allowed or any(
         normalized.endswith(f".{a}") for a in allowed
     )
@@ -185,9 +209,11 @@ async def run_tool_with_registry(
 async def run_registry_pipeline(
     target: str, report_dir: Path, rate_limit: int = 5, tool_filter: Optional[List[str]] = None
 ) -> List[ToolResult]:
-    """Run all available tools from registry."""
+    """Run all available tools from registry in parallel.
+
+    Uses asyncio.gather with semaphore for concurrency control.
+    """
     semaphore = asyncio.Semaphore(rate_limit)
-    results: List[ToolResult] = []
 
     # Get all registered tools or filtered list
     available_tools: List[Any] = []
@@ -203,31 +229,41 @@ async def run_registry_pipeline(
     if not available_tools:
         console.print("[grey70][WARN] No tools available in registry[/grey70]")
         _suggest_missing_tools(tools, target)
-        return results
+        return []
 
     console.print(f"[red][RUN] Running {len(available_tools)} tools from registry...[/red]")
 
-    # Execute each tool
-    for tool in available_tools:
-        try:
-            result = await run_tool_with_registry(tool.metadata.name, target, report_dir, semaphore)
-            results.append(result)
+    # Execute all tools in parallel (bounded by semaphore)
+    async def _run_one(tool):
+        async with semaphore:
+            return await run_tool_with_registry(
+                tool.metadata.name, target, report_dir, semaphore
+            )
 
-            if result.success and result.findings:
-                console.print(
-                    f"  [bold white][OK] {tool.metadata.name}: {len(result.findings)} findings[/bold white]"
-                )
-            elif result.success:
-                console.print(f"  [dim][ ] {tool.metadata.name}: No findings[/dim]")
-            else:
-                console.print(
-                    f"  [red][FAIL] {tool.metadata.name}: {(result.error_message or '')[:50]}...[/red]"
-                )
+    tasks = [_run_one(tool) for tool in available_tools]
+    results = await asyncio.gather(*tasks, return_exceptions=True)
 
-        except Exception as e:
-            logger.error(f"Pipeline error for {tool.metadata.name}: {e}")
+    # Process results
+    final_results: List[ToolResult] = []
+    for tool, result in zip(available_tools, results):
+        if isinstance(result, Exception):
+            logger.error(f"Pipeline error for {tool.metadata.name}: {result}")
+            continue
 
-    return results
+        final_results.append(result)
+
+        if result.success and result.findings:
+            console.print(
+                f"  [bold white][OK] {tool.metadata.name}: {len(result.findings)} findings[/bold white]"
+            )
+        elif result.success:
+            console.print(f"  [dim][ ] {tool.metadata.name}: No findings[/dim]")
+        else:
+            console.print(
+                f"  [red][FAIL] {tool.metadata.name}: {(result.error_message or '')[:50]}...[/red]"
+            )
+
+    return final_results
 
 
 def _suggest_missing_tools(
@@ -331,15 +367,25 @@ async def _run_phase1_recon(
     """
     Phase 1: Python-based recon (always runs, no AI needed).
     Returns the recon_result dict (or empty dict on failure).
+    Uses asyncio.to_thread to avoid blocking the event loop.
     """
     from tools.perf import Timer
 
     console.print("[bold red][Phase 1] Python Reconnaissance[/bold red]")
+
+    async def _run_recon():
+        """Run sync recon in thread to avoid blocking event loop."""
+        recon = PythonRecon(timeout=1.0, max_concurrent=40)
+        return recon.full_recon(target, quick=True)
+
     with Timer() as timer:
         try:
-            recon = PythonRecon(timeout=1.0, max_concurrent=40)
-            # Use quick mode (smaller wordlists) for production scans to keep latency reasonable
-            recon_result = recon.full_recon(target, quick=True)
+            recon_result = await asyncio.wait_for(
+                asyncio.to_thread(
+                    lambda: asyncio.new_event_loop().run_until_complete(_run_recon())
+                ),
+                timeout=timeout,
+            )
 
             # Save recon report
             recon_path = report_dir / "python_recon.json"
@@ -352,6 +398,10 @@ async def _run_phase1_recon(
                 f"{sum(1 for p in recon_result.get('parameters', []) if p.get('is_interesting'))} interesting params"
             )
             return recon_result
+        except asyncio.TimeoutError:
+            logger.error(f"python_recon timed out after {timeout}s")
+            console.print(f"  [WARN] python_recon timeout ({timeout}s)")
+            return {}
         except Exception as e:
             logger.error(f"python_recon failed: {e}")
             console.print(f"  [WARN] python_recon error: {e}")
@@ -659,12 +709,18 @@ async def _run_phase4_bola(
         # Determine BOLA target from Phase 1 recon
         bola_target_url = f"{base_url}/api/users/{{id}}"
         if recon_result:
-            for ep in recon_result.get("endpoints", []):
-                url = ep.get("url", "")
+            # Use "directories" key (recon output), not "endpoints"
+            for ep in recon_result.get("directories", []):
+                url = ep.get("url", "") or ""
                 if "api" in url and any(kw in url for kw in ["user", "account", "profile"]):
                     # Transform e.g. /api/user/123 to /api/user/{id}
                     parts = url.split("/")
                     if parts and parts[-1].isdigit():
+                        parts[-1] = "{id}"
+                        bola_target_url = "/".join(parts)
+                        break
+                    # Also handle UUID/slug patterns
+                    elif parts and len(parts[-1]) > 8:
                         parts[-1] = "{id}"
                         bola_target_url = "/".join(parts)
                         break
@@ -781,37 +837,48 @@ async def run_elengenix_modules(
     report_dir.mkdir(parents=True, exist_ok=True)
 
     # ── Phase 1 + 2 in parallel (both independent of each other) ──
+    task1 = asyncio.create_task(_run_phase1_recon(target, base_url, report_dir, timeout))
+    task2 = asyncio.create_task(_run_phase2_waf(base_url))
+
     try:
-        recon_result, waf_findings = await asyncio.gather(
-            _run_phase1_recon(target, base_url, report_dir, timeout),
-            _run_phase2_waf(base_url),
-        )
-    except KeyboardInterrupt:
+        recon_result, waf_findings = await asyncio.gather(task1, task2)
+    except (KeyboardInterrupt, asyncio.CancelledError):
         console.print("[yellow][WARN] Scan cancelled by user during Phase 1-2[/yellow]")
+        # Cancel running tasks
+        for t in [task1, task2]:
+            if not t.done():
+                t.cancel()
         return findings
     findings.extend(_recon_to_findings(recon_result, base_url))
     findings.extend(waf_findings)
 
     # ── Phase 3 + 4 in parallel (both depend on recon_result) ──
+    task3 = asyncio.create_task(_run_phase3_fuzz(recon_result, base_url))
+    task4 = asyncio.create_task(_run_phase4_bola(recon_result, base_url))
+
     try:
-        fuzz_findings, bola_findings = await asyncio.gather(
-            _run_phase3_fuzz(recon_result, base_url),
-            _run_phase4_bola(recon_result, base_url),
-        )
-    except KeyboardInterrupt:
+        fuzz_findings, bola_findings = await asyncio.gather(task3, task4)
+    except (KeyboardInterrupt, asyncio.CancelledError):
         console.print("[yellow][WARN] Scan cancelled by user during Phase 3-4[/yellow]")
+        # Cancel running tasks (fuzzer/BOLA threads may still run in background)
+        for t in [task3, task4]:
+            if not t.done():
+                t.cancel()
         return findings
     findings.extend(fuzz_findings)
     findings.extend(bola_findings)
 
     # ── Phase 5 + 6 in parallel (both depend on accumulated findings) ──
+    task5 = asyncio.create_task(_run_phase5_learning(findings, target, report_dir))
+    task6 = asyncio.create_task(_run_phase6_coverage(findings, report_dir))
+
     try:
-        await asyncio.gather(
-            _run_phase5_learning(findings, target, report_dir),
-            _run_phase6_coverage(findings, report_dir),
-        )
-    except KeyboardInterrupt:
+        await asyncio.gather(task5, task6)
+    except (KeyboardInterrupt, asyncio.CancelledError):
         console.print("[yellow][WARN] Scan cancelled by user during Phase 5-6[/yellow]")
+        for t in [task5, task6]:
+            if not t.done():
+                t.cancel()
         return findings
 
     return findings
@@ -947,7 +1014,14 @@ async def run_standard_scan(
         send_telegram_notification(f" Scan timeout for `{normalized}`")
         return str(report_dir) if report_dir.exists() else None
 
+    except KeyboardInterrupt:
+        logger.warning("Scan interrupted by user")
+        console.print("[yellow][WARN] Scan interrupted by user[/yellow]")
+        send_telegram_notification(f" Scan interrupted for `{normalized}`")
+        return str(report_dir) if report_dir.exists() else None
+
     except Exception as e:
-        logger.error(f"Pipeline crash: {e}")
+        logger.exception(f"Pipeline crash: {e}")
         console.print(f"[bold red][FAIL] Error: {e}[/bold red]")
+        send_telegram_notification(f" Scan FAILED for `{normalized}`: {e}")
         return None
