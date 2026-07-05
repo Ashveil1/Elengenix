@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="assets/color-cycle.svg" alt="Elengenix" width="700">
+<img src="assets/elengenix.png" alt="Elengenix" width="700">
 
 <img src="assets/typing-animation.svg" alt="Terminal" width="700">
 
