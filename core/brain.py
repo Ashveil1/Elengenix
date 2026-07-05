@@ -24,8 +24,8 @@ from tools.tool_registry import ToolResult, registry
 # Core imports (always needed)
 from tools.universal_ai_client import AIClientManager, AIMessage
 
-# New pipeline modules are imported lazily inside _process_query_new()
-# to avoid breaking the existing system if they have import errors.
+# New pipeline modules (lazy imports in _process_query_new())
+from agents.scan_context import ScanContext
 
 # Lazy imports (deferred until needed)
 _vector_memory = None
