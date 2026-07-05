@@ -89,6 +89,13 @@ class SettingsOverlay:
             padding=(1, 2),
         )
 
+    def _adjust_scroll(self) -> None:
+        """Adjust scroll offset to keep selected item visible."""
+        if self._selected_idx < self._scroll_offset:
+            self._scroll_offset = self._selected_idx
+        elif self._selected_idx >= self._scroll_offset + self._max_visible:
+            self._scroll_offset = self._selected_idx - self._max_visible + 1
+
     def handle_char(self, ch: str) -> Optional[str]:
         """Process a single key character. Returns 'exit', 'saved', 'error', or None."""
         # Arrow keys - must have full escape sequence
