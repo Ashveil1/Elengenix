@@ -1,110 +1,33 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 50">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 750 140">
   <defs>
     <style>
       .bg { fill: #000000; }
       .term { fill: #0a0a0a; stroke: #1a1a1a; stroke-width: 1; }
-      .prompt { font-family: 'SF Mono','Fira Code','Consolas',monospace; font-size: 14px; fill: #555555; }
-      .c { font-family: 'SF Mono','Fira Code','Consolas',monospace; font-size: 14px; fill: #999999; opacity: 0; }
-      /* Each line has unique class prefix: a=show, b=hide, delay 0.08s per char */
+      .prompt { font-family: 'SF Mono','Fira Code','Consolas',monospace; font-size: 16px; fill: #555555; }
+      .typed { font-family: 'SF Mono','Fira Code','Consolas',monospace; font-size: 16px; fill: #999999; }
+      .t1 { opacity:0; animation: a 9s linear infinite; }
+      .t2 { opacity:0; animation: b 9s linear infinite; }
+      .t3 { opacity:0; animation: c 9s linear infinite; }
+      @keyframes a { 0%{opacity:0} 1%{opacity:1} 30%{opacity:1} 35%{opacity:0} 100%{opacity:0} }
+      @keyframes b { 0%{opacity:0} 40%{opacity:0} 41%{opacity:1} 70%{opacity:1} 75%{opacity:0} 100%{opacity:0} }
+      @keyframes c { 0%{opacity:0} 80%{opacity:0} 81%{opacity:1} 98%{opacity:1} 100%{opacity:0} }
     </style>
   </defs>
 
-  <rect width="700" height="50" class="bg" rx="6"/>
-  <rect x="10" y="6" width="680" height="38" class="term" rx="4"/>
-  <circle cx="24" cy="16" r="4" fill="#444444"/>
-  <circle cx="38" cy="16" r="4" fill="#2a2a2a"/>
-  <circle cx="52" cy="16" r="4" fill="#2a2a2a"/>
-  <text x="72" y="30" class="prompt">$</text>
+  <!-- Terminal box - bigger, no dots -->
+  <rect width="750" height="140" class="bg" rx="8"/>
+  <rect x="15" y="15" width="720" height="110" class="term" rx="6"/>
 
-  <!-- LINE 1: "elengenix scan target.com" (0s - 3s) -->
-  <text x="88" y="30" class="c" style="animation: a 9s infinite; animation-delay: 0.00s">e</text>
-  <text x="95" y="30" class="c" style="animation: a 9s infinite; animation-delay: 0.08s">l</text>
-  <text x="100" y="30" class="c" style="animation: a 9s infinite; animation-delay: 0.16s">e</text>
-  <text x="107" y="30" class="c" style="animation: a 9s infinite; animation-delay: 0.24s">n</text>
-  <text x="115" y="30" class="c" style="animation: a 9s infinite; animation-delay: 0.32s">g</text>
-  <text x="123" y="30" class="c" style="animation: a 9s infinite; animation-delay: 0.40s">e</text>
-  <text x="130" y="30" class="c" style="animation: a 9s infinite; animation-delay: 0.48s">n</text>
-  <text x="138" y="30" class="c" style="animation: a 9s infinite; animation-delay: 0.56s">i</text>
-  <text x="143" y="30" class="c" style="animation: a 9s infinite; animation-delay: 0.64s">x</text>
-  <text x="151" y="30" class="c" style="animation: a 9s infinite; animation-delay: 0.72s"> </text>
-  <text x="157" y="30" class="c" style="animation: a 9s infinite; animation-delay: 0.80s">s</text>
-  <text x="164" y="30" class="c" style="animation: a 9s infinite; animation-delay: 0.88s">c</text>
-  <text x="172" y="30" class="c" style="animation: a 9s infinite; animation-delay: 0.96s">a</text>
-  <text x="180" y="30" class="c" style="animation: a 9s infinite; animation-delay: 1.04s">n</text>
-  <text x="188" y="30" class="c" style="animation: a 9s infinite; animation-delay: 1.12s"> </text>
-  <text x="194" y="30" class="c" style="animation: a 9s infinite; animation-delay: 1.20s">t</text>
-  <text x="201" y="30" class="c" style="animation: a 9s infinite; animation-delay: 1.28s">a</text>
-  <text x="209" y="30" class="c" style="animation: a 9s infinite; animation-delay: 1.36s">r</text>
-  <text x="216" y="30" class="c" style="animation: a 9s infinite; animation-delay: 1.44s">g</text>
-  <text x="224" y="30" class="c" style="animation: a 9s infinite; animation-delay: 1.52s">e</text>
-  <text x="231" y="30" class="c" style="animation: a 9s infinite; animation-delay: 1.60s">t</text>
-  <text x="238" y="30" class="c" style="animation: a 9s infinite; animation-delay: 1.68s">.</text>
-  <text x="244" y="30" class="c" style="animation: a 9s infinite; animation-delay: 1.76s">c</text>
-  <text x="251" y="30" class="c" style="animation: a 9s infinite; animation-delay: 1.84s">o</text>
-  <text x="258" y="30" class="c" style="animation: a 9s infinite; animation-delay: 1.92s">m</text>
+  <!-- Prompt closer to left edge -->
+  <text x="35" y="60" class="prompt">$</text>
+  <text x="55" y="60" class="typed t1">elengenix scan target.com</text>
+  <text x="55" y="60" class="typed t2">120+ tools, AI reasoning</text>
+  <text x="55" y="60" class="typed t3">find vulns before attackers</text>
 
-  <!-- LINE 2: "120+ tools, AI reasoning, real-time" (3s - 6s) -->
-  <text x="88" y="30" class="c" style="animation: b 9s infinite; animation-delay: 0.00s">1</text>
-  <text x="95" y="30" class="c" style="animation: b 9s infinite; animation-delay: 0.08s">2</text>
-  <text x="101" y="30" class="c" style="animation: b 9s infinite; animation-delay: 0.16s">0</text>
-  <text x="109" y="30" class="c" style="animation: b 9s infinite; animation-delay: 0.24s">+</text>
-  <text x="116" y="30" class="c" style="animation: b 9s infinite; animation-delay: 0.32s"> </text>
-  <text x="122" y="30" class="c" style="animation: b 9s infinite; animation-delay: 0.40s">t</text>
-  <text x="129" y="30" class="c" style="animation: b 9s infinite; animation-delay: 0.48s">o</text>
-  <text x="136" y="30" class="c" style="animation: b 9s infinite; animation-delay: 0.56s">o</text>
-  <text x="143" y="30" class="c" style="animation: b 9s infinite; animation-delay: 0.64s">l</text>
-  <text x="149" y="30" class="c" style="animation: b 9s infinite; animation-delay: 0.72s">s</text>
-  <text x="156" y="30" class="c" style="animation: b 9s infinite; animation-delay: 0.80s">,</text>
-  <text x="162" y="30" class="c" style="animation: b 9s infinite; animation-delay: 0.88s"> </text>
-  <text x="168" y="30" class="c" style="animation: b 9s infinite; animation-delay: 0.96s">A</text>
-  <text x="176" y="30" class="c" style="animation: b 9s infinite; animation-delay: 1.04s">I</text>
-  <text x="182" y="30" class="c" style="animation: b 9s infinite; animation-delay: 1.12s"> </text>
-  <text x="188" y="30" class="c" style="animation: b 9s infinite; animation-delay: 1.20s">r</text>
-  <text x="195" y="30" class="c" style="animation: b 9s infinite; animation-delay: 1.28s">e</text>
-  <text x="202" y="30" class="c" style="animation: b 9s infinite; animation-delay: 1.36s">a</text>
-  <text x="210" y="30" class="c" style="animation: b 9s infinite; animation-delay: 1.44s">s</text>
-  <text x="217" y="30" class="c" style="animation: b 9s infinite; animation-delay: 1.52s">o</text>
-  <text x="224" y="30" class="c" style="animation: b 9s infinite; animation-delay: 1.60s">n</text>
-  <text x="232" y="30" class="c" style="animation: b 9s infinite; animation-delay: 1.68s">i</text>
-  <text x="237" y="30" class="c" style="animation: b 9s infinite; animation-delay: 1.76s">n</text>
-  <text x="245" y="30" class="c" style="animation: b 9s infinite; animation-delay: 1.84s">g</text>
-
-  <!-- LINE 3: "find vulnerabilities before attackers do" (6s - 9s) -->
-  <text x="88" y="30" class="c" style="animation: c 9s infinite; animation-delay: 0.00s">f</text>
-  <text x="95" y="30" class="c" style="animation: c 9s infinite; animation-delay: 0.08s">i</text>
-  <text x="100" y="30" class="c" style="animation: c 9s infinite; animation-delay: 0.16s">n</text>
-  <text x="108" y="30" class="c" style="animation: c 9s infinite; animation-delay: 0.24s">d</text>
-  <text x="116" y="30" class="c" style="animation: c 9s infinite; animation-delay: 0.32s"> </text>
-  <text x="122" y="30" class="c" style="animation: c 9s infinite; animation-delay: 0.40s">v</text>
-  <text x="129" y="30" class="c" style="animation: c 9s infinite; animation-delay: 0.48s">u</text>
-  <text x="136" y="30" class="c" style="animation: c 9s infinite; animation-delay: 0.56s">l</text>
-  <text x="142" y="30" class="c" style="animation: c 9s infinite; animation-delay: 0.64s">n</text>
-  <text x="150" y="30" class="c" style="animation: c 9s infinite; animation-delay: 0.72s">s</text>
-  <text x="157" y="30" class="c" style="animation: c 9s infinite; animation-delay: 0.80s"> </text>
-  <text x="163" y="30" class="c" style="animation: c 9s infinite; animation-delay: 0.88s">b</text>
-  <text x="170" y="30" class="c" style="animation: c 9s infinite; animation-delay: 0.96s">e</text>
-  <text x="177" y="30" class="c" style="animation: c 9s infinite; animation-delay: 1.04s">f</text>
-  <text x="183" y="30" class="c" style="animation: c 9s infinite; animation-delay: 1.12s">o</text>
-  <text x="190" y="30" class="c" style="animation: c 9s infinite; animation-delay: 1.20s">r</text>
-  <text x="197" y="30" class="c" style="animation: c 9s infinite; animation-delay: 1.28s">e</text>
-  <text x="204" y="30" class="c" style="animation: c 9s infinite; animation-delay: 1.36s"> </text>
-  <text x="210" y="30" class="c" style="animation: c 9s infinite; animation-delay: 1.44s">a</text>
-  <text x="217" y="30" class="c" style="animation: c 9s infinite; animation-delay: 1.52s">t</text>
-  <text x="223" y="30" class="c" style="animation: c 9s infinite; animation-delay: 1.60s">t</text>
-  <text x="229" y="30" class="c" style="animation: c 9s infinite; animation-delay: 1.68s">a</text>
-  <text x="236" y="30" class="c" style="animation: c 9s infinite; animation-delay: 1.76s">c</text>
-  <text x="243" y="30" class="c" style="animation: c 9s infinite; animation-delay: 1.84s">k</text>
-  <text x="250" y="30" class="c" style="animation: c 9s infinite; animation-delay: 1.92s">e</text>
-  <text x="257" y="30" class="c" style="animation: c 9s infinite; animation-delay: 2.00s">r</text>
-  <text x="264" y="30" class="c" style="animation: c 9s infinite; animation-delay: 2.08s">s</text>
-  <text x="271" y="30" class="c" style="animation: c 9s infinite; animation-delay: 2.16s"> </text>
-  <text x="277" y="30" class="c" style="animation: c 9s infinite; animation-delay: 2.24s">d</text>
-  <text x="284" y="30" class="c" style="animation: c 9s infinite; animation-delay: 2.32s">o</text>
-
-  <style>
-    @keyframes a { 0%{opacity:0} 0.5%{opacity:1} 32%{opacity:1} 34%{opacity:0} 100%{opacity:0} }
-    @keyframes b { 0%{opacity:0} 34%{opacity:0} 34.5%{opacity:1} 65%{opacity:1} 67%{opacity:0} 100%{opacity:0} }
-    @keyframes c { 0%{opacity:0} 67%{opacity:0} 67.5%{opacity:1} 98%{opacity:1} 100%{opacity:0} }
-  </style>
+  <!-- Prompt line 2 -->
+  <text x="35" y="90" class="prompt">$</text>
+  <text x="55" y="90" class="typed t1" style="animation-delay:0.2s">python3 -m pytest tests/ -v</text>
+  <text x="55" y="90" class="typed t2" style="animation-delay:0.2s">400 passed in 8.42s</text>
+  <text x="55" y="90" class="typed t3" style="animation-delay:0.2s">all tests green</text>
 
 </svg>
