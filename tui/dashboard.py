@@ -128,6 +128,7 @@ class ThreatDashboard(Container):
         layout: vertical;
         width: 100%;
         height: 100%;
+        min-width: 80;
         background: #0d0d0d;
     }
     ThreatDashboard #dash-header {
@@ -147,6 +148,8 @@ class ThreatDashboard(Container):
     ThreatDashboard #topology-panel {
         width: 1fr;
         height: 1fr;
+        min-width: 20;
+        min-height: 5;
         border: round #444444;
     }
     """
