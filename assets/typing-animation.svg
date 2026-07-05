@@ -8,7 +8,6 @@
       .typed { font-family: 'SF Mono','Fira Code','Consolas',monospace; font-size: 14px; fill: #999999; }
       .cursor { fill: #ffffff; animation: blink 1s step-end infinite; }
     </style>
-    <!-- Clip paths that grow from left to right = text reveal -->
     <clipPath id="r1"><rect x="88" y="25" width="0" height="20">
       <animate attributeName="width" from="0" to="200" dur="2.4s" begin="0s" fill="freeze" repeatCount="8"/>
       <animate attributeName="width" from="200" to="0" dur="0.3s" begin="2.8s" fill="freeze" repeatCount="8"/>
@@ -30,15 +29,14 @@
   <circle cx="52" cy="20" r="4" fill="#2a2a2a"/>
   <text x="72" y="40" class="prompt">$</text>
 
-  <!-- Cursor that moves with text reveal -->
-  <rect x="86" y="26" width="8" height="18" class="cursor">
-    <!-- Line 1: cursor moves from 86 to 286 (200px reveal) -->
-    <animateTransform attributeName="transform" type="translate" values="0,0;200,0;200,0;0,0;0,0" keyTimes="0;0.3;0.35;0.4;1" dur="8s" repeatCount="indefinite"/>
-  </rect>
-
-  <!-- Text lines with clip-path reveal -->
+  <!-- Text lines FIRST (rendered behind cursor) -->
   <text x="88" y="40" class="typed" clip-path="url(#r1)">elengenix scan target.com</text>
   <text x="88" y="40" class="typed" clip-path="url(#r2)">120+ tools, AI reasoning, real-time</text>
   <text x="88" y="40" class="typed" clip-path="url(#r3)">find vulns before attackers do</text>
+
+  <!-- Cursor LAST (rendered on top of everything) -->
+  <rect x="86" y="26" width="8" height="18" class="cursor">
+    <animateTransform attributeName="transform" type="translate" values="0,0;200,0;200,0;0,0;0,0" keyTimes="0;0.3;0.35;0.4;1" dur="8s" repeatCount="indefinite"/>
+  </rect>
 
 </svg>
