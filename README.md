@@ -1,15 +1,24 @@
 <div align="center">
 
-# <img src="assets/elengenix.png" alt="Elengenix" width="120">
+```
+ ███████╗██╗     ███████╗███╗   ██╗███████╗███████╗██╗   ██╗██╗██╗  ██╗
+ ██╔════╝██║     ██╔════╝████╗  ██║██╔════╝██╔════╝██║   ██║██║╚██╗██╔╝
+ █████╗  ██║     █████╗  ██╔██╗ ██║██║     █████╗  ██║   ██║██║ ╚███╔╝ 
+ ██╔══╝  ██║     ██╔══╝  ██║╚██╗██║██║     ██╔══╝  ██║   ██║██║ ██╔██╗ 
+ ██║     ███████╗███████╗██║ ╚████║╚██████╗███████╗██║   ██║██║██╔╝ ██╗
+ ╚═╝     ╚══════╝╚══════╝╚═╝  ╚═══╝ ╚═════╝╚══════╝╚═╝   ╚═╝╚═╝╚═╝  ╚═╝
+```
 
-### Elengenix — Autonomous AI Security Research Framework
+# Elengenix
+
+### Autonomous AI Security Research Framework
 
 *Reasoning-driven vulnerability discovery that thinks like a penetration tester.*
 
-[![Python](https://img.shields.io/badge/Python-3.10+-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
-[![License](https://img.shields.io/badge/License-GPL_3.0-green?style=for-the-badge)](LICENSE)
-[![Tests](https://img.shields.io/badge/Tests-379%20passing-brightgreen?style=for-the-badge)](https://github.com/Ashveil1/Elengenix/actions)
-[![MCP](https://img.shields.io/badge/MCP-Supported-blueviolet?style=for-the-badge)](https://modelcontextprotocol.io)
+[![Python](https://img.shields.io/badge/Python-3.10+-white?style=for-the-badge&logo=python&logoColor=red)](https://python.org)
+[![License](https://img.shields.io/badge/License-GPL_3.0-red?style=for-the-badge)](LICENSE)
+[![Tests](https://img.shields.io/badge/Tests-379%20passing-white?style=for-the-badge)](https://github.com/Ashveil1/Elengenix/actions)
+[![MCP](https://img.shields.io/badge/MCP-Supported-red?style=for-the-badge)](https://modelcontextprotocol.io)
 
 </div>
 
@@ -308,6 +317,6 @@ GPL-3.0 — see [LICENSE](LICENSE)
 
 **Built for the open-source security community.**
 
-[![GitHub Stars](https://img.shields.io/github/stars/Ashveil1/Elengenix?style=social)](https://github.com/Ashveil1/Elengenix)
+[![GitHub Stars](https://img.shields.io/github/stars/Ashveil1/Elengenix?style=for-the-badge&color=red)](https://github.com/Ashveil1/Elengenix)
 
 </div>
