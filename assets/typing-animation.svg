@@ -4,27 +4,105 @@
       .bg { fill: #000000; }
       .term { fill: #0a0a0a; stroke: #1a1a1a; stroke-width: 1; }
       .prompt { font-family: 'SF Mono','Fira Code','Consolas',monospace; font-size: 14px; fill: #555555; }
-      .cmd { font-family: 'SF Mono','Fira Code','Consolas',monospace; font-size: 14px; fill: #999999; }
-      .l1 { opacity:0; animation: show1 9s infinite; }
-      .l2 { opacity:0; animation: show2 9s infinite; }
-      .l3 { opacity:0; animation: show3 9s infinite; }
-      @keyframes show1 { 0%{opacity:0} 1%{opacity:1} 30%{opacity:1} 35%{opacity:0} 100%{opacity:0} }
-      @keyframes show2 { 0%{opacity:0} 38%{opacity:0} 40%{opacity:1} 68%{opacity:1} 73%{opacity:0} 100%{opacity:0} }
-      @keyframes show3 { 0%{opacity:0} 78%{opacity:0} 80%{opacity:1} 98%{opacity:1} 100%{opacity:0} }
+      .c { font-family: 'SF Mono','Fira Code','Consolas',monospace; font-size: 14px; fill: #999999; opacity: 0; }
+
+      /* Line 1: chars 1-23 appear at 0.1s intervals, then all fade */
+      @keyframes show { 0%{opacity:0} 100%{opacity:1} }
+      @keyframes hide { 0%{opacity:1} 100%{opacity:0} }
+
+      .c1  { animation: show 0.08s 0.00s forwards, hide 0.15s 3.00s forwards; }
+      .c2  { animation: show 0.08s 0.08s forwards, hide 0.15s 3.08s forwards; }
+      .c3  { animation: show 0.08s 0.16s forwards, hide 0.15s 3.16s forwards; }
+      .c4  { animation: show 0.08s 0.24s forwards, hide 0.15s 3.24s forwards; }
+      .c5  { animation: show 0.08s 0.32s forwards, hide 0.15s 3.32s forwards; }
+      .c6  { animation: show 0.08s 0.40s forwards, hide 0.15s 3.40s forwards; }
+      .c7  { animation: show 0.08s 0.48s forwards, hide 0.15s 3.48s forwards; }
+      .c8  { animation: show 0.08s 0.56s forwards, hide 0.15s 3.56s forwards; }
+      .c9  { animation: show 0.08s 0.64s forwards, hide 0.15s 3.64s forwards; }
+      .c10 { animation: show 0.08s 0.72s forwards, hide 0.15s 3.72s forwards; }
+      .c11 { animation: show 0.08s 0.80s forwards, hide 0.15s 3.80s forwards; }
+      .c12 { animation: show 0.08s 0.88s forwards, hide 0.15s 3.88s forwards; }
+      .c13 { animation: show 0.08s 0.96s forwards, hide 0.15s 3.96s forwards; }
+      .c14 { animation: show 0.08s 1.04s forwards, hide 0.15s 4.04s forwards; }
+      .c15 { animation: show 0.08s 1.12s forwards, hide 0.15s 4.12s forwards; }
+      .c16 { animation: show 0.08s 1.20s forwards, hide 0.15s 4.20s forwards; }
+      .c17 { animation: show 0.08s 1.28s forwards, hide 0.15s 4.28s forwards; }
+      .c18 { animation: show 0.08s 1.36s forwards, hide 0.15s 4.36s forwards; }
+      .c19 { animation: show 0.08s 1.44s forwards, hide 0.15s 4.44s forwards; }
+      .c20 { animation: show 0.08s 1.52s forwards, hide 0.15s 4.52s forwards; }
+      .c21 { animation: show 0.08s 1.60s forwards, hide 0.15s 4.60s forwards; }
+      .c22 { animation: show 0.08s 1.68s forwards, hide 0.15s 4.68s forwards; }
+      .c23 { animation: show 0.08s 1.76s forwards, hide 0.15s 4.76s forwards; }
+
+      /* Line 2 */
+      .d1  { animation: show 0.08s 3.40s forwards, hide 0.15s 6.40s forwards; }
+      .d2  { animation: show 0.08s 3.48s forwards, hide 0.15s 6.48s forwards; }
+      .d3  { animation: show 0.08s 3.56s forwards, hide 0.15s 6.56s forwards; }
+      .d4  { animation: show 0.08s 3.64s forwards, hide 0.15s 6.64s forwards; }
+      .d5  { animation: show 0.08s 3.72s forwards, hide 0.15s 6.72s forwards; }
+      .d6  { animation: show 0.08s 3.80s forwards, hide 0.15s 6.80s forwards; }
+      .d7  { animation: show 0.08s 3.88s forwards, hide 0.15s 6.88s forwards; }
+      .d8  { animation: show 0.08s 3.96s forwards, hide 0.15s 6.96s forwards; }
+      .d9  { animation: show 0.08s 4.04s forwards, hide 0.15s 7.04s forwards; }
+      .d10 { animation: show 0.08s 4.12s forwards, hide 0.15s 7.12s forwards; }
+      .d11 { animation: show 0.08s 4.20s forwards, hide 0.15s 7.20s forwards; }
+      .d12 { animation: show 0.08s 4.28s forwards, hide 0.15s 7.28s forwards; }
+      .d13 { animation: show 0.08s 4.36s forwards, hide 0.15s 7.36s forwards; }
+      .d14 { animation: show 0.08s 4.44s forwards, hide 0.15s 7.44s forwards; }
+      .d15 { animation: show 0.08s 4.52s forwards, hide 0.15s 7.52s forwards; }
+      .d16 { animation: show 0.08s 4.60s forwards, hide 0.15s 7.60s forwards; }
+      .d17 { animation: show 0.08s 4.68s forwards, hide 0.15s 7.68s forwards; }
+      .d18 { animation: show 0.08s 4.76s forwards, hide 0.15s 7.76s forwards; }
+      .d19 { animation: show 0.08s 4.84s forwards, hide 0.15s 7.84s forwards; }
+      .d20 { animation: show 0.08s 4.92s forwards, hide 0.15s 7.92s forwards; }
+      .d21 { animation: show 0.08s 5.00s forwards, hide 0.15s 8.00s forwards; }
+      .d22 { animation: show 0.08s 5.08s forwards, hide 0.15s 8.08s forwards; }
+      .d23 { animation: show 0.08s 5.16s forwards, hide 0.15s 8.16s forwards; }
+      .d24 { animation: show 0.08s 5.24s forwards, hide 0.15s 8.24s forwards; }
+      .d25 { animation: show 0.08s 5.32s forwards, hide 0.15s 8.32s forwards; }
+      .d26 { animation: show 0.08s 5.40s forwards, hide 0.15s 8.40s forwards; }
+
+      /* Line 3 */
+      .e1  { animation: show 0.08s 6.60s forwards, hide 0.15s 9.00s forwards; }
+      .e2  { animation: show 0.08s 6.68s forwards, hide 0.15s 9.08s forwards; }
+      .e3  { animation: show 0.08s 6.76s forwards, hide 0.15s 9.16s forwards; }
+      .e4  { animation: show 0.08s 6.84s forwards, hide 0.15s 9.24s forwards; }
+      .e5  { animation: show 0.08s 6.92s forwards, hide 0.15s 9.32s forwards; }
+      .e6  { animation: show 0.08s 7.00s forwards, hide 0.15s 9.40s forwards; }
+      .e7  { animation: show 0.08s 7.08s forwards, hide 0.15s 9.48s forwards; }
+      .e8  { animation: show 0.08s 7.16s forwards, hide 0.15s 9.56s forwards; }
+      .e9  { animation: show 0.08s 7.24s forwards, hide 0.15s 9.64s forwards; }
+      .e10 { animation: show 0.08s 7.32s forwards, hide 0.15s 9.72s forwards; }
+      .e11 { animation: show 0.08s 7.40s forwards, hide 0.15s 9.80s forwards; }
+      .e12 { animation: show 0.08s 7.48s forwards, hide 0.15s 9.88s forwards; }
+      .e13 { animation: show 0.08s 7.56s forwards, hide 0.15s 9.96s forwards; }
+      .e14 { animation: show 0.08s 7.64s forwards, hide 0.15s 10.04s forwards; }
+      .e15 { animation: show 0.08s 7.72s forwards, hide 0.15s 10.12s forwards; }
+      .e16 { animation: show 0.08s 7.80s forwards, hide 0.15s 10.20s forwards; }
+      .e17 { animation: show 0.08s 7.88s forwards, hide 0.15s 10.28s forwards; }
+      .e18 { animation: show 0.08s 7.96s forwards, hide 0.15s 10.36s forwards; }
+      .e19 { animation: show 0.08s 8.04s forwards, hide 0.15s 10.44s forwards; }
+      .e20 { animation: show 0.08s 8.12s forwards, hide 0.15s 10.52s forwards; }
+      .e21 { animation: show 0.08s 8.20s forwards, hide 0.15s 10.60s forwards; }
+      .e22 { animation: show 0.08s 8.28s forwards, hide 0.15s 10.68s forwards; }
+      .e23 { animation: show 0.08s 8.36s forwards, hide 0.15s 10.76s forwards; }
     </style>
   </defs>
 
   <rect width="700" height="50" class="bg" rx="6"/>
   <rect x="10" y="6" width="680" height="38" class="term" rx="4"/>
-
   <circle cx="24" cy="16" r="4" fill="#444444"/>
   <circle cx="38" cy="16" r="4" fill="#2a2a2a"/>
   <circle cx="52" cy="16" r="4" fill="#2a2a2a"/>
-
   <text x="72" y="30" class="prompt">$</text>
 
-  <text x="88" y="30" class="cmd l1">elengenix scan target.com</text>
-  <text x="88" y="30" class="cmd l2">120+ tools, AI reasoning, real-time</text>
-  <text x="88" y="30" class="cmd l3">find vulnerabilities before attackers do</text>
+  <!-- Line 1: elengenix scan target.com (23 chars) -->
+  <text x="88" y="30" class="c c1">e</text><text x="95.2" y="30" class="c c2">l</text><text x="100" y="30" class="c c3">e</text><text x="107.2" y="30" class="c c4">n</text><text x="115" y="30" class="c c5">g</text><text x="123" y="30" class="c c6">e</text><text x="130.2" y="30" class="c c7">n</text><text x="138" y="30" class="c c8">i</text><text x="143" y="30" class="c c9">x</text><text x="151" y="30" class="c c10"> </text><text x="157" y="30" class="c c11">s</text><text x="164" y="30" class="c c12">c</text><text x="172" y="30" class="c c13">a</text><text x="180" y="30" class="c c14">n</text><text x="188" y="30" class="c c15"> </text><text x="194" y="30" class="c c16">t</text><text x="201" y="30" class="c c17">a</text><text x="209" y="30" class="c c18">r</text><text x="216" y="30" class="c c19">g</text><text x="224" y="30" class="c c20">e</text><text x="231" y="30" class="c c21">t</text><text x="238" y="30" class="c c22">.</text><text x="244" y="30" class="c c23">c</text><text x="251" y="30" class="c c2">o</text><text x="258" y="30" class="c c3">m</text>
+
+  <!-- Line 2: 120+ tools, AI reasoning, real-time (26 chars) -->
+  <text x="88" y="30" class="c d1">1</text><text x="95" y="30" class="c d2">2</text><text x="101" y="30" class="c d3">0</text><text x="109" y="30" class="c d4">+</text><text x="116" y="30" class="c d5"> </text><text x="122" y="30" class="c d6">t</text><text x="129" y="30" class="c d7">o</text><text x="136" y="30" class="c d8">o</text><text x="143" y="30" class="c d9">l</text><text x="149" y="30" class="c d10">s</text><text x="156" y="30" class="c d11">,</text><text x="162" y="30" class="c d12"> </text><text x="168" y="30" class="c d13">A</text><text x="176" y="30" class="c d14">I</text><text x="182" y="30" class="c d15"> </text><text x="188" y="30" class="c d16">r</text><text x="195" y="30" class="c d17">e</text><text x="202" y="30" class="c d18">a</text><text x="210" y="30" class="c d19">s</text><text x="217" y="30" class="c d20">o</text><text x="224" y="30" class="c d21">n</text><text x="232" y="30" class="c d22">i</text><text x="237" y="30" class="c d23">n</text><text x="245" y="30" class="c d24">g</text><text x="253" y="30" class="c d25">,</text><text x="259" y="30" class="c d26"> </text><text x="265" y="30" class="c d1">r</text><text x="272" y="30" class="c d2">e</text><text x="279" y="30" class="c d3">a</text><text x="287" y="30" class="c d4">l</text><text x="293" y="30" class="c d5">-</text><text x="300" y="30" class="c d6">t</text><text x="307" y="30" class="c d7">i</text><text x="312" y="30" class="c d8">m</text><text x="320" y="30" class="c d9">e</text>
+
+  <!-- Line 3: find vulnerabilities before attackers do (23 chars) -->
+  <text x="88" y="30" class="c e1">f</text><text x="95" y="30" class="c e2">i</text><text x="100" y="30" class="c e3">n</text><text x="108" y="30" class="c e4">d</text><text x="116" y="30" class="c e5"> </text><text x="122" y="30" class="c e6">v</text><text x="129" y="30" class="c e7">u</text><text x="136" y="30" class="c e8">l</text><text x="142" y="30" class="c e9">n</text><text x="150" y="30" class="c e10">s</text><text x="157" y="30" class="c e11"> </text><text x="163" y="30" class="c e12">b</text><text x="170" y="30" class="c e13">e</text><text x="177" y="30" class="c e14">f</text><text x="183" y="30" class="c e15">o</text><text x="190" y="30" class="c e16">r</text><text x="197" y="30" class="c e17">e</text><text x="204" y="30" class="c e18"> </text><text x="210" y="30" class="c e19">a</text><text x="217" y="30" class="c e20">t</text><text x="223" y="30" class="c e21">t</text><text x="229" y="30" class="c e22">a</text><text x="236" y="30" class="c e23">c</text><text x="243" y="30" class="c c1">k</text><text x="250" y="30" class="c c2">e</text><text x="257" y="30" class="c c3">r</text><text x="264" y="30" class="c c4">s</text><text x="271" y="30" class="c c5"> </text><text x="277" y="30" class="c c6">d</text><text x="284" y="30" class="c c7">o</text>
 
 </svg>
