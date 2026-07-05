@@ -85,7 +85,7 @@ def reload_scope() -> None:
 
 
 def normalize_target(target: str) -> str:
-    """Normalize a target URL or domain.
+    """Normalize a single target URL or domain.
 
     Handles:
     - URLs with scheme (http://, https://)
@@ -120,6 +120,28 @@ def normalize_target(target: str) -> str:
     return target.rstrip(".")
 
 
+def normalize_targets(target: str) -> List[str]:
+    """Normalize one or more comma-separated targets.
+
+    Supports:
+    - Single target: "example.com" → ["example.com"]
+    - Comma-separated: "example.com, api.example.com" → ["example.com", "api.example.com"]
+    - Mixed: "example.com, 10.0.0.1, https://admin.example.com" → ["example.com", "10.0.0.1", "admin.example.com"]
+
+    Returns:
+        List of normalized targets (empty list if input is empty).
+    """
+    if not target:
+        return []
+
+    # Split by comma and normalize each
+    targets = [t.strip() for t in target.split(",") if t.strip()]
+    normalized = [normalize_target(t) for t in targets]
+
+    # Filter out empty results
+    return [t for t in normalized if t]
+
+
 def is_valid_target(target: str) -> bool:
     if not target:
         return False
@@ -138,7 +160,7 @@ def is_valid_target(target: str) -> bool:
 
 
 def is_in_scope(target: str) -> bool:
-    """Check if target is in authorized scope.
+    """Check if a single target is in authorized scope.
 
     Fail-closed: returns False if no scope is configured.
     Configure scope via scope.txt or ELENGENIX_SCOPE env var.
@@ -156,6 +178,28 @@ def is_in_scope(target: str) -> bool:
     return normalized in allowed or any(
         normalized.endswith(f".{a}") for a in allowed
     )
+
+
+def are_targets_in_scope(targets: List[str]) -> bool:
+    """Check if ALL targets are in authorized scope.
+
+    For comma-separated targets, ALL must be in scope.
+    Returns False if any target is not in scope.
+
+    Args:
+        targets: List of normalized target strings.
+
+    Returns:
+        True if all targets are valid and in scope.
+    """
+    if not targets:
+        return False
+
+    for target in targets:
+        if not is_in_scope(target):
+            return False
+
+    return True
 
 
 def sanitize_path(target: str) -> str:
@@ -896,8 +940,11 @@ async def run_standard_scan(
     """
     Run standard scan pipeline.
 
+    Supports comma-separated targets: "example.com, api.example.com"
+    All targets must be in scope for the scan to proceed.
+
     Args:
-        target: Target domain or IP
+        target: Target domain(s) or IP(s), comma-separated
         rate_limit: Max concurrent operations
         timeout: Global timeout
         use_registry: Use new Tool Registry (True) or legacy mode (False)
@@ -905,20 +952,31 @@ async def run_standard_scan(
         use_smart_scan: Use intelligent smart scan with file relationship
                         analysis and finding correlation (default: False)
     """
-    if not is_in_scope(target):
-        console.print(f"[bold red]SCOPE VIOLATION: {target}[/bold red]")
+    # Normalize and validate all targets
+    targets = normalize_targets(target)
+
+    if not targets:
+        console.print("[bold red]SCOPE VIOLATION: No valid targets provided[/bold red]")
         return None
 
-    normalized = normalize_target(target)
-    safe_name = sanitize_path(normalized)
+    # Check scope for all targets
+    if not are_targets_in_scope(targets):
+        invalid = [t for t in targets if not is_in_scope(t)]
+        console.print(f"[bold red]SCOPE VIOLATION: {', '.join(invalid)}[/bold red]")
+        return None
+
+    # Use first target for report naming (primary target)
+    primary = targets[0]
+    safe_name = sanitize_path(primary)
     report_dir = Path("reports").resolve() / safe_name
     report_dir.mkdir(parents=True, exist_ok=True)
 
-    send_telegram_notification(f" Mission Authorized: `{normalized}`")
+    target_display = ", ".join(targets) if len(targets) > 1 else primary
+    send_telegram_notification(f" Mission Authorized: `{target_display}`")
     console.print(
         Panel(
-            f"SECURE PIPELINE ACTIVATED: {normalized}\n"
-            f"[dim]Mode: {'Tool Registry' if use_registry else 'Legacy'} | Rate: {rate_limit} concurrent[/dim]",
+            f"SECURE PIPELINE ACTIVATED: {target_display}\n"
+            f"[dim]Mode: {'Tool Registry' if use_registry else 'Legacy'} | Rate: {rate_limit} concurrent | Targets: {len(targets)}[/dim]",
             border_style="red",
         )
     )
@@ -926,22 +984,29 @@ async def run_standard_scan(
     # ── Elengenix 5-module pipeline (P0-B) — runs FIRST and independently ──
     # This is the production fallback that produces real findings even when
     # AI providers and third-party tools are unavailable.
-    try:
-        elengenix_findings = await asyncio.wait_for(
-            run_elengenix_modules(normalized, report_dir, timeout=min(timeout, 300)),
-            timeout=min(timeout, 300) + 30,
-        )
-        # Save Elengenix findings as JSON for the report generator
+    # Run pipeline for each target (primary target first)
+    all_elengenix_findings: List[Dict[str, Any]] = []
+    for t in targets:
+        try:
+            t_base_url = t if t.startswith(("http://", "https://")) else f"http://{t}"
+            elengenix_findings = await asyncio.wait_for(
+                run_elengenix_modules(t, report_dir, timeout=min(timeout, 300)),
+                timeout=min(timeout, 300) + 30,
+            )
+            all_elengenix_findings.extend(elengenix_findings)
+        except asyncio.TimeoutError:
+            logger.warning(f"Elengenix modules timed out for {t} — continuing")
+        except Exception as e:
+            logger.error(f"Elengenix modules failed for {t}: {e}")
+            console.print(f"[bold yellow][WARN] Elengenix modules error for {t}: {e}[/bold yellow]")
+
+    # Save all Elengenix findings
+    if all_elengenix_findings:
         elengenix_path = report_dir / "elengenix_findings.json"
-        elengenix_path.write_text(json.dumps(elengenix_findings, indent=2, default=str))
+        elengenix_path.write_text(json.dumps(all_elengenix_findings, indent=2, default=str))
         console.print(
-            f"[bold white][OK] Elengenix modules: {len(elengenix_findings)} findings[/bold white]"
+            f"[bold white][OK] Elengenix modules: {len(all_elengenix_findings)} findings[/bold white]"
         )
-    except asyncio.TimeoutError:
-        logger.warning("Elengenix modules timed out — continuing with main pipeline")
-    except Exception as e:
-        logger.error(f"Elengenix modules failed: {e}")
-        console.print(f"[bold yellow][WARN] Elengenix modules error: {e}[/bold yellow]")
 
     try:
         if use_registry:
@@ -949,7 +1014,7 @@ async def run_standard_scan(
                 # Smart scan with file relationship analysis
                 orchestrator = SmartOrchestrator(max_concurrency=rate_limit)
                 state, correlator = await orchestrator.run_smart_scan(
-                    target=normalized,
+                    target=primary,
                     report_dir=report_dir,
                     tools=tool_filter,
                     rate_limit=rate_limit,
@@ -970,14 +1035,20 @@ async def run_standard_scan(
 
                 console.print("\n[bold green][OK] Smart scan complete[/bold green]")
             else:
-                # Modern Tool Registry approach (original)
-                results = await asyncio.wait_for(
-                    run_registry_pipeline(normalized, report_dir, rate_limit, tool_filter),
-                    timeout=timeout,
-                )
+                # Modern Tool Registry approach — run for each target
+                all_results: List[ToolResult] = []
+                for t in targets:
+                    try:
+                        t_results = await asyncio.wait_for(
+                            run_registry_pipeline(t, report_dir, rate_limit, tool_filter),
+                            timeout=timeout,
+                        )
+                        all_results.extend(t_results)
+                    except asyncio.TimeoutError:
+                        logger.warning(f"Registry pipeline timed out for {t}")
 
                 # Calculate CVSS scores
-                scored_findings = calculate_cvss_for_results(results)
+                scored_findings = calculate_cvss_for_results(all_results)
 
                 # Save CVSS results
                 cvss_file = report_dir / "cvss_scores.json"
@@ -987,12 +1058,12 @@ async def run_standard_scan(
                 print_findings_summary(results)
 
                 # Summary stats
-                total_findings = sum(len(r.findings) for r in results)
+                total_findings = sum(len(r.findings) for r in all_results)
                 critical = len([s for s in scored_findings if s["severity"] == "Critical"])
                 high = len([s for s in scored_findings if s["severity"] == "High"])
 
                 console.print(
-                    f"\n[bold green][OK] Scan complete: {len(results)} tools, {total_findings} findings[/bold green]"
+                    f"\n[bold green][OK] Scan complete: {len(all_results)} tools, {total_findings} findings[/bold green]"
                 )
 
                 if critical > 0:
@@ -1005,23 +1076,23 @@ async def run_standard_scan(
                     )
 
         console.print(f"[bold green][OK] Reports saved: {report_dir}[/bold green]")
-        send_telegram_notification(f" Scan complete for `{normalized}` - Reports saved")
+        send_telegram_notification(f" Scan complete for `{target_display}` - Reports saved")
         return str(report_dir)
 
     except asyncio.TimeoutError:
         logger.error(f"Scan timeout after {timeout}s")
         console.print(f"[bold red][TIMEOUT] Scan exceeded {timeout} seconds[/bold red]")
-        send_telegram_notification(f" Scan timeout for `{normalized}`")
+        send_telegram_notification(f" Scan timeout for `{target_display}`")
         return str(report_dir) if report_dir.exists() else None
 
     except KeyboardInterrupt:
         logger.warning("Scan interrupted by user")
         console.print("[yellow][WARN] Scan interrupted by user[/yellow]")
-        send_telegram_notification(f" Scan interrupted for `{normalized}`")
+        send_telegram_notification(f" Scan interrupted for `{target_display}`")
         return str(report_dir) if report_dir.exists() else None
 
     except Exception as e:
         logger.exception(f"Pipeline crash: {e}")
         console.print(f"[bold red][FAIL] Error: {e}[/bold red]")
-        send_telegram_notification(f" Scan FAILED for `{normalized}`: {e}")
+        send_telegram_notification(f" Scan FAILED for `{target_display}`: {e}")
         return None
