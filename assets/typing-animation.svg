@@ -1,0 +1,80 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 65">
+  <defs>
+    <style>
+      @keyframes cursorBlink { 0%,49%{opacity:1} 50%,100%{opacity:0} }
+
+      @keyframes type1 {
+        0%   { width: 0; }
+        2%   { width: 0; }
+        22%  { width: 220px; }
+        28%  { width: 220px; }
+        32%  { width: 0; }
+        100% { width: 0; }
+      }
+      @keyframes type2 {
+        0%   { width: 0; }
+        38%  { width: 0; }
+        58%  { width: 260px; }
+        64%  { width: 260px; }
+        68%  { width: 0; }
+        100% { width: 0; }
+      }
+      @keyframes type3 {
+        0%   { width: 0; }
+        76%  { width: 0; }
+        92%  { width: 240px; }
+        96%  { width: 240px; }
+        100% { width: 0; }
+      }
+
+      @keyframes cursorPos1 { 0%,31%{transform:translateX(0)} 32%,100%{transform:translateX(-999px)} }
+      @keyframes cursorPos2 { 0%,37%{transform:translateX(-999px)} 58%,67%{transform:translateX(0)} 68%,100%{transform:translateX(-999px)} }
+      @keyframes cursorPos3 { 0%,75%{transform:translateX(-999px)} 92%,100%{transform:translateX(0)} }
+
+      .bg { fill: #000000; }
+      .term { fill: #0a0a0a; stroke: #1a1a1a; stroke-width: 1; }
+      .dot { fill: #333333; }
+      .prompt { font-family: 'SF Mono','Fira Code','Consolas',monospace; font-size: 14px; fill: #555555; }
+      .typed { font-family: 'SF Mono','Fira Code','Consolas',monospace; font-size: 14px; fill: #999999; overflow: hidden; white-space: nowrap; }
+      .cursor { fill: #ffffff; animation: cursorBlink 1s step-end infinite; }
+    </style>
+  </defs>
+
+  <rect width="700" height="65" class="bg" rx="6"/>
+  <rect x="10" y="8" width="680" height="48" class="term" rx="4"/>
+
+  <!-- dots -->
+  <circle cx="24" cy="20" r="4" fill="#444444"/>
+  <circle cx="38" cy="20" r="4" fill="#2a2a2a"/>
+  <circle cx="52" cy="20" r="4" fill="#2a2a2a"/>
+
+  <!-- prompt -->
+  <text x="72" y="40" class="prompt">$</text>
+
+  <!-- line 1 -->
+  <text x="88" y="40" class="typed" style="animation: type1 10s steps(22,end) infinite;">
+    <tspan>elengenix scan target.com</tspan>
+  </text>
+
+  <!-- line 2 -->
+  <text x="88" y="40" class="typed" style="animation: type2 10s steps(26,end) infinite;">
+    <tspan>120+ tools, AI reasoning, real-time</tspan>
+  </text>
+
+  <!-- line 3 -->
+  <text x="88" y="40" class="typed" style="animation: type3 10s steps(24,end) infinite;">
+    <tspan>find vulns before attackers do</tspan>
+  </text>
+
+  <!-- cursor -->
+  <g style="animation: cursorPos1 10s linear infinite">
+    <rect x="88" y="26" width="8" height="18" class="cursor"/>
+  </g>
+  <g style="animation: cursorPos2 10s linear infinite">
+    <rect x="88" y="26" width="8" height="18" class="cursor"/>
+  </g>
+  <g style="animation: cursorPos3 10s linear infinite">
+    <rect x="88" y="26" width="8" height="18" class="cursor"/>
+  </g>
+
+</svg>

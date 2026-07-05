@@ -1,6 +1,8 @@
 <div align="center">
 
-<img src="assets/logo-animated.svg" alt="Elengenix" width="100%">
+<img src="assets/elengenix.png" alt="Elengenix" width="700">
+
+<img src="assets/typing-animation.svg" alt="Terminal" width="700">
 
 ### Autonomous AI Security Research Framework
 
