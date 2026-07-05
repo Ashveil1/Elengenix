@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1a1a2e"/>
+      <stop offset="100%" style="stop-color:#0f0f1a"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="200" height="200" fill="url(#bg)" rx="20"/>
+
+  <!-- Terminal window -->
+  <rect x="25" y="25" width="150" height="100" fill="#0a0a0a" stroke="#333333" stroke-width="2" rx="8"/>
+
+  <!-- Terminal dots -->
+  <circle cx="42" cy="40" r="5" fill="#e63946"/>
+  <circle cx="58" cy="40" r="5" fill="#444444"/>
+  <circle cx="74" cy="40" r="5" fill="#444444"/>
+
+  <!-- Terminal text -->
+  <text x="40" y="65" font-family="monospace" font-size="12" fill="#999999">$ scan</text>
+  <text x="40" y="82" font-family="monospace" font-size="10" fill="#22c55e">[OK] 3 findings</text>
+  <text x="40" y="95" font-family="monospace" font-size="10" fill="#e63946">[!] Critical: SQLi</text>
+
+  <!-- Shield icon -->
+  <path d="M100 130 L140 145 L140 170 Q140 190 100 200 Q60 190 60 170 L60 145 Z"
+        fill="#e63946" stroke="#ffffff" stroke-width="2"/>
+
+  <!-- Lock in shield -->
+  <rect x="92" y="155" width="16" height="12" rx="2" fill="#ffffff"/>
+  <path d="M95 155 L95 150 Q95 145 100 145 Q105 145 105 150 L105 155"
+        fill="none" stroke="#ffffff" stroke-width="2"/>
+
+  <!-- Scan line effect -->
+  <line x1="25" y1="115" x2="175" y2="115" stroke="#e63946" stroke-width="1" opacity="0.3"/>
+
+</svg>
