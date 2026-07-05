@@ -89,7 +89,7 @@ elengenix tui
 
 ## Features
 
-### 🧠 AI-Powered Reasoning
+### AI-Powered Reasoning
 
 Elengenix doesn't just run tools — it **thinks** about what to do next:
 
@@ -98,7 +98,7 @@ Elengenix doesn't just run tools — it **thinks** about what to do next:
 - **Cross-session Memory** — Remembers what worked on past targets (ChromaDB + SQLite FTS5)
 - **Multi-model Team** — Up to 3 AI models collaborate (Strategist, Recon Lead, Exploit Analyst)
 
-### 🛡️ Safety by Design
+### Safety by Design
 
 Every command passes through a **Governance Layer** before execution:
 
@@ -108,7 +108,7 @@ Every command passes through a **Governance Layer** before execution:
 | **PRIVILEGED** | Ask user approval | `sudo apt install`, `pip install` |
 | **DESTRUCTIVE** | Show popup (Allow/Allow Always/Deny) | `rm -rf /`, `dd`, `mkfs` |
 
-### 🔍 Pre-flight Scanner (No AI Required)
+### Pre-flight Scanner (No AI Required)
 
 Even without AI providers, Elengenix produces actionable findings:
 
@@ -121,7 +121,7 @@ Even without AI providers, Elengenix produces actionable findings:
 | 5 | `LearningEngine` | Records findings to SQLite |
 | 6 | `CoverageAnalyzer` | Tracks endpoint coverage |
 
-### 🔌 MCP Integration
+### MCP Integration
 
 Full support for Model Context Protocol — configure MCP servers via:
 
