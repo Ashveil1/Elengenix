@@ -22,77 +22,84 @@
       }
       @keyframes type3 {
         0%   { clip-path: inset(0 100% 0 0); }
-        80%  { clip-path: inset(0 100% 0 0); }
+        80%  { clip-path: inset(0 0% 0 0); }
         95%  { clip-path: inset(0 0% 0 0); }
         100% { clip-path: inset(0 100% 0 0); }
       }
-      @keyframes cursorMove1 {
-        0%, 24% { transform: translateX(0px); }
-        35%, 100% { transform: translateX(-999px); }
+      @keyframes cursorBlink2 {
+        0%, 49% { opacity: 1; }
+        50%, 100% { opacity: 0; }
       }
-      @keyframes cursorMove2 {
-        0%, 39% { transform: translateX(-999px); }
-        65%, 74% { transform: translateX(0px); }
-        75%, 100% { transform: translateX(-999px); }
+      .bg { fill: #000000; }
+      .block-letter {
+        font-family: 'Courier New', 'Lucida Console', monospace;
+        font-size: 72px;
+        font-weight: 900;
+        fill: #ffffff;
+        letter-spacing: 6px;
       }
-      @keyframes cursorMove3 {
-        0%, 79% { transform: translateX(-999px); }
-        95%, 100% { transform: translateX(0px); }
+      .shadow {
+        font-family: 'Courier New', 'Lucida Console', monospace;
+        font-size: 72px;
+        font-weight: 900;
+        fill: #333333;
+        letter-spacing: 6px;
       }
-      .bg { fill: #111111; }
-      .title { font-family: 'Helvetica Neue', Arial, sans-serif; font-size: 52px; font-weight: 800; fill: #ffffff; letter-spacing: 8px; }
-      .sub { font-family: 'Helvetica Neue', Arial, sans-serif; font-size: 13px; fill: #888888; letter-spacing: 4px; text-transform: uppercase; }
-      .term-bg { fill: #1a1a1a; stroke: #333333; stroke-width: 1; }
-      .prompt { font-family: 'SF Mono', 'Menlo', monospace; font-size: 14px; fill: #e63946; font-weight: bold; }
-      .typed { font-family: 'SF Mono', 'Menlo', monospace; font-size: 14px; fill: #cccccc; }
-      .cursor { fill: #e63946; animation: cursorBlink 1s step-end infinite; }
-      .dot { fill: #e63946; }
-      .dot-dim { fill: #444444; }
-      .line { stroke: #222222; stroke-width: 1; }
-      .accent { fill: #e63946; }
+      .sub {
+        font-family: 'Courier New', monospace;
+        font-size: 11px;
+        fill: #666666;
+        letter-spacing: 3px;
+        text-transform: uppercase;
+      }
+      .term-bg { fill: #0a0a0a; stroke: #222222; stroke-width: 1; }
+      .prompt { font-family: 'Courier New', monospace; font-size: 13px; fill: #888888; }
+      .typed { font-family: 'Courier New', monospace; font-size: 13px; fill: #aaaaaa; }
+      .cursor { fill: #ffffff; animation: cursorBlink 1s step-end infinite; }
+      .dot { fill: #ffffff; }
+      .dot-dim { fill: #333333; }
     </style>
   </defs>
 
   <!-- Background -->
   <rect width="800" height="180" class="bg"/>
 
-  <!-- Subtle horizontal lines -->
-  <line x1="0" y1="55" x2="800" y2="55" class="line"/>
-  <line x1="0" y1="130" x2="800" y2="130" class="line"/>
+  <!-- Shadow layer (3D effect) -->
+  <text x="403" y="75" text-anchor="middle" class="shadow">ELNGENIX</text>
 
-  <!-- Title -->
-  <text x="400" y="80" text-anchor="middle" class="title">ELNGENIX</text>
+  <!-- Main text layer -->
+  <text x="400" y="72" text-anchor="middle" class="block-letter">ELNGENIX</text>
 
   <!-- Subtitle -->
-  <text x="400" y="100" text-anchor="middle" class="sub">Security Research Framework</text>
+  <text x="400" y="100" text-anchor="middle" class="sub">Autonomous AI Security Research Agent</text>
 
-  <!-- Terminal bar -->
-  <rect x="140" y="118" width="520" height="42" class="term-bg" rx="4"/>
+  <!-- Terminal window -->
+  <rect x="170" y="115" width="460" height="40" class="term-bg" rx="3"/>
 
   <!-- Terminal dots -->
-  <circle cx="158" cy="130" r="4" class="dot"/>
-  <circle cx="174" cy="130" r="4" class="dot-dim"/>
-  <circle cx="190" cy="130" r="4" class="dot-dim"/>
+  <circle cx="186" cy="126" r="3" class="dot-dim"/>
+  <circle cx="198" cy="126" r="3" class="dot-dim"/>
+  <circle cx="210" cy="126" r="3" class="dot-dim"/>
 
   <!-- Prompt -->
-  <text x="210" y="147" class="prompt">$</text>
+  <text x="228" y="138" class="prompt">$</text>
 
   <!-- Typed text 1 -->
-  <text x="225" y="147" class="typed" style="animation: type1 9s linear infinite;">
+  <text x="242" y="138" class="typed" style="animation: type1 8s linear infinite;">
     <tspan>elengenix scan target.com</tspan>
   </text>
 
   <!-- Typed text 2 -->
-  <text x="225" y="147" class="typed" style="animation: type2 9s linear infinite;">
+  <text x="242" y="138" class="typed" style="animation: type2 8s linear infinite;">
     <tspan>120+ tools · AI reasoning · real-time</tspan>
   </text>
 
   <!-- Typed text 3 -->
-  <text x="225" y="147" class="typed" style="animation: type3 9s linear infinite;">
+  <text x="242" y="138" class="typed" style="animation: type3 8s linear infinite;">
     <tspan>find vulnerabilities before attackers do</tspan>
   </text>
 
   <!-- Cursor -->
-  <rect x="225" y="134" width="8" height="16" class="cursor"/>
+  <rect x="242" y="125" width="7" height="15" class="cursor"/>
 
 </svg>
