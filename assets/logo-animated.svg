@@ -1,85 +1,129 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 200">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 180">
   <defs>
     <style>
-      @keyframes pulse {
-        0%, 100% { opacity: 1; }
-        50% { opacity: 0.7; }
+      @keyframes typing1 {
+        0% { width: 0; }
+        30% { width: 280px; }
+        35% { width: 280px; }
+        55% { width: 0; }
+        100% { width: 0; }
       }
-      @keyframes glow {
-        0%, 100% { filter: drop-shadow(0 0 5px #DC143C); }
-        50% { filter: drop-shadow(0 0 20px #DC143C); }
+      @keyframes typing2 {
+        0% { width: 0; }
+        40% { width: 0; }
+        45% { width: 320px; }
+        75% { width: 320px; }
+        80% { width: 0; }
+        100% { width: 0; }
       }
-      @keyframes scan {
-        0% { transform: translateX(-100%); }
-        100% { transform: translateX(100%); }
+      @keyframes typing3 {
+        0% { width: 0; }
+        80% { width: 0; }
+        85% { width: 260px; }
+        95% { width: 260px; }
+        100% { width: 0; }
       }
       @keyframes blink {
         0%, 100% { opacity: 1; }
         50% { opacity: 0; }
       }
-      .title { 
-        font-family: 'Courier New', monospace; 
-        font-size: 48px; 
-        font-weight: bold; 
-        fill: #FFFFFF;
-        animation: glow 2s ease-in-out infinite;
+      @keyframes fadeIn {
+        0% { opacity: 0; }
+        10% { opacity: 1; }
+        90% { opacity: 1; }
+        100% { opacity: 0; }
       }
-      .subtitle { 
-        font-family: 'Courier New', monospace; 
-        font-size: 18px; 
-        fill: #DC143C;
-        animation: pulse 2s ease-in-out infinite;
+      .logo-text {
+        font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+        font-size: 42px;
+        font-weight: 700;
+        fill: #1a1a2e;
+        letter-spacing: 2px;
       }
-      .scan-line { 
-        fill: none; 
-        stroke: #DC143C; 
-        stroke-width: 2;
-        animation: scan 3s linear infinite;
+      .tagline {
+        font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+        font-size: 14px;
+        fill: #64748b;
+        letter-spacing: 1px;
       }
-      .cursor { 
-        fill: #DC143C; 
+      .terminal {
+        font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+        font-size: 13px;
+        fill: #334155;
+      }
+      .terminal-prompt {
+        font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+        font-size: 13px;
+        fill: #059669;
+        font-weight: bold;
+      }
+      .cursor-blink {
+        fill: #1a1a2e;
         animation: blink 1s step-end infinite;
       }
-      .hex-bg { 
-        fill: #0D1117; 
-        stroke: #DC143C; 
-        stroke-width: 0.5;
-        opacity: 0.3;
+      .typing-text {
+        clip-path: inset(0 280px 0 0);
+        animation: typing1 8s ease-in-out infinite;
+      }
+      .typing-text-2 {
+        clip-path: inset(0 320px 0 0);
+        animation: typing2 8s ease-in-out infinite;
+      }
+      .typing-text-3 {
+        clip-path: inset(0 260px 0 0);
+        animation: typing3 8s ease-in-out infinite;
+      }
+      .line {
+        stroke: #e2e8f0;
+        stroke-width: 1;
       }
     </style>
   </defs>
   
   <!-- Background -->
-  <rect width="800" height="200" fill="#0D1117"/>
+  <rect width="800" height="180" fill="#f8fafc" rx="8"/>
   
-  <!-- Hex grid background -->
-  <g class="hex-bg">
-    <polygon points="50,25 75,40 75,70 50,85 25,70 25,40" />
-    <polygon points="100,25 125,40 125,70 100,85 75,70 75,40" />
-    <polygon points="150,25 175,40 175,70 150,85 125,70 125,40" />
-    <polygon points="200,25 225,40 225,70 200,85 175,70 175,40" />
-    <polygon points="250,25 275,40 275,70 250,85 225,70 225,40" />
-    <polygon points="600,25 625,40 625,70 600,85 575,70 575,40" />
-    <polygon points="650,25 675,40 675,70 650,85 625,70 625,40" />
-    <polygon points="700,25 725,40 725,70 700,85 675,70 675,40" />
-    <polygon points="750,25 775,40 775,70 750,85 725,70 725,40" />
+  <!-- Subtle grid pattern -->
+  <g opacity="0.03">
+    <line x1="0" y1="40" x2="800" y2="40" class="line"/>
+    <line x1="0" y1="80" x2="800" y2="80" class="line"/>
+    <line x1="0" y1="120" x2="800" y2="120" class="line"/>
+    <line x1="0" y1="160" x2="800" y2="160" class="line"/>
   </g>
   
-  <!-- Scan line animation -->
-  <line x1="0" y1="100" x2="800" y2="100" class="scan-line"/>
+  <!-- Logo text -->
+  <text x="400" y="65" text-anchor="middle" class="logo-text">ELNGENIX</text>
   
-  <!-- Main title -->
-  <text x="400" y="90" text-anchor="middle" class="title">ELNGENIX</text>
+  <!-- Tagline -->
+  <text x="400" y="90" text-anchor="middle" class="tagline">AUTONOMOUS AI SECURITY RESEARCH</text>
   
-  <!-- Subtitle -->
-  <text x="400" y="130" text-anchor="middle" class="subtitle">AUTONOMOUS AI SECURITY RESEARCH</text>
+  <!-- Terminal window -->
+  <rect x="150" y="110" width="500" height="55" rx="6" fill="#ffffff" stroke="#e2e8f0" stroke-width="1"/>
+  
+  <!-- Terminal dots -->
+  <circle cx="170" cy="123" r="4" fill="#ef4444"/>
+  <circle cx="186" cy="123" r="4" fill="#f59e0b"/>
+  <circle cx="202" cy="123" r="4" fill="#22c55e"/>
+  
+  <!-- Terminal prompt -->
+  <text x="165" y="145" class="terminal-prompt">$</text>
+  
+  <!-- Typing text 1 -->
+  <text x="180" y="145" class="terminal typing-text">
+    <tspan>Scan 120+ security tools automatically</tspan>
+  </text>
+  
+  <!-- Typing text 2 -->
+  <text x="180" y="145" class="terminal typing-text-2">
+    <tspan>AI-powered vulnerability discovery</tspan>
+  </text>
+  
+  <!-- Typing text 3 -->
+  <text x="180" y="145" class="terminal typing-text-3">
+    <tspan>Think like a penetration tester</tspan>
+  </text>
   
   <!-- Blinking cursor -->
-  <rect x="400" y="145" width="10" height="20" class="cursor"/>
+  <rect x="180" y="133" width="8" height="16" class="cursor-blink"/>
   
-  <!-- Corner decorations -->
-  <path d="M20,20 L40,20 L40,30" stroke="#DC143C" stroke-width="2" fill="none"/>
-  <path d="M780,20 L760,20 L760,30" stroke="#DC143C" stroke-width="2" fill="none"/>
-  <path d="M20,180 L40,180 L40,170" stroke="#DC143C" stroke-width="2" fill="none"/>
-  <path d="M780,180 L760,180 L760,170" stroke="#DC143C" stroke-width="2" fill="none"/>
 </svg>
