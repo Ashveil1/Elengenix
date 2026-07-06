@@ -136,7 +136,7 @@ class SettingsOverlay:
                 return self._go_back()
             return None
 
-        # Vim-style navigation: j=down, k=up
+        # Vim-style navigation: j=down, k=up, q=quit, b=back
         if ch == "j":
             self._selected_idx = min(len(self._items) - 1, self._selected_idx + 1)
             self._adjust_scroll()
@@ -145,6 +145,14 @@ class SettingsOverlay:
             self._selected_idx = max(0, self._selected_idx - 1)
             self._adjust_scroll()
             return None
+        if ch == "q":
+            if self._current_layer == "main":
+                return "exit"
+            return self._go_back()
+        if ch == "b":
+            if self._current_layer == "main":
+                return "exit"
+            return self._go_back()
         # Enter
         if ch in ("\r", "\n"):
             return self._handle_enter()

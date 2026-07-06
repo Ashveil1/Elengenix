@@ -466,7 +466,7 @@ class TestSessionManager:
         result = sm2.resume_session("test1", agent)
         assert result is not None
         assert result["target"] == "a.com"
-        assert len(result["turns"]) == 1
+        assert result["turns"] == 1
 
     def test_resume_nonexistent(self, sm):
         result = sm.resume_session("no_such_session")
@@ -1099,8 +1099,8 @@ class TestProgressDisplay:
         from tools.progress_display import ProgressDisplay
 
         pd = ProgressDisplay(target="t")
-        assert pd._get_status_icon("pending") == "o"
-        assert pd._get_status_icon("running") == "x"
+        assert pd._get_status_icon("pending") == "\u25cb"
+        assert pd._get_status_icon("running") == "\u25d0"
         assert pd._get_status_icon("complete") == ""
 
     def test_status_icons_ascii(self):

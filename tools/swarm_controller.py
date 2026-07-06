@@ -78,7 +78,7 @@ class SwarmMissionTracker:
     """Tracks progress of all swarm missions."""
 
     def __init__(self):
-        self.lock = threading.Lock()
+        self.lock = threading.RLock()
         self.targets: Dict[str, SwarmTarget] = {}
         self.global_start: Optional[float] = None
         self.global_end: Optional[float] = None

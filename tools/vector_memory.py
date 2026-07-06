@@ -312,9 +312,9 @@ class VectorMemory:
     _FTS_DB_PATH: Optional[Path] = None
 
     def _fts_db(self) -> Path:
-        if self._FTS_DB_PATH is None:
-            self.__class__._FTS_DB_PATH = self.persist_dir / "fts_memory.db"
-        return self._FTS_DB_PATH
+        if not hasattr(self, "_fts_db_path") or self._fts_db_path is None:
+            self._fts_db_path = self.persist_dir / "fts_memory.db"
+        return self._fts_db_path
 
     def _init_fts(self) -> None:
         """Create the FTS5 table if it does not exist."""
@@ -345,23 +345,25 @@ class VectorMemory:
         try:
             self._init_fts()
             timestamp = datetime.now(timezone.utc).isoformat()
-            memory_id = self._generate_id(content, target, timestamp)
-            rowid = int(memory_id, 16) % (2**63)
+
+            # Dedup: hash content+target to get a stable ID
+            dedup_hash = hashlib.md5(f"{content}{target.lower().strip()}".encode()).hexdigest()[:16]
+            dedup_rowid = int(dedup_hash, 16) % (2**63)
 
             with sqlite3.connect(str(self._fts_db())) as conn:
-                # Check for duplicate by rowid (derived from content hash)
+                # Check for duplicate by content+target hash
                 existing = conn.execute(
-                    "SELECT 1 FROM memories_fts WHERE rowid = ?", (rowid,)
+                    "SELECT 1 FROM memories_fts WHERE rowid = ?", (dedup_rowid,)
                 ).fetchone()
                 if existing:
-                    logger.debug(f"[FTS] Duplicate memory skipped: {memory_id[:8]}...")
-                    return memory_id
+                    logger.debug(f"[FTS] Duplicate memory skipped: {dedup_hash[:8]}...")
+                    return dedup_hash
 
                 conn.execute(
                     "INSERT INTO memories_fts (rowid, content, target, category, timestamp, metadata) "
                     "VALUES (?, ?, ?, ?, ?, ?)",
                     (
-                        rowid,
+                        dedup_rowid,
                         content,
                         target.lower().strip(),
                         category.lower(),
@@ -369,8 +371,8 @@ class VectorMemory:
                         json.dumps(metadata or {}, ensure_ascii=False),
                     ),
                 )
-            logger.debug(f"[FTS] Added memory: {memory_id[:8]}... for {target}")
-            return memory_id
+            logger.debug(f"[FTS] Added memory: {dedup_hash[:8]}... for {target}")
+            return dedup_hash
         except Exception as e:
             logger.error(f"[FTS] Add failed: {e}")
             return None

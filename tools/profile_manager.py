@@ -165,8 +165,10 @@ class ProfileManager:
         self.PROFILES_DIR.mkdir(parents=True, exist_ok=True)
 
     def _load_builtin_profiles(self) -> None:
-        """Load built-in profiles."""
-        self.profiles.update(self.BUILTIN_PROFILES)
+        """Load built-in profiles (deep copy to avoid shared mutable state)."""
+        import copy
+        for name, profile in self.BUILTIN_PROFILES.items():
+            self.profiles[name] = copy.deepcopy(profile)
         logger.debug(f"Loaded {len(self.BUILTIN_PROFILES)} built-in profiles")
 
     def _load_user_profiles(self) -> None:
@@ -331,6 +333,7 @@ class ProfileManager:
             return False
 
         # Create new profile with modifications
+        modifications = modifications or {}
         description = modifications.get("description", f"Cloned from {source_name}")
         args = modifications.get("args", source.args.copy())
         options = modifications.get("options", source.options.copy())

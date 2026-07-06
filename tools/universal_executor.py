@@ -488,6 +488,9 @@ class UniversalExecutor:
             cwd: Working directory override
             agent_id: Agent identifier for workspace isolation (-1 = no isolation)
         """
+        if not command or not command.strip():
+            return ExecutionResult(False, "", "Empty command", "shell", {"command": command})
+
         approved, reason = self._approve_shell_command(command)
         if not approved:
             return ExecutionResult(False, "", reason, "shell", {"command": command})
@@ -834,7 +837,7 @@ class UniversalExecutor:
 
             # Send Telegram notification first
             try:
-                from bot_utils import send_telegram_notification
+                from integrations.bot_utils import send_telegram_notification
 
                 send_telegram_notification(f"[ASK_USER] {question}")
             except Exception:
@@ -862,7 +865,7 @@ class UniversalExecutor:
                 remember(f"User provided password for: {question}", "system", "user_input")
                 # Notify via Telegram
                 try:
-                    from bot_utils import send_telegram_notification
+                    from integrations.bot_utils import send_telegram_notification
 
                     send_telegram_notification("[ASK_USER] Password received (hidden)")
                 except Exception:
@@ -888,7 +891,7 @@ class UniversalExecutor:
 
             # Notify Telegram of answer
             try:
-                from bot_utils import send_telegram_notification
+                from integrations.bot_utils import send_telegram_notification
 
                 send_telegram_notification(f"[USER_REPLY] {answer}")
             except Exception:
