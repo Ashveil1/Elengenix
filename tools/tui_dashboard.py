@@ -372,7 +372,7 @@ if _HAS_TEXTUAL:
 
                 # Import and run orchestrator
                 from main import normalize_target
-                from orchestrator import Orchestrator
+                from core.orchestrator import Orchestrator
 
                 normalized = normalize_target(target)
                 orch = Orchestrator(normalized)

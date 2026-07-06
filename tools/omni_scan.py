@@ -31,13 +31,13 @@ project_root = Path(__file__).parent.parent
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
-from bot_utils import send_telegram_notification
-from orchestrator import is_in_scope, run_standard_scan
+from integrations.bot_utils import send_telegram_notification
+from core.orchestrator import is_in_scope, run_standard_scan
 from tools.cvss_calculator import CVSSCalculator
 from tools.html_reporter import generate_html_report
 from tools.reporter import generate_bug_report
 from tools.tool_registry import registry
-from ui_components import console
+from cli.ui_components import console
 
 logger = logging.getLogger("elengenix.omni_scan")
 

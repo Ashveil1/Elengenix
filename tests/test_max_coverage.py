@@ -711,85 +711,85 @@ class TestVectorMemory:
 
 class TestOrchestratorScope:
     def test_normalize_target_empty(self):
-        from orchestrator import normalize_target
+        from core.orchestrator import normalize_target
         assert normalize_target("") == ""
 
     def test_normalize_target_url(self):
-        from orchestrator import normalize_target
+        from core.orchestrator import normalize_target
         assert normalize_target("https://example.com/path") == "example.com"
 
     def test_normalize_target_http(self):
-        from orchestrator import normalize_target
+        from core.orchestrator import normalize_target
         assert normalize_target("http://example.com:8080") == "example.com"
 
     def test_normalize_target_strips_port(self):
-        from orchestrator import normalize_target
+        from core.orchestrator import normalize_target
         assert normalize_target("example.com:443") == "example.com"
 
     def test_normalize_target_trailing_dot(self):
-        from orchestrator import normalize_target
+        from core.orchestrator import normalize_target
         assert normalize_target("example.com.") == "example.com"
 
     def test_normalize_target_whitespace(self):
-        from orchestrator import normalize_target
+        from core.orchestrator import normalize_target
         assert normalize_target("  EXAMPLE.COM  ") == "example.com"
 
     def test_is_valid_target_empty(self):
-        from orchestrator import is_valid_target
+        from core.orchestrator import is_valid_target
         assert is_valid_target("") is False
 
     def test_is_valid_target_valid_domain(self):
-        from orchestrator import is_valid_target
+        from core.orchestrator import is_valid_target
         assert is_valid_target("example.com") is True
 
     def test_is_valid_target_invalid_no_dot(self):
-        from orchestrator import is_valid_target
+        from core.orchestrator import is_valid_target
         assert is_valid_target("localhost") is False
 
     def test_is_valid_target_too_long(self):
-        from orchestrator import is_valid_target
+        from core.orchestrator import is_valid_target
         assert is_valid_target("a" * 254) is False
 
     def test_is_valid_target_valid_ip(self):
-        from orchestrator import is_valid_target
+        from core.orchestrator import is_valid_target
         assert is_valid_target("8.8.8.8") is True
 
     def test_is_valid_target_private_ip(self):
-        from orchestrator import is_valid_target
+        from core.orchestrator import is_valid_target
         assert is_valid_target("127.0.0.1") is False
         assert is_valid_target("192.168.1.1") is False
         assert is_valid_target("10.0.0.1") is False
 
     def test_is_valid_target_ipv6(self):
-        from orchestrator import is_valid_target
+        from core.orchestrator import is_valid_target
         # IPv6 loopback
         assert is_valid_target("::1") is False
 
     def test_is_in_scope_empty(self):
-        from orchestrator import is_in_scope
+        from core.orchestrator import is_in_scope
         assert is_in_scope("") is False
 
     def test_is_in_scope_valid(self):
-        from orchestrator import is_in_scope
+        from core.orchestrator import is_in_scope
         # Without ALLOWED_DOMAINS set, should return True for valid targets
         with patch("orchestrator.ALLOWED_DOMAINS", set()):
             assert is_in_scope("example.com") is True
 
     def test_sanitize_path(self):
-        from orchestrator import sanitize_path
+        from core.orchestrator import sanitize_path
         result = sanitize_path("example.com/path?q=1")
         assert " " not in result
         assert len(result) <= 100
 
     def test_load_allowed_domains_env(self):
-        from orchestrator import load_allowed_domains
+        from core.orchestrator import load_allowed_domains
         with patch.dict("os.environ", {"ELENGENIX_SCOPE": "a.com,b.com"}):
             domains = load_allowed_domains()
             assert "a.com" in domains
             assert "b.com" in domains
 
     def test_load_allowed_domains_file(self, tmp_path):
-        from orchestrator import load_allowed_domains
+        from core.orchestrator import load_allowed_domains
         scope_file = tmp_path / "scope.txt"
         scope_file.write_text("test.com\n# comment\ndev.com\n")
         domains = load_allowed_domains(str(scope_file))
@@ -798,26 +798,26 @@ class TestOrchestratorScope:
         assert "# comment" not in domains
 
     def test_load_allowed_domains_empty_file(self, tmp_path):
-        from orchestrator import load_allowed_domains
+        from core.orchestrator import load_allowed_domains
         scope_file = tmp_path / "empty.txt"
         scope_file.write_text("")
         domains = load_allowed_domains(str(scope_file))
         assert len(domains) == 0
 
     def test_load_allowed_domains_no_file(self):
-        from orchestrator import load_allowed_domains
+        from core.orchestrator import load_allowed_domains
         domains = load_allowed_domains("/nonexistent/scope.txt")
         assert isinstance(domains, set)
 
 
 class TestOrchestratorReconToFindings:
     def test_empty_recon(self):
-        from orchestrator import _recon_to_findings
+        from core.orchestrator import _recon_to_findings
         result = _recon_to_findings({}, "http://x.com")
         assert result == []
 
     def test_recon_with_http(self):
-        from orchestrator import _recon_to_findings
+        from core.orchestrator import _recon_to_findings
         recon = {
             "http_probe": {"status": 200, "title": "Test", "tech": ["Apache"], "headers": {"Server": "nginx"}},
             "directories": [{"url": "http://x.com/api", "status": 200, "length": 500}],
@@ -834,7 +834,7 @@ class TestOrchestratorReconToFindings:
         assert "param_discovery" in types
 
     def test_recon_not_interesting_params(self):
-        from orchestrator import _recon_to_findings
+        from core.orchestrator import _recon_to_findings
         recon = {
             "http_probe": {},
             "directories": [],
@@ -848,14 +848,14 @@ class TestOrchestratorReconToFindings:
 
 class TestOrchestratorGetRecommendedToolChain:
     def test_get_recommended_tool_chain(self):
-        from orchestrator import get_recommended_tool_chain
+        from core.orchestrator import get_recommended_tool_chain
         chain = get_recommended_tool_chain("web")
         assert isinstance(chain, list)
 
 
 class TestOrchestratorManualCmd:
     def test_manual_cmd(self):
-        from orchestrator import _manual_cmd
+        from core.orchestrator import _manual_cmd
         result = _manual_cmd("nuclei")
         assert "nuclei" in result
 

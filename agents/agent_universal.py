@@ -445,7 +445,7 @@ Respond with JSON:
                 _append_history(history, "assistant", result)
                 continue
             elif gate.decision == "needs_approval":
-                from ui_components import confirm
+                from cli.ui_components import confirm
 
                 try:
                     approved = confirm(f"Run: {cmd[:80]}?", default=False)

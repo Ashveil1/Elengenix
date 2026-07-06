@@ -287,27 +287,64 @@ class CommandSimplifier:
     """
 
     SHORTCUTS = {
-        # Single word shortcuts
-        "bb": "bola",  # Bug bounty
-        "check": "recon",  # Quick check
-        "test": "waf",  # Test vulnerabilities
-        "hack": "ai",  # AI mode
-        "learn": "ai",  # AI mode
-        "help": "menu",  # Show menu
-        # File-based shortcuts
-        "report": "report",  # Generate report
-        "pd": "report",  # PDF report
-        # Special modes
+        # Unified scan shortcuts (all go to scan with --phase)
+        "bb": "scan --phase bola",      # Bug bounty BOLA testing
+        "check": "scan --phase recon",   # Quick recon check
+        "test": "scan --phase waf",      # WAF detection test
+        "recon": "scan --phase recon",   # Reconnaissance
+        "scan": "scan",                  # Full scan (no change)
+
+        # Interactive mode shortcuts (advanced)
+        "bola": "scan --interactive bola",   # Interactive BOLA
+        "waf": "scan --interactive waf",     # Interactive WAF bypass
+
+        # Other shortcuts
+        "hack": "ai",      # AI mode
+        "learn": "ai",     # AI mode
+        "help": "menu",    # Show menu
+        "report": "report",
+        "pd": "report",
         "red": "evasion",  # Red team
-        "team": "evasion",  # Red team
-        "swarm": "swarm",  # Multi-target
-        "batch": "swarm",  # Batch mode
+        "team": "evasion",
+        "swarm": "swarm",
+        "batch": "swarm",
     }
 
     @staticmethod
     def simplify(command: str) -> str:
         """Simplify a command to its canonical form."""
         return CommandSimplifier.SHORTCUTS.get(command.lower(), command)
+
+    @staticmethod
+    def apply_to_args(args) -> None:
+        """Apply shortcut resolution to parsed args.
+
+        This modifies args in place, setting command and flags
+        based on the shortcut mapping.
+        """
+        if not hasattr(args, "command") or not args.command:
+            return
+
+        shortcut = args.command.lower()
+        resolved = CommandSimplifier.SHORTCUTS.get(shortcut)
+        if not resolved:
+            return
+
+        # Parse the resolved command string
+        parts = resolved.split()
+        args.command = parts[0]
+
+        # Extract flags from resolved command
+        i = 1
+        while i < len(parts):
+            if parts[i] == "--phase" and i + 1 < len(parts):
+                args.phase = parts[i + 1]
+                i += 2
+            elif parts[i] == "--interactive" and i + 1 < len(parts):
+                args.interactive = parts[i + 1]
+                i += 2
+            else:
+                i += 1
 
     @staticmethod
     def get_help_text() -> str:
@@ -326,32 +363,20 @@ class CommandSimplifier:
     [cyan]elengenix[/cyan] terraform/             [dim]->[/dim]  [green]Cloud security review[/green]
 
 [dim]┌─────────────────────┬──────────────────────────────────────────────┐[/dim]
+│  [bold cyan]SCAN (UNIFIED)[/bold cyan]      │                                              │
+[dim]├─────────────────────┼──────────────────────────────────────────────┤[/dim]
+│  [cyan]elengenix scan[/cyan] <target>           [white]Full scan pipeline (all phases)[/white]  │
+│  [cyan]elengenix scan[/cyan] <target> --phase X  [white]Run specific phase only[/white]         │
+│  [dim]  Phases: recon, waf, fuzz, bola, learn, coverage[/dim]             │
+│  [cyan]elengenix scan[/cyan] --interactive X   [white]Interactive mode (advanced)[/white]      │
+│  [dim]  Modes: bola, waf, recon[/dim]                                   │
+│  [dim]  Shortcuts: bb=bola, check=recon, test=waf[/dim]                 │
+[dim]├─────────────────────┼──────────────────────────────────────────────┤[/dim]
 │  [bold cyan]INTERACTIVE[/bold cyan]       │                                              │
 [dim]├─────────────────────┼──────────────────────────────────────────────┤[/dim]
 │  [cyan]elengenix tui[/cyan]       [dim](default)[/dim]  [white]Textual TUI — full-featured[/white]     │
-│  [cyan]elengenix hunt[/cyan] <target>        [white]Hunt mode — autonomous scan[/white]     │
-│  [cyan]elengenix cli-legacy[/cyan]            [white]Rich CLI (legacy)[/white]                │
-[dim]├─────────────────────┼──────────────────────────────────────────────┤[/dim]
-│  [bold cyan]AI & AGENT[/bold cyan]         │                                              │
-[dim]├─────────────────────┼──────────────────────────────────────────────┤[/dim]
-│  [cyan]elengenix cli[/cyan]      │  [white]Gemini-style CLI session (prompt_toolkit)[/white]   │
-│  [cyan]elengenix universal[/cyan]│  [white]Autonomous agent mode (open-ended tasks)[/white]    │
-│  [cyan]elengenix autonomous[/cyan] <target>                                      │
-│                     │  [white]Fully autonomous AI scan[/white]                    │
-[dim]├─────────────────────┼──────────────────────────────────────────────┤[/dim]
-│  [bold cyan]RECONNAISSANCE[/bold cyan]     │                                              │
-[dim]├─────────────────────┼──────────────────────────────────────────────┤[/dim]
-│  [cyan]elengenix recon[/cyan] <domain>          [white]Asset discovery + correlation[/white]   │
-│  [cyan]elengenix scan[/cyan] <target>           [white]Full scan pipeline[/white]              │
-│  [cyan]elengenix bounty[/cyan] [program]        [white]Bug bounty intel & predictor[/white]    │
-[dim]├─────────────────────┼──────────────────────────────────────────────┤[/dim]
-│  [bold cyan]EXPLOITATION[/bold cyan]       │                                              │
-[dim]├─────────────────────┼──────────────────────────────────────────────┤[/dim]
-│  [cyan]elengenix bola[/cyan] <url>              [white]BOLA / IDOR differential tests[/white]  │
-│  [cyan]elengenix waf[/cyan] <url>               [white]WAF detection & XSS bypass[/white]      │
-│  [cyan]elengenix evasion[/cyan]                 [white]EDR / AV evasion framework[/white]      │
-│  [cyan]elengenix research[/cyan] <CVE|type>     [white]CVE research + PoC generator[/white]    │
-│  [cyan]elengenix poc[/cyan] <vuln-type>         [white]Generate custom exploit PoC[/white]     │
+│  [cyan]elengenix cli[/cyan]                    [white]Gemini-style CLI session[/white]          │
+│  [cyan]elengenix universal[/cyan]              [white]Autonomous agent mode[/white]              │
 [dim]├─────────────────────┼──────────────────────────────────────────────┤[/dim]
 │  [bold cyan]ANALYSIS[/bold cyan]           │                                              │
 [dim]├─────────────────────┼──────────────────────────────────────────────┤[/dim]
@@ -360,27 +385,29 @@ class CommandSimplifier:
 │  [cyan]elengenix mobile[/cyan] <target>         [white]Mobile API analysis & fuzzing[/white]   │
 │  [cyan]elengenix soc[/cyan] [logfile]           [white]Security log & SIEM analysis[/white]    │
 [dim]├─────────────────────┼──────────────────────────────────────────────┤[/dim]
-│  [bold cyan]REPORTS & MEMORY[/bold cyan]   │                                              │
+│  [bold cyan]RESEARCH[/bold cyan]          │                                              │
 [dim]├─────────────────────┼──────────────────────────────────────────────┤[/dim]
-│  [cyan]elengenix report[/cyan] [findings]       [white]Generate HTML/PDF report[/white]        │
-│  [cyan]elengenix memory[/cyan]                  [white]View & search AI memory[/white]         │
-│  [cyan]elengenix history[/cyan]                 [white]Browse past scan sessions[/white]       │
-│  [cyan]elengenix dashboard[/cyan]               [white]Launch live web dashboard[/white]       │
+│  [cyan]elengenix research[/cyan] <CVE|type>     [white]CVE research + PoC generator[/white]    │
+│  [cyan]elengenix poc[/cyan] <vuln-type>         [white]Generate custom exploit PoC[/white]     │
+│  [cyan]elengenix evasion[/cyan]                 [white]EDR / AV evasion framework[/white]      │
+│  [cyan]elengenix bounty[/cyan] [program]        [white]Bug bounty intel & predictor[/white]    │
 [dim]├─────────────────────┼──────────────────────────────────────────────┤[/dim]
-│  [bold cyan]SYSTEM[/bold cyan]             │                                              │
+│  [bold cyan]SYSTEM[/bold cyan]            │                                              │
 [dim]├─────────────────────┼──────────────────────────────────────────────┤[/dim]
-│  [cyan]elengenix doctor[/cyan]                  [white]System health & tool check[/white]      │
-│  [cyan]elengenix configure[/cyan]               [white]Set AI keys, Telegram, H1[/white]       │
-│  [cyan]elengenix gateway[/cyan]                 [white]Start Telegram bot[/white]              │
-│  [cyan]elengenix arsenal[/cyan]                 [white]Manual tool selector[/white]            │
-│  [cyan]elengenix menu[/cyan]                    [white]Interactive categorized menu[/white]     │
-│  [cyan]elengenix cve-update[/cyan]              [white]Refresh local CVE database[/white]       │
-│  [cyan]elengenix update[/cyan]                  [white]Update via git pull[/white]             │
-[dim]├─────────────────────┼──────────────────────────────────────────────┤[/dim]
-│  [bold cyan]SHORTCUTS[/bold cyan]          │                                              │
-[dim]├─────────────────────┼──────────────────────────────────────────────┤[/dim]
-│  [cyan]bb[/cyan] <url>           [dim]->[/dim]  [green]bola[/green]     [cyan]check[/cyan] <domain>  [dim]->[/dim]  [green]recon[/green]        │
-│  [cyan]test[/cyan] <url>         [dim]->[/dim]  [green]waf[/green]      [cyan]red[/cyan]              [dim]->[/dim]  [green]evasion[/green]      │
-│  [cyan]hack / ai[/cyan]          [dim]->[/dim]  [green]ai chat[/green]  [cyan]pdf[/cyan] <file>       [dim]->[/dim]  [green]report[/green]       │
-[dim]└─────────────────────┴──────────────────────────────────────────────┘[/dim]
+│  [cyan]elengenix doctor[/cyan]                  [white]System health check[/white]              │
+│  [cyan]elengenix configure[/cyan]               [white]Setup wizard[/white]                     │
+│  [cyan]elengenix report[/cyan]                  [white]Generate HTML/PDF report[/white]         │
+│  [cyan]elengenix memory[/cyan]                  [white]View AI memory[/white]                   │
+│  [cyan]elengenix history[/cyan]                 [white]Browse past sessions[/white]             │
+│  [cyan]elengenix menu[/cyan]                    [white]Interactive menu[/white]                 │
+└─────────────────────┴──────────────────────────────────────────────┘
+
+  [bold yellow]SHORTCUTS[/bold yellow]
+  [dim]─────────────────────────────────────────────────────────[/dim]
+    [cyan]bb[/cyan] <target>     ->  [green]scan --phase bola[/green]     (BOLA testing)
+    [cyan]check[/cyan] <target>  ->  [green]scan --phase recon[/green]   (Quick recon)
+    [cyan]test[/cyan] <target>   ->  [green]scan --phase waf[/green]     (WAF detection)
+    [cyan]recon[/cyan] <target>  ->  [green]scan --phase recon[/green]   (Reconnaissance)
+    [cyan]hack[/cyan] <target>   ->  [green]ai[/green]                   (AI chat mode)
+    [cyan]red[/cyan]             ->  [green]evasion[/green]              (Red team)
 """

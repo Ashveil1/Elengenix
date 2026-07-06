@@ -359,42 +359,42 @@ class TestAgentBrainHelpers:
     """Test module-level helper functions."""
 
     def test_remember_exception(self):
-        from agent_brain import remember
+        from core.brain import remember
         # Should not raise even if vector memory is broken
         with patch("agent_brain._get_vector_memory", side_effect=Exception("fail")):
             remember("test content")
 
     def test_recall_exception(self):
-        from agent_brain import recall
+        from core.brain import recall
         with patch("agent_brain._get_vector_memory", side_effect=Exception("fail")):
             result = recall("test query")
             assert result == []
 
     def test_get_context_for_ai_exception(self):
-        from agent_brain import get_context_for_ai
+        from core.brain import get_context_for_ai
         with patch("agent_brain._get_vector_memory", side_effect=Exception("fail")):
             result = get_context_for_ai("query")
             assert result == ""
 
     def test_sqlite_save_message_exception(self):
-        from agent_brain import _sqlite_save_message
+        from core.brain import _sqlite_save_message
         with patch("agent_brain._get_memory_persistence", side_effect=Exception("fail")):
             _sqlite_save_message("session", "user", "content")
 
     def test_get_context_status_exception(self):
-        from agent_brain import _get_context_status
+        from core.brain import _get_context_status
         with patch("agent_brain._get_memory_persistence", side_effect=Exception("fail")):
             result = _get_context_status("session")
             assert result["is_near_full"] is False
             assert result["percent"] == 0
 
     def test_sqlite_clear_session_exception(self):
-        from agent_brain import _sqlite_clear_session
+        from core.brain import _sqlite_clear_session
         with patch("agent_brain._get_memory_persistence", side_effect=Exception("fail")):
             _sqlite_clear_session("session")
 
     def test_lazy_getters(self):
-        from agent_brain import (
+        from core.brain import (
             _get_vector_memory,
             _get_memory_persistence,
             _get_cve_database,
@@ -422,7 +422,7 @@ class TestAgentBrainBaseUrlHint:
     """Test _base_url_hint."""
 
     def test_with_http_target(self):
-        from agent_brain import ElengenixAgent
+        from core.brain import ElengenixAgent
         agent = MagicMock()
         agent._base_url_hint = ElengenixAgent._base_url_hint
         ms = MagicMock()
@@ -431,7 +431,7 @@ class TestAgentBrainBaseUrlHint:
         assert result == "https://example.com"
 
     def test_with_bare_domain(self):
-        from agent_brain import ElengenixAgent
+        from core.brain import ElengenixAgent
         agent = MagicMock()
         ms = MagicMock()
         ms.snapshot.return_value = {"target": "example.com"}
@@ -439,7 +439,7 @@ class TestAgentBrainBaseUrlHint:
         assert result == "https://example.com"
 
     def test_with_empty_target(self):
-        from agent_brain import ElengenixAgent
+        from core.brain import ElengenixAgent
         agent = MagicMock()
         ms = MagicMock()
         ms.snapshot.return_value = {"target": ""}
@@ -447,7 +447,7 @@ class TestAgentBrainBaseUrlHint:
         assert result == "http://localhost"
 
     def test_exception_handling(self):
-        from agent_brain import ElengenixAgent
+        from core.brain import ElengenixAgent
         agent = MagicMock()
         ms = MagicMock()
         ms.snapshot.side_effect = Exception("fail")
@@ -459,14 +459,14 @@ class TestAgentBrainExtractJson:
     """Test _extract_json."""
 
     def test_valid_json(self):
-        from agent_brain import ElengenixAgent
+        from core.brain import ElengenixAgent
         agent = MagicMock()
         agent.client = MagicMock()
         result = ElengenixAgent._extract_json(agent, '{"action": "run_shell", "command": "ls"}')
         assert isinstance(result, dict)
 
     def test_markdown_fenced_json(self):
-        from agent_brain import ElengenixAgent
+        from core.brain import ElengenixAgent
         agent = MagicMock()
         agent.client = MagicMock()
         text = '```json\n{"action": "finish", "summary": "done"}\n```'
@@ -474,7 +474,7 @@ class TestAgentBrainExtractJson:
         assert isinstance(result, dict)
 
     def test_non_json_text(self):
-        from agent_brain import ElengenixAgent
+        from core.brain import ElengenixAgent
         agent = MagicMock()
         agent.client = MagicMock()
         result = ElengenixAgent._extract_json(agent, "just some text, no json")
@@ -485,7 +485,7 @@ class TestAgentBrainCheckContextOverflow:
     """Test _check_context_overflow."""
 
     def test_near_full_triggers(self):
-        from agent_brain import ElengenixAgent
+        from core.brain import ElengenixAgent
         agent = MagicMock(spec=ElengenixAgent)
         agent.conversation_history = [{"role": "user", "content": "test"}] * 10
         agent.client = MagicMock()
@@ -497,7 +497,7 @@ class TestAgentBrainCheckContextOverflow:
                 assert result is True
 
     def test_not_near_full(self):
-        from agent_brain import ElengenixAgent
+        from core.brain import ElengenixAgent
         agent = MagicMock(spec=ElengenixAgent)
         agent.client = MagicMock()
         agent.client.active_client = MagicMock()
@@ -507,7 +507,7 @@ class TestAgentBrainCheckContextOverflow:
             assert result is False
 
     def test_exception_handling(self):
-        from agent_brain import ElengenixAgent
+        from core.brain import ElengenixAgent
         agent = MagicMock(spec=ElengenixAgent)
         agent.client = MagicMock()
         agent.client.active_client = MagicMock()
@@ -521,13 +521,13 @@ class TestAgentBrainCheckNegativeFeedback:
     """Test _check_for_negative_feedback."""
 
     def test_empty_history(self):
-        from agent_brain import ElengenixAgent
+        from core.brain import ElengenixAgent
         agent = MagicMock()
         agent.conversation_history = []
         ElengenixAgent._check_for_negative_feedback(agent, "this is bad")
 
     def test_negative_feedback_detected(self):
-        from agent_brain import ElengenixAgent
+        from core.brain import ElengenixAgent
         agent = MagicMock()
         agent.conversation_history = [
             {"role": "assistant", "content": "Done scanning."},
@@ -539,7 +539,7 @@ class TestAgentBrainCheckNegativeFeedback:
         agent.reflection_tracker.record_mistake.assert_called_once()
 
     def test_positive_feedback_ignored(self):
-        from agent_brain import ElengenixAgent
+        from core.brain import ElengenixAgent
         agent = MagicMock()
         agent.conversation_history = [
             {"role": "assistant", "content": "Done"},
@@ -550,7 +550,7 @@ class TestAgentBrainCheckNegativeFeedback:
         agent.reflection_tracker.record_mistake.assert_not_called()
 
     def test_no_assistant_in_history(self):
-        from agent_brain import ElengenixAgent
+        from core.brain import ElengenixAgent
         agent = MagicMock()
         agent.conversation_history = [{"role": "user", "content": "hello"}]
         agent.reflection_tracker = MagicMock()
@@ -561,14 +561,14 @@ class TestAgentBrainSummarizeOldConversation:
     """Test _summarize_old_conversation."""
 
     def test_short_history_skipped(self):
-        from agent_brain import ElengenixAgent
+        from core.brain import ElengenixAgent
         agent = MagicMock()
         agent.conversation_history = [{"role": "user", "content": "hi"}] * 5
         ElengenixAgent._summarize_old_conversation(agent)
         # Should not raise, history unchanged
 
     def test_long_history_compressed(self):
-        from agent_brain import ElengenixAgent
+        from core.brain import ElengenixAgent
         agent = MagicMock()
         agent.conversation_history = [
             {"role": "user", "content": f"Message {i}"} for i in range(10)
@@ -587,7 +587,7 @@ class TestAgentBrainEnhancePrompt:
     """Test _enhance_prompt_with_cve_context."""
 
     def test_enhances_prompt(self):
-        from agent_brain import ElengenixAgent
+        from core.brain import ElengenixAgent
         agent = MagicMock()
         agent.base_prompt = "Original prompt"
         ElengenixAgent._enhance_prompt_with_cve_context(agent)
@@ -1390,56 +1390,56 @@ class TestOrchestratorScopeManagement:
     """Test scope management functions."""
 
     def test_normalize_target_empty(self):
-        from orchestrator import normalize_target
+        from core.orchestrator import normalize_target
         assert normalize_target("") == ""
 
     def test_normalize_target_strips_protocol(self):
-        from orchestrator import normalize_target
+        from core.orchestrator import normalize_target
         assert normalize_target("https://Example.COM") == "example.com"
 
     def test_normalize_target_strips_port(self):
-        from orchestrator import normalize_target
+        from core.orchestrator import normalize_target
         assert normalize_target("example.com:443") == "example.com"
 
     def test_is_valid_target_empty(self):
-        from orchestrator import is_valid_target
+        from core.orchestrator import is_valid_target
         assert is_valid_target("") is False
 
     def test_is_valid_target_domain(self):
-        from orchestrator import is_valid_target
+        from core.orchestrator import is_valid_target
         assert is_valid_target("example.com") is True
 
     def test_is_valid_target_ip(self):
-        from orchestrator import is_valid_target
+        from core.orchestrator import is_valid_target
         assert is_valid_target("8.8.8.8") is True
 
     def test_is_valid_target_private_ip(self):
-        from orchestrator import is_valid_target
+        from core.orchestrator import is_valid_target
         assert is_valid_target("127.0.0.1") is False
 
     def test_is_valid_target_no_dot(self):
-        from orchestrator import is_valid_target
+        from core.orchestrator import is_valid_target
         assert is_valid_target("notadomain") is False
 
     def test_is_valid_target_too_long(self):
-        from orchestrator import is_valid_target
+        from core.orchestrator import is_valid_target
         assert is_valid_target("a" * 254) is False
 
     def test_sanitize_path(self):
-        from orchestrator import sanitize_path
+        from core.orchestrator import sanitize_path
         result = sanitize_path("example.com/path?q=1")
         assert " " not in result
         assert len(result) <= 100
 
     def test_load_allowed_domains_env(self):
-        from orchestrator import load_allowed_domains
+        from core.orchestrator import load_allowed_domains
         with patch.dict(os.environ, {"ELENGENIX_SCOPE": "test1.com,test2.com"}):
             domains = load_allowed_domains()
             assert "test1.com" in domains
             assert "test2.com" in domains
 
     def test_load_allowed_domains_empty(self, tmp_path):
-        from orchestrator import load_allowed_domains
+        from core.orchestrator import load_allowed_domains
         scope_file = tmp_path / "scope.txt"
         domains = load_allowed_domains(str(scope_file))
         assert isinstance(domains, set)
@@ -1449,11 +1449,11 @@ class TestOrchestratorIsInScope:
     """Test is_in_scope function."""
 
     def test_empty_target(self):
-        from orchestrator import is_in_scope
+        from core.orchestrator import is_in_scope
         assert is_in_scope("") is False
 
     def test_valid_target_no_scope(self):
-        from orchestrator import is_in_scope
+        from core.orchestrator import is_in_scope
         import orchestrator
         old_domains = orchestrator.ALLOWED_DOMAINS
         orchestrator.ALLOWED_DOMAINS = set()
@@ -1463,7 +1463,7 @@ class TestOrchestratorIsInScope:
             orchestrator.ALLOWED_DOMAINS = old_domains
 
     def test_invalid_target(self):
-        from orchestrator import is_in_scope
+        from core.orchestrator import is_in_scope
         assert is_in_scope("notvalid") is False
 
 
@@ -1471,17 +1471,17 @@ class TestOrchestratorReconToFindings:
     """Test _recon_to_findings."""
 
     def test_empty_recon(self):
-        from orchestrator import _recon_to_findings
+        from core.orchestrator import _recon_to_findings
         result = _recon_to_findings({}, "http://example.com")
         assert result == []
 
     def test_none_recon(self):
-        from orchestrator import _recon_to_findings
+        from core.orchestrator import _recon_to_findings
         result = _recon_to_findings(None, "http://example.com")
         assert result == []
 
     def test_with_http_probe(self):
-        from orchestrator import _recon_to_findings
+        from core.orchestrator import _recon_to_findings
         recon = {
             "http_probe": {
                 "status": 200,
@@ -1505,7 +1505,7 @@ class TestOrchestratorCalculateCvssForResults:
     """Test calculate_cvss_for_results."""
 
     def test_empty_results(self):
-        from orchestrator import calculate_cvss_for_results
+        from core.orchestrator import calculate_cvss_for_results
         result = calculate_cvss_for_results([])
         assert result == []
 
@@ -1514,7 +1514,7 @@ class TestOrchestratorPrintFindingsSummary:
     """Test print_findings_summary."""
 
     def test_empty_results(self):
-        from orchestrator import print_findings_summary
+        from core.orchestrator import print_findings_summary
         print_findings_summary([])
 
 
@@ -1522,7 +1522,7 @@ class TestOrchestratorManualCmd:
     """Test _manual_cmd."""
 
     def test_returns_string(self):
-        from orchestrator import _manual_cmd
+        from core.orchestrator import _manual_cmd
         result = _manual_cmd("nuclei")
         assert isinstance(result, str)
         assert "nuclei" in result
@@ -1532,7 +1532,7 @@ class TestOrchestratorSuggestMissingTools:
     """Test _suggest_missing_tools."""
 
     def test_no_missing(self):
-        from orchestrator import _suggest_missing_tools
+        from core.orchestrator import _suggest_missing_tools
         _suggest_missing_tools([])
 
 
@@ -1540,7 +1540,7 @@ class TestOrchestratorGetRecommendedToolChain:
     """Test get_recommended_tool_chain."""
 
     def test_returns_list(self):
-        from orchestrator import get_recommended_tool_chain
+        from core.orchestrator import get_recommended_tool_chain
         result = get_recommended_tool_chain("web")
         assert isinstance(result, list)
 
@@ -2316,7 +2316,7 @@ class TestOrchestratorRunToolWithRegistry:
 
     @pytest.mark.asyncio
     async def test_tool_not_found(self):
-        from orchestrator import run_tool_with_registry
+        from core.orchestrator import run_tool_with_registry
         result = await run_tool_with_registry(
             "nonexistent_tool_xyz", "example.com",
             Path("/tmp/report"), asyncio.Semaphore(5),
@@ -2325,7 +2325,7 @@ class TestOrchestratorRunToolWithRegistry:
 
     @pytest.mark.asyncio
     async def test_tool_not_available(self):
-        from orchestrator import run_tool_with_registry
+        from core.orchestrator import run_tool_with_registry
         mock_tool = MagicMock()
         mock_tool.is_available = False
         mock_tool.metadata.category = "utility"
@@ -2343,7 +2343,7 @@ class TestOrchestratorRunRegistryPipeline:
 
     @pytest.mark.asyncio
     async def test_no_available_tools(self):
-        from orchestrator import run_registry_pipeline
+        from core.orchestrator import run_registry_pipeline
         with patch("orchestrator.registry") as mock_reg:
             mock_reg.get_recommended_chain.return_value = []
             result = await run_registry_pipeline(
@@ -2356,19 +2356,19 @@ class TestOrchestratorCachedHttp:
     """Test http_get_cached."""
 
     def test_exception_returns_none(self):
-        from orchestrator import http_get_cached
+        from core.orchestrator import http_get_cached
         with patch("orchestrator._cached_http.get", side_effect=Exception("fail")):
             result = http_get_cached("http://example.com")
             assert result is None
 
     def test_no_text_returns_none(self):
-        from orchestrator import http_get_cached
+        from core.orchestrator import http_get_cached
         with patch("orchestrator._cached_http.get", return_value={"status": 200}):
             result = http_get_cached("http://example.com")
             assert result is None
 
     def test_success(self):
-        from orchestrator import http_get_cached
+        from core.orchestrator import http_get_cached
         with patch("orchestrator._cached_http.get", return_value={"text": "hello"}):
             result = http_get_cached("http://example.com")
             assert result == "hello"
@@ -2378,12 +2378,12 @@ class TestOrchestratorCheckCves:
     """Test _check_cves_for_tech."""
 
     def test_no_techs(self):
-        from orchestrator import _check_cves_for_tech
+        from core.orchestrator import _check_cves_for_tech
         result = _check_cves_for_tech({"http_probe": {}}, "http://example.com")
         assert result == []
 
     def test_with_techs(self):
-        from orchestrator import _check_cves_for_tech
+        from core.orchestrator import _check_cves_for_tech
         recon = {"http_probe": {"tech": ["nginx"], "headers": {"Server": "nginx/1.19"}}}
         result = _check_cves_for_tech(recon, "http://example.com")
         assert isinstance(result, list)

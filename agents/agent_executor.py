@@ -244,7 +244,7 @@ def execute_shell_command(
             )
         else:
             # Fallback for non-TUI (CLI / terminal) mode
-            from ui_components import show_command_execution
+            from cli.ui_components import show_command_execution
 
             show_command_execution(
                 cmd=cmd_raw,
@@ -257,6 +257,21 @@ def execute_shell_command(
 
         if not success:
             err = safe_result["error"] or safe_result["stderr"][:500]
+
+            # Check if failure is due to missing tool
+            if "not found" in err.lower() or "command not found" in err.lower():
+                install_result = detect_and_install_missing_tool(
+                    cmd_raw, governance, callback
+                )
+                if install_result is not None:
+                    # Tool was installed — retry the command
+                    try:
+                        retry_result = execute_safely(cmd_raw, timeout=300)
+                        if retry_result["success"]:
+                            return retry_result["stdout"][:max_output_len]
+                    except Exception:
+                        pass
+
             return f"[FAIL] Command failed: {err}"
         return output
 
@@ -295,7 +310,7 @@ def _prompt_approval(
     """
     from rich.panel import Panel
 
-    from ui_components import console
+    from cli.ui_components import console
 
     label_color = "yellow" if risk_level == "PRIVILEGED" else "red"
 
@@ -436,7 +451,7 @@ def execute_write_script(
             )
         )
     else:
-        from ui_components import console
+        from cli.ui_components import console
 
         console.print(f"\n[grey70][INFO] AI wrote script: {script_path}[/grey70]")
         if purpose:
@@ -520,6 +535,159 @@ def execute_install_tool(
     )
 
 
+def detect_and_install_missing_tool(
+    cmd: str,
+    governance: Governance,
+    callback: Optional[Callable] = None,
+) -> Optional[str]:
+    """Detect if a tool is missing and offer to install it.
+
+    When AI tries to run a command that fails because a tool is not installed,
+    this function checks if the tool can be installed and shows a popup.
+
+    Args:
+        cmd: The failed command.
+        governance: Governance instance.
+        callback: Optional callback.
+
+    Returns:
+        Installation output if installed, None if skipped or not applicable.
+    """
+    from shutil import which
+
+    # Extract the first word (the tool name)
+    parts = cmd.strip().split()
+    if not parts:
+        return None
+
+    tool_name = parts[0].split("/")[-1]  # Handle paths like /usr/bin/nmap
+
+    # Skip common non-tool commands
+    skip_commands = {"python", "python3", "bash", "sh", "echo", "cd", "ls", "cat", "grep"}
+    if tool_name in skip_commands:
+        return None
+
+    # Check if tool exists
+    if which(tool_name):
+        return None  # Tool exists, no need to install
+
+    # Tool is missing — show popup
+    from rich.panel import Panel
+    from cli.ui_components import console
+
+    console.print(
+        Panel(
+            f"[white]Tool [bold]{tool_name}[/bold] is not installed.[/white]\n\n"
+            f"[grey70]Command that failed: {cmd}[/grey70]",
+            title="[yellow]Tool Not Found[/yellow]",
+            border_style="yellow",
+            expand=False,
+        )
+    )
+
+    # Ask user if they want to install
+    console.print(
+        "  [bold][[green]y[/green]][/bold] Install tool  "
+        "[bold][[red]n[/red]][/bold] Skip"
+    )
+
+    try:
+        choice = input("  Choice [y/n]: ").strip().lower()
+    except (EOFError, KeyboardInterrupt):
+        choice = "n"
+
+    if choice != "y":
+        return None
+
+    # Ask for sudo password if needed
+    sudo_password = None
+    if tool_name not in {"pip", "pip3", "npm", "cargo", "go"}:
+        console.print("  [dim]Enter sudo password (or press Enter to skip sudo):[/dim]")
+        try:
+            import getpass
+            sudo_password = getpass.getpass("  Sudo password: ")
+        except (EOFError, KeyboardInterrupt):
+            sudo_password = None
+
+    # Build install command
+    install_cmd = _build_install_command(tool_name, sudo_password)
+
+    if not install_cmd:
+        console.print(f"  [red]Don't know how to install {tool_name}. Please install manually.[/red]")
+        return None
+
+    console.print(f"  [dim]Running: {install_cmd}[/dim]")
+
+    # Execute installation
+    try:
+        from tools.safe_exec import execute_safely
+
+        result = execute_safely(install_cmd, timeout=120)
+        if result.get("success"):
+            console.print(f"  [green][OK] {tool_name} installed successfully[/green]")
+            return result.get("stdout", "")
+        else:
+            console.print(f"  [red][FAIL] Installation failed: {result.get('stderr', '')}[/red]")
+            return None
+    except Exception as e:
+        console.print(f"  [red][FAIL] Installation error: {e}[/red]")
+        return None
+
+
+def _build_install_command(tool_name: str, sudo_password: Optional[str] = None) -> Optional[str]:
+    """Build install command for a tool.
+
+    Args:
+        tool_name: Name of the tool to install.
+        sudo_password: Optional sudo password.
+
+    Returns:
+        Install command string or None if unknown.
+    """
+    # Common tool → package mappings
+    _TOOL_PACKAGES = {
+        "nmap": "nmap",
+        "nikto": "nikto",
+        "dirb": "dirb",
+        "gobuster": "gobuster",
+        "enum4linux": "enum4linux",
+        "sslscan": "sslscan",
+        "hydra": "hydra",
+        "sqlmap": "sqlmap",
+        "whatweb": "whatweb",
+        "wpscan": "wpscan",
+        "subfinder": "subfinder",
+        "httpx": "httpx",
+        "nuclei": "nuclei",
+        "amass": "amass",
+        "ffuf": "ffuf",
+        "ffuf": "ffuf",
+        "masscan": "masscan",
+        "zmap": "zmap",
+        "crackmapexec": "crackmapexec",
+        "smbclient": "smbclient",
+        "snmpwalk": "snmpwalk",
+        "onesixtyone": "onesixtyone",
+    }
+
+    package = _TOOL_PACKAGES.get(tool_name)
+
+    if package:
+        if sudo_password:
+            # Use echo to pipe password to sudo
+            return f"echo '{sudo_password}' | sudo -S apt-get install -y {package}"
+        else:
+            return f"sudo apt-get install -y {package}"
+
+    # Try pip for Python tools
+    if tool_name.endswith("-py") or tool_name.startswith("python-"):
+        pip_name = tool_name.replace("-py", "").replace("python-", "")
+        return f"pip install {pip_name}"
+
+    # Unknown tool — return None
+    return None
+
+
 def handle_ask_user(
     action_data: Dict[str, Any],
     callback: Optional[Callable] = None,
@@ -538,7 +706,7 @@ def handle_ask_user(
 
     try:
         if input_type == "confirm":
-            from ui_components import confirm
+            from cli.ui_components import confirm
 
             approved = confirm(question, default=False)
             return "yes" if approved else "no"

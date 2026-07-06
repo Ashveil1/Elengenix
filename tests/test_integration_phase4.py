@@ -262,7 +262,7 @@ def test_m11_wiring_in_agent_brain(target_server):
     """Verify all 5 modules are accessible from agent_brain.py."""
     # Test that we can import the agent and that the modules are in the agent
     # (via __new__ to avoid the heavy __init__)
-    from agent_brain import ElengenixAgent
+    from core.brain import ElengenixAgent
 
     agent = ElengenixAgent.__new__(ElengenixAgent)
     # Set the attributes as if __init__ was called

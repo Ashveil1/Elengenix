@@ -633,7 +633,7 @@ class InteractiveDashboard:
     def run(self):
         """Start the dashboard server and block."""
         from tools.dashboard_server import DashboardHandler, DashboardServer
-        from ui_components import print_error, print_info, print_success
+        from cli.ui_components import print_error, print_info, print_success
 
         mission_state = None  # Dashboard starts without a specific mission
 

@@ -387,7 +387,7 @@ class SmartScanner:
         try:
             import asyncio
 
-            from orchestrator import run_standard_scan
+            from core.orchestrator import run_standard_scan
 
             # Handle nested event loop gracefully
             try:

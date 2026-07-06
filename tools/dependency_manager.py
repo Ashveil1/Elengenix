@@ -14,7 +14,7 @@ from typing import List, Optional, Tuple
 
 import questionary
 
-from ui_components import console, print_error, print_success
+from cli.ui_components import console, print_error, print_success
 
 logger = logging.getLogger("elengenix.installer")
 

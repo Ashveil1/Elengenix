@@ -5,7 +5,7 @@ import pytest
 
 pytestmark = pytest.mark.integration
 
-from orchestrator import run_elengenix_modules
+from core.orchestrator import run_elengenix_modules
 
 
 def test_run_elengenix_modules_returns_findings(tmp_path: Path):

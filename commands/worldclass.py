@@ -14,31 +14,31 @@ from commands.registry import command
 
 
 def _console():
-    from ui_components import console
+    from cli.ui_components import console
 
     return console
 
 
 def _show_section(title: str) -> None:
-    from ui_components import show_section
+    from cli.ui_components import show_section
 
     show_section(title)
 
 
 def _print(msg: str) -> None:
-    from ui_components import print_info
+    from cli.ui_components import print_info
 
     print_info(msg)
 
 
 def _ok(msg: str) -> None:
-    from ui_components import print_success
+    from cli.ui_components import print_success
 
     print_success(msg)
 
 
 def _err(msg: str) -> None:
-    from ui_components import print_error
+    from cli.ui_components import print_error
 
     print_error(msg)
 

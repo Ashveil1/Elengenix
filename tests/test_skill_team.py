@@ -122,7 +122,7 @@ class TestAgentSkillIntegration:
         not shutil.which("subfinder") or not os.environ.get("HWOOK"), reason="Requires agent init"
     )
     def test_agent_has_skill_registry(self):
-        from agent_brain import ElengenixAgent
+        from core.brain import ElengenixAgent
 
         agent = ElengenixAgent()
         assert agent.skill_registry is not None

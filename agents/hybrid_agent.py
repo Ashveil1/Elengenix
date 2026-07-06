@@ -40,7 +40,7 @@ from tools.tool_registry import ToolCategory, ToolResult, registry
 from tools.universal_ai_client import AIMessage
 from tools.universal_executor import UniversalExecutor
 from tools.vector_memory import get_context_for_ai, remember
-from ui_components import console
+from cli.ui_components import console
 
 logger = logging.getLogger("elengenix.hybrid")
 
@@ -415,8 +415,8 @@ class HybridAgent:
             import shutil
 
             if not shutil.which(tool_name):
-                from dependency_manager import TOOLS as INSTALLABLE_TOOLS
-                from dependency_manager import run_with_streaming, verify_and_advise
+                from tools.dependency_manager import TOOLS as INSTALLABLE_TOOLS
+                from tools.dependency_manager import run_with_streaming, verify_and_advise
 
                 if tool_name in INSTALLABLE_TOOLS:
                     console.print(
@@ -989,7 +989,7 @@ class HybridAgent:
         except Exception as e:
             logger.debug("Could not load logic_analyzer: %s", e)
         try:
-            from live_display import get_activity_logger
+            from cli.live_display import get_activity_logger
 
             ref.activity_logger = get_activity_logger()
         except Exception as e:

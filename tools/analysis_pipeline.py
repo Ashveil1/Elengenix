@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any, Callable, Optional
 from urllib.parse import urlparse
 
-from live_display import display_in_chat_mode
+from cli.live_display import display_in_chat_mode
 from tools.governance import GateDecision, Governance
 from tools.mission_state import GraphEdge, GraphNode, MissionState
 from tools.tool_registry import ToolResult

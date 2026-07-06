@@ -132,7 +132,7 @@ class ProgressDisplay:
 
         # Try to import rich for better display
         try:
-            from ui_components import console
+            from cli.ui_components import console
 
             self._rich_available = True
             self._console = console

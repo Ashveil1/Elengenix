@@ -19,7 +19,7 @@ from commands.registry import command
 )
 async def cmd_api(args):
     """Enterprise REST API server with web dashboard, WebSocket, CI/CD webhooks."""
-    from ui_components import print_error, print_info, print_success, show_section
+    from cli.ui_components import print_error, print_info, print_success, show_section
 
     show_section("Elengenix Enterprise API Server")
     host = getattr(args, "host", "0.0.0.0")
@@ -50,7 +50,7 @@ async def cmd_api(args):
 )
 async def cmd_compliance(args):
     """Enterprise compliance assessment across 4 major standards."""
-    from ui_components import print_error, print_info, print_success, show_section
+    from cli.ui_components import print_error, print_info, print_success, show_section
 
     standard = args.target or "pci_dss"
     show_section(f"Enterprise Compliance Assessment — {standard.upper()}")
@@ -111,7 +111,7 @@ async def cmd_compliance(args):
 )
 async def cmd_ml_filter(args):
     """ML-powered false positive filter using Bayesian scoring + signal analysis."""
-    from ui_components import print_error, print_info, print_success, show_section
+    from cli.ui_components import print_error, print_info, print_success, show_section
 
     target = args.target
     if not target:
@@ -147,7 +147,7 @@ async def cmd_ml_filter(args):
 )
 async def cmd_dashboard(args):
     """Launch the real-time TUI security monitoring dashboard."""
-    from ui_components import show_section
+    from cli.ui_components import show_section
 
     show_section("Elenginx Security Dashboard")
     target = getattr(args, "target", None)

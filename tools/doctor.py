@@ -245,7 +245,7 @@ def check_health(interactive: bool = True) -> bool:
     If interactive=True, prompts the user to fix issues dynamically.
     Returns True if system is healthy.
     """
-    from ui_components import confirm, console, print_error, print_success, print_warning
+    from cli.ui_components import confirm, console, print_error, print_success, print_warning
 
     console.print("\n[bold red]System Health Check[/bold red] [dim]1.0.0[/dim]\n")
     all_ok = True

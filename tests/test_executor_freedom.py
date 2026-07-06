@@ -393,7 +393,7 @@ class TestPromptApproval:
     """Unit tests for the approval UI helper.
 
     confirm() is imported lazily inside _prompt_approval with
-    ``from ui_components import confirm``, so it must be patched at
+    ``from cli.ui_components import confirm``, so it must be patched at
     ``ui_components.confirm``, not at the executor module level.
 
     _prompt_approval now returns tuple[bool, bool]: (approved, enable_auto).

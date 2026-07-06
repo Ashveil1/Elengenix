@@ -1768,6 +1768,6 @@ class TestOrchestratorBasic:
         assert hasattr(orchestrator, "SmartOrchestrator")
 
     def test_instantiate(self):
-        from orchestrator import SmartOrchestrator
+        from core.orchestrator import SmartOrchestrator
         orch = SmartOrchestrator(max_concurrency=3)
         assert orch is not None

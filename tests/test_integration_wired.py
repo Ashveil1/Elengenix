@@ -74,7 +74,7 @@ def mock_server():
 def test_w2_fingerprint_detects_tech_stack(mock_server):
     """W2 verification: _fingerprint_target_for_planning() returns real stack."""
     # agent_brain.py lives at the project root, not under agents/
-    from agent_brain import ElengenixAgent
+    from core.brain import ElengenixAgent
 
     class _StubActivityLogger:
         def log_thought(self, *args, **kwargs):

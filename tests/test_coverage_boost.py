@@ -20,53 +20,53 @@ class TestNormalizeTarget:
     """Test normalize_target function."""
 
     def test_normalize_plain_domain(self):
-        from orchestrator import normalize_target
+        from core.orchestrator import normalize_target
 
         assert normalize_target("example.com") == "example.com"
 
     def test_normalize_domain_with_protocol(self):
-        from orchestrator import normalize_target
+        from core.orchestrator import normalize_target
 
         assert normalize_target("https://example.com") == "example.com"
         assert normalize_target("http://example.com") == "example.com"
 
     def test_normalize_domain_with_path(self):
-        from orchestrator import normalize_target
+        from core.orchestrator import normalize_target
 
         assert normalize_target("https://example.com/path") == "example.com"
 
     def test_normalize_domain_with_port(self):
-        from orchestrator import normalize_target
+        from core.orchestrator import normalize_target
 
         assert normalize_target("example.com:8080") == "example.com"
 
     def test_normalize_domain_with_trailing_dot(self):
-        from orchestrator import normalize_target
+        from core.orchestrator import normalize_target
 
         assert normalize_target("example.com.") == "example.com"
 
     def test_normalize_empty_string(self):
-        from orchestrator import normalize_target
+        from core.orchestrator import normalize_target
 
         assert normalize_target("") == ""
 
     def test_normalize_none(self):
-        from orchestrator import normalize_target
+        from core.orchestrator import normalize_target
 
         assert normalize_target(None) == ""
 
     def test_normalize_strips_whitespace(self):
-        from orchestrator import normalize_target
+        from core.orchestrator import normalize_target
 
         assert normalize_target("  example.com  ") == "example.com"
 
     def test_normalize_lowercases(self):
-        from orchestrator import normalize_target
+        from core.orchestrator import normalize_target
 
         assert normalize_target("EXAMPLE.COM") == "example.com"
 
     def test_normalize_ipv6_with_port(self):
-        from orchestrator import normalize_target
+        from core.orchestrator import normalize_target
 
         # IPv6 with brackets should not strip port
         result = normalize_target("[::1]:8080")
@@ -77,50 +77,50 @@ class TestIsValidTarget:
     """Test is_valid_target function."""
 
     def test_valid_domain(self):
-        from orchestrator import is_valid_target
+        from core.orchestrator import is_valid_target
 
         assert is_valid_target("example.com") is True
 
     def test_valid_subdomain(self):
-        from orchestrator import is_valid_target
+        from core.orchestrator import is_valid_target
 
         assert is_valid_target("sub.example.com") is True
 
     def test_invalid_empty(self):
-        from orchestrator import is_valid_target
+        from core.orchestrator import is_valid_target
 
         assert is_valid_target("") is False
 
     def test_invalid_none(self):
-        from orchestrator import is_valid_target
+        from core.orchestrator import is_valid_target
 
         assert is_valid_target(None) is False
 
     def test_invalid_no_dot(self):
-        from orchestrator import is_valid_target
+        from core.orchestrator import is_valid_target
 
         assert is_valid_target("localhost") is False
 
     def test_invalid_too_long(self):
-        from orchestrator import is_valid_target
+        from core.orchestrator import is_valid_target
 
         long_domain = "a" * 254 + ".com"
         assert is_valid_target(long_domain) is False
 
     def test_invalid_private_ip(self):
-        from orchestrator import is_valid_target
+        from core.orchestrator import is_valid_target
 
         assert is_valid_target("127.0.0.1") is False
         assert is_valid_target("192.168.1.1") is False
         assert is_valid_target("10.0.0.1") is False
 
     def test_valid_public_ip(self):
-        from orchestrator import is_valid_target
+        from core.orchestrator import is_valid_target
 
         assert is_valid_target("8.8.8.8") is True
 
     def test_invalid_special_chars(self):
-        from orchestrator import is_valid_target
+        from core.orchestrator import is_valid_target
 
         assert is_valid_target("exam ple.com") is False
         assert is_valid_target("example.com;ls") is False
@@ -130,26 +130,26 @@ class TestSanitizePath:
     """Test sanitize_path function."""
 
     def test_sanitize_normal(self):
-        from orchestrator import sanitize_path
+        from core.orchestrator import sanitize_path
 
         assert sanitize_path("example.com") == "example.com"
 
     def test_sanitize_special_chars(self):
-        from orchestrator import sanitize_path
+        from core.orchestrator import sanitize_path
 
         result = sanitize_path("example.com/path?query=1")
         assert "/" not in result
         assert "?" not in result
 
     def test_sanitize_max_length(self):
-        from orchestrator import sanitize_path
+        from core.orchestrator import sanitize_path
 
         long_path = "a" * 200
         result = sanitize_path(long_path)
         assert len(result) <= 100
 
     def test_sanitize_preserves_dots_and_dashes(self):
-        from orchestrator import sanitize_path
+        from core.orchestrator import sanitize_path
 
         result = sanitize_path("sub-domain.example.com")
         assert "." in result
@@ -161,41 +161,41 @@ class TestIsInScope:
 
     def test_in_scope_no_domains(self):
         """When ALLOWED_DOMAINS is empty, all valid targets are in scope."""
-        from orchestrator import is_in_scope
+        from core.orchestrator import is_in_scope
 
         with patch("orchestrator.ALLOWED_DOMAINS", set()):
             assert is_in_scope("example.com") is True
 
     def test_in_scope_matching_domain(self):
-        from orchestrator import is_in_scope
+        from core.orchestrator import is_in_scope
 
         with patch("orchestrator.ALLOWED_DOMAINS", {"example.com"}):
             assert is_in_scope("example.com") is True
 
     def test_in_scope_subdomain(self):
-        from orchestrator import is_in_scope
+        from core.orchestrator import is_in_scope
 
         with patch("orchestrator.ALLOWED_DOMAINS", {"example.com"}):
             assert is_in_scope("sub.example.com") is True
 
     def test_not_in_scope(self):
-        from orchestrator import is_in_scope
+        from core.orchestrator import is_in_scope
 
         with patch("orchestrator.ALLOWED_DOMAINS", {"example.com"}):
             assert is_in_scope("other.com") is False
 
     def test_in_scope_empty_target(self):
-        from orchestrator import is_in_scope
+        from core.orchestrator import is_in_scope
 
         assert is_in_scope("") is False
 
     def test_in_scope_none_target(self):
-        from orchestrator import is_in_scope
+        from core.orchestrator import is_in_scope
 
         assert is_in_scope(None) is False
 
     def test_in_scope_invalid_target(self):
-        from orchestrator import is_in_scope
+        from core.orchestrator import is_in_scope
 
         assert is_in_scope("not valid") is False
 
@@ -290,7 +290,7 @@ class TestExtractJson:
 
     def setup_method(self):
         """Create a minimal agent instance for testing."""
-        from agent_brain import ElengenixAgent
+        from core.brain import ElengenixAgent
 
         self.agent = ElengenixAgent.__new__(ElengenixAgent)
 
@@ -324,7 +324,7 @@ class TestAnalyzeIntent:
     """Test _analyze_intent method."""
 
     def setup_method(self):
-        from agent_brain import ElengenixAgent
+        from core.brain import ElengenixAgent
 
         self.agent = ElengenixAgent.__new__(ElengenixAgent)
         self.agent.client = MagicMock()
@@ -349,7 +349,7 @@ class TestSummarizeResults:
     """Test _summarize_results method."""
 
     def setup_method(self):
-        from agent_brain import ElengenixAgent
+        from core.brain import ElengenixAgent
 
         self.agent = ElengenixAgent.__new__(ElengenixAgent)
 
@@ -380,19 +380,19 @@ class TestSeverityColor:
     """Test severity_color function."""
 
     def test_returns_string(self):
-        from ui_components import severity_color
+        from cli.ui_components import severity_color
 
         result = severity_color("critical")
         assert isinstance(result, str)
         assert result.startswith("#")
 
     def test_case_insensitive(self):
-        from ui_components import severity_color
+        from cli.ui_components import severity_color
 
         assert severity_color("CRITICAL") == severity_color("critical")
 
     def test_unknown_returns_default(self):
-        from ui_components import severity_color
+        from cli.ui_components import severity_color
 
         result = severity_color("unknown")
         assert isinstance(result, str)
@@ -403,7 +403,7 @@ class TestFormatMenuItem:
     """Test format_menu_item function."""
 
     def test_format_basic(self):
-        from ui_components import format_menu_item
+        from cli.ui_components import format_menu_item
 
         result = format_menu_item(1, "Test", "Description")
         assert "1" in result

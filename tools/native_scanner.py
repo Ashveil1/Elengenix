@@ -440,7 +440,7 @@ class NativeScanner:
         # Phase 1: Discover URLs
         ui_available = True
         try:
-            from ui_components import print_info
+            from cli.ui_components import print_info
         except ImportError:
             ui_available = False
         if ui_available:
@@ -470,7 +470,7 @@ class NativeScanner:
         summary.errors = [r.error for r in results if r.error][:10]
 
         if ui_available:
-            from ui_components import print_success
+            from cli.ui_components import print_success
 
             print_success(
                 f"  [Native] Scan complete: {summary.alive_urls}/{summary.total_urls} alive, "

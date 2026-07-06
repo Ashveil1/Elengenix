@@ -198,7 +198,7 @@ if _HAS_FASTAPI:
 
         try:
             from main import normalize_target
-            from orchestrator import Orchestrator
+            from core.orchestrator import Orchestrator
 
             normalized = normalize_target(target)
             orch = Orchestrator(normalized)
@@ -721,7 +721,7 @@ def run_server(host: str = "0.0.0.0", port: int = 8443, reload: bool = False) ->
     if not _HAS_FASTAPI:
         print("[FAIL] FastAPI not installed. Run: pip install fastapi uvicorn")
         return
-    from ui_components import console, print_info, print_success
+    from cli.ui_components import console, print_info, print_success
 
     console.print("[bold red]  Elenginx Enterprise API[/bold red]")
     print_info(f"  Server: http://{host}:{port}")

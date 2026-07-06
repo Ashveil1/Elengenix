@@ -24,7 +24,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional
 
-from ui_components import console
+from cli.ui_components import console
 
 if TYPE_CHECKING:
     from agents.critic_agent import CriticAgent
@@ -416,7 +416,7 @@ class AgentCouncil:
         # Critical risk also requires human approval
         if risk.lower() == "critical":
             try:
-                from ui_components import confirm
+                from cli.ui_components import confirm
 
                 human_ok = confirm(
                     f"CRITICAL task requires your approval:\n  {description}\n  AI votes: {approve_count}/{len(votes)} approve",

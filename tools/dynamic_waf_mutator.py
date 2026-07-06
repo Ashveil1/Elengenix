@@ -25,7 +25,7 @@ from tools.tool_registry import (
 from tools.universal_ai_client import AIClientManager, AIMessage
 from tools.waf_evasion import WAFEvasionEngine
 from tools.waf_signatures import detect_waf_from_response
-from ui_components import print_error, print_info, print_success, print_warning
+from cli.ui_components import print_error, print_info, print_success, print_warning
 
 logger = logging.getLogger("elengenix.dynamic_waf_mutator")
 

@@ -1,0 +1,20 @@
+{
+  "mcpServers": {
+    "sequential-thinking": {
+      "type": "local",
+      "command": ["npx", "-y", "@modelcontextprotocol/server-sequential-thinking"]
+    },
+    "chain-of-recursive-thoughts": {
+      "type": "local",
+      "command": ["npx", "-y", "recursive-thinking-mcp"]
+    },
+    "mcp-structured-thinking": {
+      "type": "local",
+      "command": ["npx", "-y", "structured-thinking"]
+    },
+    "memory": {
+      "type": "local",
+      "command": ["npx", "-y", "@modelcontextprotocol/server-memory"]
+    }
+  }
+}

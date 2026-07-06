@@ -73,7 +73,7 @@ from tools.vuln_engine import (
     VulnFinding,
     calculate_cvss,
 )
-from ui_components import console
+from cli.ui_components import console
 
 logger = logging.getLogger("elengenix.zero_day_heuristics")
 

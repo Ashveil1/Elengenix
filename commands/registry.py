@@ -156,7 +156,7 @@ class CommandRegistry:
         """
         cmd = self.get(name)
         if cmd is None:
-            from ui_components import print_error
+            from cli.ui_components import print_error
 
             print_error(f"Unknown command: {name}")
             self._suggest(name)
@@ -164,7 +164,7 @@ class CommandRegistry:
 
         try:
             if cmd.requires_target and not getattr(args, "target", None):
-                from ui_components import print_error
+                from cli.ui_components import print_error
 
                 print_error(f"Command '{name}' requires a target. Use: elengenix {name} <target>")
                 return 1
@@ -175,7 +175,7 @@ class CommandRegistry:
             return result or 0
         except Exception as e:
             logger.exception(f"Command '{name}' failed: {e}")
-            from ui_components import print_error
+            from cli.ui_components import print_error
 
             print_error(f"[FAIL] {name}: {e}")
             return 1
@@ -187,7 +187,7 @@ class CommandRegistry:
         all_names = list(self._commands.keys()) + list(self._aliases.keys())
         matches = get_close_matches(partial, all_names, n=3, cutoff=0.5)
         if matches:
-            from ui_components import console
+            from cli.ui_components import console
 
             console.print(f"  [dim]Did you mean: {', '.join(matches)}?[/dim]")
 

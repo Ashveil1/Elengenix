@@ -104,7 +104,7 @@ def test_full_pipeline_modules_importable():
     # Core engine
     from agents.agent_logger import ChainOfThoughtLogger
     from agents.agent_planner import StrategicPlanner
-    from orchestrator import run_standard_scan
+    from core.orchestrator import run_standard_scan
     from tools.governance import Governance
     from tools.payload_mutation import PayloadMutator
 

@@ -42,8 +42,8 @@ except Exception:
 
 logger = logging.getLogger("elengenix.autonomous")
 
-from live_display import display_in_chat_mode
-from ui_components import console as _ui_console
+from cli.live_display import display_in_chat_mode
+from cli.ui_components import console as _ui_console
 
 
 def _display(msg, level="info"):
