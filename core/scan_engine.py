@@ -15,7 +15,11 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
 
-from file_relationship_mapper import FileRelationshipGraph, get_scan_recommendations
+try:
+    from file_relationship_mapper import FileRelationshipGraph, get_scan_recommendations
+except ImportError:
+    FileRelationshipGraph = None
+    get_scan_recommendations = None
 from tools.tool_registry import ToolCategory, ToolResult, registry
 from cli.ui_components import console
 
@@ -361,11 +365,13 @@ class SmartOrchestrator:
     def __init__(self, max_concurrency: int = 5):
         self.max_concurrency = max_concurrency
         self.parallel_runner = ParallelRunner(max_concurrency)
-        self.file_graph: Optional[FileRelationshipGraph] = None
+        self.file_graph = None
         self.state: Optional[ScanState] = None
 
-    def build_file_graph(self, project_root: Optional[Path] = None) -> FileRelationshipGraph:
+    def build_file_graph(self, project_root: Optional[Path] = None):
         """Build the file relationship graph."""
+        if FileRelationshipGraph is None:
+            raise RuntimeError("file_relationship_mapper not installed")
         # Fall back to CWD if caller passes None
         root: Path = project_root if project_root is not None else Path(".").resolve()
         self.file_graph = FileRelationshipGraph(root).build()
@@ -394,7 +400,7 @@ class SmartOrchestrator:
             (ScanState, FindingCorrelator or None)
         """
         # Determine which tools to run
-        if use_smart_chain and self.file_graph:
+        if use_smart_chain and self.file_graph and get_scan_recommendations is not None:
             # Use file relationships to recommend tools
             changed_files = self._get_changed_files()
             recommended = get_scan_recommendations(self.file_graph, changed_files)
