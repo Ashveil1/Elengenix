@@ -13,6 +13,7 @@ import json
 import logging
 import os
 import re
+import socket
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
 from urllib.parse import urlparse
@@ -84,7 +85,7 @@ def reload_scope() -> None:
     _allowed_domains = load_allowed_domains()
 
 
-def normalize_target(target: str) -> str:
+def normalize_target(target: Optional[str]) -> str:
     """Normalize a single target URL or domain.
 
     Handles:
@@ -178,7 +179,7 @@ def _check_dns_resolution(target: str) -> bool:
         return True  # Allow if DNS fails (don't block on DNS errors)
 
 
-def is_valid_target(target: str) -> bool:
+def is_valid_target(target: Optional[str]) -> bool:
     if not target:
         return False
     # Try IP address (handles both IPv4 and IPv6)
@@ -334,18 +335,19 @@ async def run_registry_pipeline(
             logger.error(f"Pipeline error for {tool.metadata.name}: {result}")
             continue
 
-        final_results.append(result)
+        if isinstance(result, ToolResult):
+            final_results.append(result)
 
-        if result.success and result.findings:
-            console.print(
-                f"  [bold white][OK] {tool.metadata.name}: {len(result.findings)} findings[/bold white]"
-            )
-        elif result.success:
-            console.print(f"  [dim][ ] {tool.metadata.name}: No findings[/dim]")
-        else:
-            console.print(
-                f"  [red][FAIL] {tool.metadata.name}: {(result.error_message or '')[:50]}...[/red]"
-            )
+            if result.success and result.findings:
+                console.print(
+                    f"  [bold white][OK] {tool.metadata.name}: {len(result.findings)} findings[/bold white]"
+                )
+            elif result.success:
+                console.print(f"  [dim][ ] {tool.metadata.name}: No findings[/dim]")
+            else:
+                console.print(
+                    f"  [red][FAIL] {tool.metadata.name}: {(result.error_message or '')[:50]}...[/red]"
+                )
 
     return final_results
 
@@ -1114,7 +1116,7 @@ async def run_standard_scan(
                 cvss_file.write_text(json.dumps(scored_findings, indent=2))
 
                 # Print summary
-                print_findings_summary(results)
+                print_findings_summary(all_results)
 
                 # Summary stats
                 total_findings = sum(len(r.findings) for r in all_results)
