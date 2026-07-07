@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
 
 try:
-    from file_relationship_mapper import FileRelationshipGraph, get_scan_recommendations
+    from file_relationship_mapper import FileRelationshipGraph, get_scan_recommendations  # type: ignore[import-untyped]
 except ImportError:
     FileRelationshipGraph = None
     get_scan_recommendations = None

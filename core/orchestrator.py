@@ -22,11 +22,14 @@ from tools.perf import FastHTTP, SmartCache, Timer, cached
 
 # Safe import for nest_asyncio (for async compatibility)
 try:
-    import nest_asyncio
+    import nest_asyncio  # type: ignore[import-untyped]
 except ImportError:
     nest_asyncio = None  # not critical for orchestrator
 
-from rich.panel import Panel
+try:
+    from rich.panel import Panel  # type: ignore[import-untyped]
+except ImportError:
+    Panel = None
 
 from integrations.bot_utils import send_telegram_notification
 from core.scan_engine import SmartOrchestrator
@@ -174,7 +177,7 @@ def _check_dns_resolution(target: str) -> bool:
                 logger.warning(f"DNS resolution: {target} resolves to metadata endpoint")
                 return False
         return True
-    except (socket.gaierror, OSError) as e:
+    except (socket.gaierror, OSError) as e:  # type: ignore[attr-defined]
         logger.debug(f"DNS resolution failed for {target}: {e}")
         return True  # Allow if DNS fails (don't block on DNS errors)
 
@@ -1024,13 +1027,16 @@ async def run_standard_scan(
 
     target_display = ", ".join(targets) if len(targets) > 1 else primary
     send_telegram_notification(f" Mission Authorized: `{target_display}`")
-    console.print(
-        Panel(
-            f"SECURE PIPELINE ACTIVATED: {target_display}\n"
-            f"[dim]Mode: {'Tool Registry' if use_registry else 'Legacy'} | Rate: {rate_limit} concurrent | Targets: {len(targets)}[/dim]",
-            border_style="red",
+    if Panel is not None:
+        console.print(
+            Panel(
+                f"SECURE PIPELINE ACTIVATED: {target_display}\n"
+                f"[dim]Mode: {'Tool Registry' if use_registry else 'Legacy'} | Rate: {rate_limit} concurrent | Targets: {len(targets)}[/dim]",
+                border_style="red",
+            )
         )
-    )
+    else:
+        console.print(f"SECURE PIPELINE ACTIVATED: {target_display}")
 
     # ── Elengenix 5-module pipeline (P0-B) — runs FIRST and independently ──
     # This is the production fallback that produces real findings even when
@@ -1085,8 +1091,8 @@ async def run_standard_scan(
                     cvss_file.write_text(json.dumps(scored_findings, indent=2))
 
                 # Show correlated findings summary
-                if correlator and hasattr(correlator, "get_clusters"):
-                    clusters = correlator.get_clusters()
+                if correlator and hasattr(correlator, "get_clustered_report"):
+                    clusters = correlator.get_clustered_report()
                     if clusters:
                         console.print(f"\n[bold]Correlated Findings: {len(clusters)} clusters[/bold]")
 
