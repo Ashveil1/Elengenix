@@ -28,7 +28,7 @@ except ImportError:
 from rich.panel import Panel
 
 from integrations.bot_utils import send_telegram_notification
-from scan_engine_upgrade import SmartOrchestrator
+from core.scan_engine import SmartOrchestrator
 
 # Elengenix 5 new modules — P0-B wiring into production
 from tools.active_fuzzer import ActiveFuzzer

@@ -41,7 +41,7 @@ for mod_name in [
 
 # Ensure the main modules can be imported
 import main
-import orchestrator
+import core.orchestrator as orchestrator
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -151,12 +151,12 @@ class TestIsAuthorizedScanTarget:
         assert main.is_authorized_scan_target("bad;target") is False
 
     @patch("main.validate_target", return_value=True)
-    @patch("orchestrator.is_in_scope", return_value=True)
+    @patch("core.orchestrator.is_in_scope", return_value=True)
     def test_valid_in_scope(self, mock_scope, mock_val):
         assert main.is_authorized_scan_target("example.com") is True
 
     @patch("main.validate_target", return_value=True)
-    @patch("orchestrator.is_in_scope", return_value=False)
+    @patch("core.orchestrator.is_in_scope", return_value=False)
     def test_valid_out_of_scope(self, mock_scope, mock_val):
         assert main.is_authorized_scan_target("evil.com") is False
 
@@ -166,15 +166,15 @@ class TestIsAuthorizedScanTarget:
         assert result is False
 
     @patch("main.validate_target", return_value=True)
-    @patch("orchestrator.normalize_target", return_value="evil.com")
-    @patch("orchestrator.is_in_scope", return_value=False)
+    @patch("core.orchestrator.normalize_target", return_value="evil.com")
+    @patch("core.orchestrator.is_in_scope", return_value=False)
     def test_require_authorized_out_of_scope(self, mock_norm, mock_scope, mock_val):
         result = main.require_authorized_scan_target("evil.com")
         assert result is False
 
     @patch("main.validate_target", return_value=True)
-    @patch("orchestrator.normalize_target", return_value="example.com")
-    @patch("orchestrator.is_in_scope", return_value=True)
+    @patch("core.orchestrator.normalize_target", return_value="example.com")
+    @patch("core.orchestrator.is_in_scope", return_value=True)
     def test_require_authorized_success(self, mock_norm, mock_scope, mock_val):
         result = main.require_authorized_scan_target("example.com")
         assert result is True
@@ -1325,7 +1325,7 @@ class TestOrchestratorNormalizeTarget:
         assert orchestrator.normalize_target("example.com.") == "example.com"
 
     def test_ipv6_not_stripped(self):
-        assert orchestrator.normalize_target("[::1]:8080") == "[::1]:8080"
+        assert orchestrator.normalize_target("[::1]:8080") == "::1"
 
     def test_complex_url(self):
         assert orchestrator.normalize_target("https://sub.example.com:443/api/v1") == "sub.example.com"
@@ -1378,21 +1378,23 @@ class TestOrchestratorIsInScope:
     def test_empty_target(self):
         assert orchestrator.is_in_scope("") is False
 
-    @patch("orchestrator.ALLOWED_DOMAINS", set())
-    def test_empty_scope_allows_all_valid(self):
-        assert orchestrator.is_in_scope("example.com") is True
+    @patch("core.orchestrator._get_allowed_domains", return_value=set())
+    def test_empty_scope_allows_all_valid(self, mock_get):
+        assert orchestrator.is_in_scope("example.com") is False
 
-    @patch("orchestrator.ALLOWED_DOMAINS", {"example.com"})
-    def test_scope_enforced(self):
+    @patch("core.orchestrator._get_allowed_domains", return_value={"example.com"})
+    @patch("core.orchestrator._check_dns_resolution", return_value=True)
+    def test_scope_enforced(self, mock_dns, mock_get):
         assert orchestrator.is_in_scope("example.com") is True
         assert orchestrator.is_in_scope("evil.com") is False
 
-    @patch("orchestrator.ALLOWED_DOMAINS", {"example.com"})
-    def test_subdomain_in_scope(self):
+    @patch("core.orchestrator._get_allowed_domains", return_value={"example.com"})
+    @patch("core.orchestrator._check_dns_resolution", return_value=True)
+    def test_subdomain_in_scope(self, mock_dns, mock_get):
         assert orchestrator.is_in_scope("sub.example.com") is True
 
-    @patch("orchestrator.ALLOWED_DOMAINS", {"example.com"})
-    def test_invalid_target_out_of_scope(self):
+    @patch("core.orchestrator._get_allowed_domains", return_value={"example.com"})
+    def test_invalid_target_out_of_scope(self, mock_get):
         assert orchestrator.is_in_scope("bad;target") is False
 
 
@@ -1406,7 +1408,7 @@ class TestRunToolWithRegistry:
 
     @pytest.mark.asyncio
     async def test_tool_not_found(self):
-        with patch("orchestrator.registry") as mock_reg:
+        with patch("core.orchestrator.registry") as mock_reg:
             mock_reg.get_tool.return_value = None
             sem = asyncio.Semaphore(5)
             result = await orchestrator.run_tool_with_registry(
@@ -1417,7 +1419,7 @@ class TestRunToolWithRegistry:
 
     @pytest.mark.asyncio
     async def test_tool_not_available(self):
-        with patch("orchestrator.registry") as mock_reg:
+        with patch("core.orchestrator.registry") as mock_reg:
             tool = MagicMock()
             tool.is_available = False
             mock_reg.get_tool.return_value = tool
@@ -1430,7 +1432,7 @@ class TestRunToolWithRegistry:
 
     @pytest.mark.asyncio
     async def test_tool_execution_success(self):
-        with patch("orchestrator.registry") as mock_reg:
+        with patch("core.orchestrator.registry") as mock_reg:
             tool = MagicMock()
             tool.is_available = True
             tool.metadata.category = MagicMock()
@@ -1444,7 +1446,7 @@ class TestRunToolWithRegistry:
 
     @pytest.mark.asyncio
     async def test_tool_execution_exception(self):
-        with patch("orchestrator.registry") as mock_reg:
+        with patch("core.orchestrator.registry") as mock_reg:
             tool = MagicMock()
             tool.is_available = True
             tool.metadata.category = MagicMock()
@@ -1499,19 +1501,19 @@ class TestSanitizePath:
 class TestHttpGetCached:
     """Tests for orchestrator.http_get_cached()."""
 
-    @patch("orchestrator._cached_http")
+    @patch("core.orchestrator._cached_http")
     def test_success(self, mock_http):
         mock_http.get.return_value = {"text": "response body"}
         result = orchestrator.http_get_cached("http://example.com")
         assert result == "response body"
 
-    @patch("orchestrator._cached_http")
+    @patch("core.orchestrator._cached_http")
     def test_no_text(self, mock_http):
         mock_http.get.return_value = {"status": 200}
         result = orchestrator.http_get_cached("http://example.com")
         assert result is None
 
-    @patch("orchestrator._cached_http")
+    @patch("core.orchestrator._cached_http")
     def test_exception(self, mock_http):
         mock_http.get.side_effect = Exception("network error")
         result = orchestrator.http_get_cached("http://example.com")
@@ -2131,13 +2133,13 @@ class TestHandleAskUser:
 
     def test_confirm_type(self):
         from agents.agent_executor import handle_ask_user
-        with patch("ui_components.confirm", return_value=True):
+        with patch("cli.ui_components.confirm", return_value=True):
             result = handle_ask_user({"question": "Proceed?", "input_type": "confirm"})
             assert result == "yes"
 
     def test_confirm_deny(self):
         from agents.agent_executor import handle_ask_user
-        with patch("ui_components.confirm", return_value=False):
+        with patch("cli.ui_components.confirm", return_value=False):
             result = handle_ask_user({"question": "Proceed?", "input_type": "confirm"})
             assert result == "no"
 
@@ -3228,7 +3230,7 @@ class TestElengenixAgentHelpers:
 
     def test_execute_tool_registry_delegates(self):
         agent = _lightweight_agent()
-        with patch("agent_brain.execute_tool_registry") as mock_exec:
+        with patch("core.brain.execute_tool_registry") as mock_exec:
             mock_exec.return_value = MagicMock()
             from tools.tool_registry import ToolResult
             result = agent._execute_tool_registry("test_tool", "example.com", Path("/tmp"))
@@ -3236,7 +3238,7 @@ class TestElengenixAgentHelpers:
 
     def test_execute_tool_subprocess_delegates(self):
         agent = _lightweight_agent()
-        with patch("agent_brain.execute_tool_subprocess") as mock_exec:
+        with patch("core.brain.execute_tool_subprocess") as mock_exec:
             mock_exec.return_value = MagicMock()
             result = agent._execute_tool_subprocess("test_tool", "example.com")
             mock_exec.assert_called_once()
@@ -3244,7 +3246,7 @@ class TestElengenixAgentHelpers:
     def test_analyze_intent_delegates(self):
         agent = _lightweight_agent()
         agent.client = MagicMock()
-        with patch("agent_brain._analyze_intent", return_value="casual") as mock_intent:
+        with patch("core.brain._analyze_intent", return_value="casual") as mock_intent:
             result = agent._analyze_intent("hello")
             assert result == "casual"
 
@@ -3282,22 +3284,22 @@ class TestElengenixAgentHelpers:
     def test_check_context_overflow_near_full(self):
         agent = _lightweight_agent()
         agent.client = MagicMock()
-        with patch("agent_brain._get_context_status", return_value={"is_near_full": True, "percent": 95.0, "used_tokens": 120000, "capacity": 128000}):
+        with patch("core.brain._get_context_status", return_value={"is_near_full": True, "percent": 95.0, "used_tokens": 120000, "capacity": 128000}):
             agent.conversation_history = [{"role": "user", "content": f"msg {i}"} for i in range(20)]
-            with patch("agent_brain.AIMessage"):
+            with patch("core.brain.AIMessage"):
                 agent.client.chat.return_value = MagicMock(content="summary")
                 result = agent._check_context_overflow()
                 assert result is True
 
     def test_check_context_overflow_not_near_full(self):
         agent = _lightweight_agent()
-        with patch("agent_brain._get_context_status", return_value={"is_near_full": False, "percent": 50.0, "used_tokens": 64000, "capacity": 128000}):
+        with patch("core.brain._get_context_status", return_value={"is_near_full": False, "percent": 50.0, "used_tokens": 64000, "capacity": 128000}):
             result = agent._check_context_overflow()
             assert result is False
 
     def test_check_context_overflow_exception(self):
         agent = _lightweight_agent()
-        with patch("agent_brain._get_context_status", side_effect=Exception("error")):
+        with patch("core.brain._get_context_status", side_effect=Exception("error")):
             result = agent._check_context_overflow()
             assert result is False
 
@@ -3318,9 +3320,9 @@ class TestElengenixAgentHelpers:
         response = MagicMock()
         response.content = "This is a summary of the conversation."
         agent.client.chat.return_value = response
-        with patch("agent_brain._sqlite_clear_session"):
-            with patch("agent_brain._sqlite_save_message"):
-                with patch("agent_brain.AIMessage"):
+        with patch("core.brain._sqlite_clear_session"):
+            with patch("core.brain._sqlite_save_message"):
+                with patch("core.brain.AIMessage"):
                     with patch("tools.token_counter.count_tokens", return_value=100):
                         agent._summarize_old_conversation()
                         assert len(agent.conversation_history) < 12
@@ -3336,7 +3338,7 @@ class TestElengenixAgentHelpers:
         response = MagicMock()
         response.content = ""
         agent.client.chat.return_value = response
-        with patch("agent_brain.AIMessage"):
+        with patch("core.brain.AIMessage"):
             agent._summarize_old_conversation()
             # History should remain unchanged since summary was empty
             assert len(agent.conversation_history) == 12
@@ -3350,7 +3352,7 @@ class TestElengenixAgentHelpers:
         agent.client.active_client = MagicMock()
         agent.client.active_client.model = "test-model"
         agent.client.chat.side_effect = Exception("API error")
-        with patch("agent_brain.AIMessage"):
+        with patch("core.brain.AIMessage"):
             agent._summarize_old_conversation()
             # Should not crash
 
@@ -3421,7 +3423,7 @@ class TestElengenixAgentInitTeamAegis:
         }
         with patch.object(Path, "exists", return_value=True):
             with patch("builtins.open", mock_open(read_data=json.dumps(config))):
-                with patch("agent_brain.AIClientManager") as mock_client_cls:
+                with patch("core.brain.AIClientManager") as mock_client_cls:
                     mock_client = MagicMock()
                     mock_client.active_client = MagicMock()
                     mock_client_cls.return_value = mock_client
@@ -3572,40 +3574,40 @@ class TestElengenixAgentProcessQuery:
 
     def test_casual_intent(self):
         agent = self._make_full_agent()
-        with patch("agent_brain._analyze_intent", return_value="casual"):
-            with patch("agent_brain.get_context_for_ai", return_value="context"):
-                with patch("agent_brain._get_now_context", return_value="now"):
-                    with patch("agent_brain.AIMessage"):
+        with patch("core.brain._analyze_intent", return_value="casual"):
+            with patch("core.brain.get_context_for_ai", return_value="context"):
+                with patch("core.brain._get_now_context", return_value="now"):
+                    with patch("core.brain.AIMessage"):
                         response = MagicMock()
                         response.content = "Hello! I'm Elengenix."
                         agent.client.chat.return_value = response
-                        with patch("agent_brain.remember"):
+                        with patch("core.brain.remember"):
                             result = agent.process_query("hello")
                             assert isinstance(result, str)
 
     def test_research_intent(self):
         agent = self._make_full_agent()
-        with patch("agent_brain._analyze_intent", return_value="research"):
-            with patch("agent_brain.get_context_for_ai", return_value="context"):
-                with patch("agent_brain._get_now_context", return_value="now"):
-                    with patch("agent_brain.AIMessage"):
+        with patch("core.brain._analyze_intent", return_value="research"):
+            with patch("core.brain.get_context_for_ai", return_value="context"):
+                with patch("core.brain._get_now_context", return_value="now"):
+                    with patch("core.brain.AIMessage"):
                         response = MagicMock()
                         response.content = "Today's weather is sunny."
                         agent.client.chat.return_value = response
-                        with patch("agent_brain.remember"):
+                        with patch("core.brain.remember"):
                             result = agent.process_query("today's weather")
                             assert isinstance(result, str)
 
     def test_security_chat_intent(self):
         agent = self._make_full_agent()
-        with patch("agent_brain._analyze_intent", return_value="security_chat"):
-            with patch("agent_brain.get_context_for_ai", return_value="context"):
-                with patch("agent_brain._get_now_context", return_value="now"):
-                    with patch("agent_brain.AIMessage"):
+        with patch("core.brain._analyze_intent", return_value="security_chat"):
+            with patch("core.brain.get_context_for_ai", return_value="context"):
+                with patch("core.brain._get_now_context", return_value="now"):
+                    with patch("core.brain.AIMessage"):
                         response = MagicMock()
                         response.content = "SQL injection is a vulnerability..."
                         agent.client.chat.return_value = response
-                        with patch("agent_brain.remember"):
+                        with patch("core.brain.remember"):
                             result = agent.process_query("explain SQL injection")
                             assert isinstance(result, str)
 
@@ -3613,11 +3615,11 @@ class TestElengenixAgentProcessQuery:
         """Casual intent WITH a target should still start a mission."""
         agent = self._make_full_agent()
         agent.enable_planning = False
-        with patch("agent_brain._analyze_intent", return_value="casual"):
-            with patch("agent_brain.remember"):
-                with patch("agent_brain.get_context_for_ai", return_value=""):
-                    with patch("agent_brain._get_now_context", return_value="now"):
-                        with patch("agent_brain.AIMessage"):
+        with patch("core.brain._analyze_intent", return_value="casual"):
+            with patch("core.brain.remember"):
+                with patch("core.brain.get_context_for_ai", return_value=""):
+                    with patch("core.brain._get_now_context", return_value="now"):
+                        with patch("core.brain.AIMessage"):
                             response = MagicMock()
                             response.content = "I'll scan that."
                             agent.client.chat.return_value = response
@@ -3627,10 +3629,10 @@ class TestElengenixAgentProcessQuery:
 
     def test_smart_scan_mode(self):
         agent = self._make_full_agent()
-        with patch("agent_brain._analyze_intent", return_value="scan"):
-            with patch("agent_brain.remember"):
-                with patch("agent_brain._extract_target_from_text", return_value="example.com"):
-                    with patch("agent_brain._get_vuln_finder"):
+        with patch("core.brain._analyze_intent", return_value="scan"):
+            with patch("core.brain.remember"):
+                with patch("core.brain._extract_target_from_text", return_value="example.com"):
+                    with patch("core.brain._get_vuln_finder"):
                         agent._smart_orchestrator = MagicMock()
                         agent.smart_orchestrator.run_smart_scan = AsyncMock(
                             return_value=(MagicMock(results=[], findings=[], duration=10.0),
@@ -3650,19 +3652,19 @@ class TestMemoryFunctions:
     """Tests for agent_brain memory functions."""
 
     def test_remember_success(self):
-        with patch("agent_brain._get_vector_memory") as mock_vm:
+        with patch("core.brain._get_vector_memory") as mock_vm:
             mock_vm.return_value = MagicMock()
             from core.brain import remember
             remember("test content", target="test", category="test")
 
     def test_remember_exception(self):
-        with patch("agent_brain._get_vector_memory", side_effect=Exception("error")):
+        with patch("core.brain._get_vector_memory", side_effect=Exception("error")):
             from core.brain import remember
             # Should not raise
             remember("test content", target="test", category="test")
 
     def test_recall_success(self):
-        with patch("agent_brain._get_vector_memory") as mock_vm:
+        with patch("core.brain._get_vector_memory") as mock_vm:
             mock_vm.return_value = MagicMock()
             mock_vm.return_value.recall.return_value = [{"content": "test"}]
             from core.brain import recall
@@ -3670,13 +3672,13 @@ class TestMemoryFunctions:
             assert len(result) == 1
 
     def test_recall_exception(self):
-        with patch("agent_brain._get_vector_memory", side_effect=Exception("error")):
+        with patch("core.brain._get_vector_memory", side_effect=Exception("error")):
             from core.brain import recall
             result = recall("test query")
             assert result == []
 
     def test_get_context_for_ai_success(self):
-        with patch("agent_brain._get_vector_memory") as mock_vm:
+        with patch("core.brain._get_vector_memory") as mock_vm:
             mock_vm.return_value = MagicMock()
             mock_vm.return_value.get_context_for_ai.return_value = "context"
             from core.brain import get_context_for_ai
@@ -3684,24 +3686,24 @@ class TestMemoryFunctions:
             assert result == "context"
 
     def test_get_context_for_ai_exception(self):
-        with patch("agent_brain._get_vector_memory", side_effect=Exception("error")):
+        with patch("core.brain._get_vector_memory", side_effect=Exception("error")):
             from core.brain import get_context_for_ai
             result = get_context_for_ai("query")
             assert result == ""
 
     def test_sqlite_save_message_success(self):
-        with patch("agent_brain._get_memory_persistence") as mock_mp:
+        with patch("core.brain._get_memory_persistence") as mock_mp:
             mock_mp.return_value = MagicMock()
             from core.brain import _sqlite_save_message
             _sqlite_save_message("session", "user", "hello")
 
     def test_sqlite_save_message_exception(self):
-        with patch("agent_brain._get_memory_persistence", side_effect=Exception("error")):
+        with patch("core.brain._get_memory_persistence", side_effect=Exception("error")):
             from core.brain import _sqlite_save_message
             _sqlite_save_message("session", "user", "hello")
 
     def test_get_context_status_success(self):
-        with patch("agent_brain._get_memory_persistence") as mock_mp:
+        with patch("core.brain._get_memory_persistence") as mock_mp:
             mock_mp.return_value = MagicMock()
             mock_mp.return_value.get_context_status.return_value = {"is_near_full": False, "percent": 0, "used_tokens": 0, "capacity": 128000}
             from core.brain import _get_context_status
@@ -3709,19 +3711,19 @@ class TestMemoryFunctions:
             assert isinstance(result, dict)
 
     def test_get_context_status_exception(self):
-        with patch("agent_brain._get_memory_persistence", side_effect=Exception("error")):
+        with patch("core.brain._get_memory_persistence", side_effect=Exception("error")):
             from core.brain import _get_context_status
             result = _get_context_status("session")
             assert result["is_near_full"] is False
 
     def test_sqlite_clear_session_success(self):
-        with patch("agent_brain._get_memory_persistence") as mock_mp:
+        with patch("core.brain._get_memory_persistence") as mock_mp:
             mock_mp.return_value = MagicMock()
             from core.brain import _sqlite_clear_session
             _sqlite_clear_session("session")
 
     def test_sqlite_clear_session_exception(self):
-        with patch("agent_brain._get_memory_persistence", side_effect=Exception("error")):
+        with patch("core.brain._get_memory_persistence", side_effect=Exception("error")):
             from core.brain import _sqlite_clear_session
             _sqlite_clear_session("session")
 

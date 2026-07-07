@@ -1,4 +1,4 @@
-"""test_cli_textual_coverage.py — Comprehensive tests for cli_textual.py
+"""test_cli_textual_coverage.py — Comprehensive tests for cli/textual.py
 
 Covers: CSS blocks, dataclasses, widget __init__, helper functions,
 event handlers, compose tree, sidebar, statusbar, settings overlay,
@@ -16,7 +16,7 @@ from unittest.mock import MagicMock, PropertyMock, call, patch
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-import cli_textual as mod
+import cli.textual as mod
 
 
 # ---------------------------------------------------------------------------
@@ -625,7 +625,7 @@ def test_settings_overlay_reload_failure():
     # _reload tries to import and create SettingsOverlay, which fails
     with patch.object(mod.SettingsOverlayWidget, 'app',
                       new_callable=PropertyMock, return_value=mock_app):
-        with patch("cli_textual.time") as mock_time:
+        with patch("cli.textual.time") as mock_time:
             mock_time.monotonic.side_effect = [0, 4]
             mock_time.sleep = MagicMock()
             with patch.dict("sys.modules", {"tools.overlay_menu": None}):
@@ -1184,7 +1184,7 @@ def test_app_update_sidebar_with_agent():
     app._agent = MagicMock()
     app._agent.conversation_history = [{"content": "test"}]
     app._last_sidebar_update = 0.0
-    with patch("cli_textual.count_tokens", return_value=100, create=True):
+    with patch("cli.textual.count_tokens", return_value=100, create=True):
         app._update_sidebar(force=True)
         app._cached_sidebar.refresh_data.assert_called()
 
@@ -1565,7 +1565,7 @@ def test_app_ensure_session_failure():
     app.session_name = ""
     app._session_mgr = MagicMock()
     app._session_mgr.start_session.side_effect = Exception("fail")
-    with patch("cli_textual.generate_session_id", return_value="new-id", create=True):
+    with patch("cli.textual.generate_session_id", return_value="new-id", create=True):
         app._ensure_session()
 
 
@@ -1653,7 +1653,7 @@ def test_app_action_show_settings():
 
 def test_app_action_toggle_dashboard_available():
     app = _make_app_stub()
-    with patch("cli_textual._TUI_WIDGETS_AVAILABLE", True):
+    with patch("cli.textual._TUI_WIDGETS_AVAILABLE", True):
         mc = _mock_widget()
         app.query_one = MagicMock(return_value=mc)
         app.action_toggle_dashboard()
@@ -1662,7 +1662,7 @@ def test_app_action_toggle_dashboard_available():
 
 def test_app_action_toggle_dashboard_unavailable():
     app = _make_app_stub()
-    with patch("cli_textual._TUI_WIDGETS_AVAILABLE", False):
+    with patch("cli.textual._TUI_WIDGETS_AVAILABLE", False):
         app.action_toggle_dashboard()
         app._cached_chat.write.assert_called()
 
@@ -1670,7 +1670,7 @@ def test_app_action_toggle_dashboard_unavailable():
 def test_app_action_toggle_dashboard_hide():
     app = _make_app_stub()
     app._dashboard_visible = True
-    with patch("cli_textual._TUI_WIDGETS_AVAILABLE", True):
+    with patch("cli.textual._TUI_WIDGETS_AVAILABLE", True):
         mc = _mock_widget()
         app.query_one = MagicMock(return_value=mc)
         app.action_toggle_dashboard()
@@ -1679,7 +1679,7 @@ def test_app_action_toggle_dashboard_hide():
 
 def test_app_action_toggle_dashboard_failure():
     app = _make_app_stub()
-    with patch("cli_textual._TUI_WIDGETS_AVAILABLE", True):
+    with patch("cli.textual._TUI_WIDGETS_AVAILABLE", True):
         app.query_one = MagicMock(side_effect=Exception("err"))
         app.action_toggle_dashboard()
 
@@ -2070,14 +2070,14 @@ def test_slash_target_clear():
 
 def test_slash_stats():
     app = _make_app_stub()
-    with patch("cli_textual.get_vector_memory", create=True) as m:
+    with patch("cli.textual.get_vector_memory", create=True) as m:
         m.return_value.get_memory_stats.return_value = {"total_memories": 42, "unique_targets": 5}
         assert app._handle_slash("/stats") is True
 
 
 def test_slash_stats_error():
     app = _make_app_stub()
-    with patch("cli_textual.get_vector_memory", side_effect=Exception("err"), create=True):
+    with patch("cli.textual.get_vector_memory", side_effect=Exception("err"), create=True):
         assert app._handle_slash("/stats") is True
 
 
@@ -2158,7 +2158,7 @@ def test_slash_theme_no_mgr():
 def test_slash_theme_set():
     app = _make_app_stub()
     app._theme_mgr = MagicMock()
-    with patch("cli_textual.THEME_PALETTE", {"DEFAULT": {}, "CYBERPUNK": {}}):
+    with patch("cli.textual.THEME_PALETTE", {"DEFAULT": {}, "CYBERPUNK": {}}):
         assert app._handle_slash("/theme CYBERPUNK") is True
         app._theme_mgr.transition_to.assert_called_once()
 
@@ -2167,7 +2167,7 @@ def test_slash_theme_invalid():
     app = _make_app_stub()
     app._theme_mgr = MagicMock()
     app._theme_mgr.list_themes.return_value = ["DEFAULT"]
-    with patch("cli_textual.THEME_PALETTE", {"DEFAULT": {}}):
+    with patch("cli.textual.THEME_PALETTE", {"DEFAULT": {}}):
         assert app._handle_slash("/theme INVALID") is True
 
 
@@ -2187,7 +2187,7 @@ def test_slash_session_new():
     app._agent.clear_conversation_history = MagicMock()
     mc = _mock_widget()
     app._cached_chat = mc
-    with patch("cli_textual.generate_session_id", return_value="new-id", create=True):
+    with patch("cli.textual.generate_session_id", return_value="new-id", create=True):
         assert app._handle_slash("/session new") is True
         assert app.turn_count == 0
 
@@ -2698,7 +2698,7 @@ def test_on_key_normal():
 
 def test_refresh_dashboard_unavailable():
     app = _make_app_stub()
-    with patch("cli_textual._TUI_WIDGETS_AVAILABLE", False):
+    with patch("cli.textual._TUI_WIDGETS_AVAILABLE", False):
         app._refresh_dashboard()
 
 
@@ -2716,7 +2716,7 @@ def test_refresh_dashboard_available():
         return _mock_widget()
 
     app.query_one = qs
-    with patch("cli_textual._TUI_WIDGETS_AVAILABLE", True):
+    with patch("cli.textual._TUI_WIDGETS_AVAILABLE", True):
         app._refresh_dashboard()
 
 
@@ -2740,7 +2740,7 @@ def test_refresh_dashboard_object_findings():
         return _mock_widget()
 
     app.query_one = qs
-    with patch("cli_textual._TUI_WIDGETS_AVAILABLE", True):
+    with patch("cli.textual._TUI_WIDGETS_AVAILABLE", True):
         app._refresh_dashboard()
         mt.add_finding.assert_called()
 
@@ -2748,7 +2748,7 @@ def test_refresh_dashboard_object_findings():
 def test_refresh_dashboard_failure():
     app = _make_app_stub()
     app.query_one = MagicMock(side_effect=Exception("err"))
-    with patch("cli_textual._TUI_WIDGETS_AVAILABLE", True):
+    with patch("cli.textual._TUI_WIDGETS_AVAILABLE", True):
         app._refresh_dashboard()
 
 
@@ -2846,9 +2846,9 @@ def test_run_boot_sequence():
     app._chat_write_system = MagicMock()
     app._update_banner_text = MagicMock()
 
-    with patch("cli_textual.time.sleep"):
-        with patch("cli_textual.sys.argv", ["elengenix"]):
-            with patch("cli_textual.os.environ", {"ELENGENIX_BELL": "0"}):
+    with patch("cli.textual.time.sleep"):
+        with patch("cli.textual.sys.argv", ["elengenix"]):
+            with patch("cli.textual.os.environ", {"ELENGENIX_BELL": "0"}):
                 try:
                     mod.ElengenixTextualApp._run_boot_sequence.__wrapped__(app)
                 except Exception:
@@ -2942,7 +2942,7 @@ def test_on_mount_session_mgr_failure():
 
 def test_main():
     with patch.object(mod, "ObbyGame"), patch.object(mod, "get_agent"):
-        with patch("cli_textual.ElengenixTextualApp") as MockApp:
+        with patch("cli.textual.ElengenixTextualApp") as MockApp:
             mock_app = MagicMock()
             MockApp.return_value = mock_app
             mod.main(target="x.com", mode="HUNT", session_id="abc")
