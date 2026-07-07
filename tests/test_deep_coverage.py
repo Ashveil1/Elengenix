@@ -361,36 +361,36 @@ class TestAgentBrainHelpers:
     def test_remember_exception(self):
         from core.brain import remember
         # Should not raise even if vector memory is broken
-        with patch("agent_brain._get_vector_memory", side_effect=Exception("fail")):
+        with patch("core.brain._get_vector_memory", side_effect=Exception("fail")):
             remember("test content")
 
     def test_recall_exception(self):
         from core.brain import recall
-        with patch("agent_brain._get_vector_memory", side_effect=Exception("fail")):
+        with patch("core.brain._get_vector_memory", side_effect=Exception("fail")):
             result = recall("test query")
             assert result == []
 
     def test_get_context_for_ai_exception(self):
         from core.brain import get_context_for_ai
-        with patch("agent_brain._get_vector_memory", side_effect=Exception("fail")):
+        with patch("core.brain._get_vector_memory", side_effect=Exception("fail")):
             result = get_context_for_ai("query")
             assert result == ""
 
     def test_sqlite_save_message_exception(self):
         from core.brain import _sqlite_save_message
-        with patch("agent_brain._get_memory_persistence", side_effect=Exception("fail")):
+        with patch("core.brain._get_memory_persistence", side_effect=Exception("fail")):
             _sqlite_save_message("session", "user", "content")
 
     def test_get_context_status_exception(self):
         from core.brain import _get_context_status
-        with patch("agent_brain._get_memory_persistence", side_effect=Exception("fail")):
+        with patch("core.brain._get_memory_persistence", side_effect=Exception("fail")):
             result = _get_context_status("session")
             assert result["is_near_full"] is False
             assert result["percent"] == 0
 
     def test_sqlite_clear_session_exception(self):
         from core.brain import _sqlite_clear_session
-        with patch("agent_brain._get_memory_persistence", side_effect=Exception("fail")):
+        with patch("core.brain._get_memory_persistence", side_effect=Exception("fail")):
             _sqlite_clear_session("session")
 
     def test_lazy_getters(self):
@@ -491,7 +491,7 @@ class TestAgentBrainCheckContextOverflow:
         agent.client = MagicMock()
         agent.client.active_client = MagicMock()
         agent.client.active_client.model = "test"
-        with patch("agent_brain._get_context_status", return_value={"is_near_full": True, "percent": 95, "used_tokens": 120000, "capacity": 128000}):
+        with patch("core.brain._get_context_status", return_value={"is_near_full": True, "percent": 95, "used_tokens": 120000, "capacity": 128000}):
             with patch.object(agent, "_summarize_old_conversation"):
                 result = ElengenixAgent._check_context_overflow(agent)
                 assert result is True
@@ -502,7 +502,7 @@ class TestAgentBrainCheckContextOverflow:
         agent.client = MagicMock()
         agent.client.active_client = MagicMock()
         agent.client.active_client.model = "test"
-        with patch("agent_brain._get_context_status", return_value={"is_near_full": False, "percent": 50, "used_tokens": 64000, "capacity": 128000}):
+        with patch("core.brain._get_context_status", return_value={"is_near_full": False, "percent": 50, "used_tokens": 64000, "capacity": 128000}):
             result = ElengenixAgent._check_context_overflow(agent)
             assert result is False
 
@@ -512,7 +512,7 @@ class TestAgentBrainCheckContextOverflow:
         agent.client = MagicMock()
         agent.client.active_client = MagicMock()
         agent.client.active_client.model = "test"
-        with patch("agent_brain._get_context_status", side_effect=Exception("fail")):
+        with patch("core.brain._get_context_status", side_effect=Exception("fail")):
             result = ElengenixAgent._check_context_overflow(agent)
             assert result is False
 
@@ -1454,13 +1454,13 @@ class TestOrchestratorIsInScope:
 
     def test_valid_target_no_scope(self):
         from core.orchestrator import is_in_scope
-        import orchestrator
-        old_domains = orchestrator.ALLOWED_DOMAINS
-        orchestrator.ALLOWED_DOMAINS = set()
+        import core.orchestrator as orchestrator
+        old_func = orchestrator._get_allowed_domains
+        orchestrator._get_allowed_domains = lambda: set()
         try:
-            assert is_in_scope("example.com") is True
+            assert is_in_scope("example.com") is False
         finally:
-            orchestrator.ALLOWED_DOMAINS = old_domains
+            orchestrator._get_allowed_domains = old_func
 
     def test_invalid_target(self):
         from core.orchestrator import is_in_scope
@@ -1496,7 +1496,7 @@ class TestOrchestratorReconToFindings:
                 {"url": "/api?q=", "param": "q", "is_interesting": True, "method": "GET", "delta_pct": 50, "baseline_len": 100, "test_len": 150}
             ],
         }
-        with patch("orchestrator._check_cves_for_tech", return_value=[]):
+        with patch("core.orchestrator._check_cves_for_tech", return_value=[]):
             findings = _recon_to_findings(recon, "http://example.com")
         assert len(findings) >= 4
 
@@ -2329,7 +2329,7 @@ class TestOrchestratorRunToolWithRegistry:
         mock_tool = MagicMock()
         mock_tool.is_available = False
         mock_tool.metadata.category = "utility"
-        with patch("orchestrator.registry") as mock_reg:
+        with patch("core.orchestrator.registry") as mock_reg:
             mock_reg.get_tool.return_value = mock_tool
             result = await run_tool_with_registry(
                 "test_tool", "example.com",
@@ -2344,7 +2344,7 @@ class TestOrchestratorRunRegistryPipeline:
     @pytest.mark.asyncio
     async def test_no_available_tools(self):
         from core.orchestrator import run_registry_pipeline
-        with patch("orchestrator.registry") as mock_reg:
+        with patch("core.orchestrator.registry") as mock_reg:
             mock_reg.get_recommended_chain.return_value = []
             result = await run_registry_pipeline(
                 "example.com", Path("/tmp/report"), rate_limit=5,
@@ -2357,19 +2357,19 @@ class TestOrchestratorCachedHttp:
 
     def test_exception_returns_none(self):
         from core.orchestrator import http_get_cached
-        with patch("orchestrator._cached_http.get", side_effect=Exception("fail")):
+        with patch("core.orchestrator._cached_http.get", side_effect=Exception("fail")):
             result = http_get_cached("http://example.com")
             assert result is None
 
     def test_no_text_returns_none(self):
         from core.orchestrator import http_get_cached
-        with patch("orchestrator._cached_http.get", return_value={"status": 200}):
+        with patch("core.orchestrator._cached_http.get", return_value={"status": 200}):
             result = http_get_cached("http://example.com")
             assert result is None
 
     def test_success(self):
         from core.orchestrator import http_get_cached
-        with patch("orchestrator._cached_http.get", return_value={"text": "hello"}):
+        with patch("core.orchestrator._cached_http.get", return_value={"text": "hello"}):
             result = http_get_cached("http://example.com")
             assert result == "hello"
 
@@ -2606,7 +2606,7 @@ class TestMainRequireAuthorizedScanTarget:
 
     def test_out_of_scope(self):
         from main import require_authorized_scan_target
-        with patch("orchestrator.is_in_scope", return_value=False):
+        with patch("core.orchestrator.is_in_scope", return_value=False):
             result = require_authorized_scan_target("example.com")
             assert result is False
 

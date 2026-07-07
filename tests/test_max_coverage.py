@@ -771,9 +771,9 @@ class TestOrchestratorScope:
 
     def test_is_in_scope_valid(self):
         from core.orchestrator import is_in_scope
-        # Without ALLOWED_DOMAINS set, should return True for valid targets
-        with patch("orchestrator.ALLOWED_DOMAINS", set()):
-            assert is_in_scope("example.com") is True
+        # Without allowed domains configured, should return False (fail-closed)
+        with patch("core.orchestrator._get_allowed_domains", return_value=set()):
+            assert is_in_scope("example.com") is False
 
     def test_sanitize_path(self):
         from core.orchestrator import sanitize_path
@@ -1366,8 +1366,10 @@ class TestOverlayMenu:
         assert overlay._current_layer == "rate_limits"
 
     def test_navigate_to_skills(self, overlay):
+        # Skills layer was removed from overlay
         overlay._navigate_to("skills")
-        assert overlay._current_layer == "skills"
+        # Should remain on main (no skills layer)
+        assert overlay._current_layer == "main"
 
     def test_navigate_to_mode_settings(self, overlay):
         overlay._navigate_to("mode_settings")

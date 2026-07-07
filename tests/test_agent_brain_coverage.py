@@ -272,7 +272,7 @@ class TestElengenixAgentInitAndProperties:
 
     def test_smart_orchestrator_lazy_init(self):
         agent = _make_lightweight_agent()
-        with patch("scan_engine_upgrade.SmartOrchestrator") as MockSO:
+        with patch("core.scan_engine.SmartOrchestrator") as MockSO:
             MockSO.return_value = MagicMock()
             so = agent.smart_orchestrator
             assert so is not None
@@ -1124,7 +1124,7 @@ def _make_process_query_patches(agent):
         "graph_node": patch("tools.mission_state.GraphNode"),
         "graph_edge": patch("tools.mission_state.GraphEdge"),
         "now_ctx": patch("core.brain._get_now_context", return_value="now"),
-        "spinner": patch("ui_components.show_spinner"),
+        "spinner": patch("cli.ui_components.show_spinner"),
         "action_tools": patch("tools.universal_ai_client.ACTION_TOOLS", []),
     }
 

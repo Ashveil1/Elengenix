@@ -160,28 +160,31 @@ class TestIsInScope:
     """Test is_in_scope function."""
 
     def test_in_scope_no_domains(self):
-        """When ALLOWED_DOMAINS is empty, all valid targets are in scope."""
+        """When allowed domains is empty, all valid targets are in scope."""
         from core.orchestrator import is_in_scope
 
-        with patch("orchestrator.ALLOWED_DOMAINS", set()):
-            assert is_in_scope("example.com") is True
+        with patch("core.orchestrator._get_allowed_domains", return_value=set()):
+            assert is_in_scope("example.com") is False
 
     def test_in_scope_matching_domain(self):
         from core.orchestrator import is_in_scope
 
-        with patch("orchestrator.ALLOWED_DOMAINS", {"example.com"}):
+        with patch("core.orchestrator._get_allowed_domains", return_value={"example.com"}), \
+             patch("core.orchestrator._check_dns_resolution", return_value=True):
             assert is_in_scope("example.com") is True
 
     def test_in_scope_subdomain(self):
         from core.orchestrator import is_in_scope
 
-        with patch("orchestrator.ALLOWED_DOMAINS", {"example.com"}):
+        with patch("core.orchestrator._get_allowed_domains", return_value={"example.com"}), \
+             patch("core.orchestrator._check_dns_resolution", return_value=True):
             assert is_in_scope("sub.example.com") is True
 
     def test_not_in_scope(self):
         from core.orchestrator import is_in_scope
 
-        with patch("orchestrator.ALLOWED_DOMAINS", {"example.com"}):
+        with patch("core.orchestrator._get_allowed_domains", return_value={"example.com"}), \
+             patch("core.orchestrator._check_dns_resolution", return_value=True):
             assert is_in_scope("other.com") is False
 
     def test_in_scope_empty_target(self):
@@ -330,17 +333,17 @@ class TestAnalyzeIntent:
         self.agent.client = MagicMock()
 
     def test_scan_intent(self):
-        with patch("agent_brain._analyze_intent", return_value="scan"):
+        with patch("core.brain._analyze_intent", return_value="scan"):
             result = self.agent._analyze_intent("scan example.com")
             assert result == "scan"
 
     def test_casual_intent(self):
-        with patch("agent_brain._analyze_intent", return_value="casual"):
+        with patch("core.brain._analyze_intent", return_value="casual"):
             result = self.agent._analyze_intent("hello how are you")
             assert result == "casual"
 
     def test_research_intent(self):
-        with patch("agent_brain._analyze_intent", return_value="research"):
+        with patch("core.brain._analyze_intent", return_value="research"):
             result = self.agent._analyze_intent("what is SQL injection")
             assert result == "research"
 

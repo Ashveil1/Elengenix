@@ -1050,7 +1050,7 @@ class TestCliTextual:
 
     def test_elengenix_textual_app_init(self):
         from cli.textual import ElengenixTextualApp
-        with patch("cli_textual.ObbyGame"):
+        with patch("cli.textual.ObbyGame"):
             app = ElengenixTextualApp(target="test.com", mode="CHILL")
             assert app.target == "test.com"
             assert app.mode == "CHILL"
@@ -1065,20 +1065,20 @@ class TestCliTextual:
 
     def test_elengenix_textual_app_init_hunt_mode(self):
         from cli.textual import ElengenixTextualApp
-        with patch("cli_textual.ObbyGame"):
+        with patch("cli.textual.ObbyGame"):
             app = ElengenixTextualApp(target="x.com", mode="HUNT")
             assert app.mode == "HUNT"
 
     def test_elengenix_textual_app_default_init(self):
         from cli.textual import ElengenixTextualApp
-        with patch("cli_textual.ObbyGame"):
+        with patch("cli.textual.ObbyGame"):
             app = ElengenixTextualApp()
             assert app.target == ""
             assert app.mode == "CHILL"
 
     def test_elengenix_textual_app_slash_commands(self):
         from cli.textual import ElengenixTextualApp
-        with patch("cli_textual.ObbyGame"):
+        with patch("cli.textual.ObbyGame"):
             app = ElengenixTextualApp()
             assert "/clear" in app.SLASH_COMMANDS
             assert "/quit" in app.SLASH_COMMANDS
@@ -1611,21 +1611,21 @@ class TestScanEngineUpgrade:
     """Test scan_engine_upgrade.py -- SmartOrchestrator."""
 
     def test_import(self):
-        from scan_engine_upgrade import SmartOrchestrator
+        from core.scan_engine import SmartOrchestrator
         assert SmartOrchestrator is not None
 
     def test_smart_orchestrator_init(self):
-        from scan_engine_upgrade import SmartOrchestrator
+        from core.scan_engine import SmartOrchestrator
         orch = SmartOrchestrator()
         assert orch.max_concurrency == 5
 
     def test_smart_orchestrator_init_custom(self):
-        from scan_engine_upgrade import SmartOrchestrator
+        from core.scan_engine import SmartOrchestrator
         orch = SmartOrchestrator(max_concurrency=10)
         assert orch.max_concurrency == 10
 
     def test_scan_state_dataclass(self):
-        from scan_engine_upgrade import ScanState
+        from core.scan_engine import ScanState
         state = ScanState(target="example.com")
         assert state.target == "example.com"
         assert state.scan_id != ""
@@ -1761,22 +1761,26 @@ class TestFileRelationshipMapper:
     """Test file_relationship_mapper.py -- mapping logic."""
 
     def test_import(self):
-        from file_relationship_mapper import FileRelationshipGraph
+        try:
+    from file_relationship_mapper import FileRelationshipGraph
         assert FileRelationshipGraph is not None
 
     def test_init(self):
-        from file_relationship_mapper import FileRelationshipGraph
+        try:
+    from file_relationship_mapper import FileRelationshipGraph
         mapper = FileRelationshipGraph()
         assert mapper is not None
 
     def test_to_dict(self):
-        from file_relationship_mapper import FileRelationshipGraph
+        try:
+    from file_relationship_mapper import FileRelationshipGraph
         mapper = FileRelationshipGraph()
         d = mapper.to_dict()
         assert isinstance(d, dict)
 
     def test_build(self):
-        from file_relationship_mapper import FileRelationshipGraph
+        try:
+    from file_relationship_mapper import FileRelationshipGraph
         mapper = FileRelationshipGraph()
         result = mapper.build()
         assert result is mapper

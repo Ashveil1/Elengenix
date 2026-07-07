@@ -1764,8 +1764,8 @@ class TestAnalysisPipelineBaseUrlHint:
 
 class TestOrchestratorBasic:
     def test_import(self):
-        import orchestrator
-        assert hasattr(orchestrator, "SmartOrchestrator")
+        import core.orchestrator
+        assert hasattr(core.orchestrator, "SmartOrchestrator")
 
     def test_instantiate(self):
         from core.orchestrator import SmartOrchestrator

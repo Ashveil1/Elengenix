@@ -24,7 +24,7 @@ sys.path.insert(0, str(ROOT))
 # Common patch dict used by all main() tests to prevent stdin blocking
 # and the print_error scoping bug in main()'s except handler.
 _MAIN_SAFE = {
-    "ui_components.confirm": MagicMock(return_value=False),
+    "cli.ui_components.confirm": MagicMock(return_value=False),
 }
 
 
@@ -272,14 +272,14 @@ def test_is_authorized_scan_target_invalid():
 def test_is_authorized_scan_target_in_scope():
     from main import is_authorized_scan_target
     with patch("main.validate_target", return_value=True), \
-         patch("orchestrator.is_in_scope", return_value=True):
+         patch("core.orchestrator.is_in_scope", return_value=True):
         assert is_authorized_scan_target("example.com") is True
 
 
 def test_is_authorized_scan_target_out_of_scope():
     from main import is_authorized_scan_target
     with patch("main.validate_target", return_value=True), \
-         patch("orchestrator.is_in_scope", return_value=False):
+         patch("core.orchestrator.is_in_scope", return_value=False):
         assert is_authorized_scan_target("evil.com") is False
 
 
@@ -299,8 +299,8 @@ def test_require_authorized_invalid():
 def test_require_authorized_out_of_scope():
     from main import require_authorized_scan_target
     with patch("main.validate_target", return_value=True), \
-         patch("orchestrator.is_in_scope", return_value=False), \
-         patch("orchestrator.normalize_target", return_value="evil.com"), \
+         patch("core.orchestrator.is_in_scope", return_value=False), \
+         patch("core.orchestrator.normalize_target", return_value="evil.com"), \
          patch("main.print_error") as mock_err:
         assert require_authorized_scan_target("evil.com") is False
         mock_err.assert_called()
@@ -309,8 +309,8 @@ def test_require_authorized_out_of_scope():
 def test_require_authorized_valid():
     from main import require_authorized_scan_target
     with patch("main.validate_target", return_value=True), \
-         patch("orchestrator.is_in_scope", return_value=True), \
-         patch("orchestrator.normalize_target", return_value="example.com"):
+         patch("core.orchestrator.is_in_scope", return_value=True), \
+         patch("core.orchestrator.normalize_target", return_value="example.com"):
         assert require_authorized_scan_target("example.com") is True
 
 
@@ -321,7 +321,7 @@ def test_require_authorized_valid():
 
 def test_show_banner():
     from main import show_banner
-    with patch("ui_components.show_main_banner") as mock_b:
+    with patch("cli.ui_components.show_main_banner") as mock_b:
         show_banner()
         mock_b.assert_called_once()
 
@@ -743,7 +743,7 @@ def _run_main(argv, extra_patches=None):
          patch("main.ensure_dependencies", return_value=True), \
          patch("tools.welcome_wizard.WelcomeWizard"), \
          patch("tools.history_manager.get_history_manager", return_value=MagicMock(get_contextual_suggestions=MagicMock(return_value=[]))), \
-         patch("ui_components.confirm", return_value=False), \
+         patch("cli.ui_components.confirm", return_value=False), \
          patch("tools.auto_detector.CommandSimplifier.simplify", side_effect=lambda cmd: cmd), \
          patch("tools.auto_detector.AutoDetector.detect", return_value={"action": "ai", "module": "ai", "explanation": "test", "confidence": 0.5}), \
          patch("sys.argv", ["main.py"] + argv):
@@ -792,7 +792,7 @@ def test_main_unknown_with_correction_declined():
         "tools.command_suggest.CommandSuggester": MagicMock(return_value=mock_suggester),
         "tools.auto_detector.CommandSimplifier": mock_simplifier,
         "tools.history_manager.get_history_manager": MagicMock(return_value=mock_hist),
-        "ui_components.confirm": MagicMock(return_value=False),
+        "cli.ui_components.confirm": MagicMock(return_value=False),
     })
 
 
@@ -829,7 +829,7 @@ def test_main_update():
 
 
 def test_main_arsenal():
-    _run_main(["arsenal"], {"tools_menu.show_tools_menu": MagicMock()})
+    _run_main(["arsenal"], {"cli.tools_menu.show_tools_menu": MagicMock()})
 
 
 def test_main_cve_update_success():
@@ -1079,14 +1079,14 @@ def test_main_history_search_empty():
 def test_main_history_clear():
     _run_main(["history", "clear"], {
         "tools.history_manager.get_history_manager": MagicMock(return_value=MagicMock(clear_history=MagicMock())),
-        "ui_components.confirm": MagicMock(return_value=True),
+        "cli.ui_components.confirm": MagicMock(return_value=True),
     })
 
 
 def test_main_history_clear_cancel():
     _run_main(["history", "clear"], {
         "tools.history_manager.get_history_manager": MagicMock(return_value=MagicMock()),
-        "ui_components.confirm": MagicMock(return_value=False),
+        "cli.ui_components.confirm": MagicMock(return_value=False),
     })
 
 
@@ -1422,7 +1422,7 @@ def test_main_memory_clear():
         "tools.vector_memory.get_vector_memory": MagicMock(return_value=mock_vm),
         "main.questionary": mock_q,
         "builtins.input": MagicMock(side_effect=["target.com"]),
-        "ui_components.confirm": MagicMock(return_value=True),
+        "cli.ui_components.confirm": MagicMock(return_value=True),
     })
 
 
@@ -1436,7 +1436,7 @@ def test_main_memory_clear_cancel():
         "tools.vector_memory.get_vector_memory": MagicMock(return_value=mock_vm),
         "main.questionary": mock_q,
         "builtins.input": MagicMock(side_effect=["target.com"]),
-        "ui_components.confirm": MagicMock(return_value=False),
+        "cli.ui_components.confirm": MagicMock(return_value=False),
     })
 
 
@@ -1637,7 +1637,7 @@ def test_main_keyboard_interrupt():
          patch("tools.welcome_wizard.WelcomeWizard"), \
          patch("tools.history_manager.get_history_manager", return_value=MagicMock(get_contextual_suggestions=MagicMock(return_value=[]))), \
          patch("commands.scan.handle_scan", side_effect=KeyboardInterrupt), \
-         patch("ui_components.confirm", return_value=False), \
+         patch("cli.ui_components.confirm", return_value=False), \
          patch("sys.argv", ["main.py", "scan", "example.com"]):
         from main import main
         with pytest.raises(SystemExit):
@@ -1669,7 +1669,7 @@ def test_bounty_confirm_scan():
     # confirm=True triggers re-dispatch to quick command
     _run_main(["bounty", "public"], {
         "tools.bounty_intelligence.BountyIntelligence": MagicMock(return_value=mock_intel),
-        "ui_components.confirm": MagicMock(return_value=True),
+        "cli.ui_components.confirm": MagicMock(return_value=True),
         "tools.profile_manager.ProfileManager": MagicMock(return_value=MagicMock(expand_profile=("scan", ["p.com"]))),
         "commands.scan.handle_scan": MagicMock(),
     })

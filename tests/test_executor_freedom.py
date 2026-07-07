@@ -401,7 +401,7 @@ class TestPromptApproval:
 
     def test_returns_deny_when_user_types_n(self):
         """Typing 'n' must return (False, False)."""
-        with patch("ui_components.console"), patch("builtins.input", return_value="n"):
+        with patch("cli.ui_components.console"), patch("builtins.input", return_value="n"):
             approved, enable_auto = _prompt_approval(
                 cmd="pip install evil",
                 risk_level="PRIVILEGED",
@@ -413,7 +413,7 @@ class TestPromptApproval:
 
     def test_returns_allow_when_user_types_y(self):
         """Typing 'y' must return (True, False) — allow this command only."""
-        with patch("ui_components.console"), patch("builtins.input", return_value="y"):
+        with patch("cli.ui_components.console"), patch("builtins.input", return_value="y"):
             approved, enable_auto = _prompt_approval(
                 cmd="sudo apt install nmap",
                 risk_level="PRIVILEGED",
@@ -424,7 +424,7 @@ class TestPromptApproval:
 
     def test_returns_allow_auto_when_user_types_a(self):
         """Typing 'a' must return (True, True) — allow + enable session auto-approve."""
-        with patch("ui_components.console"), patch("builtins.input", return_value="a"):
+        with patch("cli.ui_components.console"), patch("builtins.input", return_value="a"):
             approved, enable_auto = _prompt_approval(
                 cmd="cargo install feroxbuster",
                 risk_level="PRIVILEGED",
@@ -435,7 +435,7 @@ class TestPromptApproval:
 
     def test_returns_deny_on_eof(self):
         """If input() raises EOFError (non-interactive), must safely return (False, False)."""
-        with patch("ui_components.console"), patch("builtins.input", side_effect=EOFError):
+        with patch("cli.ui_components.console"), patch("builtins.input", side_effect=EOFError):
             approved, enable_auto = _prompt_approval(
                 cmd="pip install x",
                 risk_level="PRIVILEGED",
@@ -446,7 +446,7 @@ class TestPromptApproval:
     def test_unknown_input_defaults_to_deny(self):
         """Any input that is not y/Y/a/A must default to deny."""
         for bad_input in ["yes", "allow", "", "q", "1", "no"]:
-            with patch("ui_components.console"), patch("builtins.input", return_value=bad_input):
+            with patch("cli.ui_components.console"), patch("builtins.input", return_value=bad_input):
                 approved, _ = _prompt_approval(cmd="pip install x", risk_level="PRIVILEGED")
             assert approved is False, f"Expected deny for input={bad_input!r}"
 

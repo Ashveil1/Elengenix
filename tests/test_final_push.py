@@ -2438,7 +2438,7 @@ class TestExploitation:
 class TestScanEngineUpgrade:
     def test_smart_orchestrator_exists(self):
         try:
-            from tools.scan_engine_upgrade import SmartOrchestrator
+            from core.scan_engine import SmartOrchestrator
             assert SmartOrchestrator is not None
         except ImportError:
             pass  # Module may not be installed

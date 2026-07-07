@@ -85,7 +85,7 @@ class TestUiComponents:
         from cli.ui_components import console
         assert console.width >= 100
 
-    @patch("ui_components.console")
+    @patch("cli.ui_components.console")
     def test_print_success(self, mock_console):
         """print_success outputs [OK] marker."""
         from cli.ui_components import print_success
@@ -95,7 +95,7 @@ class TestUiComponents:
         assert "[OK]" in args
         assert "test passed" in args
 
-    @patch("ui_components.console")
+    @patch("cli.ui_components.console")
     def test_print_error(self, mock_console):
         """print_error outputs [FAIL] marker and strips Rich tags."""
         from cli.ui_components import print_error
@@ -105,7 +105,7 @@ class TestUiComponents:
         assert "[FAIL]" in args
         assert "something broke" in args
 
-    @patch("ui_components.console")
+    @patch("cli.ui_components.console")
     def test_print_warning(self, mock_console):
         """print_warning outputs [WARN] marker."""
         from cli.ui_components import print_warning
@@ -115,7 +115,7 @@ class TestUiComponents:
         assert "[WARN]" in args
         assert "caution" in args
 
-    @patch("ui_components.console")
+    @patch("cli.ui_components.console")
     def test_print_info(self, mock_console):
         """print_info outputs [INFO] marker."""
         from cli.ui_components import print_info
@@ -125,7 +125,7 @@ class TestUiComponents:
         assert "[INFO]" in args
         assert "fyi" in args
 
-    @patch("ui_components.console")
+    @patch("cli.ui_components.console")
     def test_print_command(self, mock_console):
         """print_command outputs command in highlighted style."""
         from cli.ui_components import print_command
@@ -134,7 +134,7 @@ class TestUiComponents:
         args = mock_console.print.call_args[0][0]
         assert "nmap -sV target.com" in args
 
-    @patch("ui_components.console")
+    @patch("cli.ui_components.console")
     def test_print_step(self, mock_console):
         """print_step outputs step with status marker."""
         from cli.ui_components import print_step
@@ -144,7 +144,7 @@ class TestUiComponents:
         assert "running step" in args
         assert "[RUN]" in args
 
-    @patch("ui_components.console")
+    @patch("cli.ui_components.console")
     def test_print_step_done(self, mock_console):
         """print_step with status='done' shows [OK]."""
         from cli.ui_components import print_step
@@ -152,7 +152,7 @@ class TestUiComponents:
         args = mock_console.print.call_args[0][0]
         assert "[OK]" in args
 
-    @patch("ui_components.console")
+    @patch("cli.ui_components.console")
     def test_print_step_failed(self, mock_console):
         """print_step with status='failed' shows [FAIL]."""
         from cli.ui_components import print_step
@@ -160,7 +160,7 @@ class TestUiComponents:
         args = mock_console.print.call_args[0][0]
         assert "[FAIL]" in args
 
-    @patch("ui_components.console")
+    @patch("cli.ui_components.console")
     def test_print_step_skipped(self, mock_console):
         """print_step with status='skipped' shows [SKIP]."""
         from cli.ui_components import print_step
@@ -168,7 +168,7 @@ class TestUiComponents:
         args = mock_console.print.call_args[0][0]
         assert "[SKIP]" in args
 
-    @patch("ui_components.console")
+    @patch("cli.ui_components.console")
     def test_print_step_unknown_status(self, mock_console):
         """print_step with unknown status defaults to [RUN]."""
         from cli.ui_components import print_step
@@ -302,28 +302,28 @@ class TestUiComponents:
         bar = show_progress_bar(100, "Test")
         assert isinstance(bar, Progress)
 
-    @patch("ui_components.console")
+    @patch("cli.ui_components.console")
     def test_show_card(self, mock_console):
         """show_card prints a Panel."""
         from cli.ui_components import show_card
         show_card("Title", "Content")
         mock_console.print.assert_called()
 
-    @patch("ui_components.console")
+    @patch("cli.ui_components.console")
     def test_show_metric_card(self, mock_console):
         """show_metric_card prints a Panel."""
         from cli.ui_components import show_metric_card
         show_metric_card("Label", "42", unit="items", icon="#", color="#ffffff")
         mock_console.print.assert_called()
 
-    @patch("ui_components.console")
+    @patch("cli.ui_components.console")
     def test_show_metric_card_no_unit_no_icon(self, mock_console):
         """show_metric_card works without unit and icon."""
         from cli.ui_components import show_metric_card
         show_metric_card("Label", "42")
         mock_console.print.assert_called()
 
-    @patch("ui_components.console")
+    @patch("cli.ui_components.console")
     def test_show_metric_row(self, mock_console):
         """show_metric_row prints a Panel with table."""
         from cli.ui_components import show_metric_row
@@ -334,42 +334,42 @@ class TestUiComponents:
         show_metric_row(metrics)
         mock_console.print.assert_called()
 
-    @patch("ui_components.console")
+    @patch("cli.ui_components.console")
     def test_show_section(self, mock_console):
         """show_section prints title and optional subtitle."""
         from cli.ui_components import show_section
         show_section("My Section", "subtitle text")
         assert mock_console.print.call_count >= 2
 
-    @patch("ui_components.console")
+    @patch("cli.ui_components.console")
     def test_show_section_no_subtitle(self, mock_console):
         """show_section prints without subtitle."""
         from cli.ui_components import show_section
         show_section("My Section")
         assert mock_console.print.call_count >= 2
 
-    @patch("ui_components.console")
+    @patch("cli.ui_components.console")
     def test_show_subsection(self, mock_console):
         """show_subsection prints subsection."""
         from cli.ui_components import show_subsection
         show_subsection("Sub")
         mock_console.print.assert_called()
 
-    @patch("ui_components.console")
+    @patch("cli.ui_components.console")
     def test_show_main_banner(self, mock_console):
         """show_main_banner prints ASCII art."""
         from cli.ui_components import show_main_banner
         show_main_banner()
         assert mock_console.print.call_count > 5
 
-    @patch("ui_components.console")
+    @patch("cli.ui_components.console")
     def test_show_cli_banner_default(self, mock_console):
         """show_cli_banner with default mode."""
         from cli.ui_components import show_cli_banner
         show_cli_banner()
         assert mock_console.print.call_count >= 3
 
-    @patch("ui_components.console")
+    @patch("cli.ui_components.console")
     def test_show_cli_banner_all_modes(self, mock_console):
         """show_cli_banner works for all known modes."""
         from cli.ui_components import show_cli_banner
@@ -378,35 +378,35 @@ class TestUiComponents:
             show_cli_banner(mode)
             assert mock_console.print.call_count >= 3
 
-    @patch("ui_components.console")
+    @patch("cli.ui_components.console")
     def test_show_cli_banner_unknown_mode(self, mock_console):
         """show_cli_banner with unknown mode falls back to default."""
         from cli.ui_components import show_cli_banner
         show_cli_banner("nonexistent")
         assert mock_console.print.call_count >= 3
 
-    @patch("ui_components.console")
+    @patch("cli.ui_components.console")
     def test_show_arsenal_banner(self, mock_console):
         """show_arsenal_banner prints banner."""
         from cli.ui_components import show_arsenal_banner
         show_arsenal_banner()
         assert mock_console.print.call_count >= 3
 
-    @patch("ui_components.console")
+    @patch("cli.ui_components.console")
     def test_show_scan_summary_with_findings(self, mock_console):
         """show_scan_summary shows metrics when findings present."""
         from cli.ui_components import show_scan_summary
         show_scan_summary({"high": 3, "medium": 5, "low": 2, "info": 1})
         assert mock_console.print.call_count >= 3
 
-    @patch("ui_components.console")
+    @patch("cli.ui_components.console")
     def test_show_scan_summary_no_findings(self, mock_console):
         """show_scan_summary shows no findings message."""
         from cli.ui_components import show_scan_summary
         show_scan_summary({})
         assert mock_console.print.call_count >= 2
 
-    @patch("ui_components.console")
+    @patch("cli.ui_components.console")
     def test_show_memory_stats(self, mock_console):
         """show_memory_stats shows memory stats."""
         from cli.ui_components import show_memory_stats
@@ -418,21 +418,21 @@ class TestUiComponents:
         })
         assert mock_console.print.call_count >= 3
 
-    @patch("ui_components.console")
+    @patch("cli.ui_components.console")
     def test_show_memory_stats_no_targets(self, mock_console):
         """show_memory_stats works without targets list."""
         from cli.ui_components import show_memory_stats
         show_memory_stats({"status": "active", "total_memories": 10, "unique_targets": 2})
         assert mock_console.print.call_count >= 2
 
-    @patch("ui_components.console")
+    @patch("cli.ui_components.console")
     def test_show_findings_summary_empty(self, mock_console):
         """show_findings_summary handles empty list."""
         from cli.ui_components import show_findings_summary
         show_findings_summary([])
         mock_console.print.assert_called()
 
-    @patch("ui_components.console")
+    @patch("cli.ui_components.console")
     def test_show_findings_summary_with_findings(self, mock_console):
         """show_findings_summary groups by severity."""
         from cli.ui_components import show_findings_summary
@@ -444,66 +444,66 @@ class TestUiComponents:
         show_findings_summary(findings)
         assert mock_console.print.call_count >= 2
 
-    @patch("ui_components.console")
+    @patch("cli.ui_components.console")
     def test_show_toast_info(self, mock_console):
         """show_toast with level info."""
         from cli.ui_components import show_toast
-        with patch("ui_components.time"):
+        with patch("cli.ui_components.time"):
             show_toast("hello", level="info", duration=0)
         args = mock_console.print.call_args[0][0]
         assert "[INFO]" in args
 
-    @patch("ui_components.console")
+    @patch("cli.ui_components.console")
     def test_show_toast_success(self, mock_console):
         """show_toast with level success."""
         from cli.ui_components import show_toast
-        with patch("ui_components.time"):
+        with patch("cli.ui_components.time"):
             show_toast("done", level="success", duration=0)
         args = mock_console.print.call_args[0][0]
         assert "[OK]" in args
 
-    @patch("ui_components.console")
+    @patch("cli.ui_components.console")
     def test_show_toast_error(self, mock_console):
         """show_toast with level error."""
         from cli.ui_components import show_toast
-        with patch("ui_components.time"):
+        with patch("cli.ui_components.time"):
             show_toast("err", level="error", duration=0)
         args = mock_console.print.call_args[0][0]
         assert "[FAIL]" in args
 
-    @patch("ui_components.console")
+    @patch("cli.ui_components.console")
     def test_show_toast_warning(self, mock_console):
         """show_toast with level warning."""
         from cli.ui_components import show_toast
-        with patch("ui_components.time"):
+        with patch("cli.ui_components.time"):
             show_toast("warn", level="warning", duration=0)
         args = mock_console.print.call_args[0][0]
         assert "[WARN]" in args
 
-    @patch("ui_components.console")
+    @patch("cli.ui_components.console")
     def test_show_toast_unknown_level(self, mock_console):
         """show_toast with unknown level uses [*]."""
         from cli.ui_components import show_toast
-        with patch("ui_components.time"):
+        with patch("cli.ui_components.time"):
             show_toast("misc", level="other", duration=0)
         args = mock_console.print.call_args[0][0]
         assert "[*]" in args
 
-    @patch("ui_components.console")
+    @patch("cli.ui_components.console")
     def test_show_divider(self, mock_console):
         """show_divider prints a divider line."""
         from cli.ui_components import show_divider
         show_divider()
         mock_console.print.assert_called_once()
 
-    @patch("ui_components.console")
+    @patch("cli.ui_components.console")
     def test_show_divider_custom(self, mock_console):
         """show_divider with custom char and width."""
         from cli.ui_components import show_divider
         show_divider(char="-", width=50)
         mock_console.print.assert_called_once()
 
-    @patch("ui_components.console")
+    @patch("cli.ui_components.console")
     def test_show_key_value(self, mock_console):
         """show_key_value prints key-value pair."""
         from cli.ui_components import show_key_value
@@ -512,7 +512,7 @@ class TestUiComponents:
         assert "Name" in args
         assert "value" in args
 
-    @patch("ui_components.console")
+    @patch("cli.ui_components.console")
     def test_show_key_value_indent(self, mock_console):
         """show_key_value with custom indent."""
         from cli.ui_components import show_key_value
@@ -520,14 +520,14 @@ class TestUiComponents:
         args = mock_console.print.call_args[0][0]
         assert "    " in args
 
-    @patch("ui_components.console")
+    @patch("cli.ui_components.console")
     def test_show_bullet_list(self, mock_console):
         """show_bullet_list prints items."""
         from cli.ui_components import show_bullet_list
         show_bullet_list(["a", "b", "c"])
         assert mock_console.print.call_count == 3
 
-    @patch("ui_components.console")
+    @patch("cli.ui_components.console")
     def test_show_bullet_list_custom_marker(self, mock_console):
         """show_bullet_list with custom marker."""
         from cli.ui_components import show_bullet_list
@@ -577,7 +577,7 @@ class TestUiComponents:
         panel = render_sidebar(scroll_info="Page 1/5")
         assert isinstance(panel, Panel)
 
-    @patch("ui_components.console")
+    @patch("cli.ui_components.console")
     def test_show_command_execution_success(self, mock_console):
         """show_command_execution shows success panel."""
         from cli.ui_components import show_command_execution
@@ -591,7 +591,7 @@ class TestUiComponents:
         )
         mock_console.print.assert_called()
 
-    @patch("ui_components.console")
+    @patch("cli.ui_components.console")
     def test_show_command_execution_failure(self, mock_console):
         """show_command_execution shows failure panel."""
         from cli.ui_components import show_command_execution
@@ -602,7 +602,7 @@ class TestUiComponents:
         )
         mock_console.print.assert_called()
 
-    @patch("ui_components.console")
+    @patch("cli.ui_components.console")
     def test_show_command_execution_long_output(self, mock_console):
         """show_command_execution truncates long output."""
         from cli.ui_components import show_command_execution
@@ -610,14 +610,14 @@ class TestUiComponents:
         show_command_execution(cmd="cmd", result=long_output, success=True)
         mock_console.print.assert_called()
 
-    @patch("ui_components.console")
+    @patch("cli.ui_components.console")
     def test_show_command_execution_empty_cmd(self, mock_console):
         """show_command_execution handles empty command."""
         from cli.ui_components import show_command_execution
         show_command_execution(cmd="", result="output", success=True)
         mock_console.print.assert_called()
 
-    @patch("ui_components.console")
+    @patch("cli.ui_components.console")
     def test_show_categorized_menu(self, mock_console):
         """show_categorized_menu renders the full menu."""
         from cli.ui_components import show_categorized_menu
@@ -636,35 +636,35 @@ class TestUiComponents:
             for item in cat["items"]:
                 assert len(item) == 3
 
-    @patch("ui_components.console")
+    @patch("cli.ui_components.console")
     def test_confirm_yes(self, mock_console):
         """confirm() returns True on 'y'."""
         from cli.ui_components import confirm
         mock_console.input.return_value = "y"
         assert confirm("Proceed?") is True
 
-    @patch("ui_components.console")
+    @patch("cli.ui_components.console")
     def test_confirm_no(self, mock_console):
         """confirm() returns False on 'n'."""
         from cli.ui_components import confirm
         mock_console.input.return_value = "n"
         assert confirm("Proceed?") is False
 
-    @patch("ui_components.console")
+    @patch("cli.ui_components.console")
     def test_confirm_default_true_empty(self, mock_console):
         """confirm() with default=True returns True on empty input."""
         from cli.ui_components import confirm
         mock_console.input.return_value = ""
         assert confirm("Proceed?", default=True) is True
 
-    @patch("ui_components.console")
+    @patch("cli.ui_components.console")
     def test_confirm_default_false_empty(self, mock_console):
         """confirm() with default=False returns False on empty input."""
         from cli.ui_components import confirm
         mock_console.input.return_value = ""
         assert confirm("Proceed?", default=False) is False
 
-    @patch("ui_components.console")
+    @patch("cli.ui_components.console")
     def test_confirm_yes_capital(self, mock_console):
         """confirm() accepts 'Yes'."""
         from cli.ui_components import confirm

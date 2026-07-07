@@ -810,7 +810,7 @@ class TestMainCommandRouting:
         mock_wiz.return_value = MagicMock()
         mock_wiz.return_value.run_if_first_time.return_value = None
         mock_hist.return_value = MagicMock()
-        with patch("cli_textual.main") as mock_tui:
+        with patch("cli.textual.main") as mock_tui:
             try:
                 main.main()
             except SystemExit:
@@ -902,7 +902,7 @@ class TestMainCommandRouting:
             cs = MagicMock()
             cs.suggest_correction.return_value = "scan"
             mock_cs.return_value = cs
-            with patch("ui_components.confirm", return_value=False):
+            with patch("cli.ui_components.confirm", return_value=False):
                 try:
                     main.main()
                 except SystemExit:
@@ -925,7 +925,7 @@ class TestMainCommandRouting:
             cs = MagicMock()
             cs.suggest_correction.return_value = "scan"
             mock_cs.return_value = cs
-            with patch("ui_components.confirm", return_value=True):
+            with patch("cli.ui_components.confirm", return_value=True):
                 with patch("commands.scan.handle_scan"):
                     try:
                         main.main()
@@ -959,7 +959,7 @@ class TestMainCommandRouting:
         mock_wiz.return_value = MagicMock()
         mock_wiz.return_value.run_if_first_time.return_value = None
         mock_hist.return_value = MagicMock()
-        with patch("tools_menu.show_tools_menu"):
+        with patch("cli.tools_menu.show_tools_menu"):
             try:
                 main.main()
             except SystemExit:

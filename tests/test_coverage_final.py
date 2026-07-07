@@ -2568,8 +2568,8 @@ class TestScanEngineUpgrade(unittest.TestCase):
 
     def test_import(self):
         try:
-            import tools.scan_engine_upgrade
-            self.assertTrue(hasattr(tools.scan_engine_upgrade, '__file__'))
+            from core.scan_engine import SmartOrchestrator
+            self.assertTrue(hasattr(core.scan_engine, '__file__'))
         except ImportError:
             self.skipTest("scan_engine_upgrade not importable")
 
@@ -2584,8 +2584,8 @@ class TestOrchestrator(unittest.TestCase):
 
     def test_import(self):
         try:
-            import orchestrator
-            self.assertTrue(hasattr(orchestrator, '__file__'))
+            import core.orchestrator
+            self.assertTrue(hasattr(core.orchestrator, '__file__'))
         except ImportError:
             self.skipTest("orchestrator not importable")
 

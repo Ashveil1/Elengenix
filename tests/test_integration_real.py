@@ -39,7 +39,7 @@ def test_subfinder_real_run_finds_subdomains(report_dir: Path):
     Acunetix for testing security tools. It's the closest thing to a public
     test target that we can legally scan.
     """
-    from scan_engine_upgrade import ParallelRunner
+    from core.scan_engine import ParallelRunner
 
     runner = ParallelRunner(max_concurrency=1)
     try:
@@ -66,7 +66,7 @@ def test_subfinder_real_run_finds_subdomains(report_dir: Path):
 )
 def test_httpx_real_run_probes_target(report_dir: Path):
     """Run httpx on testphp.vulnweb.com and assert it returns HTTP metadata."""
-    from scan_engine_upgrade import ParallelRunner
+    from core.scan_engine import ParallelRunner
 
     runner = ParallelRunner(max_concurrency=1)
     try:
@@ -87,7 +87,7 @@ def test_httpx_real_run_probes_target(report_dir: Path):
 
 def test_smart_orchestrator_smoke_compiles():
     """The SmartOrchestrator must instantiate without error."""
-    from scan_engine_upgrade import SmartOrchestrator
+    from core.scan_engine import SmartOrchestrator
 
     orch = SmartOrchestrator(max_concurrency=5)
     assert orch.max_concurrency == 5

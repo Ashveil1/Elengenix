@@ -24,7 +24,7 @@ def test_parallel_runner_run_tool_passes_semaphore(tmp_path: Path):
     Previous bug: ``await tool.execute(target, report_dir)`` crashed with
     TypeError because BaseTool.execute() requires (target, report_dir, semaphore).
     """
-    from scan_engine_upgrade import ParallelRunner
+    from core.scan_engine import ParallelRunner
     from tools.tool_registry import (
         BaseTool,
         ToolCategory,
@@ -90,7 +90,7 @@ def test_smart_orchestrator_does_not_crash_with_mock_tool(tmp_path: Path):
     Before the fix, this raised:
         TypeError: SubfinderTool.execute() missing 1 required positional argument: 'semaphore'
     """
-    from scan_engine_upgrade import SmartOrchestrator
+    from core.scan_engine import SmartOrchestrator
     from tools.tool_registry import (
         BaseTool,
         ToolCategory,
@@ -148,7 +148,7 @@ def test_parallel_runner_run_tool_signature_has_semaphore():
     """Source-level check: the run_tool method must call execute with 3 args."""
     import inspect
 
-    from scan_engine_upgrade import ParallelRunner
+    from core.scan_engine import ParallelRunner
 
     source = inspect.getsource(ParallelRunner.run_tool)
     # Must pass self.semaphore to tool.execute
