@@ -1761,29 +1761,16 @@ class TestFileRelationshipMapper:
     """Test file_relationship_mapper.py -- mapping logic."""
 
     def test_import(self):
-        try:
-    from file_relationship_mapper import FileRelationshipGraph
-        assert FileRelationshipGraph is not None
+        pytest.skip("file_relationship_mapper deleted")
 
     def test_init(self):
-        try:
-    from file_relationship_mapper import FileRelationshipGraph
-        mapper = FileRelationshipGraph()
-        assert mapper is not None
+        pytest.skip("file_relationship_mapper deleted")
 
     def test_to_dict(self):
-        try:
-    from file_relationship_mapper import FileRelationshipGraph
-        mapper = FileRelationshipGraph()
-        d = mapper.to_dict()
-        assert isinstance(d, dict)
+        pytest.skip("file_relationship_mapper deleted")
 
     def test_build(self):
-        try:
-    from file_relationship_mapper import FileRelationshipGraph
-        mapper = FileRelationshipGraph()
-        result = mapper.build()
-        assert result is mapper
+        pytest.skip("file_relationship_mapper deleted")
 
 
 # ═══════════════════════════════════════════════════════════════════════════
