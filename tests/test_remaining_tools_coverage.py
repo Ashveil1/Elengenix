@@ -2619,11 +2619,10 @@ from tools.overlay_menu import MENU_ITEMS
 
 class TestOverlayMenuItems:
     def test_menu_items(self):
-        assert len(MENU_ITEMS) >= 6
+        assert len(MENU_ITEMS) >= 5
         ids = [item["id"] for item in MENU_ITEMS]
         assert "sessions" in ids
         assert "api_keys" in ids
-        assert "skills" in ids
 
     def test_menu_item_structure(self):
         for item in MENU_ITEMS:

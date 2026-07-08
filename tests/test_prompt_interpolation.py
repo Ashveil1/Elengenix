@@ -33,7 +33,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 # Files that were converted from broken plain strings to f-strings in Phase 1.
 FIXED_FILES = [
-    "core.brain.py",
+    "core/brain.py",
     "agents/agent_universal.py",
     "agents/agent_conversation.py",
     "agents/agent_planner.py",

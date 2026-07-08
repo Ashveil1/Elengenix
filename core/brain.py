@@ -400,7 +400,7 @@ class ElengenixAgent:
     def smart_orchestrator(self):
         """Lazy-initialize SmartOrchestrator on first access."""
         if self._smart_orchestrator is None:
-            from scan_engine_upgrade import SmartOrchestrator
+            from core.scan_engine import SmartOrchestrator
 
             self._smart_orchestrator = SmartOrchestrator(max_concurrency=5)
         return self._smart_orchestrator
