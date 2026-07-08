@@ -2103,13 +2103,10 @@ class TestMainHelpers:
     """Test standalone functions imported from main.py or used by main.py."""
 
     def test_normalize_target_main(self):
-        try:
-            from main import normalize_target
-            assert normalize_target("") == ""
-            assert normalize_target("https://example.com/path") == "example.com"
-            assert normalize_target("example.com:8080") == "example.com"
-        except ImportError:
-            pytest.skip("main.py not importable directly")
+        from core.orchestrator import normalize_target
+        assert normalize_target("") == ""
+        assert normalize_target("https://example.com/path") == "example.com"
+        assert normalize_target("example.com:8080") == "example.com"
 
     def test_validate_target_main(self):
         try:
@@ -2121,12 +2118,9 @@ class TestMainHelpers:
             pytest.skip("main.py not importable directly")
 
     def test_is_valid_target_main(self):
-        try:
-            from main import is_valid_target
-            assert is_valid_target("example.com") is True
-            assert is_valid_target("") is False
-        except ImportError:
-            pytest.skip("main.py not importable directly")
+        from core.orchestrator import is_valid_target
+        assert is_valid_target("example.com") is True
+        assert is_valid_target("") is False
 
 
 # ═════════════════════════════════════════════════════════════════════════════

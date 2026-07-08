@@ -2318,28 +2318,19 @@ class TestSmartRecon(unittest.TestCase):
     """Tests for SmartReconEngine."""
 
     def test_asset_node(self):
-        try:
-            from tools.smart_recon import AssetNode
-            node = AssetNode()
-            self.assertTrue(hasattr(node, '__dataclass_fields__') or hasattr(node, '__init__'))
-        except (ImportError, TypeError):
-            self.skipTest("AssetNode not available")
+        from tools.smart_recon import AssetNode
+        node = AssetNode(id="n1", asset_type="domain", value="example.com")
+        self.assertTrue(hasattr(node, '__dataclass_fields__') or hasattr(node, '__init__'))
 
     def test_asset_edge(self):
-        try:
-            from tools.smart_recon import AssetEdge
-            edge = AssetEdge()
-            self.assertTrue(hasattr(edge, '__dataclass_fields__') or hasattr(edge, '__init__'))
-        except (ImportError, TypeError):
-            self.skipTest("AssetEdge not available")
+        from tools.smart_recon import AssetEdge
+        edge = AssetEdge(source="n1", target="n2", relation="has_finding")
+        self.assertTrue(hasattr(edge, '__dataclass_fields__') or hasattr(edge, '__init__'))
 
     def test_recon_result(self):
-        try:
-            from tools.smart_recon import ReconResult
-            result = ReconResult()
-            self.assertTrue(hasattr(result, '__dataclass_fields__') or hasattr(result, '__init__'))
-        except (ImportError, TypeError):
-            self.skipTest("ReconResult not available")
+        from tools.smart_recon import ReconResult
+        result = ReconResult(nodes=[], edges=[], findings=[], stats={})
+        self.assertTrue(hasattr(result, '__dataclass_fields__') or hasattr(result, '__init__'))
 
 
 # ============================================================================
@@ -2568,8 +2559,8 @@ class TestScanEngineUpgrade(unittest.TestCase):
 
     def test_import(self):
         try:
-            from core.scan_engine import SmartOrchestrator
-            self.assertTrue(hasattr(core.scan_engine, '__file__'))
+            from core import scan_engine
+            self.assertTrue(hasattr(scan_engine, '__file__'))
         except ImportError:
             self.skipTest("scan_engine_upgrade not importable")
 
