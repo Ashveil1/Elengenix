@@ -68,6 +68,7 @@ class BountyProgram:
     out_of_scope: List[str] = field(default_factory=list)
     response_time_hours: Optional[int] = None
     is_public: bool = True
+    state: str = "open"
     cached_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
     # Scoring fields
