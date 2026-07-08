@@ -181,6 +181,13 @@ def test_cli_e2e_against_httpbin(mock_server):
     target = "httpbin.org"
     target_clean = "httpbin.org"
 
+    # Skip if httpbin.org is unreachable (CI environments may block external access)
+    try:
+        import urllib.request
+        urllib.request.urlopen("https://httpbin.org/get", timeout=5)
+    except Exception:
+        pytest.skip("httpbin.org unreachable — skipping external target E2E test")
+
     # Run the actual CLI (90s budget: 30s preflight + 60s AI retries)
     rc, output = _run_cli_scan(target, timeout_s=90)
     # Note: rc can be 0 or non-zero depending on whether AI succeeds
