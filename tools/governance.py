@@ -340,22 +340,13 @@ class Governance:
         risk = self.classify_risk(action)
 
         if risk == "DESTRUCTIVE":
-            # Auto-approve mode: user granted blanket approval this session
-            if self.auto_approve_privileged:
-                decision = GateDecision(
-                    allowed=True,
-                    risk_level=risk,
-                    decision="allow",
-                    rationale="Auto-approve mode active (user granted session-wide approval).",
-                )
-                self.audit(mission_id, target, action, decision)
-                return decision
-
+            # DESTRUCTIVE commands are blocked unconditionally — auto-approve
+            # must never bypass them (user safety invariant).
             decision = GateDecision(
                 allowed=False,
                 risk_level=risk,
-                decision="needs_approval",
-                rationale="Destructive command requires human approval.",
+                decision="deny",
+                rationale="Destructive command is blocked unconditionally.",
             )
             self.audit(mission_id, target, action, decision)
             return decision
