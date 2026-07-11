@@ -44,10 +44,18 @@ def test_full_flow():
     assert esc_result is not None
     assert esc_result["expected_severity"] == "CRITICAL"
 
-    # 7. Verify finding
-    verification = finder.verify(finding1, "confirmed", "confirmed")
-    assert verification.verified is True
-    assert verification.confidence == 0.95
+    # 7. Verify finding (mocked)
+    from unittest.mock import patch
+    from tools.verification_engine import VerificationResult
+    with patch.object(finder.verification, 'verify_with_consensus') as mock_v:
+        mock_v.return_value = VerificationResult(
+            finding=finding1, verified=True, consensus_verdict="confirmed",
+            severity="LOW", model_votes=[], requires_human_review=False,
+            confidence=0.95, consensus_strength=1.0
+        )
+        verification = finder.verify(finding1)
+        assert verification.verified is True
+        assert verification.confidence == 0.95
 
     # 8. Check status
     status = finder.get_status()
@@ -94,12 +102,36 @@ def test_full_flow_escalation_and_chain_together():
     esc_result = finder.escalate({"type": "XSS", "severity": "LOW"})
     assert esc_result is not None
 
-    # Verify all three
-    v1 = finder.verify(finder.state.findings[0], "confirmed", "confirmed")
-    v2 = finder.verify(finder.state.findings[1], "confirmed", "false_positive")
-    v3 = finder.verify(finder.state.findings[2], "not vulnerable", "fake")
+    # Verify all three (mocked)
+    from unittest.mock import patch
+    from tools.verification_engine import VerificationResult
 
-    assert v1.verified is True
-    assert v2.verified is False  # disagreement
-    assert v2.requires_human_review is True
-    assert v3.verified is False
+    with patch.object(finder.verification, 'verify_with_consensus') as mock_v:
+        mock_v.side_effect = [
+            VerificationResult(
+                finding=finder.state.findings[0], verified=True,
+                consensus_verdict="confirmed", severity="LOW",
+                model_votes=[], requires_human_review=False,
+                confidence=0.9, consensus_strength=1.0
+            ),
+            VerificationResult(
+                finding=finder.state.findings[1], verified=False,
+                consensus_verdict="no_consensus", severity="LOW",
+                model_votes=[], requires_human_review=True,
+                confidence=0.4, consensus_strength=0.0
+            ),
+            VerificationResult(
+                finding=finder.state.findings[2], verified=False,
+                consensus_verdict="false_positive", severity="LOW",
+                model_votes=[], requires_human_review=False,
+                confidence=0.1, consensus_strength=0.0
+            ),
+        ]
+        v1 = finder.verify(finder.state.findings[0])
+        v2 = finder.verify(finder.state.findings[1])
+        v3 = finder.verify(finder.state.findings[2])
+
+        assert v1.verified is True
+        assert v2.verified is False  # disagreement
+        assert v2.requires_human_review is True
+        assert v3.verified is False

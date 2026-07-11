@@ -26,7 +26,7 @@ class GovernanceDecision(Enum):
 
 
 @dataclass
-class GovernanceGate:
+class GateResult:
     """ผลการตัดสินใจของ Governance"""
     decision: GovernanceDecision
     rationale: str
@@ -149,7 +149,7 @@ class GovernanceGate:
 
         # 3. Check Scope
         if not self._check_scope(action):
-            return GovernanceGate(
+            return GateResult(
                 decision=GovernanceDecision.DENY,
                 rationale="Target out of authorized scope",
                 risk_level="critical",
@@ -159,7 +159,7 @@ class GovernanceGate:
         # 4. Check Policy
         policy_decision = self._check_policy(action, risk_assessment)
         if policy_decision != GovernanceDecision.ALLOW:
-            return GovernanceGate(
+            return GateResult(
                 decision=policy_decision,
                 rationale=f"Policy violation: {action.action_type.value}",
                 risk_level=risk_assessment.level,
@@ -171,7 +171,7 @@ class GovernanceGate:
 
         # 6. Rate Limiting
         if not self._check_rate_limit(action):
-            return GovernanceGate(
+            return GateResult(
                 decision=GovernanceDecision.DENY,
                 rationale="Rate limit exceeded",
                 risk_level="medium"
@@ -179,14 +179,14 @@ class GovernanceGate:
 
         # 7. Final Decision
         if risk_assessment.level in ["critical", "existential"]:
-            return GovernanceGate(
+            return GateResult(
                 decision=GovernanceDecision.DENY,
                 rationale=f"Risk level {risk_assessment.level} exceeds threshold",
                 risk_level=risk_assessment.level,
                 requires_human=True
             )
 
-        return GovernanceGate(
+        return GateResult(
             decision=GovernanceDecision.ALLOW,
             rationale="Action approved by governance gate",
             risk_level=risk_assessment.level,

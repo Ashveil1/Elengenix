@@ -205,12 +205,12 @@ class AttackPhase(Enum):
 
 class ConstitutionalGuidance:
     """คำแนะนำจากศาลรัฐธรรมนูญ"""
-    def __init__(self, ruling: Any = None):
+    def __init__(self, ruling: Any = None, **kwargs):
         self.ruling = ruling
-        self.relevant_precedents = []
-        self.constitutional_interpretation = ""
-        self.recommended_considerations = []
-        self.requires_human_review = False
+        self.relevant_precedents = kwargs.get("relevant_precedents", [])
+        self.constitutional_interpretation = kwargs.get("constitutional_interpretation", "")
+        self.recommended_considerations = kwargs.get("recommended_considerations", [])
+        self.requires_human_review = kwargs.get("requires_human_review", False)
 
     @property
     def is_constitutional(self) -> bool:

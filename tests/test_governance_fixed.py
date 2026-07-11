@@ -57,21 +57,21 @@ class TestGovernanceFixed:
 
         risk = governance_gate._assess_risk(mock_action)
 
-        assert risk.level in ["low", "medium", "high", "critical", "existential"]
+        assert risk.level in ["safe", "privileged", "destructive", "critical", "existential"]
         assert "tool_risk" in risk.factors
 
     def test_policy_check_allows_recon(self, governance_gate, mock_action):
         mock_action.action_type.value = "recon"
-        mock_action.tool = "nmap"
+        mock_action.tool = "dns_lookup"
 
-        decision = governance_gate._check_policy(mock_action, MagicMock(level="low"))
+        decision = governance_gate._check_policy(mock_action, MagicMock())
 
         assert decision.value == "allow"
 
     @pytest.mark.asyncio
     async def test_gate_allows_recon(self, governance_gate, mock_action):
         mock_action.action_type.value = "recon"
-        mock_action.tool = "nmap"
+        mock_action.tool = "dns_lookup"
 
         result = governance_gate.gate("mission-001", "example.com", mock_action)
 
@@ -89,22 +89,14 @@ class TestGovernanceFixed:
 
         risk = governance_gate._assess_risk(mock_action)
 
-        assert risk.level in ["low", "medium", "high", "critical", "existential"]
+        assert risk.level in ["safe", "privileged", "destructive", "critical", "existential"]
         assert "tool_risk" in risk.factors
 
     def test_policy_check_denies_destructive(self, governance_gate, mock_action):
         mock_action.action_type.value = "exploit"
-        mock_action.tool = "metasploit"
+        mock_action.tool = "data_exfiltration"
         mock_action.risk_level = type('RiskLevel', (), {'value': 'critical'})()
 
-        decision = governance_gate._check_policy(mock_action, MagicMock(level="critical"))
+        decision = governance_gate._check_policy(mock_action, MagicMock())
 
         assert decision.value in ["deny", "needs_approval"]
-
-    def test_waf_bypass_strategy(self, governance_gate):
-        waf_name = "cloudflare"
-        blocked_payloads = ["<script>", "union select"]
-
-        # Test that it suggests bypass strategies
-        bypasses = governance_gate._suggest_waf_bypass(waf_name, blocked_payloads)
-        assert len(bypasses) > 0

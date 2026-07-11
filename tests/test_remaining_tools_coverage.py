@@ -428,34 +428,41 @@ class TestVerificationEngine:
     def setup_method(self):
         self.engine = VerificationEngine()
 
+    def _vote(self, verdict, confidence=0.9, weight=1.0, severity_adj=None):
+        from tools.verification_engine import ModelVote
+        return ModelVote(
+            model_name="test",
+            model_weight=weight,
+            verdict=verdict,
+            confidence=confidence,
+            reasoning="test",
+            severity_adjustment=severity_adj,
+        )
+
     def test_both_confirm(self):
         finding = {"type": "XSS", "severity": "HIGH", "url": "http://test.com"}
-        result = self.engine.verify(finding, "confirmed", "confirmed")
+        votes = [self._vote("confirmed", 0.9), self._vote("confirmed", 0.95)]
+        result = self.engine._compute_consensus(finding, votes)
         assert result.verified is True
-        assert result.confidence == 0.95
+        assert result.consensus_verdict == "confirmed"
         assert result.requires_human_review is False
 
     def test_one_confirms(self):
         finding = {"type": "SQLi", "severity": "CRITICAL"}
-        result = self.engine.verify(finding, "confirmed", "false positive")
+        votes = [self._vote("confirmed", 0.8), self._vote("false_positive", 0.7)]
+        result = self.engine._compute_consensus(finding, votes)
+        # Equal weight tie -> inconclusive
         assert result.verified is False
-        assert result.confidence == 0.5
+        assert result.consensus_verdict == "inconclusive"
         assert result.requires_human_review is True
 
     def test_neither_confirms(self):
         finding = {"type": "SSRF", "severity": "HIGH"}
-        result = self.engine.verify(finding, "not real", "hallucination")
+        votes = [self._vote("false_positive", 0.8), self._vote("false_positive", 0.9)]
+        result = self.engine._compute_consensus(finding, votes)
         assert result.verified is False
-        assert result.confidence == 0.1
+        assert result.consensus_verdict == "false_positive"
         assert result.severity == "INFO"
-
-    def test_is_confirmation_keywords(self):
-        assert self.engine._is_confirmation("This is confirmed")
-        assert self.engine._is_confirmation("The finding is real")
-        assert self.engine._is_confirmation("yes, vulnerable")
-        assert not self.engine._is_confirmation("false positive")
-        assert not self.engine._is_confirmation("not a vulnerability")
-        assert self.engine._is_confirmation("it is valid and confirmed")
 
     def test_verification_prompt(self):
         finding = {

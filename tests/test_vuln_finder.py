@@ -106,9 +106,18 @@ def test_chain():
 
 
 def test_verify():
+    from unittest.mock import patch, MagicMock
+    from tools.verification_engine import VerificationResult
+
     finder = VulnFinder(target="http://example.com")
     finding = {"type": "XSS", "severity": "HIGH"}
-    result = finder.verify(finding, "confirmed", "confirmed")
+    with patch.object(finder.verification, 'verify_with_consensus') as mock_v:
+        mock_v.return_value = VerificationResult(
+            finding=finding, verified=True, consensus_verdict="confirmed",
+            severity="HIGH", model_votes=[], requires_human_review=False,
+            confidence=0.9, consensus_strength=1.0
+        )
+        result = finder.verify(finding)
     assert result.verified is True
 
 

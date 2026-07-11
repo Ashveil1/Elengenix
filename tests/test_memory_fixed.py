@@ -6,6 +6,17 @@ import pytest
 from unittest.mock import MagicMock, AsyncMock, patch, AsyncMock
 import tempfile
 import os
+import sqlite3
+
+# Check if FTS5 is available in the SQLite build
+_HAS_FTS5 = False
+try:
+    conn = sqlite3.connect(":memory:")
+    conn.execute("CREATE VIRTUAL TABLE _fts_test USING fts5(content TEXT)")
+    _HAS_FTS5 = True
+    conn.close()
+except Exception:
+    _HAS_FTS5 = False
 
 from elengenix.memory import (
     MemoryEntry, MemoryBackend, VectorMemoryBackend,
@@ -30,6 +41,7 @@ class TestMemoryFixed:
         from elengenix.memory import SQLiteMemoryBackend
         return SQLiteMemoryBackend(temp_db)
 
+    @pytest.mark.skipif(not _HAS_FTS5, reason="SQLite FTS5 not available in this build")
     @pytest.mark.asyncio
     async def test_sqlite_store_retrieve(self, sqlite_backend):
         from elengenix.memory import MemoryEntry
@@ -49,6 +61,7 @@ class TestMemoryFixed:
         assert len(results) > 0
         assert results[0].content == "Test memory content"
 
+    @pytest.mark.skipif(not _HAS_FTS5, reason="SQLite FTS5 not available in this build")
     @pytest.mark.asyncio
     async def test_sqlite_delete(self, sqlite_backend):
         from elengenix.memory import MemoryEntry
@@ -62,6 +75,7 @@ class TestMemoryFixed:
         results = await sqlite_backend.retrieve("To delete", limit=10)
         assert len(results) == 0
 
+    @pytest.mark.skipif(not _HAS_FTS5, reason="SQLite FTS5 not available in this build")
     @pytest.mark.asyncio
     async def test_memory_manager_remember_recall(self):
         manager = CognitiveMemoryManager()
@@ -80,6 +94,7 @@ class TestMemoryFixed:
         assert len(results) > 0
         assert "learning" in results[0].content.lower()
 
+    @pytest.mark.skipif(not _HAS_FTS5, reason="SQLite FTS5 not available in this build")
     @pytest.mark.asyncio
     async def test_get_context_for_ai(self):
         manager = CognitiveMemoryManager()

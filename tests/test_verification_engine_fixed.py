@@ -13,7 +13,10 @@ class TestVerificationEngineFixed:
     @pytest.fixture
     def engine(self):
         engine = VerificationEngine()
-        # Create a mock AI client
+        engine.models = [
+            {"name": "opus", "provider": None, "weight": 3.0, "role": "primary"},
+            {"name": "sonnet", "provider": None, "weight": 2.0, "role": "secondary"},
+        ]
         engine.ai_client = MagicMock()
         engine.ai_client.chat = AsyncMock()
         return engine
@@ -125,7 +128,10 @@ class TestVerificationEngineFixed:
     @pytest.fixture
     def engine(self):
         engine = VerificationEngine()
-        # Create a mock AI client
+        engine.models = [
+            {"name": "opus", "provider": None, "weight": 3.0, "role": "primary"},
+            {"name": "sonnet", "provider": None, "weight": 2.0, "role": "secondary"},
+        ]
         engine.ai_client = MagicMock()
         engine.ai_client.chat = AsyncMock()
         return engine
@@ -236,7 +242,10 @@ class TestVerificationEngineFixed:
     @pytest.fixture
     def engine(self):
         engine = VerificationEngine()
-        # Create a mock AI client
+        engine.models = [
+            {"name": "opus", "provider": None, "weight": 3.0, "role": "primary"},
+            {"name": "sonnet", "provider": None, "weight": 2.0, "role": "secondary"},
+        ]
         engine.ai_client = MagicMock()
         engine.ai_client.chat = AsyncMock()
         return engine
@@ -347,7 +356,10 @@ class TestVerificationEngineFixed:
     @pytest.fixture
     def engine(self):
         engine = VerificationEngine()
-        # Create a mock AI client
+        engine.models = [
+            {"name": "opus", "provider": None, "weight": 3.0, "role": "primary"},
+            {"name": "sonnet", "provider": None, "weight": 2.0, "role": "secondary"},
+        ]
         engine.ai_client = MagicMock()
         engine.ai_client.chat = AsyncMock()
         return engine
@@ -475,7 +487,7 @@ class TestVerificationEngineFixed:
                 )
             ]
 
-            result = await engine.verify_with_consensus(mock_finding)
+            result = await engine.verify_with_consensus(finding)
 
             assert result.verified is True
             assert result.severity == "MEDIUM"
@@ -535,7 +547,7 @@ class TestVerificationEngineFixed:
                 )
             ]
 
-            result = await engine.verify_with_consensus(mock_finding)
+            result = await engine.verify_with_consensus(finding)
 
             assert result.verified is True
             assert result.severity == "MEDIUM"

@@ -32,8 +32,32 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 # ---------------------------------------------------------------------------
 
 # Mock heavy optional imports that may not be installed
+# Note: chromadb needs a proper module-level mock because
+# from chromadb.config import Settings won't work with plain MagicMock
+import types as _types
+
+
+def _make_fake_module(name, attrs=None):
+    """Create a proper fake module for sys.modules mocking."""
+    mod = _types.ModuleType(name)
+    if attrs:
+        for k, v in attrs.items():
+            mod.__dict__[k] = v
+    return mod
+
+
+# chromadb — needs submodule support (from chromadb.config import Settings)
+_chromadb_config = _make_fake_module("chromadb.config", {"Settings": MagicMock()})
+_chromadb = _make_fake_module("chromadb", {"config": _chromadb_config})
+_chromadb.config = _chromadb_config
+_chromadb.__dict__["config"] = _chromadb_config
+_chromadb.__dict__["api"] = MagicMock()
+_chromadb.__dict__["Client"] = MagicMock()
+_chromadb.__dict__["PersistentClient"] = MagicMock()
+sys.modules.setdefault("chromadb", _chromadb)
+sys.modules.setdefault("chromadb.config", _chromadb_config)
+
 for mod_name in [
-    "chromadb",
     "google.generativeai",
     "anthropic",
     "cohere",
@@ -3417,6 +3441,7 @@ def _lightweight_agent():
     agent._fingerprint_cache = {}
     agent._last_reflection = None
     agent._cycle_findings_count = 0
+    agent.agent_prompt_template = ""  # Required for process_query
     return agent
 
 

@@ -151,7 +151,7 @@ class TestAgentBase:
     @pytest.mark.asyncio
     async def test_agent_autonomous_work(self, agent):
         result = await agent.autonomous_work(MagicMock())
-        assert "completed" in result
+        assert result["tasks_completed"] == 1
 
     @pytest.mark.asyncio
     async def test_agent_send_task(self, agent):

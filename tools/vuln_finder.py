@@ -412,20 +412,18 @@ class VulnFinder:
     def verify(
         self,
         finding: Dict[str, Any],
-        model_a: str,
-        model_b: str,
+        *args,
     ):
-        """Verify a finding with dual-model verification.
+        """Verify a finding via consensus verification.
 
         Args:
             finding: The finding to verify.
-            model_a: Response from model A.
-            model_b: Response from model B.
 
         Returns:
             VerificationResult.
         """
-        return self.verification.verify(finding, model_a, model_b)
+        import asyncio
+        return asyncio.run(self.verification.verify_with_consensus(finding))
 
     def add_finding(self, finding: Dict[str, Any]) -> None:
         """Add a finding to the mission state and persist to memory.

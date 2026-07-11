@@ -187,7 +187,7 @@ class TrueAgenticLoop:
         logger.info(f"⚡ Executing: {action.description}")
 
         # Governance Gate
-        gate = self.governance.gate(
+        gate = await self.governance.gate(
             mission_id=self.mission_context.mission_id,
             target=action.target,
             action=action

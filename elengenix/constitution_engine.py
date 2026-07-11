@@ -148,7 +148,7 @@ class ConstitutionalAIEngine:
             constitutional_interpretation=self._interpret_constitution(action),
             recommended_considerations=self.court._generate_considerations(ruling.violations),
             requires_human_review=not ruling.constitutional and any(
-                v.get("severity") == "critical" for v in ruling.violations
+                v.get("severity") in ("critical", "high") for v in ruling.violations
             )
         )
 

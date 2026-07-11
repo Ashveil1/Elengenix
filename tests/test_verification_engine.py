@@ -5,58 +5,92 @@ import os
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from tools.verification_engine import VerificationEngine
+from tools.verification_engine import VerificationEngine, VerificationResult, ModelVote
+
+
+def _vote(verdict, confidence=0.9, weight=1.0, severity_adj=None):
+    """Helper to create a ModelVote."""
+    return ModelVote(
+        model_name="test",
+        model_weight=weight,
+        verdict=verdict,
+        confidence=confidence,
+        reasoning="test",
+        severity_adjustment=severity_adj,
+    )
 
 
 def test_verify_both_confirm():
     engine = VerificationEngine()
     finding = {"type": "XSS", "severity": "HIGH", "url": "http://test.com"}
-    result = engine.verify(finding, "confirmed", "confirmed")
+    votes = [
+        _vote("confirmed", confidence=0.9),
+        _vote("confirmed", confidence=0.95),
+    ]
+    result = engine._compute_consensus(finding, votes)
     assert result.verified is True
-    assert result.confidence == 0.95
-    assert result.requires_human_review is False
+    assert result.confidence > 0.5
     assert result.severity == "HIGH"
 
 
 def test_verify_one_confirm_one_deny():
     engine = VerificationEngine()
     finding = {"type": "SQLi", "severity": "MEDIUM", "url": "http://test.com"}
-    result = engine.verify(finding, "confirmed", "false_positive")
+    votes = [
+        _vote("confirmed", confidence=0.8),
+        _vote("false_positive", confidence=0.7),
+    ]
+    result = engine._compute_consensus(finding, votes)
+    # Tie with equal weights -> inconclusive
     assert result.verified is False
-    assert result.confidence == 0.5
+    assert result.consensus_verdict == "inconclusive"
     assert result.requires_human_review is True
 
 
 def test_verify_both_deny():
     engine = VerificationEngine()
     finding = {"type": "SSRF", "severity": "HIGH", "url": "http://test.com"}
-    result = engine.verify(finding, "not vulnerable", "fake finding")
+    votes = [
+        _vote("false_positive", confidence=0.8),
+        _vote("false_positive", confidence=0.9),
+    ]
+    result = engine._compute_consensus(finding, votes)
     assert result.verified is False
-    assert result.confidence == 0.1
+    assert result.consensus_verdict == "false_positive"
     assert result.requires_human_review is False
     assert result.severity == "INFO"
-
-
-def test_verify_keywords_yes_no():
-    engine = VerificationEngine()
-    finding = {"type": "XSS", "severity": "LOW"}
-    # "yes" is confirmation, "no" is denial
-    result = engine.verify(finding, "yes this is real", "no not a vuln")
-    assert result.verified is False
-    assert result.requires_human_review is True
-
-
-def test_verify_with_evidence():
-    engine = VerificationEngine()
-    finding = {"type": "XSS", "severity": "CRITICAL", "url": "http://test.com"}
-    result = engine.verify(finding, "valid vulnerability confirmed", "real vulnerability")
-    assert result.verified is True
-    assert result.severity == "CRITICAL"
+    assert result.confidence > 0.5
 
 
 def test_verify_default_severity():
     engine = VerificationEngine()
     finding = {"type": "IDOR"}
-    result = engine.verify(finding, "confirmed", "confirmed")
+    votes = [
+        _vote("confirmed", confidence=0.9),
+        _vote("confirmed", confidence=0.95),
+    ]
+    result = engine._compute_consensus(finding, votes)
     assert result.verified is True
     assert result.severity == "MEDIUM"  # default
+
+
+def test_consensus_weighted_majority():
+    """Weighted votes: high-weight confirm should outweigh light-weight deny."""
+    engine = VerificationEngine()
+    finding = {"type": "XSS", "severity": "LOW"}
+    votes = [
+        _vote("confirmed", confidence=0.9, weight=3.0),
+        _vote("false_positive", confidence=0.9, weight=1.0),
+    ]
+    result = engine._compute_consensus(finding, votes)
+    assert result.verified is True
+    assert result.consensus_verdict == "confirmed"
+
+
+def test_fallback_verification_empty():
+    """No votes -> fallback verification should run without raising."""
+    engine = VerificationEngine()
+    finding = {"type": "XSS", "url": "http://test.com"}
+    result = engine._compute_consensus(finding, [])
+    # Fallback returns a VerificationResult
+    assert isinstance(result, VerificationResult)

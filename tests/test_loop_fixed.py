@@ -147,7 +147,7 @@ class TestTrueAgenticLoop:
             MagicMock(completed=True),
             MagicMock(completed=True)
         ]
-        assert loop._mission_complete() is True
+        assert loop._mission_complete({"steps_taken": 5}) is True
 
     @pytest.mark.asyncio
     async def test_should_stop(self, loop):
@@ -157,17 +157,20 @@ class TestTrueAgenticLoop:
     @pytest.mark.asyncio
     async def test_execute_action(self, loop, mission_context):
         action = MagicMock()
-        action.action_type = "scan"
+        action.action_type = type('ActionType', (), {'value': 'scan'})()
         action.tool = "scanner"
         action.target = "example.com"
         action.parameters = {}
         action.description = "Test scan"
 
+        loop.mission_context = MagicMock()
+        loop.mission_context.mission_id = "test-mission-001"
+
         loop.tools.execute = AsyncMock(return_value=MagicMock(
             success=True, output="test output", findings=[]
         ))
 
-        result = await loop._execute_action(action, mission_context)
+        result = await loop._execute_action(action)
 
         assert result["success"] is True
 
@@ -175,6 +178,8 @@ class TestTrueAgenticLoop:
     async def test_reflect_and_learn(self, loop):
         action = MagicMock()
         action.description = "Test action"
+        action.action_type = type('ActionType', (), {'value': 'scan'})()
+        action.tool = "nmap"
         action.expected_outcome = "Find something"
         result = {"success": True, "output": "Found something", "findings": []}
 
@@ -185,8 +190,11 @@ class TestTrueAgenticLoop:
     async def test_update_cognitive_state(self, loop):
         action = MagicMock()
         action.description = "Test action"
+        action.action_type = type('ActionType', (), {'value': 'scan'})()
+        action.tool = "nmap"
         result = {"success": True}
 
+        loop.cognitive_state.step_count = 0
         loop._update_cognitive_state(action, result)
 
         assert loop.cognitive_state.step_count == 1
@@ -202,6 +210,8 @@ class TestTrueAgenticLoop:
     @pytest.mark.asyncio
     async def test_replan(self, loop):
         loop.metrics_data.replans = 0
+        loop._get_current_context = lambda: {"state": "ok"}
+        loop.brain.planner.replan = AsyncMock(return_value=MagicMock(phases=[]))
 
         await loop._replan()
 
@@ -224,17 +234,20 @@ class TestTrueAgenticLoop:
     @pytest.mark.asyncio
     async def test_execute_action(self, loop, mission_context):
         action = MagicMock()
-        action.action_type = "scan"
+        action.action_type = type('ActionType', (), {'value': 'scan'})()
         action.tool = "scanner"
         action.target = "example.com"
         action.parameters = {}
         action.description = "Test scan"
 
+        loop.mission_context = MagicMock()
+        loop.mission_context.mission_id = "test-mission-001"
+
         loop.tools.execute = AsyncMock(return_value=MagicMock(
             success=True, output="test output", findings=[]
         ))
 
-        result = await loop._execute_action(action, mission_context)
+        result = await loop._execute_action(action)
 
         assert result["success"] is True
 
@@ -242,6 +255,8 @@ class TestTrueAgenticLoop:
     async def test_reflect_and_learn(self, loop):
         action = MagicMock()
         action.description = "Test action"
+        action.action_type = type('ActionType', (), {'value': 'scan'})()
+        action.tool = "nmap"
         action.expected_outcome = "Find something"
         result = {"success": True, "output": "Found something", "findings": []}
 
@@ -252,8 +267,11 @@ class TestTrueAgenticLoop:
     async def test_update_cognitive_state(self, loop):
         action = MagicMock()
         action.description = "Test action"
+        action.action_type = type('ActionType', (), {'value': 'scan'})()
+        action.tool = "nmap"
         result = {"success": True}
 
+        loop.cognitive_state.step_count = 0
         loop._update_cognitive_state(action, result)
 
         assert loop.cognitive_state.step_count == 1
@@ -269,6 +287,8 @@ class TestTrueAgenticLoop:
     @pytest.mark.asyncio
     async def test_replan(self, loop):
         loop.metrics_data.replans = 0
+        loop._get_current_context = lambda: {"state": "ok"}
+        loop.brain.planner.replan = AsyncMock(return_value=MagicMock(phases=[]))
 
         await loop._replan()
 
@@ -291,17 +311,20 @@ class TestTrueAgenticLoop:
     @pytest.mark.asyncio
     async def test_execute_action(self, loop, mission_context):
         action = MagicMock()
-        action.action_type = "scan"
+        action.action_type = type('ActionType', (), {'value': 'scan'})()
         action.tool = "scanner"
         action.target = "example.com"
         action.parameters = {}
         action.description = "Test scan"
 
+        loop.mission_context = MagicMock()
+        loop.mission_context.mission_id = "test-mission-001"
+
         loop.tools.execute = AsyncMock(return_value=MagicMock(
             success=True, output="test output", findings=[]
         ))
 
-        result = await loop._execute_action(action, mission_context)
+        result = await loop._execute_action(action)
 
         assert result["success"] is True
 
@@ -309,6 +332,8 @@ class TestTrueAgenticLoop:
     async def test_reflect_and_learn(self, loop):
         action = MagicMock()
         action.description = "Test action"
+        action.action_type = type('ActionType', (), {'value': 'scan'})()
+        action.tool = "nmap"
         action.expected_outcome = "Find something"
         result = {"success": True, "output": "Found something", "findings": []}
 
@@ -319,8 +344,11 @@ class TestTrueAgenticLoop:
     async def test_update_cognitive_state(self, loop):
         action = MagicMock()
         action.description = "Test action"
+        action.action_type = type('ActionType', (), {'value': 'scan'})()
+        action.tool = "nmap"
         result = {"success": True}
 
+        loop.cognitive_state.step_count = 0
         loop._update_cognitive_state(action, result)
 
         assert loop.cognitive_state.step_count == 1
@@ -336,6 +364,8 @@ class TestTrueAgenticLoop:
     @pytest.mark.asyncio
     async def test_replan(self, loop):
         loop.metrics_data.replans = 0
+        loop._get_current_context = lambda: {"state": "ok"}
+        loop.brain.planner.replan = AsyncMock(return_value=MagicMock(phases=[]))
 
         await loop._replan()
 
@@ -358,17 +388,20 @@ class TestTrueAgenticLoop:
     @pytest.mark.asyncio
     async def test_execute_action(self, loop, mission_context):
         action = MagicMock()
-        action.action_type = "scan"
+        action.action_type = type('ActionType', (), {'value': 'scan'})()
         action.tool = "scanner"
         action.target = "example.com"
         action.parameters = {}
         action.description = "Test scan"
 
+        loop.mission_context = MagicMock()
+        loop.mission_context.mission_id = "test-mission-001"
+
         loop.tools.execute = AsyncMock(return_value=MagicMock(
             success=True, output="test output", findings=[]
         ))
 
-        result = await loop._execute_action(action, mission_context)
+        result = await loop._execute_action(action)
 
         assert result["success"] is True
 
@@ -376,6 +409,8 @@ class TestTrueAgenticLoop:
     async def test_reflect_and_learn(self, loop):
         action = MagicMock()
         action.description = "Test action"
+        action.action_type = type('ActionType', (), {'value': 'scan'})()
+        action.tool = "nmap"
         action.expected_outcome = "Find something"
         result = {"success": True, "output": "Found something", "findings": []}
 
@@ -386,8 +421,11 @@ class TestTrueAgenticLoop:
     async def test_update_cognitive_state(self, loop):
         action = MagicMock()
         action.description = "Test action"
+        action.action_type = type('ActionType', (), {'value': 'scan'})()
+        action.tool = "nmap"
         result = {"success": True}
 
+        loop.cognitive_state.step_count = 0
         loop._update_cognitive_state(action, result)
 
         assert loop.cognitive_state.step_count == 1
@@ -403,6 +441,8 @@ class TestTrueAgenticLoop:
     @pytest.mark.asyncio
     async def test_replan(self, loop):
         loop.metrics_data.replans = 0
+        loop._get_current_context = lambda: {"state": "ok"}
+        loop.brain.planner.replan = AsyncMock(return_value=MagicMock(phases=[]))
 
         await loop._replan()
 
@@ -425,17 +465,20 @@ class TestTrueAgenticLoop:
     @pytest.mark.asyncio
     async def test_execute_action(self, loop, mission_context):
         action = MagicMock()
-        action.action_type = "scan"
+        action.action_type = type('ActionType', (), {'value': 'scan'})()
         action.tool = "scanner"
         action.target = "example.com"
         action.parameters = {}
         action.description = "Test scan"
 
+        loop.mission_context = MagicMock()
+        loop.mission_context.mission_id = "test-mission-001"
+
         loop.tools.execute = AsyncMock(return_value=MagicMock(
             success=True, output="test output", findings=[]
         ))
 
-        result = await loop._execute_action(action, mission_context)
+        result = await loop._execute_action(action)
 
         assert result["success"] is True
 
@@ -443,6 +486,8 @@ class TestTrueAgenticLoop:
     async def test_reflect_and_learn(self, loop):
         action = MagicMock()
         action.description = "Test action"
+        action.action_type = type('ActionType', (), {'value': 'scan'})()
+        action.tool = "nmap"
         action.expected_outcome = "Find something"
         result = {"success": True, "output": "Found something", "findings": []}
 
@@ -453,8 +498,11 @@ class TestTrueAgenticLoop:
     async def test_update_cognitive_state(self, loop):
         action = MagicMock()
         action.description = "Test action"
+        action.action_type = type('ActionType', (), {'value': 'scan'})()
+        action.tool = "nmap"
         result = {"success": True}
 
+        loop.cognitive_state.step_count = 0
         loop._update_cognitive_state(action, result)
 
         assert loop.cognitive_state.step_count == 1
@@ -470,6 +518,8 @@ class TestTrueAgenticLoop:
     @pytest.mark.asyncio
     async def test_replan(self, loop):
         loop.metrics_data.replans = 0
+        loop._get_current_context = lambda: {"state": "ok"}
+        loop.brain.planner.replan = AsyncMock(return_value=MagicMock(phases=[]))
 
         await loop._replan()
 

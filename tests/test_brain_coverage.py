@@ -73,6 +73,8 @@ def _make_agent():
     agent.bola_tester = None
     agent.waf_detector = None
     agent._team_aegis_clients = {"enabled": False}
+    agent.agent_prompt_template = ""  # Required for process_query
+    agent.verify_ssl = True  # Required for _fingerprint_target_for_planning
 
     return agent
 
