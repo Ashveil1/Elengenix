@@ -1,0 +1,136 @@
+"""elengenix/agent.py - True Agentic AI Base Agent"""
+
+from __future__ import annotations
+
+import asyncio
+import logging
+import time
+from abc import ABC, abstractmethod
+from dataclasses import dataclass, field
+from datetime import datetime
+from typing import Any, Dict, List, Optional, Callable
+from uuid import uuid4
+
+from .types import (
+    AgentRole, AgentMessage, MessageType, MissionContext,
+    AIAction, ActionType, RiskLevel, Finding, MissionContext
+)
+from .brain import TrueAIBrain
+from .memory import CognitiveMemoryManager
+from .tools import ToolRegistry
+from .governance import GovernanceGate
+from .constitution_engine import ConstitutionalAIEngine
+from .constitution import Constitution
+
+logger = logging.getLogger("elengenix.agent")
+
+
+@dataclass
+class AgentIdentity:
+    """ตัวตนของ Agent"""
+    agent_id: str = field(default_factory=lambda: str(uuid4()))
+    name: str = ""
+    role: "AgentRole" = None
+    specialization: List[str] = field(default_factory=list)
+    capabilities: List[str] = field(default_factory=list)
+    personality_traits: Dict[str, float] = field(default_factory=dict)
+    trust_score: float = 1.0
+    created_at: float = field(default_factory=lambda: datetime.now().timestamp())
+
+
+class TrueAIAgent(ABC):
+    """Base class สำหรับ True AI Agent"""
+
+    def __init__(
+        self,
+        identity: "AgentIdentity",
+        brain: "TrueAIBrain",
+        memory: "CognitiveMemoryManager",
+        tools: "ToolRegistry",
+        governance: "GovernanceGate",
+        constitutional_engine: "ConstitutionalAIEngine",
+        society: Optional["MultiAgentSociety"] = None,
+    ):
+        self.identity = identity
+        self.brain = brain
+        self.memory = memory
+        self.tools = tools
+        self.governance = governance
+        self.constitutional_engine = constitutional_engine
+        self.society = society
+
+        self.state: Dict[str, Any] = {}
+        self.metrics: Dict[str, float] = {}
+        self._shutdown_event = asyncio.Event()
+        self._running = False
+
+        # Register with society
+        if society:
+            society.register_agent(self)
+
+    @abstractmethod
+    async def initialize(self, mission_context: "MissionContext") -> None:
+        """Initialize agent for mission"""
+        pass
+
+    @abstractmethod
+    async def execute_task(self, task: Dict[str, Any]) -> Dict[str, Any]:
+        """Execute a specific task"""
+        pass
+
+    @abstractmethod
+    async def autonomous_work(self, workspace: "CollaborativeWorkspace") -> Dict[str, Any]:
+        """ทำงานอัตโนมัติใน Workspace แบบ Peer-to-Peer"""
+        pass
+
+    async def send_task(self, to_agent: str, task: Dict[str, Any], priority: int = 3):
+        """ส่ง Task ไปยัง Agent อื่น"""
+        await self.society.bus.publish("agent_message", {
+            "from": self.identity.name,
+            "to": to_agent,
+            "type": "TASK",
+            "payload": task,
+            "priority": priority
+        })
+
+    async def send_intel(self, intel: Dict[str, Any], to_agent: str = "all"):
+        """แชร์ Intelligence"""
+        await self.society.broadcast_intel(intel, from_agent=self.identity.name)
+
+    async def send_alert(self, alert: Dict[str, Any], to_agent: str = "captain"):
+        """ส่ง Alert"""
+        await self.society.send_alert(alert, from_agent=self.identity.name)
+
+    async def send_result(self, correlation_id: str, result: Dict[str, Any]):
+        """ส่งผลลัพธ์กลับ"""
+        await self.society.bus.publish("agent_message", {
+            "from": self.identity.name,
+            "to": "captain",
+            "type": "RESULT",
+            "payload": result,
+            "correlation_id": correlation_id
+        })
+
+    async def process_intel(self, intel: Dict[str, Any]):
+        """ประมวลผล Intelligence"""
+        pass
+
+    async def process_decision(self, decision: Dict[str, Any]):
+        """ประมวลผล Decision"""
+        pass
+
+    async def start(self):
+        """Start the agent"""
+        self._running = True
+        self._shutdown_event.clear()
+        logger.info(f"[{self.identity.name}] Agent started")
+
+    async def stop(self):
+        """Stop the agent gracefully"""
+        self._running = False
+        self._shutdown_event.set()
+        logger.info(f"[{self.identity.name}] Agent stopped")
+
+    async def wait_for_shutdown(self):
+        """Wait for shutdown signal"""
+        await self._shutdown_event.wait()

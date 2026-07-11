@@ -127,7 +127,22 @@ class ScanLoop:
             # Phase 5: Execute
             success, result, observation = self._execute(ctx, decision, step)
 
-            # Phase 6: Post-process
+            # Phase 5b: Autonomous AI reasoning phase.
+            # The AI reasons about the raw evidence from this step and may
+            # author vulnerability hypotheses on its own authority — no
+            # deterministic tool required. This is what makes Elengenix an
+            # *agent* rather than a tool-chainer.
+            raw_output = getattr(result, "output", "") if result else ""
+            ai_findings = self._run_reasoning_phase(
+                ctx, raw_output or observation, step
+            )
+            for f in ai_findings:
+                if hasattr(ctx, "add_finding"):
+                    ctx.add_finding(f)
+                else:
+                    ctx.all_findings.append(f)
+
+            # Phase 6: Post-process (deterministic tool findings)
             if result is not None:
                 self.post_processor.process(
                     ctx,
@@ -163,6 +178,26 @@ class ScanLoop:
             success=False,
             action_history=action_history,
         )
+
+    def _run_reasoning_phase(self, ctx: "ScanContext", evidence: str, step: int) -> List[Dict[str, Any]]:
+        """Run the autonomous vulnerability-reasoning phase for this step.
+
+        Delegates to agents.vuln_reasoning_phase. Kept as a small wrapper so
+        the loop stays readable and the phase can be disabled/extended later.
+        """
+        try:
+            from agents.vuln_reasoning_phase import run_reasoning_phase
+
+            return run_reasoning_phase(
+                ctx=ctx,
+                raw_output=evidence,
+                observation="",
+                step=step,
+                target=getattr(ctx, "target", "") or "",
+            )
+        except Exception as e:
+            logger.debug(f"reasoning phase skipped: {e}")
+            return []
 
     def _validate_action(
         self,

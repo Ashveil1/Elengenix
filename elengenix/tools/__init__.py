@@ -1,0 +1,119 @@
+"""elengenix/tools/__init__.py - Tool Registry"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional
+from abc import ABC, abstractmethod
+
+
+@dataclass
+class ToolMetadata:
+    """Tool Metadata"""
+    name: str
+    category: str
+    description: str
+    version: str = "1.0.0"
+    parameters: Dict = field(default_factory=dict)
+    required: List[str] = field(default_factory=list)
+
+
+@dataclass
+class ToolResult:
+    """Tool Execution Result"""
+    success: bool
+    tool_name: str
+    category: str
+    output: Any = None
+    findings: List[Dict] = field(default_factory=list)
+    errors: List[str] = field(default_factory=list)
+    duration: float = 0.0
+    metadata: Dict = field(default_factory=dict)
+
+
+class BaseTool(ABC):
+    """Base Tool Class"""
+
+    def __init__(self, config: Dict = None):
+        self.config = config or {}
+
+    @property
+    @abstractmethod
+    def metadata(self) -> ToolMetadata:
+        pass
+
+    @abstractmethod
+    async def execute(self, target: str, parameters: Dict) -> ToolResult:
+        pass
+
+
+class ToolRegistry:
+    """Tool Registry - manages available tools"""
+
+    def __init__(self):
+        self._tools: Dict[str, BaseTool] = {}
+        self._categories: Dict[str, List[str]] = {}
+
+    def register(self, tool: BaseTool):
+        """Register a tool"""
+        meta = tool.metadata
+        self._tools[meta.name] = tool
+        if meta.category not in self._categories:
+            self._categories[meta.category] = []
+        self._categories[meta.category].append(meta.name)
+
+    def unregister(self, name: str):
+        """Unregister a tool"""
+        if name in self._tools:
+            meta = self._tools[name].metadata
+            del self._tools[name]
+            if meta.category in self._categories:
+                self._categories[meta.category].remove(meta.name)
+
+    def get_tool(self, name: str) -> Optional[BaseTool]:
+        """Get tool by name"""
+        return self._tools.get(name)
+
+    def list_tools(self, category: Optional[str] = None) -> List[str]:
+        """List available tools"""
+        if category:
+            return self._categories.get(category, [])
+        return list(self._tools.keys())
+
+    def get_categories(self) -> List[str]:
+        """Get all categories"""
+        return list(self._categories.keys())
+
+    def list_available_tools(self) -> List[Dict]:
+        """List all available tools with metadata"""
+        result = []
+        for name, tool in self._tools.items():
+            meta = tool.metadata
+            result.append({
+                "name": meta.name,
+                "category": meta.category,
+                "description": meta.description,
+                "version": meta.version,
+                "parameters": meta.parameters,
+                "required": meta.required
+            })
+        return result
+
+
+# Global registry instance
+_default_registry = ToolRegistry()
+
+
+def get_tool_registry() -> ToolRegistry:
+    """Get default tool registry"""
+    return _default_registry
+
+
+def register_tool(tool: BaseTool):
+    """Register a tool in default registry"""
+    _default_registry.register(tool)
+
+
+def get_tool(name: str) -> Optional[BaseTool]:
+    """Get tool from default registry"""
+    return _default_registry.get_tool(name)

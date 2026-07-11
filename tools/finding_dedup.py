@@ -16,6 +16,8 @@ import logging
 from dataclasses import dataclass
 from typing import Any, Dict, List
 
+from tools.finding_provenance import tag_provenance, Provenance
+
 logger = logging.getLogger("elengenix.dedup")
 
 
@@ -64,6 +66,9 @@ def deduplicate_findings(
     merges = 0
 
     for finding in findings:
+        # Annotate provenance (deterministic vs agentic) before merging so
+        # the two trust classes never silently collapse into one queue entry.
+        finding = tag_provenance(finding)
         fhash = _finding_hash(finding)
 
         if fhash in seen:
@@ -77,6 +82,16 @@ def deduplicate_findings(
                         sources.add(src)
                 if sources:
                     existing["source"] = "+".join(sorted(sources))
+
+                # Track provenance history so we can flag mixed trust classes.
+                prov_history = set(existing.get("_provenance_history", [existing.get("provenance", "")]))
+                prov_history.add(finding.get("provenance", ""))
+                existing["_provenance_history"] = sorted(p for p in prov_history if p)
+                if Provenance.DETERMINISTIC.value in existing["_provenance_history"] and \
+                        Provenance.AGENTIC.value in existing["_provenance_history"]:
+                    existing["provenance"] = Provenance.MIXED.value
+                    existing["trust_class"] = "mixed_confidence"
+                    existing["mixed_provenance"] = True
 
                 # Keep higher severity
                 sev_order = {"critical": 4, "high": 3, "medium": 2, "low": 1, "info": 0}

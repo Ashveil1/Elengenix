@@ -43,6 +43,18 @@ from .constants import (
     TOOL_CATEGORIES,
 )
 
+# Re-export core types
+from .types import (
+    AIAction, ActionType, RiskLevel, MissionContext,
+    Finding, ConstitutionalGuidance, AgentRole, MissionPhase,
+    AttackTree, AttackStep, AttackPhase,
+    GovernanceDecision, GovernanceGate, GovernancePolicy, RiskAssessment
+)
+
+# Re-export core classes
+from .brain import TrueAIBrain
+from .loop import TrueAgenticLoop
+
 __all__ = [
     "DEFAULT_MAX_STEPS",
     "DEFAULT_LOOP_THRESHOLD",
@@ -82,6 +94,12 @@ __all__ = [
     "GOVERNANCE_DB",
     "PHASE_NAMES",
     "TOOL_CATEGORIES",
+    # Re-exported types
+    "AIAction", "ActionType", "RiskLevel", "MissionContext",
+    "Finding", "ConstitutionalGuidance", "AgentRole", "MissionPhase",
+    "AttackTree", "AttackStep", "AttackPhase",
+    "GovernanceDecision", "GovernanceGate", "GovernancePolicy", "RiskAssessment",
+    "TrueAIBrain", "TrueAgenticLoop",
 ]
 
 __version__ = "99999"

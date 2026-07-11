@@ -133,3 +133,6 @@ _missing_requirements.txt
 
 # Cache directories
 .cache/
+
+# ChromaDB vector memory (generated runtime data)
+data/memory/

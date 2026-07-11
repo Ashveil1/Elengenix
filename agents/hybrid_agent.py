@@ -306,6 +306,11 @@ class HybridAgent:
             self._handle_update_intel(decision)
         elif action == "search_web":
             self._handle_search_web(decision)
+        elif action == "reason":
+            # First-class AI action: the agent reasons about accumulated
+            # evidence and may author vulnerability findings on its own
+            # authority — no tool required. This is the core of an *agent*.
+            self._handle_reason(decision, cycle)
         elif action == "message":
             self._handle_message(decision)
             return False
@@ -508,6 +513,47 @@ class HybridAgent:
         else:
             console.print(f"  [red][FAIL] Search error: {result.error}[/red]")
 
+    def _handle_reason(self, decision: Dict, cycle: int):
+        """First-class AI action: reason about evidence, author findings.
+
+        The agent decides what to think about (topic) and the reasoning phase
+        turns that into vulnerability hypotheses on the agent's own authority.
+        No tool runs — this is pure autonomous analysis.
+        """
+        topic = decision.get("topic", "")
+        console.print(f"  [magenta][REASON] {topic[:90]}[/magenta]")
+        try:
+            from agents.vuln_reasoning_phase import run_reasoning_phase
+
+            # Feed the topic + recent history as the evidence for reasoning.
+            evidence = topic or ""
+            recent = self.action_history[-8:] if self.action_history else []
+            if recent:
+                evidence += "\n\nRecent actions/observations:\n"
+                for r in recent:
+                    evidence += f"  - {r.get('action')}: {r.get('purpose', '')[:90]}\n"
+
+            findings = run_reasoning_phase(
+                ctx=None,
+                raw_output=evidence,
+                observation="",
+                step=cycle,
+                target=self.target or "",
+                previous_findings=self.all_findings,
+            )
+            for f in findings:
+                f["source"] = "ai_reasoning"
+                self.all_findings.append(f)
+            if findings:
+                console.print(
+                    f"  [green][OK] Reasoning produced {len(findings)} hypothesis/hypotheses[/green]"
+                )
+            else:
+                console.print("  [cyan][INFO] No new hypotheses from reasoning[/cyan]")
+        except Exception as e:
+            logger.debug(f"reason action failed: {e}")
+            console.print(f"  [yellow][WARN] Reasoning skipped: {e}[/yellow]")
+
     def _handle_message(self, decision: Dict):
         """Display a message to the user and wait."""
         msg = decision.get("message", "")
@@ -605,8 +651,14 @@ class HybridAgent:
     def _process_tool_result(self, result: ToolResult, tool_name: str, target_str: str, cycle: int):
         """Post-process a tool result: store findings, run analysis."""
         # Collect findings
+        from tools.finding_provenance import AGENTIC_SOURCES
         for f in result.findings:
             f["_tool"] = tool_name
+            # Tag provenance: if the producing "tool" is actually an AI
+            # reasoning stage (not a deterministic scanner), record it so the
+            # finding is never silently merged with deterministic results.
+            if not f.get("source") and tool_name in AGENTIC_SOURCES:
+                f["source"] = tool_name
             self.all_findings.append(f)
 
         if result.findings:

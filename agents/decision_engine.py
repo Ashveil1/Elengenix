@@ -84,6 +84,10 @@ class DecisionEngine:
         self.activity_logger = activity_logger
         self.callback = callback
         self.last_reflection: Optional[Reflection] = None
+        # Hypothesis boost used when the scan gets stuck on known patterns
+        # (off-script, creative exploration per PentestPad 2026 insight).
+        from agents.hypothesis_boost import HypothesisBoost
+        self._hypothesis_boost = HypothesisBoost()
 
     def decide(
         self,
@@ -119,7 +123,14 @@ class DecisionEngine:
         # Phase 2: AI decides with full context
         # Always ask AI, even if attack tree has steps
         # AI can choose to follow tree or override
-        decision = self._ai_dynamic_planning(ctx, user_input, reflection)
+        guidance = None
+        if reflection.status == "stuck":
+            # PentestPad insight: AI is weak at creative, hypothesis-driven
+            # discovery. When stuck, push the agent off recognised patterns
+            # onto a fresh, untested attack path.
+            from agents.hypothesis_boost import build_stuck_guidance
+            guidance = build_stuck_guidance(self._hypothesis_boost, stuck_count=0)
+        decision = self._ai_dynamic_planning(ctx, user_input, reflection, guidance=guidance)
 
         decision.reflection = reflection
         return decision
@@ -235,7 +246,7 @@ class DecisionEngine:
         )
 
     def _ai_dynamic_planning(
-        self, ctx: "ScanContext", user_input: str, reflection=None
+        self, ctx: "ScanContext", user_input: str, reflection=None, guidance: Optional[str] = None
     ) -> Decision:
         """Use AI to decide the next action.
 
@@ -265,6 +276,12 @@ class DecisionEngine:
 
         # Build the prompt with enhanced strategy context
         full_prompt = self._build_strategy_prompt(ctx, user_input, reflection)
+        if guidance:
+            full_prompt = (
+                full_prompt
+                + "\n\n"
+                + guidance
+            )
 
         # Make the AI call
         try:

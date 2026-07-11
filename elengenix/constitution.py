@@ -1,0 +1,191 @@
+"""elengenix/constitution.py - AI Constitution (Supreme Law)"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from enum import Enum
+from typing import List, Optional, Dict, Any
+from datetime import datetime
+
+
+class ConstitutionalPrinciple(Enum):
+    """Core Constitutional Principles - หลักจริยธรรมพื้นฐาน"""
+    DO_NO_HARM = "do_no_harm"                    # ไม่ทำลาย ไม่ก่อให้เกิดความเสียหาย
+    RESPECT_SCOPE = "respect_scope"              # เคารพขอบเขต ไม่เกินขอบเขตที่ได้รับอนุญาต
+    TRUTHFULNESS = "truthfulness"                # ความจริง ไม่หลอกลวง ไม่ตกแต่ง
+    PROPORTIONALITY = "proportionality"          # ความสัมพันธ์ ระหว่างการกระทำและผลกระทบ
+    TRANSPARENCY = "transparency"                # ความโปร่งใส สามารถตรวจสอบได้
+    ACCOUNTABILITY = "accountability"            # ความรับผิดชอบ สามารถอธิบายการตัดสินใจได้
+    MINIMAL_INTRUSION = "minimal_intrusion"      # การรบกวนน้อยที่สุด
+    LEARNING_ORIENTED = "learning_oriented"      # มุ่งเน้นการเรียนรู้ ไม่ใช่แค่ทำลาย
+    RESPECT_AUTONOMY = "respect_autonomy"        # เคารพอิสระของระบบเป้าหมาย
+    PROPORTIONAL_RESPONSE = "proportional_response"  # ตอบสนองสัมพันธ์กับภัยคุกคาม
+
+
+@dataclass
+class ConstitutionalArticle:
+    """บทความในรัฐธรรมนูญ"""
+    id: str
+    principle: ConstitutionalPrinciple
+    text: str
+    interpretation_guidance: str
+    enforcement_priority: int = 1  # 1=Critical, 2=High, 3=Medium, 4=Low
+
+
+@dataclass
+class ConstitutionalViolation:
+    """การละเมิดรัฐธรรมนูญ"""
+    article_id: str
+    principle: ConstitutionalPrinciple
+    description: str
+    severity: str  # critical, high, medium, low
+    remediation_hint: str
+    evidence: Dict[str, Any]
+
+
+@dataclass
+class ConstitutionalRuling:
+    """คำพิพากษาศาลรัฐธรรมนูญ"""
+    action_id: str
+    action_description: str
+    constitutional: bool
+    violations: List[ConstitutionalViolation]
+    considerations: List[str]  # ข้อพิจารณา - ไม่ใช่คำสั่ง
+    relevant_precedents: List[str]  # Case Law
+    confidence: float
+    timestamp: float = field(default_factory=lambda: datetime.now().timestamp())
+
+
+@dataclass
+class ConstitutionalGuidance:
+    """คำแนะนำจากศาลรัฐธรรมนูญ"""
+    ruling: "ConstitutionalRuling"
+    relevant_precedents: List
+    constitutional_interpretation: str
+    recommended_considerations: List[str]
+    requires_human_review: bool = False
+
+    @property
+    def is_constitutional(self) -> bool:
+        return self.ruling.constitutional
+
+    @property
+    def confidence(self) -> float:
+        return self.ruling.confidence
+
+    def to_dict(self) -> dict:
+        return {
+            "constitutional": self.is_constitutional,
+            "confidence": self.confidence,
+            "violations": self.ruling.violations,
+            "considerations": self.ruling.considerations,
+            "precedents": len(self.relevant_precedents),
+            "requires_human_review": self.requires_human_review,
+            "interpretation": self.constitutional_interpretation
+        }
+
+
+class Constitution:
+    """รัฐธรรมนูญ AI - กฎหมายสูงสุด"""
+
+    def __init__(self, articles: Optional[List[ConstitutionalArticle]] = None):
+        self.articles = {a.id: a for a in (articles or self._default_articles())}
+        self.precedents: List[ConstitutionalRuling] = []  # Case Law
+
+    def _default_articles(self) -> List[ConstitutionalArticle]:
+        return [
+            ConstitutionalArticle(
+                id="ART-1",
+                principle=ConstitutionalPrinciple.DO_NO_HARM,
+                text="AI ต้องไม่ทำให้เกิดความเสียหายต่อบุคคล องค์กร ระบบ หรือสิ่งแวดล้อม",
+                interpretation_guidance="ทุกการกระทำต้องผ่านการประเมินความเสียหายล่วงหน้า",
+                enforcement_priority=1
+            ),
+            ConstitutionalArticle(
+                id="ART-2",
+                principle=ConstitutionalPrinciple.RESPECT_SCOPE,
+                text="AI ต้องปฏิบัติตามขอบเขตที่ได้รับอนุญาตเท่านั้น ห้ามเกินขอบเขต",
+                interpretation_guidance="ทุกการกระทำต้องตรวจสอบ scope ก่อนดำเนินการ",
+                enforcement_priority=1
+            ),
+            ConstitutionalArticle(
+                id="ART-3",
+                principle=ConstitutionalPrinciple.TRUTHFULNESS,
+                text="AI ต้องรายงานความจริง ไม่สร้างข้อมูลปลอม ไม่หลอกลวง ไม่ปิดบัง",
+                interpretation_guidance="Findings ต้องมีหลักฐาน Evideniary support",
+                enforcement_priority=1
+            ),
+            ConstitutionalArticle(
+                id="ART-4",
+                principle=ConstitutionalPrinciple.PROPORTIONALITY,
+                text="การกระทำต้องสัมพันธ์กับวัตถุประสงค์และภัยคุกคาม",
+                interpretation_guidance="การสแกน/ทดสอบต้องสัมพันธ์กับความเสี่ยงและขอบเขต",
+                enforcement_priority=2
+            ),
+            ConstitutionalArticle(
+                id="ART-5",
+                principle=ConstitutionalPrinciple.TRANSPARENCY,
+                text="กระบวนการตัดสินใจและการกระทำต้องตรวจสอบได้",
+                interpretation_guidance="Chain of Thought, Decision Rationale ต้องบันทึกไว้",
+                enforcement_priority=2
+            ),
+            ConstitutionalArticle(
+                id="ART-6",
+                principle=ConstitutionalPrinciple.ACCOUNTABILITY,
+                text="AI ต้องรับผิดชอบต่อการตัดสินใจและสามารถอธิบายได้",
+                interpretation_guidance="Decision Rationale ต้องบันทึกและสามารถ Audit ได้",
+                enforcement_priority=2
+            ),
+            ConstitutionalArticle(
+                id="ART-7",
+                principle=ConstitutionalPrinciple.MINIMAL_INTRUSION,
+                text="ใช้วิธีการที่รบกวนน้อยที่สุดในการบรรลุเป้าหมาย",
+                interpretation_guidance="Passive reconnaissance ก่อน Active scanning",
+                enforcement_priority=3
+            ),
+            ConstitutionalArticle(
+                id="ART-8",
+                principle=ConstitutionalPrinciple.LEARNING_ORIENTED,
+                text="มุ่งเน้นการเรียนรู้และปรับปรุง ไม่ใช่แค่การทำลายหรือเอาชนะ",
+                interpretation_guidance="ưu tiên Knowledge gain มากกว่า Exploitation",
+                enforcement_priority=3
+            ),
+            ConstitutionalArticle(
+                id="ART-9",
+                principle=ConstitutionalPrinciple.RESPECT_AUTONOMY,
+                text="เคารพอิสระและความสมบูรณ์ของระบบเป้าหมาย",
+                interpretation_guidance="ไม่ทำให้ระบบเป้าหมายล้มเหลวหรือเสียหายโดยไม่จำเป็น",
+                enforcement_priority=3
+            ),
+            ConstitutionalArticle(
+                id="ART-10",
+                principle=ConstitutionalPrinciple.PROPORTIONAL_RESPONSE,
+                text="การตอบสนองต้องสัมพันธ์กับระดับภัยคุกคาม",
+                interpretation_guidance="Critical finding → Immediate action, Low finding → Document & Monitor",
+                enforcement_priority=3
+            ),
+        ]
+
+    def get_article(self, article_id: str) -> Optional[ConstitutionalArticle]:
+        return self.articles.get(article_id)
+
+    def get_articles_by_principle(self, principle: ConstitutionalPrinciple) -> List[ConstitutionalArticle]:
+        return [a for a in self.articles.values() if a.principle == principle]
+
+    def add_precedent(self, ruling: "ConstitutionalRuling"):
+        """เพิ่ม Case Law (Precedent)"""
+        self.precedents.append(ruling)
+
+    def get_relevant_precedents(self, action_type: str, limit: int = 5) -> List:
+        """ค้นหา Precedent ที่เกี่ยวข้อง"""
+        relevant = []
+        for ruling in reversed(self.precedents):  # Latest first
+            if any(kw in action_type.lower() for kw in ruling.action_description.lower().split()):
+                relevant.append(ruling)
+                if len(relevant) >= limit:
+                    break
+        return relevant
+
+
+# Global Constitution Instance
+DEFAULT_CONSTITUTION = Constitution()

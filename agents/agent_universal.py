@@ -478,6 +478,7 @@ Respond with JSON:
                         "type": finding_type,
                         "severity": score.severity.value,
                         "cvss": score.base_score,
+                        "source": "ai_reasoning",  # produced by the agent's own scoring loop
                     }
                 )
             except Exception:
