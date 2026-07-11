@@ -30,6 +30,24 @@ def _safe_operation(name: str, fn, *args, **kwargs):
         logger.debug(f"{name} failed: {e}")
 
 
+# Global verification engine instance (lazy initialized)
+_verification_engine = None
+
+
+def _get_verification_engine():
+    """Get or create the global verification engine."""
+    global _verification_engine
+    if _verification_engine is None:
+        try:
+            from tools.verification_engine import VerificationEngine
+            from tools.universal_ai_client import AIClientManager
+            ai_client = AIClientManager()
+            _verification_engine = VerificationEngine(ai_client=ai_client)
+        except Exception as e:
+            logger.debug(f"Could not initialize verification engine: {e}")
+    return _verification_engine
+
+
 class PostExecutionProcessor:
     """Processes results after tool execution.
 
@@ -59,7 +77,96 @@ class PostExecutionProcessor:
         self.vuln_finder = vuln_finder
         self.callback = callback
 
-    def process(
+    async def _verify_finding_new(
+        self,
+        ctx: "ScanContext",
+        finding: Dict[str, Any],
+        endpoint: str,
+        vuln_class: str,
+        tool_name: str,
+    ) -> bool:
+        """Verify a single finding using multi-model consensus.
+
+        Returns:
+            True if the finding is verified/actionable.
+        """
+        engine = _get_verification_engine()
+        if not engine:
+            finding["verification"] = {"status": "unavailable", "reason": "verification_engine_not_initialized"}
+            if ctx.coverage_map:
+                ctx.coverage_map.record_finding(endpoint, vuln_class)
+            return True
+
+        try:
+            result = await engine.verify_with_consensus(finding)
+            finding["verification"] = {
+                "verified": result.verified,
+                "consensus_verdict": result.consensus_verdict,
+                "severity": result.severity,
+                "confidence": result.confidence,
+                "consensus_strength": result.consensus_strength,
+                "requires_human_review": result.requires_human_review,
+                "model_votes": [
+                    {
+                        "model": v.model_name,
+                        "verdict": v.verdict,
+                        "confidence": v.confidence,
+                        "reasoning": v.reasoning[:200] if v.reasoning else "",
+                        "severity_adjustment": v.severity_adjustment,
+                    }
+                    for v in result.model_votes
+                ],
+            }
+            # Update severity if adjusted
+            if result.verified and result.severity != finding.get("severity"):
+                finding["severity"] = result.severity
+                finding["severity_adjusted_by_verification"] = True
+
+            logger.info(f"Verification result for {finding.get('type')}: {result.consensus_verdict} (confidence: {result.confidence:.2f})")
+
+            if result.verified:
+                if ctx.coverage_map:
+                    ctx.coverage_map.record_finding(endpoint, vuln_class)
+                if ctx.belief_state:
+                    ctx.belief_state.add_belief(
+                        vuln_class=vuln_class,
+                        target_endpoint=endpoint,
+                        reasoning=finding.get("evidence", str(finding))[:200],
+                        confidence=result.confidence,
+                        evidence=[{"verdict": result.consensus_verdict}],
+                    )
+                if self.callback:
+                    self.callback(
+                        f"  [VERIFIED] {vuln_class} at {endpoint} " f"(status: {result.consensus_verdict})"
+                    )
+                return True
+            else:
+                # Not verified — record as negative
+                if ctx.coverage_map:
+                    ctx.coverage_map.record_negative(
+                        endpoint, vuln_class, reason=f"Verification failed: {result.consensus_verdict}"
+                    )
+                if ctx.negative_results:
+                    ctx.negative_results.record(
+                        endpoint=endpoint,
+                        vuln_class=vuln_class,
+                        tool_used=tool_name,
+                        payload_or_command=str(finding)[:200],
+                        reason=f"verification: {result.consensus_verdict}",
+                    )
+                if self.callback:
+                    self.callback(
+                        f"  [DISCARDED] {vuln_class} at {endpoint} " f"({result.consensus_verdict})"
+                    )
+                return False
+        except Exception as e:
+            logger.warning(f"Verification failed for {finding.get('type', 'unknown')}: {e}")
+            finding["verification"] = {"status": "error", "reason": str(e)}
+            if ctx.coverage_map:
+                ctx.coverage_map.record_finding(endpoint, vuln_class)
+            return True
+
+    async def process(
         self,
         ctx: "ScanContext",
         result: Any,
@@ -86,8 +193,8 @@ class PostExecutionProcessor:
         ctx.add_result(result)
 
         # Group 1: Coverage tracking & verification
-        verified_findings = self._process_coverage_and_verification(
-            ctx, result, tool_name, action_data, step
+        verified_findings = await self._process_coverage_and_verification(
+            ctx, result, tool_name, action_data
         )
 
         # Group 2: Escalation & chaining
@@ -97,18 +204,17 @@ class PostExecutionProcessor:
         self._process_mission_state(ctx, result, tool_name, step)
 
         # Group 4: Analysis pipeline & deep reasoning
-        self._process_analysis(ctx, result, tool_name, action_data, step)
+        self._process_analysis(ctx, result, tool_name, step)
 
         # Group 5: Attack tree & adaptive strategy
         self._process_strategy(ctx, result, tool_name, step)
 
-    def _process_coverage_and_verification(
+    async def _process_coverage_and_verification(
         self,
         ctx: "ScanContext",
         result: Any,
         tool_name: str,
         action_data: Dict[str, Any],
-        step: int,
     ) -> List[Dict[str, Any]]:
         """Track coverage, verify findings, record negatives.
 
@@ -132,9 +238,7 @@ class PostExecutionProcessor:
                     or finding.get("host")
                     or endpoint_tested
                 )
-                f_class = (
-                    (finding.get("type") or finding.get("vuln_class") or "unknown").lower()
-                )
+                f_class = (finding.get("type") or finding.get("vuln_class") or "unknown").lower()
 
                 # Register in coverage map
                 if ctx.coverage_map:
@@ -142,12 +246,10 @@ class PostExecutionProcessor:
                     ctx.coverage_map.record_test(f_endpoint, f_class)
 
                 # Run verification pipeline
-                verified = self._verify_finding(
-                    ctx, finding, f_endpoint, f_class, tool_name
-                )
+                verified = await self._verify_finding_new(ctx, finding, f_endpoint, f_class, tool_name)
                 if verified:
                     verified_findings.append(finding)
-                # If not verified, it's already recorded as negative in _verify_finding
+                # If not verified, it's already recorded as negative in _verify_finding_new
         else:
             # No findings — record negative result
             if ctx.negative_results:
@@ -215,16 +317,14 @@ class PostExecutionProcessor:
                     )
                 if self.callback:
                     self.callback(
-                        f"  [VERIFIED] {vuln_class} at {endpoint} "
-                        f"(status: {verdict.status})"
+                        f"  [VERIFIED] {vuln_class} at {endpoint} " f"(status: {verdict.status})"
                     )
                 return True
             else:
                 # Not verified — record as negative
                 if ctx.coverage_map:
                     ctx.coverage_map.record_negative(
-                        endpoint, vuln_class,
-                        reason=f"Verification failed: {verdict.status}"
+                        endpoint, vuln_class, reason=f"Verification failed: {verdict.status}"
                     )
                 if ctx.negative_results:
                     ctx.negative_results.record(
@@ -236,8 +336,7 @@ class PostExecutionProcessor:
                     )
                 if self.callback:
                     self.callback(
-                        f"  [DISCARDED] {vuln_class} at {endpoint} "
-                        f"({verdict.status})"
+                        f"  [DISCARDED] {vuln_class} at {endpoint} " f"({verdict.status})"
                     )
                 return False
         except Exception as e:
@@ -318,11 +417,7 @@ class PostExecutionProcessor:
 
         for i, finding in enumerate(result.findings):
             ftype = finding.get("type", "unknown")
-            furl = (
-                finding.get("url", "")
-                or finding.get("subdomain", "")
-                or finding.get("host", "")
-            )
+            furl = finding.get("url", "") or finding.get("subdomain", "") or finding.get("host", "")
             node_id = furl or f"finding:{tool_name}:{step}:{i}"
 
             _safe_operation(
@@ -369,7 +464,6 @@ class PostExecutionProcessor:
         ctx: "ScanContext",
         result: Any,
         tool_name: str,
-        action_data: Dict[str, Any],
         step: int,
     ) -> None:
         """Run analysis pipeline and deep LLM reasoning."""
@@ -419,9 +513,7 @@ class PostExecutionProcessor:
                     )
                     # Add coverage gaps as suggestions
                     if analysis.coverage_gaps:
-                        gaps_text = "\n".join(
-                            f"- {g}" for g in analysis.coverage_gaps[:3]
-                        )
+                        gaps_text = "\n".join(f"- {g}" for g in analysis.coverage_gaps[:3])
                         ctx.append_history(
                             "user",
                             f"Coverage gaps to consider:\n{gaps_text}",

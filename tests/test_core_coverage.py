@@ -309,9 +309,7 @@ class TestTokenManager:
         from tools.token_manager import TokenManager, PROVIDER_CONFIGS
 
         db_path = tmp_path / "token_usage.db"
-        with patch.object(
-            TokenManager, "DB_PATH", db_path
-        ):
+        with patch.object(TokenManager, "DB_PATH", db_path):
             yield TokenManager(
                 daily_budget_usd=100.0,
                 monthly_budget_usd=500.0,
@@ -493,8 +491,14 @@ class TestSessionManager:
         from tools.session_manager import SessionInfo
 
         info = SessionInfo(
-            name="a", created_at="t", last_modified="t", target="x.com",
-            turns=5, mode="auto", model="gpt-4", file_path="/tmp/a.json"
+            name="a",
+            created_at="t",
+            last_modified="t",
+            target="x.com",
+            turns=5,
+            mode="auto",
+            model="gpt-4",
+            file_path="/tmp/a.json",
         )
         text = sm.format_session_list([info])
         assert "a" in text
@@ -612,8 +616,12 @@ class TestVectorMemory:
         from tools.vector_memory import MemoryEntry
 
         e = MemoryEntry(
-            id="abc", content="test", target="t.com",
-            category="finding", timestamp="2024-01-01", metadata={"k": "v"}
+            id="abc",
+            content="test",
+            target="t.com",
+            category="finding",
+            timestamp="2024-01-01",
+            metadata={"k": "v"},
         )
         d = e.to_dict()
         assert d["id"] == "abc"
@@ -947,11 +955,15 @@ class TestProfileManager:
         assert ok is False
 
     def test_clone_with_modifications(self, pm):
-        ok = pm.clone_profile("quick", "custom_q", modifications={
-            "description": "Custom quick",
-            "add_options": {"timeout": 30},
-            "tags": ["custom"],
-        })
+        ok = pm.clone_profile(
+            "quick",
+            "custom_q",
+            modifications={
+                "description": "Custom quick",
+                "add_options": {"timeout": 30},
+                "tags": ["custom"],
+            },
+        )
         assert ok is True
 
     def test_export_profile(self, pm):
@@ -1292,43 +1304,37 @@ class TestUniversalExecutor:
     def test_execute_action_read_file(self, executor, tmp_path):
         f = tmp_path / "test.txt"
         f.write_text("content here")
-        result = executor.execute_action({
-            "type": "read_file",
-            "params": {"path": str(f)}
-        })
+        result = executor.execute_action({"type": "read_file", "params": {"path": str(f)}})
         assert result.success is True
 
     def test_execute_action_write_file(self, executor, tmp_path):
         f = tmp_path / "out.txt"
-        result = executor.execute_action({
-            "type": "write_file",
-            "params": {"path": str(f), "content": "data"}
-        })
+        result = executor.execute_action(
+            {"type": "write_file", "params": {"path": str(f), "content": "data"}}
+        )
         assert result.success is True
 
     def test_execute_action_edit_file(self, executor, tmp_path):
         f = tmp_path / "edit.txt"
         f.write_text("old text")
-        result = executor.execute_action({
-            "type": "edit_file",
-            "params": {"path": str(f), "old_string": "old text", "new_string": "new text"}
-        })
+        result = executor.execute_action(
+            {
+                "type": "edit_file",
+                "params": {"path": str(f), "old_string": "old text", "new_string": "new text"},
+            }
+        )
         assert result.success is True
 
     def test_execute_action_search_file(self, executor, tmp_path):
         f = tmp_path / "s.txt"
         f.write_text("line1 pattern\nline2 other")
-        result = executor.execute_action({
-            "type": "search_file",
-            "params": {"path": str(f), "pattern": "pattern"}
-        })
+        result = executor.execute_action(
+            {"type": "search_file", "params": {"path": str(f), "pattern": "pattern"}}
+        )
         assert result.success is True
 
     def test_execute_action_list_dir(self, executor, tmp_path):
-        result = executor.execute_action({
-            "type": "list_dir",
-            "params": {"path": str(tmp_path)}
-        })
+        result = executor.execute_action({"type": "list_dir", "params": {"path": str(tmp_path)}})
         assert result.success is True
 
     def test_execute_action_unknown_type(self, executor):
@@ -1336,10 +1342,9 @@ class TestUniversalExecutor:
         assert result.success is False
 
     def test_execute_action_package(self, executor):
-        result = executor.execute_action({
-            "type": "package",
-            "params": {"manager": "pip", "action": "list"}
-        })
+        result = executor.execute_action(
+            {"type": "package", "params": {"manager": "pip", "action": "list"}}
+        )
         assert result.success is True
 
     def test_get_capabilities(self, executor):
@@ -1409,20 +1414,14 @@ class TestUniversalAIClient:
         from tools.universal_ai_client import UniversalAIClient
 
         client = UniversalAIClient(
-            provider="custom",
-            base_url="http://localhost:8080/v1",
-            api_key="test"
+            provider="custom", base_url="http://localhost:8080/v1", api_key="test"
         )
         assert client.base_url == "http://localhost:8080/v1"
 
     def test_is_available_no_key(self):
         from tools.universal_ai_client import UniversalAIClient
 
-        client = UniversalAIClient(
-            provider="custom",
-            base_url="",
-            api_key=""
-        )
+        client = UniversalAIClient(provider="custom", base_url="", api_key="")
         assert client.is_available() is False
 
     def test_get_status(self):
@@ -1703,7 +1702,13 @@ class TestSwarmController:
             "summary": {"total_targets": 2, "completed": 2, "failed": 0, "total_findings": 5},
             "severity_distribution": {"critical": 1, "high": 2, "medium": 2, "low": 0, "info": 0},
             "target_breakdown": [
-                {"target": "http://a.com", "success": True, "findings_count": 3, "duration_seconds": 5.0, "error": None}
+                {
+                    "target": "http://a.com",
+                    "success": True,
+                    "findings_count": 3,
+                    "duration_seconds": 5.0,
+                    "error": None,
+                }
             ],
         }
         text = format_swarm_report(report)
@@ -1741,11 +1746,15 @@ class TestTeamAegis:
         c1 = MagicMock()
         c1.provider = "openai"
         c1.model = "gpt-4"
-        c1.simple_chat.return_value = '{"discussion": "test", "action": {"type": "none"}, "findings": []}'
+        c1.simple_chat.return_value = (
+            '{"discussion": "test", "action": {"type": "none"}, "findings": []}'
+        )
         c2 = MagicMock()
         c2.provider = "ollama"
         c2.model = "llama3"
-        c2.simple_chat.return_value = '{"discussion": "test2", "action": {"type": "none"}, "findings": []}'
+        c2.simple_chat.return_value = (
+            '{"discussion": "test2", "action": {"type": "none"}, "findings": []}'
+        )
         return [c1, c2]
 
     def test_init(self, mock_clients):
@@ -1874,7 +1883,9 @@ class TestSOCAnalyzer:
         return SOCAnalyzer(ioc_db={"ip": {"1.2.3.4": True}, "hash": {"abc123": True}})
 
     def test_parse_syslog(self, analyzer):
-        alert = analyzer.parse_syslog("Jan  1 12:00:00 host sshd[1]: Failed password for root from 10.0.0.1")
+        alert = analyzer.parse_syslog(
+            "Jan  1 12:00:00 host sshd[1]: Failed password for root from 10.0.0.1"
+        )
         assert alert is not None
         assert alert.src_ip == "10.0.0.1"
         assert alert.severity == "info"
@@ -1926,8 +1937,13 @@ class TestSOCAnalyzer:
         from tools.soc_analyzer import Alert
 
         alert = Alert(
-            alert_id="a1", timestamp="t", source="test", alert_type="unknown",
-            severity="high", confidence=0.8, src_ip="1.2.3.4"
+            alert_id="a1",
+            timestamp="t",
+            source="test",
+            alert_type="unknown",
+            severity="high",
+            confidence=0.8,
+            src_ip="1.2.3.4",
         )
         matches = analyzer.check_ioc(alert)
         assert "ip:1.2.3.4" in matches
@@ -1936,8 +1952,13 @@ class TestSOCAnalyzer:
         from tools.soc_analyzer import Alert
 
         alert = Alert(
-            alert_id="a1", timestamp="t", source="test", alert_type="unknown",
-            severity="high", confidence=0.8, src_ip="9.9.9.9"
+            alert_id="a1",
+            timestamp="t",
+            source="test",
+            alert_type="unknown",
+            severity="high",
+            confidence=0.8,
+            src_ip="9.9.9.9",
         )
         matches = analyzer.check_ioc(alert)
         assert matches == []
@@ -1946,8 +1967,13 @@ class TestSOCAnalyzer:
         from tools.soc_analyzer import Alert
 
         alert = Alert(
-            alert_id="a1", timestamp="t", source="test", alert_type="unknown",
-            severity="high", confidence=0.8, signature="cobalt strike beacon detected"
+            alert_id="a1",
+            timestamp="t",
+            source="test",
+            alert_type="unknown",
+            severity="high",
+            confidence=0.8,
+            signature="cobalt strike beacon detected",
         )
         actor, campaign = analyzer.identify_threat_actor(alert)
         assert actor == "cobalt_strike"
@@ -1956,8 +1982,13 @@ class TestSOCAnalyzer:
         from tools.soc_analyzer import Alert
 
         alert = Alert(
-            alert_id="a1", timestamp="t", source="test", alert_type="unknown",
-            severity="high", confidence=0.8, signature="generic alert"
+            alert_id="a1",
+            timestamp="t",
+            source="test",
+            alert_type="unknown",
+            severity="high",
+            confidence=0.8,
+            signature="generic alert",
         )
         actor, _ = analyzer.identify_threat_actor(alert)
         assert actor is None
@@ -1966,8 +1997,12 @@ class TestSOCAnalyzer:
         from tools.soc_analyzer import Alert
 
         alert = Alert(
-            alert_id="a1", timestamp="t", source="test", alert_type="data_exfiltration",
-            severity="critical", confidence=0.9
+            alert_id="a1",
+            timestamp="t",
+            source="test",
+            alert_type="data_exfiltration",
+            severity="critical",
+            confidence=0.9,
         )
         priority = analyzer.calculate_priority(alert)
         assert priority > 5.0
@@ -1976,8 +2011,13 @@ class TestSOCAnalyzer:
         from tools.soc_analyzer import Alert
 
         alert = Alert(
-            alert_id="a1", timestamp="t", source="test", alert_type="intrusion",
-            severity="high", confidence=0.85, src_ip="1.2.3.4"
+            alert_id="a1",
+            timestamp="t",
+            source="test",
+            alert_type="intrusion",
+            severity="high",
+            confidence=0.85,
+            src_ip="1.2.3.4",
         )
         result = analyzer.triage_alert(alert)
         assert result.priority_score > 0
@@ -1988,8 +2028,12 @@ class TestSOCAnalyzer:
         from tools.soc_analyzer import Alert
 
         alert = Alert(
-            alert_id="a1", timestamp="t", source="test", alert_type="unknown",
-            severity="low", confidence=0.2
+            alert_id="a1",
+            timestamp="t",
+            source="test",
+            alert_type="unknown",
+            severity="low",
+            confidence=0.2,
         )
         result = analyzer.triage_alert(alert)
         assert result.category == "false_positive_likely"
@@ -1998,17 +2042,37 @@ class TestSOCAnalyzer:
         from tools.soc_analyzer import Alert, TriageResult
 
         a1 = Alert(
-            alert_id="a1", timestamp="t", source="test", alert_type="recon",
-            severity="medium", confidence=0.6, src_ip="1.2.3.4"
+            alert_id="a1",
+            timestamp="t",
+            source="test",
+            alert_type="recon",
+            severity="medium",
+            confidence=0.6,
+            src_ip="1.2.3.4",
         )
         a2 = Alert(
-            alert_id="a2", timestamp="t", source="test", alert_type="recon",
-            severity="medium", confidence=0.6, src_ip="1.2.3.4"
+            alert_id="a2",
+            timestamp="t",
+            source="test",
+            alert_type="recon",
+            severity="medium",
+            confidence=0.6,
+            src_ip="1.2.3.4",
         )
-        r1 = TriageResult(alert=a1, priority_score=3.0, category="needs_investigation",
-                          recommended_action="investigate", related_alerts=[])
-        r2 = TriageResult(alert=a2, priority_score=3.0, category="needs_investigation",
-                          recommended_action="investigate", related_alerts=[])
+        r1 = TriageResult(
+            alert=a1,
+            priority_score=3.0,
+            category="needs_investigation",
+            recommended_action="investigate",
+            related_alerts=[],
+        )
+        r2 = TriageResult(
+            alert=a2,
+            priority_score=3.0,
+            category="needs_investigation",
+            recommended_action="investigate",
+            related_alerts=[],
+        )
         results = analyzer.correlate_alerts([r1, r2])
         assert "a2" in results[0].related_alerts
         assert "a1" in results[1].related_alerts
@@ -2017,8 +2081,14 @@ class TestSOCAnalyzer:
         from tools.soc_analyzer import Alert
 
         alert = Alert(
-            alert_id="a1", timestamp="t", source="suricata", alert_type="intrusion",
-            severity="high", confidence=0.8, signature="SQL Injection", src_ip="1.2.3.4"
+            alert_id="a1",
+            timestamp="t",
+            source="suricata",
+            alert_type="intrusion",
+            severity="high",
+            confidence=0.8,
+            signature="SQL Injection",
+            src_ip="1.2.3.4",
         )
         rule = analyzer.generate_sigma_rule(alert)
         assert rule is not None
@@ -2029,8 +2099,12 @@ class TestSOCAnalyzer:
         from tools.soc_analyzer import Alert
 
         alert = Alert(
-            alert_id="a1", timestamp="t", source="test", alert_type="unknown",
-            severity="low", confidence=0.3
+            alert_id="a1",
+            timestamp="t",
+            source="test",
+            alert_type="unknown",
+            severity="low",
+            confidence=0.3,
         )
         assert analyzer.generate_sigma_rule(alert) is None
 
@@ -2040,7 +2114,9 @@ class TestSOCAnalyzer:
 
     def test_analyze_log_file_json(self, analyzer, tmp_path):
         f = tmp_path / "alerts.jsonl"
-        f.write_text(json.dumps({"severity": "high", "signature": "attack", "src_ip": "1.2.3.4"}) + "\n")
+        f.write_text(
+            json.dumps({"severity": "high", "signature": "attack", "src_ip": "1.2.3.4"}) + "\n"
+        )
         f.write_text(json.dumps({"severity": "low"}) + "\n", encoding="utf-8")
         result = analyzer.analyze_log_file(f)
         assert result["total_alerts"] >= 1
@@ -2055,8 +2131,15 @@ class TestFormatSocReport:
             "severity_distribution": {"high": 5, "low": 5},
             "category_distribution": {"true_positive": 3},
             "top_priority_alerts": [
-                {"id": "a1", "type": "malware", "severity": "high", "priority": 8.0,
-                 "src_ip": "1.2.3.4", "threat_actor": "apt28", "action": "contain"}
+                {
+                    "id": "a1",
+                    "type": "malware",
+                    "severity": "high",
+                    "priority": 8.0,
+                    "src_ip": "1.2.3.4",
+                    "threat_actor": "apt28",
+                    "action": "contain",
+                }
             ],
             "threat_actors_identified": ["apt28"],
             "generated_rules": [{"title": "Rule 1", "level": "high", "tags": ["malware"]}],

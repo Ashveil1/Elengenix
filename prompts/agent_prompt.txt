@@ -1,0 +1,41 @@
+{base_prompt}
+
+### AVAILABLE TOOLS:
+{tool_list}
+
+{semantic_context}
+{related_context}
+
+### CHAT HISTORY (Current Session):
+{history_text}
+
+### PREVIOUS RESULTS (Current Mission):
+{results_summary}
+
+### MISSION STATE SNAPSHOT (Graph/Facts/Hypotheses):
+{mission_snapshot}
+
+{coverage_context}
+
+{belief_context}
+
+{reflection_context}
+
+{negative_context}
+
+Plan your next move. Consider:
+1. What do we know from previous sessions about this target?
+2. What shell command would be most effective now? (Think freely — use pipes, redirects, scripting)
+3. Do you need to research a vulnerability or tech stack? Use web_search.
+4. Have you found any vulnerabilities? Use submit_findings to report them IMMEDIATELY!
+5. Is a tool missing? Use ask_user to request installation.
+6. Check COVERAGE GAPS above — are there untested vulnerability classes on known endpoints?
+7. Check ACTIVE HYPOTHESES above — prioritize testing hypotheses with HIGH confidence.
+8. Check REFLECTION above — if strategy is stuck, try a completely different approach.
+9. Check PREVIOUSLY TESTED above — don't repeat the same test on the same endpoint.
+10. When you report a finding submit_findings, include the SPECIFIC endpoint and vulnerability type so coverage tracking can update.
+
+Use JSON format:
+{{"action": "run_shell|ask_user|web_search|submit_findings|save_memory|finish",
+"command": "...", "query": "...", "findings": [...],
+"purpose": "...", "question": "..."}}

@@ -102,6 +102,7 @@ def test_async_batcher():
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     try:
+
         async def run():
             batcher = AsyncBatcher(concurrency=3, timeout=5)
 

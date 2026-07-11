@@ -68,9 +68,7 @@ class TestCVSSVector:
 class TestCVSSCalculator:
     def test_score_zero_for_no_impact(self):
         calc = CVSSCalculator(use_ai=False)
-        vector = CVSSVector(
-            confidentiality="N", integrity="N", availability="N"
-        )
+        vector = CVSSVector(confidentiality="N", integrity="N", availability="N")
         score = calc.calculate(vector)
         assert score.base_score == 0.0
         assert score.severity.value == "Informational"
@@ -194,13 +192,23 @@ class TestCVSSCalculator:
 
     def test_calculate_from_tool_result(self):
         calc = CVSSCalculator(use_ai=False)
-        finding = {"type": "xss", "severity": "high", "url": "http://test.com", "evidence": "reflected"}
+        finding = {
+            "type": "xss",
+            "severity": "high",
+            "url": "http://test.com",
+            "evidence": "reflected",
+        }
         score = calc.calculate_from_tool_result("active_fuzzer", finding, "http://test.com")
         assert score.base_score > 0
 
     def test_calculate_from_tool_result_with_host(self):
         calc = CVSSCalculator(use_ai=False)
-        finding = {"type": "sqli", "severity": "critical", "host": "http://db.test.com", "details": "union select"}
+        finding = {
+            "type": "sqli",
+            "severity": "critical",
+            "host": "http://db.test.com",
+            "details": "union select",
+        }
         score = calc.calculate_from_tool_result("nuclei", finding, "http://test.com")
         assert score.adjusted_severity is not None
 
@@ -229,8 +237,16 @@ class TestCVSSCalculator:
         assert score.adjusted_severity is None
 
     def test_vector_string_roundtrip(self):
-        v = CVSSVector(attack_vector="A", attack_complexity="H", privileges_required="L",
-                        user_interaction="R", scope="C", confidentiality="H", integrity="L", availability="N")
+        v = CVSSVector(
+            attack_vector="A",
+            attack_complexity="H",
+            privileges_required="L",
+            user_interaction="R",
+            scope="C",
+            confidentiality="H",
+            integrity="L",
+            availability="N",
+        )
         s = v.to_vector_string()
         assert "AV:A" in s
         assert "AC:H" in s
@@ -442,7 +458,12 @@ class TestVerificationEngine:
         assert self.engine._is_confirmation("it is valid and confirmed")
 
     def test_verification_prompt(self):
-        finding = {"type": "XSS", "severity": "HIGH", "url": "http://test.com", "description": "reflected"}
+        finding = {
+            "type": "XSS",
+            "severity": "HIGH",
+            "url": "http://test.com",
+            "description": "reflected",
+        }
         prompt = self.engine.get_verification_prompt(finding)
         assert "XSS" in prompt
         assert "http://test.com" in prompt
@@ -511,7 +532,16 @@ class TestEscalationEngine:
         assert self.engine.suggest_next_action({"type": "NONE"}, []) is None
 
     def test_all_escalation_types(self):
-        for ftype in ["XSS", "SQLi", "IDOR", "SSRF", "info_disclosure", "XXE", "SSTI", "race_condition"]:
+        for ftype in [
+            "XSS",
+            "SQLi",
+            "IDOR",
+            "SSRF",
+            "info_disclosure",
+            "XXE",
+            "SSTI",
+            "race_condition",
+        ]:
             path = self.engine.can_escalate({"type": ftype})
             assert path is not None, f"Missing escalation for {ftype}"
 
@@ -597,8 +627,13 @@ class TestAdaptivePlanner:
         assert ActionType.REPORT.value == "report"
 
     def test_attack_path_construction(self):
-        ap = AttackPath(target="http://test.com/api", path_type="api_endpoint", rank=5,
-                        tools=["nuclei"], expected_impact="RCE")
+        ap = AttackPath(
+            target="http://test.com/api",
+            path_type="api_endpoint",
+            rank=5,
+            tools=["nuclei"],
+            expected_impact="RCE",
+        )
         assert ap.rank == 5
 
     def test_rank_targets(self):
@@ -663,7 +698,10 @@ class TestAdaptivePlanner:
         assert self.planner.should_stop({"steps": 100, "max_steps": 100}) is True
 
     def test_should_stop_ok(self):
-        assert self.planner.should_stop({"budget_remaining": 1.0, "steps": 5, "max_steps": 100}) is False
+        assert (
+            self.planner.should_stop({"budget_remaining": 1.0, "steps": 5, "max_steps": 100})
+            is False
+        )
 
     def test_get_rank_description(self):
         assert "Very High" in self.planner.get_rank_description(5)
@@ -684,15 +722,21 @@ class TestCORSScanResult:
         assert r.is_vulnerable is False
 
     def test_is_vulnerable_true(self):
-        r = CORSScanResult(target="http://test.com", results=[
-            CORSResult(test_type="wildcard", origin="*", vulnerable=True)
-        ])
+        r = CORSScanResult(
+            target="http://test.com",
+            results=[CORSResult(test_type="wildcard", origin="*", vulnerable=True)],
+        )
         assert r.is_vulnerable is True
 
     def test_summary(self):
-        r = CORSScanResult(target="http://test.com", total_tests=5, duration=1.5, results=[
-            CORSResult(test_type="x", origin="y", vulnerable=True),
-        ])
+        r = CORSScanResult(
+            target="http://test.com",
+            total_tests=5,
+            duration=1.5,
+            results=[
+                CORSResult(test_type="x", origin="y", vulnerable=True),
+            ],
+        )
         s = r.summary()
         assert s["target"] == "http://test.com"
         assert s["total_findings"] == 1
@@ -774,11 +818,15 @@ class TestSSTIScanResult:
     def test_is_vulnerable(self):
         r = SSTIScanResult(target="http://test.com")
         assert r.is_vulnerable is False
-        r.results.append(SSTIResult(url="x", param="p", payload="y", engine="jinja2", vulnerable=True))
+        r.results.append(
+            SSTIResult(url="x", param="p", payload="y", engine="jinja2", vulnerable=True)
+        )
         assert r.is_vulnerable is True
 
     def test_summary(self):
-        r = SSTIScanResult(target="http://test.com", total_tests=5, duration=1.0, engines_detected=["jinja2"])
+        r = SSTIScanResult(
+            target="http://test.com", total_tests=5, duration=1.0, engines_detected=["jinja2"]
+        )
         s = r.summary()
         assert "jinja2" in s["engines_detected"]
 
@@ -824,11 +872,15 @@ class TestDeserScanResult:
     def test_is_vulnerable(self):
         r = DeserScanResult(target="http://test.com")
         assert r.is_vulnerable is False
-        r.results.append(DeserResult(url="x", param="p", format_type="java", payload="y", vulnerable=True))
+        r.results.append(
+            DeserResult(url="x", param="p", format_type="java", payload="y", vulnerable=True)
+        )
         assert r.is_vulnerable is True
 
     def test_summary(self):
-        r = DeserScanResult(target="http://test.com", total_tests=5, duration=1.5, formats_detected=["java"])
+        r = DeserScanResult(
+            target="http://test.com", total_tests=5, duration=1.5, formats_detected=["java"]
+        )
         s = r.summary()
         assert "java" in s["formats_detected"]
 
@@ -843,7 +895,12 @@ class TestDeserializationScanner:
 # 12. graphql_scanner.py
 # ──────────────────────────────────────────────────────────────────────
 
-from tools.graphql_scanner import GraphQLScanner, GraphQLResult, GraphQLScanResult, GRAPHQL_ENDPOINTS
+from tools.graphql_scanner import (
+    GraphQLScanner,
+    GraphQLResult,
+    GraphQLScanResult,
+    GRAPHQL_ENDPOINTS,
+)
 
 
 class TestGraphQLScanResult:
@@ -852,7 +909,9 @@ class TestGraphQLScanResult:
         assert r.is_vulnerable is False
 
     def test_summary(self):
-        r = GraphQLScanResult(target="http://test.com/graphql", total_tests=4, duration=2.0, schema_introspected=True)
+        r = GraphQLScanResult(
+            target="http://test.com/graphql", total_tests=4, duration=2.0, schema_introspected=True
+        )
         s = r.summary()
         assert s["schema_introspected"] is True
 
@@ -1191,14 +1250,38 @@ class TestBOLATester:
 
     def test_summarize(self):
         results = [
-            BOLATestResult(url="u1", object_id="1", session_a="a", session_b="b",
-                           status_a=200, status_b=200, body_size_a=10, body_size_b=10,
-                           body_hash_a="h1", body_hash_b="h1", is_bola=True,
-                           confidence=0.99, severity="critical", reasoning="test"),
-            BOLATestResult(url="u2", object_id="2", session_a="a", session_b="b",
-                           status_a=200, status_b=403, body_size_a=10, body_size_b=0,
-                           body_hash_a="h2", body_hash_b="", is_bola=False,
-                           confidence=0.0, severity="low", reasoning="ok"),
+            BOLATestResult(
+                url="u1",
+                object_id="1",
+                session_a="a",
+                session_b="b",
+                status_a=200,
+                status_b=200,
+                body_size_a=10,
+                body_size_b=10,
+                body_hash_a="h1",
+                body_hash_b="h1",
+                is_bola=True,
+                confidence=0.99,
+                severity="critical",
+                reasoning="test",
+            ),
+            BOLATestResult(
+                url="u2",
+                object_id="2",
+                session_a="a",
+                session_b="b",
+                status_a=200,
+                status_b=403,
+                body_size_a=10,
+                body_size_b=0,
+                body_hash_a="h2",
+                body_hash_b="",
+                is_bola=False,
+                confidence=0.0,
+                severity="low",
+                reasoning="ok",
+            ),
         ]
         s = self.tester.summarize(results)
         assert s["total"] == 2
@@ -1235,33 +1318,58 @@ from tools.report_gen import (
 class TestReportModels:
     def test_finding_report(self):
         f = FindingReport(
-            id="F1", title="XSS", severity="High", cvss=7.5,
-            url="http://test.com", vuln_class="xss", description="reflected xss",
-            impact="cookie theft", remediation="encode output",
+            id="F1",
+            title="XSS",
+            severity="High",
+            cvss=7.5,
+            url="http://test.com",
+            vuln_class="xss",
+            description="reflected xss",
+            impact="cookie theft",
+            remediation="encode output",
         )
         assert f.severity_color == "#ff9500"
         assert f.severity_icon  # has an icon
 
     def test_finding_report_critical(self):
         f = FindingReport(
-            id="F1", title="RCE", severity="Critical", cvss=10.0,
-            url="http://test.com", vuln_class="rce", description="cmd injection",
-            impact="full compromise", remediation="sanitize input",
+            id="F1",
+            title="RCE",
+            severity="Critical",
+            cvss=10.0,
+            url="http://test.com",
+            vuln_class="rce",
+            description="cmd injection",
+            impact="full compromise",
+            remediation="sanitize input",
         )
         assert f.severity_color == "#ff3b30"
 
     def test_finding_report_unknown_severity(self):
         f = FindingReport(
-            id="F1", title="X", severity="Unknown", cvss=0.0,
-            url="http://test.com", vuln_class="x", description="d",
-            impact="i", remediation="r",
+            id="F1",
+            title="X",
+            severity="Unknown",
+            cvss=0.0,
+            url="http://test.com",
+            vuln_class="x",
+            description="d",
+            impact="i",
+            remediation="r",
         )
         assert f.severity_color == "#999"
 
     def test_executive_summary_risk_levels(self):
         s = ExecutiveSummary(
-            target="t", scan_date="2025-01-01", duration_seconds=10.0,
-            total_findings=5, critical=1, high=1, medium=1, low=1, info=1,
+            target="t",
+            scan_date="2025-01-01",
+            duration_seconds=10.0,
+            total_findings=5,
+            critical=1,
+            high=1,
+            medium=1,
+            low=1,
+            info=1,
             ai_provider="openai",
         )
         s.risk_score = 9.5
@@ -1277,11 +1385,19 @@ class TestReportModels:
 
     def test_render_finding(self):
         f = FindingReport(
-            id="F1", title="XSS", severity="High", cvss=7.5,
-            url="http://test.com", vuln_class="xss", description="reflected",
-            impact="cookie theft", remediation="encode",
+            id="F1",
+            title="XSS",
+            severity="High",
+            cvss=7.5,
+            url="http://test.com",
+            vuln_class="xss",
+            description="reflected",
+            impact="cookie theft",
+            remediation="encode",
             evidence="<script>alert(1)</script>",
-            cwe=["CWE-79"], cve="CVE-2024-0001", confidence=0.8,
+            cwe=["CWE-79"],
+            cve="CVE-2024-0001",
+            confidence=0.8,
         )
         html = render_finding(f)
         assert "XSS" in html
@@ -1300,22 +1416,42 @@ class TestReportModels:
 class TestReportGeneration:
     def _make_summary(self):
         return ExecutiveSummary(
-            target="test.com", scan_date="2025-01-01", duration_seconds=10.0,
-            total_findings=2, critical=1, high=1, medium=0, low=0, info=0,
-            ai_provider="openai", risk_score=8.0,
+            target="test.com",
+            scan_date="2025-01-01",
+            duration_seconds=10.0,
+            total_findings=2,
+            critical=1,
+            high=1,
+            medium=0,
+            low=0,
+            info=0,
+            ai_provider="openai",
+            risk_score=8.0,
         )
 
     def _make_findings(self):
         return [
             FindingReport(
-                id="F1", title="Critical RCE", severity="Critical", cvss=10.0,
-                url="http://test.com/api", vuln_class="rce", description="cmd injection",
-                impact="full compromise", remediation="sanitize input",
+                id="F1",
+                title="Critical RCE",
+                severity="Critical",
+                cvss=10.0,
+                url="http://test.com/api",
+                vuln_class="rce",
+                description="cmd injection",
+                impact="full compromise",
+                remediation="sanitize input",
             ),
             FindingReport(
-                id="F2", title="XSS", severity="High", cvss=7.5,
-                url="http://test.com/search", vuln_class="xss", description="reflected xss",
-                impact="cookie theft", remediation="encode output",
+                id="F2",
+                title="XSS",
+                severity="High",
+                cvss=7.5,
+                url="http://test.com/search",
+                vuln_class="xss",
+                description="reflected xss",
+                impact="cookie theft",
+                remediation="encode output",
             ),
         ]
 
@@ -1362,7 +1498,9 @@ class TestReportGeneration:
         with tempfile.NamedTemporaryFile(suffix=".md", delete=False) as f:
             path = f.name
         try:
-            p = export_report(self._make_summary(), self._make_findings(), path, ReportFormat.MARKDOWN)
+            p = export_report(
+                self._make_summary(), self._make_findings(), path, ReportFormat.MARKDOWN
+            )
             assert p.exists()
         finally:
             os.unlink(path)
@@ -1440,8 +1578,13 @@ class TestPluginInfo:
 
     def test_summary(self):
         m = PluginManifest(name="test", version="1.0.0")
-        info = PluginInfo(manifest=m, path=Path("/tmp"), state=PluginState.ACTIVE,
-                          registered_tools=["t1"], registered_commands=["c1"])
+        info = PluginInfo(
+            manifest=m,
+            path=Path("/tmp"),
+            state=PluginState.ACTIVE,
+            registered_tools=["t1"],
+            registered_commands=["c1"],
+        )
         s = info.summary()
         assert "test" in s
         assert "tools=1" in s
@@ -1566,9 +1709,11 @@ class TestMarketplace:
         self.m = Marketplace(index_url="http://invalid.example.com/index.json")
 
     def test_parse_index_list(self):
-        text = json.dumps([
-            {"name": "p1", "version": "1.0", "author": "a", "tags": ["recon"]},
-        ])
+        text = json.dumps(
+            [
+                {"name": "p1", "version": "1.0", "author": "a", "tags": ["recon"]},
+            ]
+        )
         entries = self.m._parse_index(text)
         assert len(entries) == 1
         assert entries[0].name == "p1"
@@ -1635,6 +1780,7 @@ class TestMarketplace:
             assert "already installed" in msg
         finally:
             import shutil
+
             shutil.rmtree(dest, ignore_errors=True)
 
     def test_uninstall_not_installed(self):
@@ -1718,25 +1864,36 @@ from tools.skill_registry import Skill, SkillRegistry, SkillStatus
 class TestSkill:
     def test_construction(self):
         s = Skill(
-            name="test", description="desc", category="scanner",
-            binary_name="test_bin", status=SkillStatus.AVAILABLE,
-            install_command="pip install test", use_cases=["a", "b"],
+            name="test",
+            description="desc",
+            category="scanner",
+            binary_name="test_bin",
+            status=SkillStatus.AVAILABLE,
+            install_command="pip install test",
+            use_cases=["a", "b"],
         )
         assert s.name == "test"
         assert s.status == SkillStatus.AVAILABLE
 
     def test_flatten_use_cases(self):
         s = Skill(
-            name="test", description="d", category="c",
-            binary_name="b", status=SkillStatus.AVAILABLE,
-            install_command="pip install", use_cases=["a", ["b", "c"]],
+            name="test",
+            description="d",
+            category="c",
+            binary_name="b",
+            status=SkillStatus.AVAILABLE,
+            install_command="pip install",
+            use_cases=["a", ["b", "c"]],
         )
         assert s.use_cases == ["a", "b", "c"]
 
     def test_to_dict(self):
         s = Skill(
-            name="test", description="d", category="c",
-            binary_name="b", status=SkillStatus.AVAILABLE,
+            name="test",
+            description="d",
+            category="c",
+            binary_name="b",
+            status=SkillStatus.AVAILABLE,
             install_command="pip install",
         )
         d = s.to_dict()
@@ -2087,16 +2244,25 @@ from tools.config_wizard import AIProviderConfig, ConfigWizard
 class TestAIProviderConfig:
     def test_construction(self):
         c = AIProviderConfig(
-            name="TestProvider", env_key="TEST_KEY", base_url="http://test.com",
-            signup_url="http://signup.com", is_free=True, notes="test notes",
+            name="TestProvider",
+            env_key="TEST_KEY",
+            base_url="http://test.com",
+            signup_url="http://signup.com",
+            is_free=True,
+            notes="test notes",
         )
         assert c.name == "TestProvider"
         assert c.api_type == "openai"
 
     def test_custom_api_type(self):
         c = AIProviderConfig(
-            name="Test", env_key="K", base_url="url", signup_url="url",
-            is_free=False, notes="n", api_type="native",
+            name="Test",
+            env_key="K",
+            base_url="url",
+            signup_url="url",
+            is_free=False,
+            notes="n",
+            api_type="native",
         )
         assert c.api_type == "native"
 
@@ -2137,8 +2303,11 @@ from tools.vuln_hunter_core import (
 class TestBelief:
     def test_to_dict(self):
         b = Belief(
-            hyp_id="h1", vuln_class="xss", target_endpoint="http://test.com",
-            reasoning="suspicious", confidence=0.7,
+            hyp_id="h1",
+            vuln_class="xss",
+            target_endpoint="http://test.com",
+            reasoning="suspicious",
+            confidence=0.7,
         )
         d = b.to_dict()
         assert d["hyp_id"] == "h1"
@@ -2201,7 +2370,9 @@ class TestCoverageCell:
 
 class TestCoverageMap:
     def setup_method(self):
-        self.cm = CoverageMap(mission_id=f"test_cov_{id(self)}_{time.time_ns()}", target="http://test.com")
+        self.cm = CoverageMap(
+            mission_id=f"test_cov_{id(self)}_{time.time_ns()}", target="http://test.com"
+        )
 
     def test_register_endpoint(self):
         self.cm.register_endpoint("http://test.com/api")
@@ -2243,8 +2414,12 @@ class TestCoverageMap:
 class TestNegativeResult:
     def test_to_dict(self):
         nr = NegativeResult(
-            endpoint="http://test.com", vuln_class="xss", tool_used="nuclei",
-            payload_or_command="test", reason="no signal", evidence_summary="",
+            endpoint="http://test.com",
+            vuln_class="xss",
+            tool_used="nuclei",
+            payload_or_command="test",
+            reason="no signal",
+            evidence_summary="",
         )
         d = nr.to_dict()
         assert d["endpoint"] == "http://test.com"
@@ -2279,7 +2454,9 @@ class TestNegativeResultStore:
 
 class TestVerdict:
     def test_to_dict(self):
-        v = Verdict(vuln_class="xss", endpoint="http://test.com", status="confirmed", confidence=0.8)
+        v = Verdict(
+            vuln_class="xss", endpoint="http://test.com", status="confirmed", confidence=0.8
+        )
         d = v.to_dict()
         assert d["status"] == "confirmed"
 
@@ -2308,18 +2485,22 @@ class TestVerificationPipeline:
         assert len(self.pipeline.get_all_verdicts()) == 1
 
     def test_get_actionable_findings(self):
-        self.pipeline._history.extend([
-            Verdict(vuln_class="xss", endpoint="e", status="confirmed", confidence=0.8),
-            Verdict(vuln_class="sqli", endpoint="e", status="false_positive", confidence=0.1),
-        ])
+        self.pipeline._history.extend(
+            [
+                Verdict(vuln_class="xss", endpoint="e", status="confirmed", confidence=0.8),
+                Verdict(vuln_class="sqli", endpoint="e", status="false_positive", confidence=0.1),
+            ]
+        )
         actionables = self.pipeline.get_actionable_findings()
         assert len(actionables) == 1
 
     def test_false_positive_rate(self):
-        self.pipeline._history.extend([
-            Verdict(vuln_class="xss", endpoint="e", status="confirmed", confidence=0.8),
-            Verdict(vuln_class="sqli", endpoint="e", status="false_positive", confidence=0.1),
-        ])
+        self.pipeline._history.extend(
+            [
+                Verdict(vuln_class="xss", endpoint="e", status="confirmed", confidence=0.8),
+                Verdict(vuln_class="sqli", endpoint="e", status="false_positive", confidence=0.1),
+            ]
+        )
         rate = self.pipeline.false_positive_rate()
         assert rate == 0.5
 
@@ -2392,6 +2573,7 @@ class TestReflectEngine:
 class TestDynamicWAFMutatorIsBlocked:
     def test_blocked_status_codes(self):
         from tools.dynamic_waf_mutator import DynamicWAFMutator
+
         with patch.object(DynamicWAFMutator, "__init__", lambda self, *a, **kw: None):
             m = DynamicWAFMutator.__new__(DynamicWAFMutator)
             for code in [403, 406, 409, 501, 502, 503]:
@@ -2399,12 +2581,14 @@ class TestDynamicWAFMutatorIsBlocked:
 
     def test_not_blocked(self):
         from tools.dynamic_waf_mutator import DynamicWAFMutator
+
         with patch.object(DynamicWAFMutator, "__init__", lambda self, *a, **kw: None):
             m = DynamicWAFMutator.__new__(DynamicWAFMutator)
             assert m._is_blocked(200, "hello") is False
 
     def test_blocked_body_keywords(self):
         from tools.dynamic_waf_mutator import DynamicWAFMutator
+
         with patch.object(DynamicWAFMutator, "__init__", lambda self, *a, **kw: None):
             m = DynamicWAFMutator.__new__(DynamicWAFMutator)
             assert m._is_blocked(200, "blocked by waf") is True
@@ -2428,8 +2612,11 @@ from tools.multi_agent import (
 class TestTeamMessage:
     def test_construction(self):
         msg = TeamMessage(
-            round=1, agent_id=0, agent_role="Strategist",
-            model_name="gpt-4", content="let's test xss",
+            round=1,
+            agent_id=0,
+            agent_role="Strategist",
+            model_name="gpt-4",
+            content="let's test xss",
         )
         assert msg.round == 1
         assert msg.msg_type == "discussion"
@@ -2438,7 +2625,9 @@ class TestTeamMessage:
 class TestTaskAssignment:
     def test_construction(self):
         t = TaskAssignment(
-            agent_id=0, action_type="shell", params={"cmd": "ls"},
+            agent_id=0,
+            action_type="shell",
+            params={"cmd": "ls"},
             description="list files",
         )
         assert t.completed is False
@@ -2498,8 +2687,10 @@ class TestAgentState:
 class TestAutonomousDecision:
     def test_construction(self):
         d = AutonomousDecision(
-            decision_type="scan", reasoning="need more data",
-            action_plan={"tool": "nuclei"}, expected_outcome="find bugs",
+            decision_type="scan",
+            reasoning="need more data",
+            action_plan={"tool": "nuclei"},
+            expected_outcome="find bugs",
             risk_level="low",
         )
         assert d.auto_approved is False
@@ -2508,10 +2699,16 @@ class TestAutonomousDecision:
 class TestScanResult:
     def test_construction(self):
         r = ScanResult(
-            target="test.com", start_time=datetime.now(timezone.utc),
-            end_time=None, findings=[], bounty_predictions=[],
-            tools_created=[], ai_decisions=[], report_path=None,
-            success=True, summary="done",
+            target="test.com",
+            start_time=datetime.now(timezone.utc),
+            end_time=None,
+            findings=[],
+            bounty_predictions=[],
+            tools_created=[],
+            ai_decisions=[],
+            report_path=None,
+            success=True,
+            summary="done",
         )
         assert r.success is True
 
@@ -2555,8 +2752,11 @@ from tools.hunt_engine import HuntFinding, HuntPhase, HuntReport, Severity as Hu
 class TestHuntFinding:
     def test_to_dict(self):
         f = HuntFinding(
-            phase="recon", category="endpoint", severity="Informational",
-            title="Found endpoint", url="http://test.com/api",
+            phase="recon",
+            category="endpoint",
+            severity="Informational",
+            title="Found endpoint",
+            url="http://test.com/api",
         )
         d = f.to_dict()
         assert d["phase"] == "recon"
@@ -2602,8 +2802,11 @@ from tools.targeted_attacks import ConfirmedFinding
 class TestConfirmedFinding:
     def test_construction(self):
         f = ConfirmedFinding(
-            title="SQLi on /login", severity="Critical", category="sql_injection",
-            endpoint_url="http://test.com/login", method="POST",
+            title="SQLi on /login",
+            severity="Critical",
+            category="sql_injection",
+            endpoint_url="http://test.com/login",
+            method="POST",
             evidence="baseline 200 -> payload 500",
         )
         assert f.confidence == 1.0

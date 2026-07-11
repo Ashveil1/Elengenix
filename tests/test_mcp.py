@@ -14,7 +14,7 @@ class TestMCPProtocol:
         tool = MCPTool(
             name="test_tool",
             description="A test tool",
-            input_schema={"type": "object", "properties": {}}
+            input_schema={"type": "object", "properties": {}},
         )
         protocol.register_tool(tool)
         assert "test_tool" in protocol.tools
@@ -28,13 +28,9 @@ class TestMCPProtocol:
 
     def test_handle_tools_list(self):
         protocol = MCPProtocol()
-        tool = MCPTool(
-            name="test_tool",
-            description="Test",
-            input_schema={"type": "object"}
-        )
+        tool = MCPTool(name="test_tool", description="Test", input_schema={"type": "object"})
         protocol.register_tool(tool)
-        
+
         request = MCPRequest(method="tools/list", params={})
         response = protocol.handle_request(request)
         assert len(response.result["tools"]) == 1
@@ -46,14 +42,11 @@ class TestMCPProtocol:
             name="test_tool",
             description="Test",
             input_schema={"type": "object"},
-            handler=lambda args: {"result": "ok"}
+            handler=lambda args: {"result": "ok"},
         )
         protocol.register_tool(tool)
-        
-        request = MCPRequest(
-            method="tools/call",
-            params={"name": "test_tool", "arguments": {}}
-        )
+
+        request = MCPRequest(method="tools/call", params={"name": "test_tool", "arguments": {}})
         response = protocol.handle_request(request)
         assert response.result is not None
 

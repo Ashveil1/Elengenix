@@ -13,19 +13,68 @@ import re
 import time
 from collections import Counter
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, TypedDict, Union
 
 from integrations.bot_utils import send_telegram_notification
 from cli.live_display import display_in_chat_mode, get_activity_logger
 from tools.cvss_calculator import CVSSCalculator
 from tools.governance import GateDecision, Governance
 from tools.tool_registry import ToolResult, registry
+from elengenix import constants
 
 # Core imports (always needed)
 from tools.universal_ai_client import AIClientManager, AIMessage
 
 # New pipeline modules (lazy imports in _process_query_new())
 from agents.scan_context import ScanContext
+
+
+# ── Type Definitions ────────────────────────────────────────────
+class ActionRunShell(TypedDict):
+    action: str  # "run_shell"
+    command: str
+    tool: Optional[str]
+    purpose: Optional[str]
+
+
+class ActionAskUser(TypedDict):
+    action: str  # "ask_user"
+    question: str
+    context: Optional[str]
+
+
+class ActionWebSearch(TypedDict):
+    action: str  # "web_search"
+    query: str
+    purpose: Optional[str]
+
+
+class ActionSubmitFindings(TypedDict):
+    action: str  # "submit_findings"
+    findings: List[Dict[str, Any]]
+    purpose: Optional[str]
+
+
+class ActionSaveMemory(TypedDict):
+    action: str  # "save_memory"
+    learning: str
+    target: Optional[str]
+    category: Optional[str]
+
+
+class ActionFinish(TypedDict):
+    action: str  # "finish"
+    summary: str
+
+
+ActionData = Union[
+    ActionRunShell,
+    ActionAskUser,
+    ActionWebSearch,
+    ActionSubmitFindings,
+    ActionSaveMemory,
+    ActionFinish,
+]
 
 # Lazy imports (deferred until needed)
 _vector_memory = None
@@ -38,7 +87,6 @@ _agent_reflection = None
 _smart_orchestrator = None
 _hybrid_agent = None
 _vuln_finder = None
-
 
 
 def _get_vector_memory():
@@ -203,6 +251,7 @@ class ElengenixAgent:
         enable_cot_logging: bool = True,
         max_history_turns: int = 20,
         verbose_thoughts: bool = True,
+        verify_ssl: bool = True,
     ):
         self.client = AIClientManager()
 
@@ -217,6 +266,7 @@ class ElengenixAgent:
         self.enable_cot_logging = enable_cot_logging
         self.max_history_turns = max_history_turns
         self.verbose_thoughts = verbose_thoughts
+        self.verify_ssl = verify_ssl
 
         #  Conversation Manager (handles history, persistence, summarization)
         self.conversation_manager = ConversationManager(
@@ -244,6 +294,13 @@ class ElengenixAgent:
             self.base_prompt = "You are a specialized security AI agent."
         else:
             self.base_prompt = prompt_path.read_text(encoding="utf-8")
+
+        # Load agent prompt template
+        agent_prompt_path = self.base_dir / "prompts" / "agent_prompt.txt"
+        if agent_prompt_path.exists():
+            self.agent_prompt_template = agent_prompt_path.read_text(encoding="utf-8")
+        else:
+            self.agent_prompt_template = ""
 
         #  Strategic Planning
         self.planner = StrategicPlanner(self.client) if enable_planning else None
@@ -438,7 +495,7 @@ class ElengenixAgent:
                 probe_url,
                 timeout=max_probe_seconds,
                 allow_redirects=True,
-                verify=False,  # many bug-bounty hosts have broken certs
+                verify=self.verify_ssl,
             )
             headers = {k: v for k, v in resp.headers.items()}
             cookies: Dict[str, str] = {}
@@ -1083,7 +1140,11 @@ Do NOT attempt to run a scan. Respond naturally in the user's language (English 
                 )
 
             # Determine next action (skip tree if reflection says switch)
-            if self.current_tree and step < len(self.current_tree.steps) and not reflection.switch_strategy:
+            if (
+                self.current_tree
+                and step < len(self.current_tree.steps)
+                and not reflection.switch_strategy
+            ):
                 # Follow strategic plan
                 current_step = self.current_tree.steps[step]
                 tool_name = current_step.tool_name
@@ -1129,7 +1190,23 @@ Do NOT attempt to run a scan. Respond naturally in the user's language (English 
                 _mission_snapshot = json.dumps(
                     mission_state.snapshot(max_items=40), ensure_ascii=False
                 )
-                full_prompt = f"""{self.base_prompt}
+                # Use template if available, otherwise fall back to inline
+                if self.agent_prompt_template:
+                    full_prompt = self.agent_prompt_template.format(
+                        base_prompt=self.base_prompt,
+                        tool_list=_tool_list,
+                        semantic_context=_semantic_context,
+                        related_context=related_context,
+                        history_text=_history_text,
+                        results_summary=_results_summary,
+                        mission_snapshot=_mission_snapshot,
+                        coverage_gaps=coverage_map.prompt_context(max_gaps=8),
+                        belief_context=belief_state.prompt_context(),
+                        reflection_context=reflect_engine.prompt_context(recent=3),
+                        negative_context=negative_store.get_prompt_context(max_items=5),
+                    )
+                else:
+                    full_prompt = f"""{self.base_prompt}
 
 ### AVAILABLE TOOLS:
 {_tool_list}
@@ -1326,7 +1403,9 @@ Use JSON format:
                     ref_hist = reflect_engine.history
                     if ref_hist:
                         switches = sum(1 for r in ref_hist if r.switch_strategy)
-                        summary += f"\n\n REFLECTION: {len(ref_hist)} cycles, {switches} strategy switches"
+                        summary += (
+                            f"\n\n REFLECTION: {len(ref_hist)} cycles, {switches} strategy switches"
+                        )
                         if reflect_engine.consecutive_no_findings > 0:
                             summary += f" (consecutive no-findings: {reflect_engine.consecutive_no_findings})"
                 except Exception as e:
@@ -1580,8 +1659,8 @@ Use JSON format:
                             or endpoint_tested
                         )
                         f_class = (
-                            (finding.get("type") or finding.get("vuln_class") or "unknown").lower()
-                        )
+                            finding.get("type") or finding.get("vuln_class") or "unknown"
+                        ).lower()
 
                         # Register endpoint in coverage map
                         coverage_map.register_endpoint(f_endpoint)
@@ -1609,8 +1688,9 @@ Use JSON format:
                                     )
                             else:
                                 coverage_map.record_negative(
-                                    f_endpoint, f_class,
-                                    reason=f"Verification failed: {verdict.status}"
+                                    f_endpoint,
+                                    f_class,
+                                    reason=f"Verification failed: {verdict.status}",
                                 )
                                 negative_store.record(
                                     endpoint=f_endpoint,
@@ -1640,9 +1720,7 @@ Use JSON format:
 
                 # Register discovered endpoints from raw tool output (recon URLs, etc.)
                 if result.output:
-                    for _url in re.findall(
-                        r'https?://[^\s<>"\'\]\)]+', result.output
-                    ):
+                    for _url in re.findall(r'https?://[^\s<>"\'\]\)]+', result.output):
                         _clean = _url.rstrip(".,;:!?)]}>")
                         coverage_map.register_endpoint(_clean)
 
@@ -2097,9 +2175,7 @@ Use JSON format:
 
         # Execute via tool registry
         if tool_name:
-            result = self._execute_tool_registry(
-                tool_name, target or ctx.objective, ctx.report_dir
-            )
+            result = self._execute_tool_registry(tool_name, target or ctx.objective, ctx.report_dir)
             if result:
                 return result.success, result, f"{tool_name}: {len(result.findings)} findings"
 

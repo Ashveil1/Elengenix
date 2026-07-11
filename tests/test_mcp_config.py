@@ -29,11 +29,18 @@ class TestMCPConfig:
 class TestMCPConfigManager:
     def test_load_from_json(self, tmp_path):
         mcp_json = tmp_path / "mcp.json"
-        mcp_json.write_text(json.dumps({
-            "mcpServers": {
-                "memory": {"command": "npx", "args": ["-y", "@modelcontextprotocol/server-memory"]}
-            }
-        }))
+        mcp_json.write_text(
+            json.dumps(
+                {
+                    "mcpServers": {
+                        "memory": {
+                            "command": "npx",
+                            "args": ["-y", "@modelcontextprotocol/server-memory"],
+                        }
+                    }
+                }
+            )
+        )
 
         manager = MCPConfigManager(tmp_path)
         config = manager.load()

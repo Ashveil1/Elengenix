@@ -184,6 +184,7 @@ def test_cli_e2e_against_httpbin(mock_server):
     # Skip if httpbin.org is unreachable (CI environments may block external access)
     try:
         import urllib.request
+
         urllib.request.urlopen("https://httpbin.org/get", timeout=5)
     except Exception:
         pytest.skip("httpbin.org unreachable — skipping external target E2E test")

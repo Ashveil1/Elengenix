@@ -106,17 +106,17 @@ sequential-thinking:
 sequential-thinking:
   thought: |
     ปัญหา: ฟังก์ชัน is_in_scope() ไม่รองรับ IPv6
-    
+
     วิเคราะห์:
-    - normalize_target() ตัด port ด้วย split(":") 
+    - normalize_target() ตัด port ด้วย split(":")
     - แต่ IPv6 มี ":" หลายตัว → ตัดผิด
-    
+
     ทางเลือก:
     1. เช็คว่าเป็น IPv6 ก่อน → ซับซ้อน
     2. นับ ":" ถ้า > 1 แสดงว่า IPv6 → ง่ายกว่า
-    
+
     ตัดสินใจ: ใช้ทางเลือก 2
-    
+
     ผลกระทบ:
     - pipeline/scope.py — แก้ normalize_target
     - ต้องเพิ่ม test สำหรับ IPv6

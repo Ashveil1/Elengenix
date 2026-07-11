@@ -165,10 +165,10 @@ def export_to_html(
 
     for finding in dashboard_data.get("findings", []):
         severity = finding.get("severity", "info").lower()
-        title_escaped = html_module.escape(str(finding.get('title', 'Unknown')))
-        location_escaped = html_module.escape(str(finding.get('location', '')))
-        severity_escaped = html_module.escape(str(finding.get('severity', 'info')))
-        timestamp_escaped = html_module.escape(str(finding.get('timestamp', '')))
+        title_escaped = html_module.escape(str(finding.get("title", "Unknown")))
+        location_escaped = html_module.escape(str(finding.get("location", "")))
+        severity_escaped = html_module.escape(str(finding.get("severity", "info")))
+        timestamp_escaped = html_module.escape(str(finding.get("timestamp", "")))
         html_content += f"""
             <div class="finding">
                 <div class="title {severity}">{title_escaped}</div>

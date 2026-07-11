@@ -174,7 +174,9 @@ class TestDependencyResolution:
         reg.register(Phase(name="fuzz", func=_phase_noop, deps=["recon"]))
         reg.register(Phase(name="bola", func=_phase_noop, deps=["recon"]))
         reg.register(Phase(name="learn", func=_phase_noop, deps=["recon", "waf", "fuzz", "bola"]))
-        reg.register(Phase(name="coverage", func=_phase_noop, deps=["recon", "waf", "fuzz", "bola"]))
+        reg.register(
+            Phase(name="coverage", func=_phase_noop, deps=["recon", "waf", "fuzz", "bola"])
+        )
 
         waves = reg.get_execution_waves()
         assert len(waves) == 3

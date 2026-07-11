@@ -23,6 +23,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 # fixtures / shared mocks
 # ---------------------------------------------------------------------------
 
+
 def _make_mock_client():
     client = MagicMock()
     client.provider = "openai"
@@ -34,6 +35,7 @@ def _make_mock_client():
 
 def _make_endpoint(url: str = "http://example.com/login", method: str = "POST", **kw):
     from tools.endpoint_discovery import Endpoint
+
     return Endpoint(url=url, method=method, **kw)
 
 
@@ -47,6 +49,7 @@ class TestExtractJson:
 
     def test_extracts_json_object_direct(self):
         from agents.hybrid_agent import _extract_json
+
         text = '{"action": "run_command", "command": "echo hi"}'
         result = _extract_json(text)
         assert result["action"] == "run_command"
@@ -54,6 +57,7 @@ class TestExtractJson:
 
     def test_extracts_json_array_direct(self):
         from agents.hybrid_agent import _extract_json
+
         text = '[{"id": 1}, {"id": 2}]'
         result = _extract_json(text)
         assert isinstance(result, list)
@@ -61,24 +65,28 @@ class TestExtractJson:
 
     def test_extracts_json_from_markdown_fence(self):
         from agents.hybrid_agent import _extract_json
+
         text = 'Some preamble\n```json\n{"key": "val"}\n```\nTrailing text'
         result = _extract_json(text)
         assert result["key"] == "val"
 
     def test_extracts_json_from_fence_without_language_tag(self):
         from agents.hybrid_agent import _extract_json
+
         text = '```\n{"x": 1}\n```'
         result = _extract_json(text)
         assert result["x"] == 1
 
     def test_extracts_from_embedded_curly_braces(self):
         from agents.hybrid_agent import _extract_json
+
         text = 'Here is the result: {"action": "done"} and more text'
         result = _extract_json(text)
         assert result["action"] == "done"
 
     def test_extracts_from_embedded_square_brackets(self):
         from agents.hybrid_agent import _extract_json
+
         text = 'Items: [{"name": "a"}, {"name": "b"}] end'
         result = _extract_json(text)
         assert isinstance(result, list)
@@ -87,11 +95,13 @@ class TestExtractJson:
     def test_raises_valueerror_for_no_json(self):
         from agents.hybrid_agent import _extract_json
         import pytest
+
         with pytest.raises(ValueError, match="No valid JSON"):
             _extract_json("No JSON here at all")
 
     def test_json_decode_error_inner_recoverable(self):
         from agents.hybrid_agent import _extract_json
+
         # Broken outer parse, but inner slice between first { and last } is valid
         text = 'junk {"valid": true} junk'
         result = _extract_json(text)
@@ -103,6 +113,7 @@ class TestHybridAgentInit:
 
     def test_basic_init_defaults(self):
         from agents.hybrid_agent import HybridAgent
+
         agent = HybridAgent(client=None, target="example.com")
         assert agent.target == "example.com"
         assert agent.max_steps == 50
@@ -113,17 +124,20 @@ class TestHybridAgentInit:
 
     def test_council_mode_detected(self):
         from agents.hybrid_agent import HybridAgent
+
         client = _make_mock_client()
         agent = HybridAgent(client=client, strategist_client=client)
         assert agent._use_council is True
 
     def test_council_not_used_when_no_separate_clients(self):
         from agents.hybrid_agent import HybridAgent
+
         agent = HybridAgent(client=_make_mock_client())
         assert agent._use_council is False
 
     def test_custom_params(self):
         from agents.hybrid_agent import HybridAgent
+
         cb = MagicMock()
         agent = HybridAgent(
             client=None,
@@ -150,20 +164,25 @@ class TestExtractFindings:
 
     def test_empty_output(self):
         from agents.hybrid_agent import HybridAgent
+
         assert HybridAgent._extract_findings("", "ls") == []
 
     def test_empty_whitespace(self):
         from agents.hybrid_agent import HybridAgent
+
         assert HybridAgent._extract_findings("   \n  ", "echo hi") == []
 
     def test_nuclei_json_finding(self):
         from agents.hybrid_agent import HybridAgent
-        nuclei_out = json.dumps({
-            "template-id": "cve-2021-44228",
-            "info": {"name": "Log4Shell", "severity": "critical"},
-            "matched-at": "http://target.com/api",
-            "host": "target.com",
-        })
+
+        nuclei_out = json.dumps(
+            {
+                "template-id": "cve-2021-44228",
+                "info": {"name": "Log4Shell", "severity": "critical"},
+                "matched-at": "http://target.com/api",
+                "host": "target.com",
+            }
+        )
         findings = HybridAgent._extract_findings(nuclei_out, "nuclei")
         assert len(findings) == 1
         assert findings[0]["type"] == "vulnerability"
@@ -172,19 +191,23 @@ class TestExtractFindings:
 
     def test_httpx_probe_json(self):
         from agents.hybrid_agent import HybridAgent
-        probe_out = json.dumps({
-            "url": "http://target.com",
-            "webserver": "nginx",
-            "tech": ["Python", "Django"],
-            "status-code": 200,
-            "title": "Home",
-        })
+
+        probe_out = json.dumps(
+            {
+                "url": "http://target.com",
+                "webserver": "nginx",
+                "tech": ["Python", "Django"],
+                "status-code": 200,
+                "title": "Home",
+            }
+        )
         findings = HybridAgent._extract_findings(probe_out, "httpx")
         assert len(findings) == 1
         assert findings[0]["type"] == "http_probe"
 
     def test_generic_finding_json(self):
         from agents.hybrid_agent import HybridAgent
+
         out = json.dumps({"vuln": "SQLi", "severity": "high", "url": "http://x.com"})
         findings = HybridAgent._extract_findings(out, "some_tool")
         assert len(findings) == 1
@@ -192,6 +215,7 @@ class TestExtractFindings:
 
     def test_dig_subdomains(self):
         from agents.hybrid_agent import HybridAgent
+
         dig_out = "api.example.com\nmail.example.com\nwww.example.com"
         findings = HybridAgent._extract_findings(dig_out, "dig example.com")
         assert len(findings) == 1
@@ -200,21 +224,36 @@ class TestExtractFindings:
 
     def test_extracted_urls(self):
         from agents.hybrid_agent import HybridAgent
+
         out = "Found: http://a.com/path http://b.com/other"
         findings = HybridAgent._extract_findings(out, "grep -r http")
         assert any(f.get("type") == "extracted_url" for f in findings)
 
     def test_potential_secrets(self):
         from agents.hybrid_agent import HybridAgent
-        out = 'API_KEY=sk_test_12345\nPASSWORD=hunter2'
+
+        out = "API_KEY=sk_test_12345\nPASSWORD=hunter2"
         findings = HybridAgent._extract_findings(out, "env | grep pass")
         assert any(f.get("type") == "potential_secret" for f in findings)
 
     def test_jsonl_multi_lines(self):
         from agents.hybrid_agent import HybridAgent
+
         lines = [
-            json.dumps({"template-id": "xss-1", "info": {"name": "XSS", "severity": "high"}, "host": "a.com"}),
-            json.dumps({"template-id": "sqli-1", "info": {"name": "SQLi", "severity": "critical"}, "host": "a.com"}),
+            json.dumps(
+                {
+                    "template-id": "xss-1",
+                    "info": {"name": "XSS", "severity": "high"},
+                    "host": "a.com",
+                }
+            ),
+            json.dumps(
+                {
+                    "template-id": "sqli-1",
+                    "info": {"name": "SQLi", "severity": "critical"},
+                    "host": "a.com",
+                }
+            ),
         ]
         findings = HybridAgent._extract_findings("\n".join(lines), "nuclei")
         assert len(findings) == 2
@@ -225,6 +264,7 @@ class TestIsDeadlocked:
 
     def test_not_deadlocked_under_threshold(self):
         from agents.hybrid_agent import HybridAgent
+
         agent = HybridAgent(client=None, loop_threshold=4)
         agent.action_history = [
             {"action": "run_command", "command": "ls"},
@@ -234,6 +274,7 @@ class TestIsDeadlocked:
 
     def test_not_deadlocked_different_actions(self):
         from agents.hybrid_agent import HybridAgent
+
         agent = HybridAgent(client=None, loop_threshold=4)
         agent.action_history = [
             {"action": "run_command", "command": "ls"},
@@ -245,6 +286,7 @@ class TestIsDeadlocked:
 
     def test_deadlocked_same_action(self):
         from agents.hybrid_agent import HybridAgent
+
         agent = HybridAgent(client=None, loop_threshold=3)
         agent.action_history = [
             {"action": "run_command", "command": "echo hi"},
@@ -255,6 +297,7 @@ class TestIsDeadlocked:
 
     def test_deadlocked_run_tool(self):
         from agents.hybrid_agent import HybridAgent
+
         agent = HybridAgent(client=None, loop_threshold=2)
         agent.action_history = [
             {"action": "run_tool", "tool": "nuclei"},
@@ -268,17 +311,20 @@ class TestShouldRunAnalysis:
 
     def test_empty_string(self):
         from agents.hybrid_agent import HybridAgent
+
         agent = HybridAgent(client=None)
         assert agent._should_run_analysis("") is False
 
     def test_simple_commands_skipped(self):
         from agents.hybrid_agent import HybridAgent
+
         agent = HybridAgent(client=None)
         for cmd in ["ls -la", "cat file.txt", "echo hello", "pwd", "whoami", "date", "wc -l"]:
             assert agent._should_run_analysis(cmd) is False, f"Expected skip for: {cmd}"
 
     def test_complex_commands_run(self):
         from agents.hybrid_agent import HybridAgent
+
         agent = HybridAgent(client=None)
         for cmd in [
             "nuclei -u http://x.com",
@@ -294,12 +340,14 @@ class TestAgentRef:
 
     def test_agent_ref_has_governance(self):
         from agents.hybrid_agent import HybridAgent
+
         agent = HybridAgent(client=None, governance=MagicMock())
         ref = agent._agent_ref()
         assert ref.governance is agent.governance
 
     def test_agent_ref_fallback_attrs(self):
         from agents.hybrid_agent import HybridAgent
+
         agent = HybridAgent(client=None)
         ref = agent._agent_ref()
         assert hasattr(ref, "payload_mutator")
@@ -314,6 +362,7 @@ class TestFinalizeMission:
 
     def test_finalize_empty_findings(self):
         from agents.hybrid_agent import HybridAgent
+
         agent = HybridAgent(client=None, target="test.com")
         agent.start_time = __import__("time").time() - 10
         agent.objective = "Find vulns"
@@ -325,6 +374,7 @@ class TestFinalizeMission:
 
     def test_finalize_with_findings(self):
         from agents.hybrid_agent import HybridAgent
+
         agent = HybridAgent(client=None, target="test.com")
         agent.start_time = __import__("time").time()
         agent.objective = "Security scan"
@@ -349,20 +399,27 @@ class TestDataclasses:
 
     def test_team_message_defaults(self):
         from tools.multi_agent import TeamMessage
-        msg = TeamMessage(round=1, agent_id=0, agent_role="Strategist", model_name="gpt-4", content="hello")
+
+        msg = TeamMessage(
+            round=1, agent_id=0, agent_role="Strategist", model_name="gpt-4", content="hello"
+        )
         assert msg.round == 1
         assert msg.msg_type == "discussion"
         assert msg.timestamp > 0
 
     def test_task_assignment_defaults(self):
         from tools.multi_agent import TaskAssignment
-        ta = TaskAssignment(agent_id=0, action_type="shell", params={"cmd": "ls"}, description="list")
+
+        ta = TaskAssignment(
+            agent_id=0, action_type="shell", params={"cmd": "ls"}, description="list"
+        )
         assert ta.success is False
         assert ta.completed is False
         assert ta.result is None
 
     def test_finding_defaults(self):
         from tools.multi_agent import Finding
+
         f = Finding(source_agent="Recon", description="SQLi found")
         assert f.severity == "info"
         assert f.evidence == ""
@@ -374,6 +431,7 @@ class TestTeamAegisInit:
 
     def test_init_with_two_clients(self):
         from tools.multi_agent import TeamAegis
+
         c1 = _make_mock_client()
         c2 = _make_mock_client()
         ta = TeamAegis(clients=[c1, c2], target="example.com")
@@ -383,12 +441,14 @@ class TestTeamAegisInit:
 
     def test_init_with_three_clients(self):
         from tools.multi_agent import TeamAegis
+
         clients = [_make_mock_client() for _ in range(3)]
         ta = TeamAegis(clients=clients, target="t.com")
         assert ta.team_size == 3
 
     def test_init_truncates_to_three(self):
         from tools.multi_agent import TeamAegis
+
         clients = [_make_mock_client() for _ in range(5)]
         ta = TeamAegis(clients=clients, target="t.com")
         assert ta.team_size == 3
@@ -396,17 +456,20 @@ class TestTeamAegisInit:
     def test_init_rejects_single_client(self):
         from tools.multi_agent import TeamAegis
         import pytest
+
         with pytest.raises(ValueError, match="at least 2"):
             TeamAegis(clients=[_make_mock_client()], target="t")
 
     def test_init_empty_clients(self):
         from tools.multi_agent import TeamAegis
         import pytest
+
         with pytest.raises(ValueError, match="at least 2"):
             TeamAegis(clients=[], target="t")
 
     def test_default_roles_assigned(self):
         from tools.multi_agent import TeamAegis
+
         clients = [_make_mock_client() for _ in range(3)]
         ta = TeamAegis(clients=clients, target="t.com")
         role_names = [r["name"] for r in ta.roles]
@@ -416,12 +479,14 @@ class TestTeamAegisInit:
 
     def test_parallel_mode_default(self):
         from tools.multi_agent import TeamAegis
+
         clients = [_make_mock_client() for _ in range(2)]
         ta = TeamAegis(clients=clients, target="t.com")
         assert ta.parallel_mode is True
 
     def test_max_rounds(self):
         from tools.multi_agent import TeamAegis
+
         clients = [_make_mock_client() for _ in range(2)]
         ta = TeamAegis(clients=clients, target="t.com", max_rounds=5)
         assert ta.max_rounds == 5
@@ -432,6 +497,7 @@ class TestParseAgentResponse:
 
     def _make_ta(self):
         from tools.multi_agent import TeamAegis
+
         clients = [_make_mock_client() for _ in range(2)]
         return TeamAegis(clients=clients, target="t.com")
 
@@ -463,11 +529,13 @@ class TestParseAgentResponse:
 
     def test_json_with_findings(self):
         ta = self._make_ta()
-        text = json.dumps({
-            "discussion": "Found something",
-            "action": {"type": "none"},
-            "findings": [{"description": "XSS", "severity": "high", "evidence": "<script>"}],
-        })
+        text = json.dumps(
+            {
+                "discussion": "Found something",
+                "action": {"type": "none"},
+                "findings": [{"description": "XSS", "severity": "high", "evidence": "<script>"}],
+            }
+        )
         result = ta._parse_agent_response(text)
         assert len(result["findings"]) == 1
         assert result["findings"][0]["severity"] == "high"
@@ -478,6 +546,7 @@ class TestFormatMethods:
 
     def _make_ta(self):
         from tools.multi_agent import TeamAegis
+
         clients = [_make_mock_client() for _ in range(2)]
         return TeamAegis(clients=clients, target="t.com")
 
@@ -488,22 +557,36 @@ class TestFormatMethods:
 
     def test_format_discussion_history_with_messages(self):
         from tools.multi_agent import TeamMessage
+
         ta = self._make_ta()
-        ta.discussion.append(TeamMessage(
-            round=1, agent_id=0, agent_role="Strategist", model_name="gpt-4",
-            content="Let's scan", msg_type="discussion",
-        ))
+        ta.discussion.append(
+            TeamMessage(
+                round=1,
+                agent_id=0,
+                agent_role="Strategist",
+                model_name="gpt-4",
+                content="Let's scan",
+                msg_type="discussion",
+            )
+        )
         result = ta._format_discussion_history()
         assert "Strategist" in result
         assert "Let's scan" in result
 
     def test_format_discussion_history_task_result_tag(self):
         from tools.multi_agent import TeamMessage
+
         ta = self._make_ta()
-        ta.discussion.append(TeamMessage(
-            round=1, agent_id=1, agent_role="Recon Lead", model_name="gpt-4",
-            content="Result data", msg_type="task_result",
-        ))
+        ta.discussion.append(
+            TeamMessage(
+                round=1,
+                agent_id=1,
+                agent_role="Recon Lead",
+                model_name="gpt-4",
+                content="Result data",
+                msg_type="task_result",
+            )
+        )
         result = ta._format_discussion_history()
         assert "TOOL RESULT" in result
 
@@ -514,14 +597,17 @@ class TestFormatMethods:
 
     def test_format_findings_with_items(self):
         from tools.multi_agent import Finding
+
         ta = self._make_ta()
-        ta.findings.append(Finding(
-            source_agent="Recon",
-            description="SQL injection",
-            severity="high",
-            evidence="payload sent",
-            confirmed_by=["Exploit Analyst"],
-        ))
+        ta.findings.append(
+            Finding(
+                source_agent="Recon",
+                description="SQL injection",
+                severity="high",
+                evidence="payload sent",
+                confirmed_by=["Exploit Analyst"],
+            )
+        )
         result = ta._format_findings()
         assert "SQL injection" in result
         assert "HIGH" in result
@@ -544,6 +630,7 @@ class TestShareIntel:
 
     def test_share_intel_adds_entry(self):
         from tools.multi_agent import TeamAegis
+
         clients = [_make_mock_client() for _ in range(2)]
         ta = TeamAegis(clients=clients, target="t.com")
         ta._share_intel(0, "Found open port 8080")
@@ -553,6 +640,7 @@ class TestShareIntel:
 
     def test_share_intel_deduplicates(self):
         from tools.multi_agent import TeamAegis
+
         clients = [_make_mock_client() for _ in range(2)]
         ta = TeamAegis(clients=clients, target="t.com")
         ta._share_intel(0, "Same insight")
@@ -561,6 +649,7 @@ class TestShareIntel:
 
     def test_share_intel_out_of_range_agent(self):
         from tools.multi_agent import TeamAegis
+
         clients = [_make_mock_client() for _ in range(2)]
         ta = TeamAegis(clients=clients, target="t.com")
         ta._share_intel(99, "insight from unknown")
@@ -573,6 +662,7 @@ class TestGenerateFinalReport:
 
     def test_report_empty(self):
         from tools.multi_agent import TeamAegis
+
         clients = [_make_mock_client() for _ in range(2)]
         ta = TeamAegis(clients=clients, target="t.com")
         ta.round = 3
@@ -583,15 +673,18 @@ class TestGenerateFinalReport:
 
     def test_report_with_findings(self):
         from tools.multi_agent import Finding, TeamAegis
+
         clients = [_make_mock_client() for _ in range(2)]
         ta = TeamAegis(clients=clients, target="t.com")
         ta.round = 2
-        ta.findings.append(Finding(
-            source_agent="Recon Lead",
-            description="XSS in search",
-            severity="high",
-            evidence="payload reflected",
-        ))
+        ta.findings.append(
+            Finding(
+                source_agent="Recon Lead",
+                description="XSS in search",
+                severity="high",
+                evidence="payload reflected",
+            )
+        )
         report = ta._generate_final_report()
         assert "XSS in search" in report
         assert "[HIGH]" in report
@@ -599,13 +692,20 @@ class TestGenerateFinalReport:
 
     def test_report_with_tasks(self):
         from tools.multi_agent import TaskAssignment, TeamAegis
+
         clients = [_make_mock_client() for _ in range(2)]
         ta = TeamAegis(clients=clients, target="t.com")
         ta.round = 1
-        ta.tasks.append(TaskAssignment(
-            agent_id=0, action_type="shell", params={}, description="run nuclei",
-            success=True, completed=True,
-        ))
+        ta.tasks.append(
+            TaskAssignment(
+                agent_id=0,
+                action_type="shell",
+                params={},
+                description="run nuclei",
+                success=True,
+                completed=True,
+            )
+        )
         report = ta._generate_final_report()
         assert "ACTIONS EXECUTED: 1" in report
         assert "[OK]" in report
@@ -621,9 +721,14 @@ class TestConfirmedFinding:
 
     def test_defaults(self):
         from tools.targeted_attacks import ConfirmedFinding
+
         cf = ConfirmedFinding(
-            title="Test", severity="High", category="xss",
-            endpoint_url="http://x.com", method="GET", evidence="reflected",
+            title="Test",
+            severity="High",
+            category="xss",
+            endpoint_url="http://x.com",
+            method="GET",
+            evidence="reflected",
         )
         assert cf.payload == ""
         assert cf.response_snippet == ""
@@ -637,6 +742,7 @@ class TestPayloadConstants:
 
     def test_sqli_payloads_nonempty(self):
         from tools.targeted_attacks import SQLI_PAYLOADS
+
         assert len(SQLI_PAYLOADS) > 0
         for payload, kind in SQLI_PAYLOADS:
             assert isinstance(payload, str)
@@ -644,11 +750,13 @@ class TestPayloadConstants:
 
     def test_xss_payloads_nonempty(self):
         from tools.targeted_attacks import XSS_PAYLOADS
+
         assert len(XSS_PAYLOADS) > 0
         assert all(isinstance(p, str) for p in XSS_PAYLOADS)
 
     def test_ssti_payloads_nonempty(self):
         from tools.targeted_attacks import SSTI_PAYLOADS
+
         assert len(SSTI_PAYLOADS) > 0
         for payload, indicator in SSTI_PAYLOADS:
             assert isinstance(payload, str)
@@ -705,6 +813,7 @@ class TestTestSqlInjection:
     def test_skips_non_login_get_endpoint(self):
         from tools.targeted_attacks import test_sql_injection
         import asyncio
+
         ep = _make_endpoint(url="http://x.com/api/data", method="GET")
         session = _MockSession()
         result = asyncio.run(test_sql_injection(session, ep))
@@ -713,6 +822,7 @@ class TestTestSqlInjection:
     def test_skips_non_login_post_endpoint(self):
         from tools.targeted_attacks import test_sql_injection
         import asyncio
+
         ep = _make_endpoint(url="http://x.com/api/data", method="POST")
         session = _MockSession()
         result = asyncio.run(test_sql_injection(session, ep))
@@ -721,6 +831,7 @@ class TestTestSqlInjection:
     def test_baseline_failure_returns_empty(self):
         from tools.targeted_attacks import test_sql_injection
         import asyncio
+
         ep = _make_endpoint(url="http://x.com/login", method="POST")
         session = _MockSession({("POST", "http://x.com/login"): Exception("conn refused")})
         result = asyncio.run(test_sql_injection(session, ep))
@@ -729,10 +840,13 @@ class TestTestSqlInjection:
     def test_status_change_detected(self):
         from tools.targeted_attacks import test_sql_injection
         import asyncio
+
         ep = _make_endpoint(url="http://x.com/login", method="POST")
-        session = _MockSession({
-            ("POST", "http://x.com/login"): _MockResponse(200, "Invalid credentials"),
-        })
+        session = _MockSession(
+            {
+                ("POST", "http://x.com/login"): _MockResponse(200, "Invalid credentials"),
+            }
+        )
         # All payloads return 200 except one returns 500 (status change)
         responses = {
             ("POST", "http://x.com/login"): _MockResponse(500, "SQL error"),
@@ -744,10 +858,13 @@ class TestTestSqlInjection:
         class CountingSession:
             def __init__(self):
                 self._call = 0
+
             async def __aenter__(self):
                 return self
+
             async def __aexit__(self, *a):
                 pass
+
             def post(self, url, **kw):
                 self._call += 1
                 if self._call == 1:
@@ -762,15 +879,19 @@ class TestTestSqlInjection:
     def test_auth_bypass_detected(self):
         from tools.targeted_attacks import test_sql_injection
         import asyncio
+
         ep = _make_endpoint(url="http://x.com/auth/login", method="POST")
 
         class BypassSession:
             def __init__(self):
                 self._call = 0
+
             async def __aenter__(self):
                 return self
+
             async def __aexit__(self, *a):
                 pass
+
             def post(self, url, **kw):
                 self._call += 1
                 if self._call == 1:
@@ -779,7 +900,9 @@ class TestTestSqlInjection:
 
         result = asyncio.run(test_sql_injection(BypassSession(), ep))
         assert len(result) == 1
-        assert "auth bypass" in result[0].title.lower() or "sql injection" in result[0].title.lower()
+        assert (
+            "auth bypass" in result[0].title.lower() or "sql injection" in result[0].title.lower()
+        )
 
 
 class TestTestXSS:
@@ -788,6 +911,7 @@ class TestTestXSS:
     def test_skips_post_method(self):
         from tools.targeted_attacks import test_xss
         import asyncio
+
         ep = _make_endpoint(url="http://x.com/search", method="POST")
         session = _MockSession()
         result = asyncio.run(test_xss(session, ep))
@@ -796,14 +920,17 @@ class TestTestXSS:
     def test_reflected_xss_detected(self):
         from tools.targeted_attacks import test_xss
         import asyncio
+
         ep = _make_endpoint(url="http://x.com/search?q=test", method="GET")
         payload = "<script>alert(1)</script>"
 
         class XssSession:
             async def __aenter__(self):
                 return self
+
             async def __aexit__(self, *a):
                 pass
+
             def get(self, url, **kw):
                 return _MockResponse(200, f"Results for {payload}", {"content-type": "text/html"})
 
@@ -815,9 +942,15 @@ class TestTestXSS:
     def test_no_reflection_no_finding(self):
         from tools.targeted_attacks import test_xss
         import asyncio
+
         ep = _make_endpoint(url="http://x.com/search", method="GET")
-        session = _MockSession({("GET", "http://x.com/search?q=<script>alert(1)</script>"):
-                               _MockResponse(200, "Safe output", {"content-type": "text/html"})})
+        session = _MockSession(
+            {
+                ("GET", "http://x.com/search?q=<script>alert(1)</script>"): _MockResponse(
+                    200, "Safe output", {"content-type": "text/html"}
+                )
+            }
+        )
         result = asyncio.run(test_xss(session, ep))
         assert result == []
 
@@ -828,6 +961,7 @@ class TestTestSSTI:
     def test_skips_post(self):
         from tools.targeted_attacks import test_ssti
         import asyncio
+
         ep = _make_endpoint(url="http://x.com/render", method="POST")
         session = _MockSession()
         result = asyncio.run(test_ssti(session, ep))
@@ -836,13 +970,16 @@ class TestTestSSTI:
     def test_ssti_detected(self):
         from tools.targeted_attacks import test_ssti
         import asyncio
+
         ep = _make_endpoint(url="http://x.com/render", method="GET")
 
         class SstiSession:
             async def __aenter__(self):
                 return self
+
             async def __aexit__(self, *a):
                 pass
+
             def get(self, url, **kw):
                 if "7*7" in url:
                     return _MockResponse(200, "Result: 49")
@@ -859,6 +996,7 @@ class TestTestIDOR:
     def test_no_digit_ending_returns_empty(self):
         from tools.targeted_attacks import test_idor
         import asyncio
+
         ep = _make_endpoint(url="http://x.com/api/users", method="GET")
         session = _MockSession()
         result = asyncio.run(test_idor(session, ep))
@@ -867,13 +1005,16 @@ class TestTestIDOR:
     def test_idor_detected(self):
         from tools.targeted_attacks import test_idor
         import asyncio
+
         ep = _make_endpoint(url="http://x.com/api/user/5", method="GET")
 
         class IdoorSession:
             async def __aenter__(self):
                 return self
+
             async def __aexit__(self, *a):
                 pass
+
             def get(self, url, **kw):
                 if url.endswith("/1"):
                     return _MockResponse(200, '{"id": 1, "username": "alice", "name": "Alice"}')
@@ -890,6 +1031,7 @@ class TestTestMassAssignment:
     def test_skips_non_register_endpoints(self):
         from tools.targeted_attacks import test_mass_assignment
         import asyncio
+
         ep = _make_endpoint(url="http://x.com/api/orders", method="POST")
         session = _MockSession()
         result = asyncio.run(test_mass_assignment(session, ep))
@@ -898,6 +1040,7 @@ class TestTestMassAssignment:
     def test_skips_get_method(self):
         from tools.targeted_attacks import test_mass_assignment
         import asyncio
+
         ep = _make_endpoint(url="http://x.com/register", method="GET")
         session = _MockSession()
         result = asyncio.run(test_mass_assignment(session, ep))
@@ -906,13 +1049,16 @@ class TestTestMassAssignment:
     def test_mass_assignment_detected(self):
         from tools.targeted_attacks import test_mass_assignment
         import asyncio
+
         ep = _make_endpoint(url="http://x.com/register", method="POST")
 
         class MASession:
             async def __aenter__(self):
                 return self
+
             async def __aexit__(self, *a):
                 pass
+
             def post(self, url, **kw):
                 return _MockResponse(200, '{"role": "admin", "balance": 99999}')
 
@@ -927,6 +1073,7 @@ class TestTestJwtAlgNone:
     def test_skips_irrelevant_endpoints(self):
         from tools.targeted_attacks import test_jwt_alg_none
         import asyncio
+
         ep = _make_endpoint(url="http://x.com/api/search", method="GET")
         session = _MockSession()
         result = asyncio.run(test_jwt_alg_none(session, ep))
@@ -935,13 +1082,16 @@ class TestTestJwtAlgNone:
     def test_jwt_none_accepted(self):
         from tools.targeted_attacks import test_jwt_alg_none
         import asyncio
+
         ep = _make_endpoint(url="http://x.com/jwt/verify", method="POST")
 
         class JWTSession:
             async def __aenter__(self):
                 return self
+
             async def __aexit__(self, *a):
                 pass
+
             def post(self, url, **kw):
                 return _MockResponse(200, '{"valid": true, "payload": {"user": "admin"}}')
 
@@ -956,6 +1106,7 @@ class TestTestProtoPollution:
     def test_skips_non_post(self):
         from tools.targeted_attacks import test_proto_pollution
         import asyncio
+
         ep = _make_endpoint(url="http://x.com/merge", method="GET")
         session = _MockSession()
         result = asyncio.run(test_proto_pollution(session, ep))
@@ -964,15 +1115,18 @@ class TestTestProtoPollution:
     def test_pollution_detected(self):
         from tools.targeted_attacks import test_proto_pollution
         import asyncio
+
         ep = _make_endpoint(url="http://x.com/merge", method="POST")
 
         class PollSession:
             async def __aenter__(self):
                 return self
+
             async def __aexit__(self, *a):
                 pass
+
             def post(self, url, **kw):
-                return _MockResponse(200, '__proto__ accepted, polluted value')
+                return _MockResponse(200, "__proto__ accepted, polluted value")
 
         result = asyncio.run(test_proto_pollution(PollSession(), ep))
         assert len(result) == 1
@@ -985,6 +1139,7 @@ class TestTestPathTraversal:
     def test_skips_non_get(self):
         from tools.targeted_attacks import test_path_traversal
         import asyncio
+
         ep = _make_endpoint(url="http://x.com/download", method="POST")
         session = _MockSession()
         result = asyncio.run(test_path_traversal(session, ep))
@@ -993,13 +1148,16 @@ class TestTestPathTraversal:
     def test_traversal_detected(self):
         from tools.targeted_attacks import test_path_traversal
         import asyncio
+
         ep = _make_endpoint(url="http://x.com/download", method="GET")
 
         class TraversalSession:
             async def __aenter__(self):
                 return self
+
             async def __aexit__(self, *a):
                 pass
+
             def get(self, url, **kw):
                 if "etc/passwd" in url or "file=../../../" in url:
                     return _MockResponse(200, "root:x:0:0:root:/root:/bin/bash")
@@ -1016,6 +1174,7 @@ class TestTestRaceCondition:
     def test_skips_non_post(self):
         from tools.targeted_attacks import test_race_condition
         import asyncio
+
         ep = _make_endpoint(url="http://x.com/coupon", method="GET")
         session = _MockSession()
         result = asyncio.run(test_race_condition(session, ep))
@@ -1024,13 +1183,16 @@ class TestTestRaceCondition:
     def test_race_detected_when_many_succeed(self):
         from tools.targeted_attacks import test_race_condition
         import asyncio
+
         ep = _make_endpoint(url="http://x.com/redeem", method="POST")
 
         class RaceSession:
             async def __aenter__(self):
                 return self
+
             async def __aexit__(self, *a):
                 pass
+
             def post(self, url, **kw):
                 return _MockResponse(200, "coupon applied")
 
@@ -1042,14 +1204,17 @@ class TestTestRaceCondition:
     def test_no_race_when_few_succeed(self):
         from tools.targeted_attacks import test_race_condition
         import asyncio
+
         ep = _make_endpoint(url="http://x.com/redeem", method="POST")
         call_count = [0]
 
         class SlowRaceSession:
             async def __aenter__(self):
                 return self
+
             async def __aexit__(self, *a):
                 pass
+
             def post(self, url, **kw):
                 call_count[0] += 1
                 if call_count[0] <= 3:
@@ -1070,6 +1235,7 @@ class TestSeverityEnum:
 
     def test_all_values(self):
         from tools.hunt_engine import Severity
+
         assert Severity.CRITICAL.value == "Critical"
         assert Severity.HIGH.value == "High"
         assert Severity.MEDIUM.value == "Medium"
@@ -1082,6 +1248,7 @@ class TestHuntFinding:
 
     def test_defaults(self):
         from tools.hunt_engine import HuntFinding
+
         hf = HuntFinding(phase="recon", category="endpoint", severity="Informational", title="test")
         assert hf.details == ""
         assert hf.url == ""
@@ -1091,7 +1258,10 @@ class TestHuntFinding:
 
     def test_to_dict(self):
         from tools.hunt_engine import HuntFinding
-        hf = HuntFinding(phase="smart", category="xss", severity="High", title="XSS", url="http://x.com")
+
+        hf = HuntFinding(
+            phase="smart", category="xss", severity="High", title="XSS", url="http://x.com"
+        )
         d = hf.to_dict()
         assert d["phase"] == "smart"
         assert d["category"] == "xss"
@@ -1103,6 +1273,7 @@ class TestHuntPhase:
 
     def test_defaults(self):
         from tools.hunt_engine import HuntPhase
+
         hp = HuntPhase(name="recon", status="pending")
         assert hp.duration == 0.0
         assert hp.findings == 0
@@ -1114,6 +1285,7 @@ class TestHuntReport:
 
     def test_by_severity(self):
         from tools.hunt_engine import HuntFinding, HuntReport
+
         report = HuntReport(target="t.com", started_at="2024-01-01")
         report.findings = [
             HuntFinding(phase="a", category="x", severity="High", title="h1"),
@@ -1126,6 +1298,7 @@ class TestHuntReport:
 
     def test_by_phase(self):
         from tools.hunt_engine import HuntFinding, HuntReport
+
         report = HuntReport(target="t.com", started_at="2024-01-01")
         report.findings = [
             HuntFinding(phase="recon", category="a", severity="Info", title="r1"),
@@ -1142,12 +1315,14 @@ class TestComputeRiskScore:
 
     def test_empty_findings(self):
         from tools.hunt_engine import compute_risk_score
+
         score, level = compute_risk_score([])
         assert score == 0.0
         assert level == "None"
 
     def test_informational_only(self):
         from tools.hunt_engine import HuntFinding, compute_risk_score
+
         findings = [
             HuntFinding(phase="recon", category="ep", severity="Informational", title="discovered"),
         ]
@@ -1157,8 +1332,15 @@ class TestComputeRiskScore:
 
     def test_single_critical(self):
         from tools.hunt_engine import HuntFinding, compute_risk_score
+
         findings = [
-            HuntFinding(phase="smart", category="sqli", severity="Critical", title="SQLi", url="http://x.com"),
+            HuntFinding(
+                phase="smart",
+                category="sqli",
+                severity="Critical",
+                title="SQLi",
+                url="http://x.com",
+            ),
         ]
         score, level = compute_risk_score(findings)
         assert score == 25.0
@@ -1166,9 +1348,18 @@ class TestComputeRiskScore:
 
     def test_critical_and_high(self):
         from tools.hunt_engine import HuntFinding, compute_risk_score
+
         findings = [
-            HuntFinding(phase="smart", category="sqli", severity="Critical", title="SQLi", url="http://x.com"),
-            HuntFinding(phase="smart", category="xss", severity="High", title="XSS", url="http://x.com"),
+            HuntFinding(
+                phase="smart",
+                category="sqli",
+                severity="Critical",
+                title="SQLi",
+                url="http://x.com",
+            ),
+            HuntFinding(
+                phase="smart", category="xss", severity="High", title="XSS", url="http://x.com"
+            ),
         ]
         score, level = compute_risk_score(findings)
         assert score == 37.0  # 25 + 12
@@ -1176,10 +1367,21 @@ class TestComputeRiskScore:
 
     def test_multi_phase_bonus(self):
         from tools.hunt_engine import HuntFinding, compute_risk_score
+
         findings = [
-            HuntFinding(phase="smart", category="sqli", severity="Critical", title="SQLi", url="http://x.com"),
-            HuntFinding(phase="zero_day", category="rce", severity="High", title="RCE", url="http://x.com"),
-            HuntFinding(phase="logic", category="idor", severity="Medium", title="IDOR", url="http://x.com"),
+            HuntFinding(
+                phase="smart",
+                category="sqli",
+                severity="Critical",
+                title="SQLi",
+                url="http://x.com",
+            ),
+            HuntFinding(
+                phase="zero_day", category="rce", severity="High", title="RCE", url="http://x.com"
+            ),
+            HuntFinding(
+                phase="logic", category="idor", severity="Medium", title="IDOR", url="http://x.com"
+            ),
         ]
         score, level = compute_risk_score(findings)
         # 25 + 12 + 5 = 42 + 10 bonus = 52
@@ -1188,8 +1390,11 @@ class TestComputeRiskScore:
 
     def test_score_capped_at_100(self):
         from tools.hunt_engine import HuntFinding, compute_risk_score
+
         findings = [
-            HuntFinding(phase="smart", category="x", severity="Critical", title=f"c{i}", url="http://x.com")
+            HuntFinding(
+                phase="smart", category="x", severity="Critical", title=f"c{i}", url="http://x.com"
+            )
             for i in range(10)
         ]
         score, level = compute_risk_score(findings)
@@ -1197,15 +1402,22 @@ class TestComputeRiskScore:
 
     def test_candidate_excluded(self):
         from tools.hunt_engine import HuntFinding, compute_risk_score
+
         findings = [
-            HuntFinding(phase="zero_day", category="jwt", severity="Critical",
-                        title="JWT FORGERY CANDIDATE - not tested", url="http://x.com"),
+            HuntFinding(
+                phase="zero_day",
+                category="jwt",
+                severity="Critical",
+                title="JWT FORGERY CANDIDATE - not tested",
+                url="http://x.com",
+            ),
         ]
         score, level = compute_risk_score(findings)
         assert score == 0.0
 
     def test_no_url_no_details_excluded(self):
         from tools.hunt_engine import HuntFinding, compute_risk_score
+
         findings = [
             HuntFinding(phase="smart", category="x", severity="Critical", title="vuln"),
         ]
@@ -1214,9 +1426,12 @@ class TestComputeRiskScore:
 
     def test_threshold_levels(self):
         from tools.hunt_engine import HuntFinding, compute_risk_score
+
         # 4 mediums = 20 = Medium level
         findings_20 = [
-            HuntFinding(phase="smart", category="x", severity="Medium", title=f"m{i}", url="http://x.com")
+            HuntFinding(
+                phase="smart", category="x", severity="Medium", title=f"m{i}", url="http://x.com"
+            )
             for i in range(4)
         ]
         score, level = compute_risk_score(findings_20)
@@ -1229,10 +1444,12 @@ class TestCorrelateChains:
 
     def test_empty_findings(self):
         from tools.hunt_engine import correlate_chains
+
         assert correlate_chains([]) == []
 
     def test_informational_only_no_chains(self):
         from tools.hunt_engine import HuntFinding, correlate_chains
+
         findings = [
             HuntFinding(phase="recon", category="ep", severity="Informational", title="discovered"),
         ]
@@ -1240,9 +1457,22 @@ class TestCorrelateChains:
 
     def test_same_url_multi_finding_chain(self):
         from tools.hunt_engine import HuntFinding, correlate_chains
+
         findings = [
-            HuntFinding(phase="smart", category="sqli", severity="Critical", title="SQLi on /api", url="http://x.com/api"),
-            HuntFinding(phase="smart", category="xss", severity="High", title="XSS on /api", url="http://x.com/api"),
+            HuntFinding(
+                phase="smart",
+                category="sqli",
+                severity="Critical",
+                title="SQLi on /api",
+                url="http://x.com/api",
+            ),
+            HuntFinding(
+                phase="smart",
+                category="xss",
+                severity="High",
+                title="XSS on /api",
+                url="http://x.com/api",
+            ),
         ]
         chains = correlate_chains(findings)
         assert len(chains) >= 1
@@ -1251,11 +1481,22 @@ class TestCorrelateChains:
 
     def test_jwt_bola_chain(self):
         from tools.hunt_engine import HuntFinding, correlate_chains
+
         findings = [
-            HuntFinding(phase="smart", category="jwt_confusion", severity="Critical",
-                        title="JWT alg=none on /verify", url="http://x.com/verify"),
-            HuntFinding(phase="smart", category="bola", severity="High",
-                        title="IDOR on /user/1", url="http://x.com/user/1"),
+            HuntFinding(
+                phase="smart",
+                category="jwt_confusion",
+                severity="Critical",
+                title="JWT alg=none on /verify",
+                url="http://x.com/verify",
+            ),
+            HuntFinding(
+                phase="smart",
+                category="bola",
+                severity="High",
+                title="IDOR on /user/1",
+                url="http://x.com/user/1",
+            ),
         ]
         chains = correlate_chains(findings)
         jwt_bola = [c for c in chains if c["chain_type"] == "auth_bypass_then_idor"]
@@ -1263,11 +1504,22 @@ class TestCorrelateChains:
 
     def test_race_state_chain(self):
         from tools.hunt_engine import HuntFinding, correlate_chains
+
         findings = [
-            HuntFinding(phase="smart", category="race_condition", severity="Medium",
-                        title="Race on /coupon", url="http://x.com/coupon"),
-            HuntFinding(phase="logic", category="state_machine", severity="High",
-                        title="State bypass on /pay", url="http://x.com/pay"),
+            HuntFinding(
+                phase="smart",
+                category="race_condition",
+                severity="Medium",
+                title="Race on /coupon",
+                url="http://x.com/coupon",
+            ),
+            HuntFinding(
+                phase="logic",
+                category="state_machine",
+                severity="High",
+                title="State bypass on /pay",
+                url="http://x.com/pay",
+            ),
         ]
         chains = correlate_chains(findings)
         race_sm = [c for c in chains if c["chain_type"] == "race_then_state_bypass"]
@@ -1275,11 +1527,22 @@ class TestCorrelateChains:
 
     def test_candidate_excluded_from_chains(self):
         from tools.hunt_engine import HuntFinding, correlate_chains
+
         findings = [
-            HuntFinding(phase="zero_day", category="jwt", severity="Critical",
-                        title="JWT FORGERY CANDIDATE", url="http://x.com"),
-            HuntFinding(phase="zero_day", category="jwt", severity="High",
-                        title="JWT FORGERY CANDIDATE", url="http://x.com"),
+            HuntFinding(
+                phase="zero_day",
+                category="jwt",
+                severity="Critical",
+                title="JWT FORGERY CANDIDATE",
+                url="http://x.com",
+            ),
+            HuntFinding(
+                phase="zero_day",
+                category="jwt",
+                severity="High",
+                title="JWT FORGERY CANDIDATE",
+                url="http://x.com",
+            ),
         ]
         chains = correlate_chains(findings)
         assert chains == []
@@ -1290,6 +1553,7 @@ class TestReportToConsole:
 
     def test_basic_report(self):
         from tools.hunt_engine import HuntReport, report_to_console
+
         report = HuntReport(target="example.com", started_at="2024-01-01", total_duration=10.0)
         text = report_to_console(report)
         assert "ELENGENIX HUNT REPORT" in text
@@ -1298,19 +1562,49 @@ class TestReportToConsole:
 
     def test_report_with_findings(self):
         from tools.hunt_engine import HuntFinding, HuntPhase, HuntReport, report_to_console
-        report = HuntReport(target="test.com", started_at="2024-01-01", total_duration=5.0,
-                            risk_score=45.0, risk_level="High")
+
+        report = HuntReport(
+            target="test.com",
+            started_at="2024-01-01",
+            total_duration=5.0,
+            risk_score=45.0,
+            risk_level="High",
+        )
         report.phases = [
             HuntPhase(name="recon", status="done", duration=1.0, findings=3),
             HuntPhase(name="smart", status="done", duration=2.5, findings=2),
         ]
         report.findings = [
-            HuntFinding(phase="smart", category="sqli", severity="Critical", title="SQLi", url="http://test.com/api"),
-            HuntFinding(phase="smart", category="xss", severity="High", title="XSS", url="http://test.com/search"),
-            HuntFinding(phase="recon", category="endpoint", severity="Informational", title="Discovered /api"),
+            HuntFinding(
+                phase="smart",
+                category="sqli",
+                severity="Critical",
+                title="SQLi",
+                url="http://test.com/api",
+            ),
+            HuntFinding(
+                phase="smart",
+                category="xss",
+                severity="High",
+                title="XSS",
+                url="http://test.com/search",
+            ),
+            HuntFinding(
+                phase="recon",
+                category="endpoint",
+                severity="Informational",
+                title="Discovered /api",
+            ),
         ]
-        report.chains = [{"chain_type": "same_url_multi_finding", "findings": ["SQLi", "XSS"],
-                          "categories": ["sqli", "xss"], "combined_severity_score": 37, "url": "http://test.com"}]
+        report.chains = [
+            {
+                "chain_type": "same_url_multi_finding",
+                "findings": ["SQLi", "XSS"],
+                "categories": ["sqli", "xss"],
+                "combined_severity_score": 37,
+                "url": "http://test.com",
+            }
+        ]
         text = report_to_console(report)
         assert "test.com" in text
         assert "LIVE vulnerabilities:  2" in text
@@ -1320,10 +1614,16 @@ class TestReportToConsole:
 
     def test_report_with_static_candidates(self):
         from tools.hunt_engine import HuntFinding, HuntReport, report_to_console
+
         report = HuntReport(target="x.com", started_at="2024-01-01", total_duration=1.0)
         report.findings = [
-            HuntFinding(phase="zero_day", category="jwt", severity="Critical",
-                        title="JWT FORGERY CANDIDATE - not tested", url="http://x.com"),
+            HuntFinding(
+                phase="zero_day",
+                category="jwt",
+                severity="Critical",
+                title="JWT FORGERY CANDIDATE - not tested",
+                url="http://x.com",
+            ),
         ]
         text = report_to_console(report)
         assert "FORGERY CANDIDATES" in text
@@ -1335,6 +1635,7 @@ class TestReportToDict:
 
     def test_empty_report(self):
         from tools.hunt_engine import HuntReport, report_to_dict
+
         report = HuntReport(target="t.com", started_at="2024-01-01")
         d = report_to_dict(report)
         assert d["target"] == "t.com"
@@ -1344,14 +1645,21 @@ class TestReportToDict:
 
     def test_report_with_all_fields(self):
         from tools.hunt_engine import HuntFinding, HuntPhase, HuntReport, report_to_dict
+
         report = HuntReport(
-            target="a.com", started_at="2024-01-01", finished_at="2024-01-02",
-            total_duration=60.0, risk_score=75.0, risk_level="Critical",
+            target="a.com",
+            started_at="2024-01-01",
+            finished_at="2024-01-02",
+            total_duration=60.0,
+            risk_score=75.0,
+            risk_level="Critical",
             summary={"total": 1},
         )
         report.phases = [HuntPhase(name="recon", status="done", duration=5.0, findings=1)]
         report.findings = [
-            HuntFinding(phase="recon", category="ep", severity="Informational", title="ep1", cvss=0.0),
+            HuntFinding(
+                phase="recon", category="ep", severity="Informational", title="ep1", cvss=0.0
+            ),
         ]
         report.chains = [{"chain_type": "test"}]
         d = report_to_dict(report)
@@ -1369,6 +1677,7 @@ class TestHuntEngineInit:
 
     def test_basic_init(self):
         from tools.hunt_engine import HuntEngine
+
         engine = HuntEngine(target="example.com")
         assert engine.target == "example.com"
         assert engine.skip_phases == set()
@@ -1376,27 +1685,32 @@ class TestHuntEngineInit:
 
     def test_strip_http(self):
         from tools.hunt_engine import HuntEngine
+
         engine = HuntEngine(target="http://example.com")
         assert engine.target == "example.com"
 
     def test_strip_https(self):
         from tools.hunt_engine import HuntEngine
+
         engine = HuntEngine(target="https://example.com")
         assert engine.target == "example.com"
 
     def test_strip_trailing_slash(self):
         from tools.hunt_engine import HuntEngine
+
         engine = HuntEngine(target="example.com/")
         assert engine.target == "example.com"
 
     def test_skip_phases(self):
         from tools.hunt_engine import HuntEngine
+
         engine = HuntEngine(target="x.com", skip_phases=["recon", "smart"])
         assert "recon" in engine.skip_phases
         assert "smart" in engine.skip_phases
 
     def test_quiet_mode(self):
         from tools.hunt_engine import HuntEngine
+
         engine = HuntEngine(target="x.com", quiet=True)
         assert engine.quiet is True
 
@@ -1414,6 +1728,7 @@ class TestRunStrategist:
     @patch("agents.hybrid_agent.registry")
     def test_populates_tasks_from_json_list(self, mock_registry, mock_ctx, mock_refl):
         from agents.hybrid_agent import HybridAgent
+
         client = _make_mock_client()
         client.chat.return_value = MagicMock(
             content='[{"description": "scan ports", "status": "pending"}]'
@@ -1428,6 +1743,7 @@ class TestRunStrategist:
     @patch("agents.hybrid_agent.get_reflection", return_value=MagicMock())
     def test_no_client_returns_early(self, mock_refl):
         from agents.hybrid_agent import HybridAgent
+
         agent = HybridAgent()
         agent.objective = "test"
         agent._run_strategist()
@@ -1438,6 +1754,7 @@ class TestRunStrategist:
     @patch("agents.hybrid_agent.registry")
     def test_handles_parse_error(self, mock_registry, mock_ctx, mock_refl):
         from agents.hybrid_agent import HybridAgent
+
         client = _make_mock_client()
         client.chat.return_value = MagicMock(content="not json at all")
         agent = HybridAgent(client=client, target="t")
@@ -1451,6 +1768,7 @@ class TestRunStrategist:
     @patch("agents.hybrid_agent.registry")
     def test_handles_api_exception(self, mock_registry, mock_ctx, mock_refl):
         from agents.hybrid_agent import HybridAgent
+
         client = _make_mock_client()
         client.chat.side_effect = RuntimeError("API down")
         agent = HybridAgent(client=client, target="t")
@@ -1464,6 +1782,7 @@ class TestRunStrategist:
     @patch("agents.hybrid_agent.registry")
     def test_includes_memory_context(self, mock_registry, mock_ctx, mock_refl):
         from agents.hybrid_agent import HybridAgent
+
         client = _make_mock_client()
         client.chat.return_value = MagicMock(content="[]")
         agent = HybridAgent(client=client, target="t", enable_memory=True)
@@ -1480,6 +1799,7 @@ class TestRunSpecialistCycle:
     @patch("agents.hybrid_agent.registry")
     def test_returns_true_on_empty_decision(self, mock_registry, mock_refl):
         from agents.hybrid_agent import HybridAgent
+
         client = _make_mock_client()
         client.chat.return_value = MagicMock(content=None)
         agent = HybridAgent(client=client, target="t")
@@ -1493,6 +1813,7 @@ class TestRunSpecialistCycle:
     @patch("agents.hybrid_agent.registry")
     def test_returns_false_on_complete_mission(self, mock_registry, mock_refl):
         from agents.hybrid_agent import HybridAgent
+
         client = _make_mock_client()
         client.chat.return_value = MagicMock(content='{"action": "complete_mission"}')
         agent = HybridAgent(client=client, target="t")
@@ -1505,6 +1826,7 @@ class TestRunSpecialistCycle:
     @patch("agents.hybrid_agent.registry")
     def test_returns_false_on_message(self, mock_registry, mock_refl):
         from agents.hybrid_agent import HybridAgent
+
         client = _make_mock_client()
         client.chat.return_value = MagicMock(
             content='{"action": "message", "message": "hello", "purpose": "notify"}'
@@ -1519,6 +1841,7 @@ class TestRunSpecialistCycle:
     @patch("agents.hybrid_agent.registry")
     def test_appends_to_action_history(self, mock_registry, mock_refl):
         from agents.hybrid_agent import HybridAgent
+
         client = _make_mock_client()
         client.chat.return_value = MagicMock(
             content='{"action": "run_command", "command": "ls", "purpose": "list"}'
@@ -1534,6 +1857,7 @@ class TestRunSpecialistCycle:
     @patch("agents.hybrid_agent.registry")
     def test_returns_true_on_run_tool(self, mock_registry, mock_refl):
         from agents.hybrid_agent import HybridAgent
+
         client = _make_mock_client()
         client.chat.return_value = MagicMock(
             content='{"action": "run_tool", "tool": "nuclei", "target": "x.com"}'
@@ -1553,6 +1877,7 @@ class TestAiDecideAction:
     @patch("agents.hybrid_agent.registry")
     def test_returns_parsed_json(self, mock_registry, mock_refl):
         from agents.hybrid_agent import HybridAgent
+
         decision = {"action": "run_command", "command": "echo hi"}
         client = _make_mock_client()
         client.chat.return_value = MagicMock(content=json.dumps(decision))
@@ -1565,6 +1890,7 @@ class TestAiDecideAction:
     @patch("agents.hybrid_agent.get_reflection", return_value=MagicMock())
     def test_returns_none_when_no_client(self, mock_refl):
         from agents.hybrid_agent import HybridAgent
+
         agent = HybridAgent()
         agent.objective = "test"
         result = agent._ai_decide_action(1)
@@ -1574,6 +1900,7 @@ class TestAiDecideAction:
     @patch("agents.hybrid_agent.registry")
     def test_returns_none_on_persistent_errors(self, mock_registry, mock_refl):
         from agents.hybrid_agent import HybridAgent
+
         client = _make_mock_client()
         client.chat.side_effect = [ValueError("bad json"), RuntimeError("down")]
         agent = HybridAgent(client=client, target="t")
@@ -1586,6 +1913,7 @@ class TestAiDecideAction:
     @patch("agents.hybrid_agent.registry")
     def test_includes_tasks_in_context(self, mock_registry, mock_refl):
         from agents.hybrid_agent import HybridAgent
+
         client = _make_mock_client()
         client.chat.return_value = MagicMock(content='{"action": "none"}')
         agent = HybridAgent(client=client, target="t")
@@ -1605,6 +1933,7 @@ class TestHandleMethods:
     @patch("agents.hybrid_agent.registry")
     def test_handle_run_tool_no_tool_warns(self, mock_registry, mock_refl):
         from agents.hybrid_agent import HybridAgent
+
         agent = HybridAgent(client=_make_mock_client(), target="t")
         agent._handle_run_tool({"action": "run_tool"}, 1)
 
@@ -1612,12 +1941,14 @@ class TestHandleMethods:
     @patch("agents.hybrid_agent.registry")
     def test_handle_run_command_no_command_warns(self, mock_registry, mock_refl):
         from agents.hybrid_agent import HybridAgent
+
         agent = HybridAgent(client=_make_mock_client(), target="t")
         agent._handle_run_command({"action": "run_command"}, 1)
 
     @patch("agents.hybrid_agent.get_reflection", return_value=MagicMock())
     def test_handle_read_file_empty_path(self, mock_refl):
         from agents.hybrid_agent import HybridAgent
+
         agent = HybridAgent(client=_make_mock_client(), target="t")
         agent._handle_read_file({"action": "read_file"})
 
@@ -1625,6 +1956,7 @@ class TestHandleMethods:
     @patch("agents.hybrid_agent.remember")
     def test_handle_update_intel_saves_memory(self, mock_remember, mock_refl):
         from agents.hybrid_agent import HybridAgent
+
         agent = HybridAgent(client=_make_mock_client(), target="t", enable_memory=True)
         agent._handle_update_intel({"intel": {"k1": "v1", "k2": "v2"}})
         assert mock_remember.call_count == 2
@@ -1632,24 +1964,28 @@ class TestHandleMethods:
     @patch("agents.hybrid_agent.get_reflection", return_value=MagicMock())
     def test_handle_update_intel_no_intel(self, mock_refl):
         from agents.hybrid_agent import HybridAgent
+
         agent = HybridAgent(client=_make_mock_client(), target="t")
         agent._handle_update_intel({"action": "update_intel"})
 
     @patch("agents.hybrid_agent.get_reflection", return_value=MagicMock())
     def test_handle_update_intel_memory_disabled(self, mock_refl):
         from agents.hybrid_agent import HybridAgent
+
         agent = HybridAgent(client=_make_mock_client(), target="t", enable_memory=False)
         agent._handle_update_intel({"intel": {"k": "v"}})
 
     @patch("agents.hybrid_agent.get_reflection", return_value=MagicMock())
     def test_handle_search_web_empty_query(self, mock_refl):
         from agents.hybrid_agent import HybridAgent
+
         agent = HybridAgent(client=_make_mock_client(), target="t")
         agent._handle_search_web({"action": "search_web"})
 
     @patch("agents.hybrid_agent.get_reflection", return_value=MagicMock())
     def test_handle_message(self, mock_refl):
         from agents.hybrid_agent import HybridAgent
+
         agent = HybridAgent(client=_make_mock_client(), target="t")
         agent._handle_message({"message": "hello", "purpose": "notify"})
 
@@ -1662,15 +1998,17 @@ class TestBuildCouncil:
     @patch("agents.specialist_agent.SpecialistAgent")
     @patch("agents.strategist_agent.StrategistAgent")
     @patch("agents.hybrid_agent.get_reflection", return_value=MagicMock())
-    def test_creates_all_agents(
-        self, mock_refl, mock_strat, mock_spec, mock_critic, mock_council
-    ):
+    def test_creates_all_agents(self, mock_refl, mock_strat, mock_spec, mock_critic, mock_council):
         from agents.hybrid_agent import HybridAgent
+
         s, sp, c = _make_mock_client(), _make_mock_client(), _make_mock_client()
         agent = HybridAgent(
             client=_make_mock_client(),
-            strategist_client=s, specialist_client=sp, critic_client=c,
-            target="t", risk_threshold="high",
+            strategist_client=s,
+            specialist_client=sp,
+            critic_client=c,
+            target="t",
+            risk_threshold="high",
         )
         agent._build_council()
         mock_strat.assert_called_once()
@@ -1687,10 +2025,13 @@ class TestBuildCouncil:
         self, mock_refl, mock_strat, mock_spec, mock_critic, mock_council
     ):
         from agents.hybrid_agent import HybridAgent
+
         fallback = _make_mock_client()
         agent = HybridAgent(
             client=fallback,
-            strategist_client=None, specialist_client=None, critic_client=None,
+            strategist_client=None,
+            specialist_client=None,
+            critic_client=None,
             target="t",
         )
         agent._build_council()
@@ -1708,10 +2049,12 @@ class TestAgentRoles:
 
     def test_has_three_roles(self):
         from tools.multi_agent import AGENT_ROLES
+
         assert len(AGENT_ROLES) == 3
 
     def test_roles_have_required_keys(self):
         from tools.multi_agent import AGENT_ROLES
+
         for role in AGENT_ROLES:
             assert "name" in role
             assert "icon" in role
@@ -1720,6 +2063,7 @@ class TestAgentRoles:
 
     def test_role_names(self):
         from tools.multi_agent import AGENT_ROLES
+
         names = [r["name"] for r in AGENT_ROLES]
         assert "Strategist" in names
         assert "Recon Lead" in names
@@ -1731,6 +2075,7 @@ class TestBuildAgentPrompt:
 
     def test_prompt_contains_identity(self):
         from tools.multi_agent import TeamAegis
+
         clients = [_make_mock_client(), _make_mock_client()]
         team = TeamAegis(clients=clients, target="t")
         prompt = team._build_agent_prompt(0)
@@ -1739,6 +2084,7 @@ class TestBuildAgentPrompt:
 
     def test_prompt_contains_target(self):
         from tools.multi_agent import TeamAegis
+
         clients = [_make_mock_client(), _make_mock_client()]
         team = TeamAegis(clients=clients, target="example.com")
         prompt = team._build_agent_prompt(0)
@@ -1746,6 +2092,7 @@ class TestBuildAgentPrompt:
 
     def test_prompt_contains_response_format(self):
         from tools.multi_agent import TeamAegis
+
         clients = [_make_mock_client(), _make_mock_client()]
         team = TeamAegis(clients=clients, target="t")
         prompt = team._build_agent_prompt(0)
@@ -1754,6 +2101,7 @@ class TestBuildAgentPrompt:
 
     def test_prompt_lists_teammates(self):
         from tools.multi_agent import TeamAegis
+
         clients = [_make_mock_client(), _make_mock_client(), _make_mock_client()]
         team = TeamAegis(clients=clients, target="t")
         prompt = team._build_agent_prompt(0)
@@ -1766,6 +2114,7 @@ class TestPushPopTask:
 
     def test_push_pop_priority_order(self):
         from tools.multi_agent import TeamAegis
+
         team = TeamAegis(clients=[_make_mock_client(), _make_mock_client()], target="t")
         team._push_task(5, 0, {"type": "run_tool", "description": "low pri"})
         team._push_task(1, 1, {"type": "shell", "description": "high pri"})
@@ -1774,11 +2123,13 @@ class TestPushPopTask:
 
     def test_pop_empty_queue(self):
         from tools.multi_agent import TeamAegis
+
         team = TeamAegis(clients=[_make_mock_client(), _make_mock_client()], target="t")
         assert team._pop_task() is None
 
     def test_negative_priority_clamped(self):
         from tools.multi_agent import TeamAegis
+
         team = TeamAegis(clients=[_make_mock_client(), _make_mock_client()], target="t")
         team._push_task(-5, 0, {"type": "test"})
         task = team._pop_task()
@@ -1786,6 +2137,7 @@ class TestPushPopTask:
 
     def test_format_shared_intel_with_pending_tasks(self):
         from tools.multi_agent import TeamAegis
+
         team = TeamAegis(clients=[_make_mock_client(), _make_mock_client()], target="t")
         team._share_intel(0, "Found XSS")
         team._push_task(3, 0, {"type": "suggested", "description": "Run nuclei on target"})
@@ -1799,6 +2151,7 @@ class TestRunSingleAgent:
 
     def test_successful_run(self):
         from tools.multi_agent import TeamAegis
+
         client = _make_mock_client()
         client.simple_chat.return_value = '{"discussion": "hi", "action": {"type": "none"}}'
         team = TeamAegis(clients=[client, _make_mock_client()], target="t")
@@ -1808,6 +2161,7 @@ class TestRunSingleAgent:
 
     def test_error_handling(self):
         from tools.multi_agent import TeamAegis
+
         client = _make_mock_client()
         client.simple_chat.side_effect = RuntimeError("API error")
         team = TeamAegis(clients=[client, _make_mock_client()], target="t")
@@ -1821,6 +2175,7 @@ class TestProcessAgentResult:
 
     def test_error_result_adds_discussion(self):
         from tools.multi_agent import TeamAegis
+
         team = TeamAegis(clients=[_make_mock_client(), _make_mock_client()], target="t")
         result = {"agent_id": 0, "success": False, "error": "timeout"}
         team._process_agent_result(result)
@@ -1829,11 +2184,13 @@ class TestProcessAgentResult:
 
     def test_success_result_adds_discussion(self):
         from tools.multi_agent import TeamAegis
+
         team = TeamAegis(clients=[_make_mock_client(), _make_mock_client()], target="t")
         result = {
-            "agent_id": 0, "success": True,
+            "agent_id": 0,
+            "success": True,
             "action_data": {"discussion": "Found something", "action": {"type": "none"}},
-            "response_text": "raw"
+            "response_text": "raw",
         }
         team._process_agent_result(result)
         assert len(team.discussion) == 1
@@ -1841,11 +2198,13 @@ class TestProcessAgentResult:
 
     def test_finish_action(self):
         from tools.multi_agent import TeamAegis
+
         team = TeamAegis(clients=[_make_mock_client(), _make_mock_client()], target="t")
         result = {
-            "agent_id": 0, "success": True,
+            "agent_id": 0,
+            "success": True,
             "action_data": {"discussion": "done", "action": {"type": "finish"}},
-            "response_text": "raw"
+            "response_text": "raw",
         }
         team._process_agent_result(result)
         assert len(team.discussion) == 1
@@ -1853,15 +2212,17 @@ class TestProcessAgentResult:
 
     def test_findings_added(self):
         from tools.multi_agent import TeamAegis
+
         team = TeamAegis(clients=[_make_mock_client(), _make_mock_client()], target="t")
         result = {
-            "agent_id": 0, "success": True,
+            "agent_id": 0,
+            "success": True,
             "action_data": {
                 "discussion": "found it",
                 "action": {"type": "none"},
-                "findings": [{"description": "XSS", "severity": "high"}]
+                "findings": [{"description": "XSS", "severity": "high"}],
             },
-            "response_text": "raw"
+            "response_text": "raw",
         }
         team._process_agent_result(result)
         assert len(team.findings) == 1
@@ -1869,16 +2230,18 @@ class TestProcessAgentResult:
 
     def test_confirm_existing_finding(self):
         from tools.multi_agent import Finding, TeamAegis
+
         team = TeamAegis(clients=[_make_mock_client(), _make_mock_client()], target="t")
         team.findings.append(Finding(source_agent="R", description="SQLi", severity="high"))
         result = {
-            "agent_id": 0, "success": True,
+            "agent_id": 0,
+            "success": True,
             "action_data": {
                 "discussion": "confirmed",
                 "action": {"type": "none"},
-                "findings": [{"description": "SQLi", "severity": "critical", "confirmed_by": "E"}]
+                "findings": [{"description": "SQLi", "severity": "critical", "confirmed_by": "E"}],
             },
-            "response_text": "raw"
+            "response_text": "raw",
         }
         team._process_agent_result(result)
         assert len(team.findings) == 1
@@ -1886,31 +2249,35 @@ class TestProcessAgentResult:
 
     def test_suggest_task(self):
         from tools.multi_agent import TeamAegis
+
         team = TeamAegis(clients=[_make_mock_client(), _make_mock_client()], target="t")
         result = {
-            "agent_id": 0, "success": True,
+            "agent_id": 0,
+            "success": True,
             "action_data": {
                 "discussion": "suggest",
                 "action": {"type": "none"},
-                "suggest_task": "Run nuclei on target"
+                "suggest_task": "Run nuclei on target",
             },
-            "response_text": "raw"
+            "response_text": "raw",
         }
         team._process_agent_result(result)
         assert len(team.task_queue) > 0
 
     def test_needs_help(self):
         from tools.multi_agent import TeamAegis
+
         team = TeamAegis(clients=[_make_mock_client(), _make_mock_client()], target="t")
         result = {
-            "agent_id": 0, "success": True,
+            "agent_id": 0,
+            "success": True,
             "action_data": {
                 "discussion": "stuck",
                 "action": {"type": "none"},
                 "needs_help": True,
-                "help_request": "How to bypass WAF?"
+                "help_request": "How to bypass WAF?",
             },
-            "response_text": "raw"
+            "response_text": "raw",
         }
         team._process_agent_result(result)
         help_msgs = [m for m in team.discussion if "HELP NEEDED" in m.content]
@@ -1928,6 +2295,7 @@ class TestRunTargetedAttacks:
     def test_empty_endpoints(self):
         from tools.targeted_attacks import run_targeted_attacks
         import asyncio
+
         with patch("tools.targeted_attacks.aiohttp") as mock_aio:
             mock_session = AsyncMock()
             mock_session.__aenter__ = AsyncMock(return_value=mock_session)
@@ -1940,13 +2308,20 @@ class TestRunTargetedAttacks:
     def test_deduplicates_findings(self):
         from tools.targeted_attacks import ConfirmedFinding, run_targeted_attacks
         import asyncio
+
         ep = _make_endpoint(url="http://t.com/login", method="POST")
         fake_finding = ConfirmedFinding(
-            title="SQLi", severity="Critical", category="sql_injection",
-            endpoint_url="http://t.com/login", method="POST", evidence="e", payload="username='"
+            title="SQLi",
+            severity="Critical",
+            category="sql_injection",
+            endpoint_url="http://t.com/login",
+            method="POST",
+            evidence="e",
+            payload="username='",
         )
-        with patch("tools.targeted_attacks.aiohttp") as mock_aio, \
-             patch("tools.targeted_attacks.test_sql_injection", new_callable=AsyncMock) as mock_sqli:
+        with patch("tools.targeted_attacks.aiohttp") as mock_aio, patch(
+            "tools.targeted_attacks.test_sql_injection", new_callable=AsyncMock
+        ) as mock_sqli:
             mock_session = AsyncMock()
             mock_session.__aenter__ = AsyncMock(return_value=mock_session)
             mock_session.__aexit__ = AsyncMock(return_value=False)
@@ -1963,6 +2338,7 @@ class TestRunAuthenticatedBola:
     def test_needs_at_least_2_sessions(self):
         from tools.targeted_attacks import run_authenticated_bola
         import asyncio
+
         session = _MockSession()
         ep = _make_endpoint(url="http://t.com/api/user/1", method="GET")
         auth = MagicMock()
@@ -1972,6 +2348,7 @@ class TestRunAuthenticatedBola:
     def test_no_user_endpoints(self):
         from tools.targeted_attacks import run_authenticated_bola
         import asyncio
+
         session = _MockSession()
         ep = _make_endpoint(url="http://t.com/api/data", method="GET")
         auth1, auth2 = MagicMock(), MagicMock()
@@ -1990,7 +2367,10 @@ class TestSaveReport:
     def test_saves_json_and_txt(self):
         from tools.hunt_engine import HuntReport, save_report
         import tempfile
-        report = HuntReport(target="test-save.example.com", started_at="2024-01-01", total_duration=1.0)
+
+        report = HuntReport(
+            target="test-save.example.com", started_at="2024-01-01", total_duration=1.0
+        )
         with tempfile.TemporaryDirectory() as tmpdir:
             out_dir = Path(tmpdir) / "report"
             result = save_report(report, out_dir=out_dir)

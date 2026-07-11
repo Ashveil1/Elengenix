@@ -23,13 +23,13 @@ from pathlib import Path
 def _ensure_config_files():
     """Copy example config files if they don't exist."""
     project_root = Path(__file__).parent
-    
+
     # Copy mcp.json.example -> mcp.json
     mcp_example = project_root / "mcp.json.example"
     mcp_config = project_root / "mcp.json"
     if mcp_example.exists() and not mcp_config.exists():
         shutil.copy2(mcp_example, mcp_config)
-    
+
     # Copy .env.example -> .env
     env_example = project_root / ".env.example"
     env_config = project_root / ".env"

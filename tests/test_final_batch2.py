@@ -37,6 +37,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 class TestToolCategory:
     def test_enum_values(self):
         from tools.tool_registry import ToolCategory
+
         assert ToolCategory.RECON.value == "reconnaissance"
         assert ToolCategory.SCANNER.value == "vulnerability_scanner"
         assert ToolCategory.EXPLOITATION.value == "exploitation"
@@ -51,6 +52,7 @@ class TestToolCategory:
 class TestToolPriority:
     def test_enum_values(self):
         from tools.tool_registry import ToolPriority
+
         assert ToolPriority.CRITICAL.value == 1
         assert ToolPriority.HIGH.value == 2
         assert ToolPriority.MEDIUM.value == 3
@@ -58,6 +60,7 @@ class TestToolPriority:
 
     def test_ordering(self):
         from tools.tool_registry import ToolPriority
+
         assert ToolPriority.CRITICAL.value < ToolPriority.HIGH.value
         assert ToolPriority.HIGH.value < ToolPriority.MEDIUM.value
         assert ToolPriority.MEDIUM.value < ToolPriority.LOW.value
@@ -66,6 +69,7 @@ class TestToolPriority:
 class TestToolResult:
     def test_creation(self):
         from tools.tool_registry import ToolResult, ToolCategory
+
         result = ToolResult(
             success=True,
             tool_name="test_tool",
@@ -81,6 +85,7 @@ class TestToolResult:
 
     def test_to_dict(self):
         from tools.tool_registry import ToolResult, ToolCategory
+
         result = ToolResult(
             success=True,
             tool_name="test_tool",
@@ -102,6 +107,7 @@ class TestToolResult:
 
     def test_to_dict_short_output(self):
         from tools.tool_registry import ToolResult, ToolCategory
+
         result = ToolResult(
             success=False,
             tool_name="t",
@@ -113,6 +119,7 @@ class TestToolResult:
 
     def test_defaults(self):
         from tools.tool_registry import ToolResult, ToolCategory
+
         result = ToolResult(success=True, tool_name="t", category=ToolCategory.UTILITY)
         assert result.findings == []
         assert result.execution_time == 0.0
@@ -123,6 +130,7 @@ class TestToolResult:
 class TestToolMetadata:
     def test_creation(self):
         from tools.tool_registry import ToolMetadata, ToolCategory, ToolPriority
+
         meta = ToolMetadata(
             name="my_tool",
             category=ToolCategory.SCANNER,
@@ -138,6 +146,7 @@ class TestToolMetadata:
 
     def test_custom_fields(self):
         from tools.tool_registry import ToolMetadata, ToolCategory, ToolPriority
+
         meta = ToolMetadata(
             name="t",
             category=ToolCategory.FUZZING,
@@ -158,13 +167,19 @@ class TestToolMetadata:
 class TestBaseTool:
     def test_check_binary_found(self):
         from tools.tool_registry import BaseTool, ToolMetadata, ToolCategory, ToolPriority
+
         with patch("shutil.which", return_value="/usr/bin/python3"):
+
             class DummyTool(BaseTool):
                 async def execute(self, target, report_dir, semaphore, **kwargs):
                     pass
+
             meta = ToolMetadata(
-                name="d", category=ToolCategory.UTILITY,
-                priority=ToolPriority.LOW, binary_name="python3", description="d",
+                name="d",
+                category=ToolCategory.UTILITY,
+                priority=ToolPriority.LOW,
+                binary_name="python3",
+                description="d",
             )
             tool = DummyTool(meta)
             assert tool._check_binary() is True
@@ -172,13 +187,19 @@ class TestBaseTool:
 
     def test_check_binary_not_found(self):
         from tools.tool_registry import BaseTool, ToolMetadata, ToolCategory, ToolPriority
+
         with patch("shutil.which", return_value=None):
+
             class DummyTool(BaseTool):
                 async def execute(self, target, report_dir, semaphore, **kwargs):
                     pass
+
             meta = ToolMetadata(
-                name="d", category=ToolCategory.UTILITY,
-                priority=ToolPriority.LOW, binary_name="nonexistent", description="d",
+                name="d",
+                category=ToolCategory.UTILITY,
+                priority=ToolPriority.LOW,
+                binary_name="nonexistent",
+                description="d",
             )
             tool = DummyTool(meta)
             assert tool._check_binary() is False
@@ -186,13 +207,19 @@ class TestBaseTool:
 
     def test_build_command_not_implemented(self):
         from tools.tool_registry import BaseTool, ToolMetadata, ToolCategory, ToolPriority
+
         with patch("shutil.which", return_value="/usr/bin/python3"):
+
             class DummyTool(BaseTool):
                 async def execute(self, target, report_dir, semaphore, **kwargs):
                     pass
+
             meta = ToolMetadata(
-                name="d", category=ToolCategory.UTILITY,
-                priority=ToolPriority.LOW, binary_name="python3", description="d",
+                name="d",
+                category=ToolCategory.UTILITY,
+                priority=ToolPriority.LOW,
+                binary_name="python3",
+                description="d",
             )
             tool = DummyTool(meta)
             with pytest.raises(NotImplementedError):
@@ -202,18 +229,26 @@ class TestBaseTool:
 class TestToolRegistry:
     def test_singleton(self):
         from tools.tool_registry import ToolRegistry
+
         r1 = ToolRegistry()
         r2 = ToolRegistry()
         assert r1 is r2
 
     def test_register_and_get(self):
         from tools.tool_registry import (
-            ToolRegistry, BaseTool, ToolMetadata, ToolCategory, ToolPriority
+            ToolRegistry,
+            BaseTool,
+            ToolMetadata,
+            ToolCategory,
+            ToolPriority,
         )
+
         with patch("shutil.which", return_value="/usr/bin/python3"):
+
             class DummyTool(BaseTool):
                 async def execute(self, target, report_dir, semaphore, **kwargs):
                     pass
+
             meta = ToolMetadata(
                 name="test_reg_tool",
                 category=ToolCategory.SCANNER,
@@ -228,12 +263,19 @@ class TestToolRegistry:
 
     def test_unregister(self):
         from tools.tool_registry import (
-            ToolRegistry, BaseTool, ToolMetadata, ToolCategory, ToolPriority
+            ToolRegistry,
+            BaseTool,
+            ToolMetadata,
+            ToolCategory,
+            ToolPriority,
         )
+
         with patch("shutil.which", return_value="/usr/bin/python3"):
+
             class DummyTool(BaseTool):
                 async def execute(self, target, report_dir, semaphore, **kwargs):
                     pass
+
             meta = ToolMetadata(
                 name="unreg_tool",
                 category=ToolCategory.RECON,
@@ -250,6 +292,7 @@ class TestToolRegistry:
 
     def test_list_available_tools(self):
         from tools.tool_registry import ToolRegistry
+
         reg = ToolRegistry()
         tools = reg.list_available_tools()
         assert isinstance(tools, dict)
@@ -259,12 +302,14 @@ class TestToolRegistry:
 
     def test_get_tools_by_category(self):
         from tools.tool_registry import ToolRegistry, ToolCategory
+
         reg = ToolRegistry()
         tools = reg.get_tools_by_category(ToolCategory.SCANNER)
         assert isinstance(tools, list)
 
     def test_get_recommended_chain(self):
         from tools.tool_registry import ToolRegistry
+
         reg = ToolRegistry()
         chain = reg.get_recommended_chain("web")
         assert isinstance(chain, list)
@@ -278,44 +323,51 @@ class TestToolRegistry:
 
     def test_get_tool_nonexistent(self):
         from tools.tool_registry import ToolRegistry
+
         reg = ToolRegistry()
         assert reg.get_tool("nonexistent_tool_xyz") is None
 
     @pytest.mark.asyncio
     async def test_execute_chain(self):
         from tools.tool_registry import ToolRegistry, ToolResult, ToolCategory
+
         reg = ToolRegistry()
         mock_tool = MagicMock()
         mock_tool.is_available = True
         mock_tool.metadata.name = "mock_tool"
         mock_tool.metadata.category = ToolCategory.SCANNER
-        mock_tool.execute = AsyncMock(return_value=ToolResult(
-            success=True, tool_name="mock_tool", category=ToolCategory.SCANNER
-        ))
-        results = await reg.execute_chain(
-            [mock_tool], "http://example.com", Path("/tmp/reports")
+        mock_tool.execute = AsyncMock(
+            return_value=ToolResult(
+                success=True, tool_name="mock_tool", category=ToolCategory.SCANNER
+            )
         )
+        results = await reg.execute_chain([mock_tool], "http://example.com", Path("/tmp/reports"))
         assert len(results) == 1
         assert results[0].success is True
 
     @pytest.mark.asyncio
     async def test_execute_chain_skips_unavailable(self):
         from tools.tool_registry import ToolRegistry
+
         reg = ToolRegistry()
         mock_tool = MagicMock()
         mock_tool.is_available = False
         mock_tool.metadata.name = "unavail"
-        results = await reg.execute_chain(
-            [mock_tool], "http://example.com", Path("/tmp/reports")
-        )
+        results = await reg.execute_chain([mock_tool], "http://example.com", Path("/tmp/reports"))
         assert len(results) == 0
 
 
 class TestRegisterToolDecorator:
     def test_decorator_registers(self):
         from tools.tool_registry import (
-            register_tool, BaseTool, ToolMetadata, ToolCategory, ToolPriority, registry
+            register_tool,
+            BaseTool,
+            ToolMetadata,
+            ToolCategory,
+            ToolPriority,
+            registry,
         )
+
         meta = ToolMetadata(
             name="decorated_test_tool",
             category=ToolCategory.REPORTING,
@@ -328,15 +380,15 @@ class TestRegisterToolDecorator:
         class DecoratedTool(BaseTool):
             def _check_binary(self):
                 return True
+
             async def execute(self, target, report_dir, semaphore, **kwargs):
                 pass
 
         assert registry.get_tool("decorated_test_tool") is not None
 
     def test_decorator_rejects_non_basetool(self):
-        from tools.tool_registry import (
-            register_tool, ToolMetadata, ToolCategory, ToolPriority
-        )
+        from tools.tool_registry import register_tool, ToolMetadata, ToolCategory, ToolPriority
+
         meta = ToolMetadata(
             name="bad_tool",
             category=ToolCategory.REPORTING,
@@ -345,6 +397,7 @@ class TestRegisterToolDecorator:
             description="Bad",
         )
         with pytest.raises(TypeError):
+
             @register_tool(meta)
             class NotATool:
                 pass
@@ -358,6 +411,7 @@ class TestRegisterToolDecorator:
 class TestFileEditor:
     def test_read_file(self, tmp_path):
         from tools.universal_executor import FileEditor
+
         test_file = tmp_path / "test.txt"
         test_file.write_text("line1\nline2\nline3\nline4\nline5")
         editor = FileEditor(base_dir=str(tmp_path))
@@ -370,6 +424,7 @@ class TestFileEditor:
 
     def test_read_file_not_found(self, tmp_path):
         from tools.universal_executor import FileEditor
+
         editor = FileEditor(base_dir=str(tmp_path))
         result = editor.read_file(str(tmp_path / "nonexistent.txt"))
         assert result.success is False
@@ -377,6 +432,7 @@ class TestFileEditor:
 
     def test_read_file_blocked_sensitive(self, tmp_path):
         from tools.universal_executor import FileEditor
+
         test_file = tmp_path / ".env"
         test_file.write_text("SECRET=abc")
         editor = FileEditor(base_dir=str(tmp_path))
@@ -386,12 +442,14 @@ class TestFileEditor:
 
     def test_read_file_path_outside_base(self, tmp_path):
         from tools.universal_executor import FileEditor
+
         editor = FileEditor(base_dir=str(tmp_path))
         result = editor.read_file("/etc/hostname")
         assert result.success is False
 
     def test_write_file(self, tmp_path):
         from tools.universal_executor import FileEditor
+
         editor = FileEditor(base_dir=str(tmp_path))
         test_file = str(tmp_path / "new_file.txt")
         result = editor.write_file(test_file, "hello world")
@@ -401,6 +459,7 @@ class TestFileEditor:
 
     def test_write_file_no_overwrite(self, tmp_path):
         from tools.universal_executor import FileEditor
+
         test_file = tmp_path / "existing.txt"
         test_file.write_text("original")
         editor = FileEditor(base_dir=str(tmp_path))
@@ -411,6 +470,7 @@ class TestFileEditor:
 
     def test_write_file_overwrite(self, tmp_path):
         from tools.universal_executor import FileEditor
+
         test_file = tmp_path / "existing.txt"
         test_file.write_text("original")
         editor = FileEditor(base_dir=str(tmp_path))
@@ -420,6 +480,7 @@ class TestFileEditor:
 
     def test_edit_file(self, tmp_path):
         from tools.universal_executor import FileEditor
+
         test_file = tmp_path / "edit_me.txt"
         test_file.write_text("hello world")
         editor = FileEditor(base_dir=str(tmp_path))
@@ -429,12 +490,14 @@ class TestFileEditor:
 
     def test_edit_file_not_found(self, tmp_path):
         from tools.universal_executor import FileEditor
+
         editor = FileEditor(base_dir=str(tmp_path))
         result = editor.edit_file(str(tmp_path / "nope.txt"), "a", "b")
         assert result.success is False
 
     def test_edit_file_string_not_found(self, tmp_path):
         from tools.universal_executor import FileEditor
+
         test_file = tmp_path / "data.txt"
         test_file.write_text("hello")
         editor = FileEditor(base_dir=str(tmp_path))
@@ -444,6 +507,7 @@ class TestFileEditor:
 
     def test_edit_file_multiple_occurrences(self, tmp_path):
         from tools.universal_executor import FileEditor
+
         test_file = tmp_path / "multi.txt"
         test_file.write_text("aaa bbb aaa ccc aaa")
         editor = FileEditor(base_dir=str(tmp_path))
@@ -453,6 +517,7 @@ class TestFileEditor:
 
     def test_search_in_file(self, tmp_path):
         from tools.universal_executor import FileEditor
+
         test_file = tmp_path / "search.txt"
         test_file.write_text("foo\nbar\nbaz\nfoo\nqux")
         editor = FileEditor(base_dir=str(tmp_path))
@@ -462,6 +527,7 @@ class TestFileEditor:
 
     def test_search_no_matches(self, tmp_path):
         from tools.universal_executor import FileEditor
+
         test_file = tmp_path / "search.txt"
         test_file.write_text("hello")
         editor = FileEditor(base_dir=str(tmp_path))
@@ -471,6 +537,7 @@ class TestFileEditor:
 
     def test_list_directory(self, tmp_path):
         from tools.universal_executor import FileEditor
+
         (tmp_path / "file1.txt").write_text("a")
         (tmp_path / "subdir").mkdir()
         (tmp_path / "subdir" / "file2.txt").write_text("b")
@@ -481,6 +548,7 @@ class TestFileEditor:
 
     def test_list_not_a_directory(self, tmp_path):
         from tools.universal_executor import FileEditor
+
         test_file = tmp_path / "file.txt"
         test_file.write_text("x")
         editor = FileEditor(base_dir=str(tmp_path))
@@ -493,51 +561,62 @@ class TestUniversalExecutor:
     @pytest.fixture
     def executor(self, tmp_path):
         from tools.universal_executor import UniversalExecutor
+
         return UniversalExecutor(base_dir=str(tmp_path))
 
     @patch("tools.universal_executor.subprocess.run")
     def test_execute_action_read_file(self, mock_run, executor, tmp_path):
         test_file = tmp_path / "read_test.txt"
         test_file.write_text("hello\nworld")
-        result = executor.execute_action({
-            "type": "read_file",
-            "params": {"path": str(test_file), "offset": 1, "limit": 10},
-        })
+        result = executor.execute_action(
+            {
+                "type": "read_file",
+                "params": {"path": str(test_file), "offset": 1, "limit": 10},
+            }
+        )
         assert result.success is True
         assert "hello" in result.output
 
     def test_execute_action_write_file(self, executor, tmp_path):
-        result = executor.execute_action({
-            "type": "write_file",
-            "params": {"path": str(tmp_path / "out.txt"), "content": "test"},
-        })
+        result = executor.execute_action(
+            {
+                "type": "write_file",
+                "params": {"path": str(tmp_path / "out.txt"), "content": "test"},
+            }
+        )
         assert result.success is True
 
     def test_execute_action_edit_file(self, executor, tmp_path):
         test_file = tmp_path / "edit.txt"
         test_file.write_text("aaa bbb")
-        result = executor.execute_action({
-            "type": "edit_file",
-            "params": {"path": str(test_file), "old_string": "bbb", "new_string": "ccc"},
-        })
+        result = executor.execute_action(
+            {
+                "type": "edit_file",
+                "params": {"path": str(test_file), "old_string": "bbb", "new_string": "ccc"},
+            }
+        )
         assert result.success is True
         assert test_file.read_text() == "aaa ccc"
 
     def test_execute_action_search_file(self, executor, tmp_path):
         test_file = tmp_path / "s.txt"
         test_file.write_text("line1 foo\nline2 bar")
-        result = executor.execute_action({
-            "type": "search_file",
-            "params": {"path": str(test_file), "pattern": "foo"},
-        })
+        result = executor.execute_action(
+            {
+                "type": "search_file",
+                "params": {"path": str(test_file), "pattern": "foo"},
+            }
+        )
         assert result.success is True
         assert "foo" in result.output
 
     def test_execute_action_list_dir(self, executor, tmp_path):
-        result = executor.execute_action({
-            "type": "list_dir",
-            "params": {"path": str(tmp_path)},
-        })
+        result = executor.execute_action(
+            {
+                "type": "list_dir",
+                "params": {"path": str(tmp_path)},
+            }
+        )
         assert result.success is True
 
     def test_execute_action_unknown_type(self, executor):
@@ -546,10 +625,12 @@ class TestUniversalExecutor:
         assert "unknown" in result.error.lower()
 
     def test_execute_action_package_unknown_manager(self, executor):
-        result = executor.execute_action({
-            "type": "package",
-            "params": {"manager": "nonexistent", "action": "install", "package": "foo"},
-        })
+        result = executor.execute_action(
+            {
+                "type": "package",
+                "params": {"manager": "nonexistent", "action": "install", "package": "foo"},
+            }
+        )
         assert result.success is False
 
     def test_get_capabilities(self, executor):
@@ -561,6 +642,7 @@ class TestUniversalExecutor:
 class TestIsSafeCommand:
     def test_empty_command(self):
         from tools.universal_executor import UniversalExecutor
+
         with patch("tools.governance.Governance.gate") as mock_gate:
             executor = UniversalExecutor(base_dir="/tmp")
             safe, reason = executor.is_safe_command("")
@@ -570,10 +652,9 @@ class TestIsSafeCommand:
     def test_safe_command(self):
         from tools.universal_executor import UniversalExecutor
         from tools.governance import GateDecision
+
         with patch("tools.governance.Governance.gate") as mock_gate:
-            mock_gate.return_value = GateDecision(
-                allowed=True, risk_level="SAFE", decision="allow"
-            )
+            mock_gate.return_value = GateDecision(allowed=True, risk_level="SAFE", decision="allow")
             executor = UniversalExecutor(base_dir="/tmp")
             safe, reason = executor.is_safe_command("echo hello")
             assert safe is True
@@ -588,55 +669,89 @@ class TestIsSafeCommand:
 class TestBountyProgram:
     def test_bounty_range_same(self):
         from tools.bounty_intelligence import BountyProgram
+
         p = BountyProgram(
-            id="1", name="Test", platform="hackerone",
-            url="http://test.com", offers_bounties=True,
-            min_bounty=500, max_bounty=500,
+            id="1",
+            name="Test",
+            platform="hackerone",
+            url="http://test.com",
+            offers_bounties=True,
+            min_bounty=500,
+            max_bounty=500,
         )
         assert p.bounty_range == "$500"
 
     def test_bounty_range_different(self):
         from tools.bounty_intelligence import BountyProgram
+
         p = BountyProgram(
-            id="1", name="Test", platform="hackerone",
-            url="http://test.com", offers_bounties=True,
-            min_bounty=100, max_bounty=5000,
+            id="1",
+            name="Test",
+            platform="hackerone",
+            url="http://test.com",
+            offers_bounties=True,
+            min_bounty=100,
+            max_bounty=5000,
         )
         assert p.bounty_range == "$100 - $5,000"
 
     def test_is_worth_targeting(self):
         from tools.bounty_intelligence import BountyProgram
+
         p = BountyProgram(
-            id="1", name="Test", platform="hackerone",
-            url="http://test.com", offers_bounties=True,
-            min_bounty=100, max_bounty=500, is_public=True,
+            id="1",
+            name="Test",
+            platform="hackerone",
+            url="http://test.com",
+            offers_bounties=True,
+            min_bounty=100,
+            max_bounty=500,
+            is_public=True,
         )
         assert p.is_worth_targeting is True
 
     def test_not_worth_targeting_no_bounties(self):
         from tools.bounty_intelligence import BountyProgram
+
         p = BountyProgram(
-            id="1", name="Test", platform="hackerone",
-            url="http://test.com", offers_bounties=False,
-            min_bounty=0, max_bounty=0, is_public=True,
+            id="1",
+            name="Test",
+            platform="hackerone",
+            url="http://test.com",
+            offers_bounties=False,
+            min_bounty=0,
+            max_bounty=0,
+            is_public=True,
         )
         assert p.is_worth_targeting is False
 
     def test_not_worth_targeting_low_bounty(self):
         from tools.bounty_intelligence import BountyProgram
+
         p = BountyProgram(
-            id="1", name="Test", platform="hackerone",
-            url="http://test.com", offers_bounties=True,
-            min_bounty=50, max_bounty=100, is_public=True,
+            id="1",
+            name="Test",
+            platform="hackerone",
+            url="http://test.com",
+            offers_bounties=True,
+            min_bounty=50,
+            max_bounty=100,
+            is_public=True,
         )
         assert p.is_worth_targeting is False
 
     def test_not_worth_targeting_private(self):
         from tools.bounty_intelligence import BountyProgram
+
         p = BountyProgram(
-            id="1", name="Test", platform="hackerone",
-            url="http://test.com", offers_bounties=True,
-            min_bounty=100, max_bounty=1000, is_public=False,
+            id="1",
+            name="Test",
+            platform="hackerone",
+            url="http://test.com",
+            offers_bounties=True,
+            min_bounty=100,
+            max_bounty=1000,
+            is_public=False,
         )
         assert p.is_worth_targeting is False
 
@@ -645,8 +760,9 @@ class TestBountyIntelligence:
     @pytest.fixture
     def intel(self, tmp_path):
         from tools.bounty_intelligence import BountyIntelligence
-        with patch.object(BountyIntelligence, 'CACHE_DIR', tmp_path):
-            with patch.object(BountyIntelligence, 'CACHE_DB', tmp_path / "cache.db"):
+
+        with patch.object(BountyIntelligence, "CACHE_DIR", tmp_path):
+            with patch.object(BountyIntelligence, "CACHE_DB", tmp_path / "cache.db"):
                 bi = BountyIntelligence()
                 return bi
 
@@ -655,8 +771,9 @@ class TestBountyIntelligence:
 
     def test_init_with_auth(self, tmp_path):
         from tools.bounty_intelligence import BountyIntelligence
-        with patch.object(BountyIntelligence, 'CACHE_DIR', tmp_path):
-            with patch.object(BountyIntelligence, 'CACHE_DB', tmp_path / "cache.db"):
+
+        with patch.object(BountyIntelligence, "CACHE_DIR", tmp_path):
+            with patch.object(BountyIntelligence, "CACHE_DB", tmp_path / "cache.db"):
                 bi = BountyIntelligence(api_key="key123", api_username="user1")
                 assert bi.api_auth == ("user1", "key123")
 
@@ -665,15 +782,26 @@ class TestBountyIntelligence:
 
     def test_rank_programs(self, intel):
         from tools.bounty_intelligence import BountyProgram
+
         programs = [
             BountyProgram(
-                id="1", name="Low", platform="h", url="http://a.com",
-                offers_bounties=True, min_bounty=100, max_bounty=1000,
+                id="1",
+                name="Low",
+                platform="h",
+                url="http://a.com",
+                offers_bounties=True,
+                min_bounty=100,
+                max_bounty=1000,
                 response_time_hours=48,
             ),
             BountyProgram(
-                id="2", name="High", platform="h", url="http://b.com",
-                offers_bounties=True, min_bounty=500, max_bounty=50000,
+                id="2",
+                name="High",
+                platform="h",
+                url="http://b.com",
+                offers_bounties=True,
+                min_bounty=500,
+                max_bounty=50000,
                 response_time_hours=12,
                 scope=[{"id": "a"}, {"id": "b"}, {"id": "c"}, {"id": "d"}, {"id": "e"}],
             ),
@@ -688,12 +816,18 @@ class TestBountyIntelligence:
 
     def test_format_programs_list(self, intel):
         from tools.bounty_intelligence import BountyProgram
+
         programs = [
             BountyProgram(
-                id="1", name="Shopify", platform="h",
-                url="http://shopify.com", offers_bounties=True,
-                min_bounty=500, max_bounty=30000,
-                response_time_hours=48, scope=[{"id": "a"}, {"id": "b"}],
+                id="1",
+                name="Shopify",
+                platform="h",
+                url="http://shopify.com",
+                offers_bounties=True,
+                min_bounty=500,
+                max_bounty=30000,
+                response_time_hours=48,
+                scope=[{"id": "a"}, {"id": "b"}],
             ),
         ]
         output = intel.format_programs_list(programs, show_scores=True)
@@ -703,6 +837,7 @@ class TestBountyIntelligence:
 
     def test_parse_api_program(self, intel):
         from tools.bounty_intelligence import BountyProgram
+
         api_data = {
             "id": "123",
             "attributes": {
@@ -782,6 +917,7 @@ class TestBountyIntelligence:
 class TestCVEResearchResult:
     def test_creation(self):
         from tools.vuln_researcher import CVEResearchResult
+
         r = CVEResearchResult(
             cve_id="CVE-2024-0001",
             cvss_score=9.8,
@@ -804,6 +940,7 @@ class TestCVEResearchResult:
 class TestExploitCondition:
     def test_creation(self):
         from tools.vuln_researcher import ExploitCondition
+
         ec = ExploitCondition(
             prerequisite="auth",
             details="Requires valid credentials",
@@ -816,6 +953,7 @@ class TestExploitCondition:
 class TestDisclosedBounty:
     def test_creation(self):
         from tools.vuln_researcher import DisclosedBounty
+
         db = DisclosedBounty(
             title="SQLi in search",
             program="Twitter",
@@ -833,6 +971,7 @@ class TestDisclosedBounty:
 class TestCustomPoC:
     def test_creation(self):
         from tools.vuln_researcher import CustomPoC
+
         poc = CustomPoC(
             code="print('hello')",
             language="python",
@@ -848,7 +987,8 @@ class TestVulnerabilityResearcher:
     @pytest.fixture
     def researcher(self, tmp_path):
         from tools.vuln_researcher import VulnerabilityResearcher
-        with patch.object(VulnerabilityResearcher, 'CACHE_DIR', tmp_path / "cache"):
+
+        with patch.object(VulnerabilityResearcher, "CACHE_DIR", tmp_path / "cache"):
             vr = VulnerabilityResearcher()
             return vr
 
@@ -875,16 +1015,12 @@ class TestVulnerabilityResearcher:
         assert poc.language == "python"
 
     def test_generate_custom_poc_rce_generic(self, researcher):
-        poc = researcher.generate_custom_poc(
-            "rce", {"framework": "unknown", "language": "go"}
-        )
+        poc = researcher.generate_custom_poc("rce", {"framework": "unknown", "language": "go"})
         assert poc is not None
         assert "RCE" in poc.code.upper()
 
     def test_generate_custom_poc_sqli(self, researcher):
-        poc = researcher.generate_custom_poc(
-            "sqli", {"framework": "rails", "language": "ruby"}
-        )
+        poc = researcher.generate_custom_poc("sqli", {"framework": "rails", "language": "ruby"})
         assert poc is not None
         assert "SQL" in poc.code.upper() or "sqli" in poc.code.lower()
 
@@ -902,9 +1038,7 @@ class TestVulnerabilityResearcher:
         assert poc is not None
 
     def test_generate_custom_poc_unknown_type(self, researcher):
-        poc = researcher.generate_custom_poc(
-            "unknown_vuln", {"framework": "x", "language": "y"}
-        )
+        poc = researcher.generate_custom_poc("unknown_vuln", {"framework": "x", "language": "y"})
         assert poc is None
 
     def test_find_similar_bounties_rce(self, researcher):
@@ -951,6 +1085,7 @@ class TestVulnerabilityResearcher:
 class TestExploitProof:
     def test_creation(self):
         from tools.exploitation import ExploitProof
+
         proof = ExploitProof(
             title="SQLi Test",
             description="Testing SQL injection",
@@ -967,18 +1102,25 @@ class TestExploitFunctions:
     @pytest.mark.asyncio
     async def test_exploit_sqli_success(self):
         from tools.exploitation import exploit_sqli
+
         mock_response = AsyncMock()
         mock_response.status = 200
-        mock_response.text = AsyncMock(return_value=json.dumps({
-            "status": "ok",
-            "user": {"id": 1, "password": "secret123"},
-        }))
+        mock_response.text = AsyncMock(
+            return_value=json.dumps(
+                {
+                    "status": "ok",
+                    "user": {"id": 1, "password": "secret123"},
+                }
+            )
+        )
 
         mock_session = AsyncMock()
-        mock_session.post = MagicMock(return_value=AsyncMock(
-            __aenter__=AsyncMock(return_value=mock_response),
-            __aexit__=AsyncMock(return_value=False),
-        ))
+        mock_session.post = MagicMock(
+            return_value=AsyncMock(
+                __aenter__=AsyncMock(return_value=mock_response),
+                __aexit__=AsyncMock(return_value=False),
+            )
+        )
 
         proof = await exploit_sqli(mock_session, "http://target.com/login")
         assert proof.title == "SQL Injection - Data Extraction"
@@ -988,15 +1130,18 @@ class TestExploitFunctions:
     @pytest.mark.asyncio
     async def test_exploit_sqli_no_exploit(self):
         from tools.exploitation import exploit_sqli
+
         mock_response = AsyncMock()
         mock_response.status = 403
         mock_response.text = AsyncMock(return_value="Forbidden")
 
         mock_session = AsyncMock()
-        mock_session.post = MagicMock(return_value=AsyncMock(
-            __aenter__=AsyncMock(return_value=mock_response),
-            __aexit__=AsyncMock(return_value=False),
-        ))
+        mock_session.post = MagicMock(
+            return_value=AsyncMock(
+                __aenter__=AsyncMock(return_value=mock_response),
+                __aexit__=AsyncMock(return_value=False),
+            )
+        )
 
         proof = await exploit_sqli(mock_session, "http://target.com/login")
         assert proof.impact_demonstrated == ""
@@ -1004,16 +1149,19 @@ class TestExploitFunctions:
     @pytest.mark.asyncio
     async def test_exploit_xss_reflected(self):
         from tools.exploitation import exploit_xss
+
         mock_response = AsyncMock()
         mock_response.status = 200
         payload = "<script>alert('elengenix-pwned')</script>"
         mock_response.text = AsyncMock(return_value=f"<html>{payload}</html>")
 
         mock_session = AsyncMock()
-        mock_session.get = MagicMock(return_value=AsyncMock(
-            __aenter__=AsyncMock(return_value=mock_response),
-            __aexit__=AsyncMock(return_value=False),
-        ))
+        mock_session.get = MagicMock(
+            return_value=AsyncMock(
+                __aenter__=AsyncMock(return_value=mock_response),
+                __aexit__=AsyncMock(return_value=False),
+            )
+        )
 
         proof = await exploit_xss(mock_session, "http://target.com/search")
         assert proof.impact_demonstrated != ""
@@ -1022,15 +1170,18 @@ class TestExploitFunctions:
     @pytest.mark.asyncio
     async def test_exploit_xss_no_reflection(self):
         from tools.exploitation import exploit_xss
+
         mock_response = AsyncMock()
         mock_response.status = 200
         mock_response.text = AsyncMock(return_value="<html>safe</html>")
 
         mock_session = AsyncMock()
-        mock_session.get = MagicMock(return_value=AsyncMock(
-            __aenter__=AsyncMock(return_value=mock_response),
-            __aexit__=AsyncMock(return_value=False),
-        ))
+        mock_session.get = MagicMock(
+            return_value=AsyncMock(
+                __aenter__=AsyncMock(return_value=mock_response),
+                __aexit__=AsyncMock(return_value=False),
+            )
+        )
 
         proof = await exploit_xss(mock_session, "http://target.com/search")
         assert proof.impact_demonstrated == ""
@@ -1038,15 +1189,18 @@ class TestExploitFunctions:
     @pytest.mark.asyncio
     async def test_exploit_path_traversal(self):
         from tools.exploitation import exploit_path_traversal
+
         mock_response = AsyncMock()
         mock_response.status = 200
         mock_response.text = AsyncMock(return_value="root:x:0:0:root:/root:/bin/bash")
 
         mock_session = AsyncMock()
-        mock_session.get = MagicMock(return_value=AsyncMock(
-            __aenter__=AsyncMock(return_value=mock_response),
-            __aexit__=AsyncMock(return_value=False),
-        ))
+        mock_session.get = MagicMock(
+            return_value=AsyncMock(
+                __aenter__=AsyncMock(return_value=mock_response),
+                __aexit__=AsyncMock(return_value=False),
+            )
+        )
 
         proof = await exploit_path_traversal(mock_session, "http://target.com/download")
         assert proof.impact_demonstrated != ""
@@ -1054,15 +1208,18 @@ class TestExploitFunctions:
     @pytest.mark.asyncio
     async def test_exploit_ssti(self):
         from tools.exploitation import exploit_ssti
+
         mock_response = AsyncMock()
         mock_response.status = 200
         mock_response.text = AsyncMock(return_value="Template output: 49")
 
         mock_session = AsyncMock()
-        mock_session.get = MagicMock(return_value=AsyncMock(
-            __aenter__=AsyncMock(return_value=mock_response),
-            __aexit__=AsyncMock(return_value=False),
-        ))
+        mock_session.get = MagicMock(
+            return_value=AsyncMock(
+                __aenter__=AsyncMock(return_value=mock_response),
+                __aexit__=AsyncMock(return_value=False),
+            )
+        )
 
         proof = await exploit_ssti(mock_session, "http://target.com/render")
         # SSTI probe checks for "49" in body
@@ -1072,15 +1229,18 @@ class TestExploitFunctions:
     @pytest.mark.asyncio
     async def test_exploit_jwt_alg_none(self):
         from tools.exploitation import exploit_jwt_alg_none
+
         mock_response = AsyncMock()
         mock_response.status = 200
         mock_response.text = AsyncMock(return_value=json.dumps({"valid": True}))
 
         mock_session = AsyncMock()
-        mock_session.post = MagicMock(return_value=AsyncMock(
-            __aenter__=AsyncMock(return_value=mock_response),
-            __aexit__=AsyncMock(return_value=False),
-        ))
+        mock_session.post = MagicMock(
+            return_value=AsyncMock(
+                __aenter__=AsyncMock(return_value=mock_response),
+                __aexit__=AsyncMock(return_value=False),
+            )
+        )
 
         proof = await exploit_jwt_alg_none(mock_session, "http://target.com/verify")
         assert proof.impact_demonstrated != ""
@@ -1088,18 +1248,25 @@ class TestExploitFunctions:
     @pytest.mark.asyncio
     async def test_exploit_proto_pollution(self):
         from tools.exploitation import exploit_proto_pollution
+
         mock_response = AsyncMock()
         mock_response.status = 200
-        mock_response.text = AsyncMock(return_value=json.dumps({
-            "__proto__": {"isAdmin": True},
-            "polluted_marker": "ElengenixExploitSuccess",
-        }))
+        mock_response.text = AsyncMock(
+            return_value=json.dumps(
+                {
+                    "__proto__": {"isAdmin": True},
+                    "polluted_marker": "ElengenixExploitSuccess",
+                }
+            )
+        )
 
         mock_session = AsyncMock()
-        mock_session.post = MagicMock(return_value=AsyncMock(
-            __aenter__=AsyncMock(return_value=mock_response),
-            __aexit__=AsyncMock(return_value=False),
-        ))
+        mock_session.post = MagicMock(
+            return_value=AsyncMock(
+                __aenter__=AsyncMock(return_value=mock_response),
+                __aexit__=AsyncMock(return_value=False),
+            )
+        )
 
         proof = await exploit_proto_pollution(mock_session, "http://target.com/merge")
         assert proof.impact_demonstrated != ""
@@ -1129,6 +1296,7 @@ class TestAnalysisPipeline:
     @patch("tools.analysis_pipeline.display_in_chat_mode")
     def test_init(self, mock_display, mock_remember):
         from tools.analysis_pipeline import AnalysisPipeline
+
         agent = MagicMock()
         agent.governance = MagicMock()
         agent.payload_mutator = MagicMock()
@@ -1168,7 +1336,13 @@ class TestAnalysisPipeline:
             success=True,
             tool_name="test",
             category=ToolCategory.SCANNER,
-            findings=[{"type": "xss", "url": "http://example.com/search", "payload": "<script>alert(1)</script>"}],
+            findings=[
+                {
+                    "type": "xss",
+                    "url": "http://example.com/search",
+                    "payload": "<script>alert(1)</script>",
+                }
+            ],
         )
         ms = MissionState("test_mission2", "http://example.com", "Test")
         pipeline.run_all(result, "test", "http://example.com", 1, "test_mission2", ms, None)
@@ -1183,10 +1357,11 @@ class TestCVEDatabase:
     @pytest.fixture
     def db(self, tmp_path):
         import tools.cve_database as cve_mod
+
         # Patch DB_PATH to use temp directory
         test_db_path = tmp_path / "test_cve.db"
-        with patch.object(cve_mod, 'CVE_DB_PATH', test_db_path):
-            with patch.object(cve_mod, 'DATA_DIR', tmp_path):
+        with patch.object(cve_mod, "CVE_DB_PATH", test_db_path):
+            with patch.object(cve_mod, "DATA_DIR", tmp_path):
                 database = cve_mod.CVEDatabase(auto_update=False)
                 yield database
 
@@ -1195,6 +1370,7 @@ class TestCVEDatabase:
 
     def test_add_and_get_cve(self, db):
         from tools.cve_database import CVEEntry
+
         entry = CVEEntry(
             cve_id="CVE-2024-0001",
             description="Test vulnerability",
@@ -1211,23 +1387,33 @@ class TestCVEDatabase:
 
     def test_cve_exists(self, db):
         from tools.cve_database import CVEEntry
+
         assert db._cve_exists("CVE-2024-0001") is False
-        db._add_cve(CVEEntry(
-            cve_id="CVE-2024-0001", description="x",
-            published_date="", last_modified="",
-        ))
+        db._add_cve(
+            CVEEntry(
+                cve_id="CVE-2024-0001",
+                description="x",
+                published_date="",
+                last_modified="",
+            )
+        )
         assert db._cve_exists("CVE-2024-0001") is True
 
     def test_update_cve(self, db):
         from tools.cve_database import CVEEntry
+
         entry = CVEEntry(
-            cve_id="CVE-2024-0002", description="original",
-            published_date="2024-01-01", last_modified="2024-01-01",
+            cve_id="CVE-2024-0002",
+            description="original",
+            published_date="2024-01-01",
+            last_modified="2024-01-01",
         )
         db._add_cve(entry)
         updated = CVEEntry(
-            cve_id="CVE-2024-0002", description="updated",
-            published_date="2024-01-01", last_modified="2024-01-02",
+            cve_id="CVE-2024-0002",
+            description="updated",
+            published_date="2024-01-01",
+            last_modified="2024-01-02",
         )
         db._update_cve(updated)
         result = db.get_cve("CVE-2024-0002")
@@ -1235,25 +1421,33 @@ class TestCVEDatabase:
 
     def test_search_cves(self, db):
         from tools.cve_database import CVEEntry
+
         for i in range(5):
-            db._add_cve(CVEEntry(
-                cve_id=f"CVE-2024-{i:04d}",
-                description=f"Test vuln {i}",
-                published_date="2024-01-01",
-                last_modified="2024-01-01",
-                cvss_score=5.0 + i,
-                severity="Medium",
-            ))
+            db._add_cve(
+                CVEEntry(
+                    cve_id=f"CVE-2024-{i:04d}",
+                    description=f"Test vuln {i}",
+                    published_date="2024-01-01",
+                    last_modified="2024-01-01",
+                    cvss_score=5.0 + i,
+                    severity="Medium",
+                )
+            )
         results = db.search_cves(query="Test", min_cvss=7.0)
         assert len(results) >= 3
 
     def test_count_cves(self, db):
         from tools.cve_database import CVEEntry
+
         initial = db._count_cves()
-        db._add_cve(CVEEntry(
-            cve_id="CVE-2024-9999", description="count test",
-            published_date="", last_modified="",
-        ))
+        db._add_cve(
+            CVEEntry(
+                cve_id="CVE-2024-9999",
+                description="count test",
+                published_date="",
+                last_modified="",
+            )
+        )
         assert db._count_cves() == initial + 1
 
     def test_get_stats(self, db):
@@ -1269,8 +1463,9 @@ class TestCVEDatabase:
     def test_update_database_network_error(self, mock_get):
         from tools.cve_database import CVEDatabase
         import tools.cve_database as cve_mod
-        with patch.object(cve_mod, 'CVE_DB_PATH', Path("/tmp/test_cve_fail.db")):
-            with patch.object(cve_mod, 'DATA_DIR', Path("/tmp")):
+
+        with patch.object(cve_mod, "CVE_DB_PATH", Path("/tmp/test_cve_fail.db")):
+            with patch.object(cve_mod, "DATA_DIR", Path("/tmp")):
                 mock_get.side_effect = Exception("Network error")
                 db = CVEDatabase(auto_update=False)
                 result = db.update_database(days_back=1)
@@ -1280,6 +1475,7 @@ class TestCVEDatabase:
 class TestFormatCveForAi:
     def test_format(self):
         from tools.cve_database import CVEEntry, format_cve_for_ai
+
         entry = CVEEntry(
             cve_id="CVE-2024-0001",
             description="A test vulnerability",
@@ -1306,6 +1502,7 @@ class TestFormatCveForAi:
 class TestSwarmTarget:
     def test_creation(self):
         from tools.swarm_controller import SwarmTarget
+
         t = SwarmTarget(
             target_id="t1",
             target_url="http://target1.com",
@@ -1319,6 +1516,7 @@ class TestSwarmTarget:
 class TestSwarmConfig:
     def test_defaults(self):
         from tools.swarm_controller import SwarmConfig
+
         cfg = SwarmConfig()
         assert cfg.max_concurrent == 3
         assert cfg.enable_governance is True
@@ -1328,6 +1526,7 @@ class TestSwarmConfig:
 class TestSwarmMissionTracker:
     def test_add_and_summary(self):
         from tools.swarm_controller import SwarmMissionTracker, SwarmTarget
+
         tracker = SwarmMissionTracker()
         t = SwarmTarget(target_id="t1", target_url="http://a.com", mission_id="m1")
         tracker.add_target(t)
@@ -1337,6 +1536,7 @@ class TestSwarmMissionTracker:
 
     def test_update_progress(self):
         from tools.swarm_controller import SwarmMissionTracker, SwarmTarget
+
         tracker = SwarmMissionTracker()
         t = SwarmTarget(target_id="t1", target_url="http://a.com", mission_id="m1")
         tracker.add_target(t)
@@ -1345,6 +1545,7 @@ class TestSwarmMissionTracker:
 
     def test_update_status(self):
         from tools.swarm_controller import SwarmMissionTracker, SwarmTarget
+
         tracker = SwarmMissionTracker()
         t = SwarmTarget(target_id="t1", target_url="http://a.com", mission_id="m1")
         tracker.add_target(t)
@@ -1356,6 +1557,7 @@ class TestSwarmMissionTracker:
 
     def test_update_findings(self):
         from tools.swarm_controller import SwarmMissionTracker, SwarmTarget
+
         tracker = SwarmMissionTracker()
         t = SwarmTarget(target_id="t1", target_url="http://a.com", mission_id="m1")
         tracker.add_target(t)
@@ -1364,6 +1566,7 @@ class TestSwarmMissionTracker:
 
     def test_format_progress_table(self):
         from tools.swarm_controller import SwarmMissionTracker, SwarmTarget
+
         tracker = SwarmMissionTracker()
         t = SwarmTarget(target_id="t1", target_url="http://a.com", mission_id="m1")
         tracker.add_target(t)
@@ -1375,28 +1578,34 @@ class TestSwarmMissionTracker:
 class TestSwarmController:
     def test_init(self):
         from tools.swarm_controller import SwarmController, SwarmConfig
+
         ctrl = SwarmController(SwarmConfig())
         assert ctrl.config.max_concurrent == 3
 
     def test_load_targets_from_list(self):
         from tools.swarm_controller import SwarmController, SwarmConfig
+
         ctrl = SwarmController(SwarmConfig())
-        targets = ctrl.load_targets_from_list([
-            "http://target1.com",
-            "http://target2.com",
-            "",
-        ])
+        targets = ctrl.load_targets_from_list(
+            [
+                "http://target1.com",
+                "http://target2.com",
+                "",
+            ]
+        )
         assert len(targets) == 2
         assert targets[0].target_url == "http://target1.com"
 
     def test_abort(self):
         from tools.swarm_controller import SwarmController, SwarmConfig
+
         ctrl = SwarmController(SwarmConfig())
         ctrl.abort()
         assert ctrl.abort_event.is_set()
 
     def test_generate_aggregate_report_empty(self):
         from tools.swarm_controller import SwarmController, SwarmConfig
+
         ctrl = SwarmController(SwarmConfig())
         report = ctrl.generate_aggregate_report()
         assert report["total_findings"] == 0
@@ -1404,6 +1613,7 @@ class TestSwarmController:
 
     def test_save_report(self, tmp_path):
         from tools.swarm_controller import SwarmController, SwarmConfig
+
         cfg = SwarmConfig(output_dir=tmp_path)
         ctrl = SwarmController(cfg)
         path = ctrl.save_report(tmp_path / "test_report.json")
@@ -1414,6 +1624,7 @@ class TestSwarmController:
     @patch("tools.swarm_controller.time.sleep", return_value=None)
     def test_run_single_target(self, mock_sleep):
         from tools.swarm_controller import SwarmController, SwarmConfig, SwarmTarget
+
         ctrl = SwarmController(SwarmConfig())
         t = SwarmTarget(target_id="t1", target_url="http://a.com", mission_id="m1")
         result = ctrl._run_single_target(t)
@@ -1424,13 +1635,19 @@ class TestSwarmController:
 class TestFormatSwarmReport:
     def test_format(self):
         from tools.swarm_controller import format_swarm_report
+
         report = {
             "swarm_id": "swarm_test123",
             "total_duration_seconds": 42.5,
             "summary": {"total_targets": 3, "completed": 2, "failed": 1, "total_findings": 10},
             "severity_distribution": {"critical": 2, "high": 3, "medium": 5},
             "target_breakdown": [
-                {"target": "http://a.com", "success": True, "findings_count": 5, "duration_seconds": 10},
+                {
+                    "target": "http://a.com",
+                    "success": True,
+                    "findings_count": 5,
+                    "duration_seconds": 10,
+                },
             ],
         }
         output = format_swarm_report(report)
@@ -1447,6 +1664,7 @@ class TestFormatSwarmReport:
 class TestSOCAnalyzerAlert:
     def test_creation(self):
         from tools.soc_analyzer import Alert
+
         a = Alert(
             alert_id="a1",
             timestamp="2024-01-01T00:00:00Z",
@@ -1463,13 +1681,17 @@ class TestSOCAnalyzer:
     @pytest.fixture
     def analyzer(self):
         from tools.soc_analyzer import SOCAnalyzer
-        return SOCAnalyzer(ioc_db={
-            "ip": {"10.0.0.1": True, "192.168.1.100": True},
-            "domain": {"evil.com": True},
-        })
+
+        return SOCAnalyzer(
+            ioc_db={
+                "ip": {"10.0.0.1": True, "192.168.1.100": True},
+                "domain": {"evil.com": True},
+            }
+        )
 
     def test_init(self):
         from tools.soc_analyzer import SOCAnalyzer
+
         sa = SOCAnalyzer()
         assert sa.ioc_db == {}
         assert sa.alerts == []
@@ -1479,7 +1701,13 @@ class TestSOCAnalyzer:
         alert = analyzer.parse_syslog(line)
         assert alert is not None
         assert alert.src_ip == "10.0.0.1"
-        assert "critical" in ("critical", "high", "medium", "low", "info")  # just checking it's valid
+        assert "critical" in (
+            "critical",
+            "high",
+            "medium",
+            "low",
+            "info",
+        )  # just checking it's valid
 
     def test_parse_syslog_invalid(self, analyzer):
         alert = analyzer.parse_syslog("not a syslog line at all")
@@ -1524,10 +1752,16 @@ class TestSOCAnalyzer:
 
     def test_check_ioc(self, analyzer):
         from tools.soc_analyzer import Alert
+
         alert = Alert(
-            alert_id="a1", timestamp="", source="test",
-            alert_type="intrusion", severity="high", confidence=0.9,
-            src_ip="10.0.0.1", domain="evil.com",
+            alert_id="a1",
+            timestamp="",
+            source="test",
+            alert_type="intrusion",
+            severity="high",
+            confidence=0.9,
+            src_ip="10.0.0.1",
+            domain="evil.com",
         )
         matches = analyzer.check_ioc(alert)
         assert "ip:10.0.0.1" in matches
@@ -1535,9 +1769,14 @@ class TestSOCAnalyzer:
 
     def test_check_ioc_no_match(self, analyzer):
         from tools.soc_analyzer import Alert
+
         alert = Alert(
-            alert_id="a1", timestamp="", source="test",
-            alert_type="intrusion", severity="high", confidence=0.9,
+            alert_id="a1",
+            timestamp="",
+            source="test",
+            alert_type="intrusion",
+            severity="high",
+            confidence=0.9,
             src_ip="1.2.3.4",
         )
         matches = analyzer.check_ioc(alert)
@@ -1545,9 +1784,14 @@ class TestSOCAnalyzer:
 
     def test_identify_threat_actor(self, analyzer):
         from tools.soc_analyzer import Alert
+
         alert = Alert(
-            alert_id="a1", timestamp="", source="test",
-            alert_type="intrusion", severity="high", confidence=0.9,
+            alert_id="a1",
+            timestamp="",
+            source="test",
+            alert_type="intrusion",
+            severity="high",
+            confidence=0.9,
             signature="Cobalt Strike beacon detected",
         )
         actor, campaign = analyzer.identify_threat_actor(alert)
@@ -1555,9 +1799,14 @@ class TestSOCAnalyzer:
 
     def test_identify_threat_actor_none(self, analyzer):
         from tools.soc_analyzer import Alert
+
         alert = Alert(
-            alert_id="a1", timestamp="", source="test",
-            alert_type="intrusion", severity="high", confidence=0.9,
+            alert_id="a1",
+            timestamp="",
+            source="test",
+            alert_type="intrusion",
+            severity="high",
+            confidence=0.9,
             signature="Generic alert",
         )
         actor, campaign = analyzer.identify_threat_actor(alert)
@@ -1565,9 +1814,14 @@ class TestSOCAnalyzer:
 
     def test_calculate_priority(self, analyzer):
         from tools.soc_analyzer import Alert
+
         alert = Alert(
-            alert_id="a1", timestamp="", source="test",
-            alert_type="intrusion", severity="critical", confidence=1.0,
+            alert_id="a1",
+            timestamp="",
+            source="test",
+            alert_type="intrusion",
+            severity="critical",
+            confidence=1.0,
         )
         priority = analyzer.calculate_priority(alert)
         assert priority > 0
@@ -1575,9 +1829,14 @@ class TestSOCAnalyzer:
 
     def test_calculate_priority_with_iocs(self, analyzer):
         from tools.soc_analyzer import Alert
+
         alert = Alert(
-            alert_id="a1", timestamp="", source="test",
-            alert_type="intrusion", severity="critical", confidence=1.0,
+            alert_id="a1",
+            timestamp="",
+            source="test",
+            alert_type="intrusion",
+            severity="critical",
+            confidence=1.0,
             ioc_matches=["ip:10.0.0.1"],
         )
         priority = analyzer.calculate_priority(alert)
@@ -1586,9 +1845,14 @@ class TestSOCAnalyzer:
 
     def test_triage_alert(self, analyzer):
         from tools.soc_analyzer import Alert
+
         alert = Alert(
-            alert_id="a1", timestamp="", source="test",
-            alert_type="intrusion", severity="high", confidence=0.9,
+            alert_id="a1",
+            timestamp="",
+            source="test",
+            alert_type="intrusion",
+            severity="high",
+            confidence=0.9,
             src_ip="10.0.0.1",  # known IOC
         )
         result = analyzer.triage_alert(alert)
@@ -1597,23 +1861,37 @@ class TestSOCAnalyzer:
 
     def test_triage_alert_false_positive(self, analyzer):
         from tools.soc_analyzer import Alert
+
         alert = Alert(
-            alert_id="a2", timestamp="", source="test",
-            alert_type="recon", severity="low", confidence=0.2,
+            alert_id="a2",
+            timestamp="",
+            source="test",
+            alert_type="recon",
+            severity="low",
+            confidence=0.2,
         )
         result = analyzer.triage_alert(alert)
         assert result.category == "false_positive_likely"
 
     def test_correlate_alerts(self, analyzer):
         from tools.soc_analyzer import Alert, TriageResult
+
         a1 = Alert(
-            alert_id="a1", timestamp="", source="test",
-            alert_type="intrusion", severity="high", confidence=0.9,
+            alert_id="a1",
+            timestamp="",
+            source="test",
+            alert_type="intrusion",
+            severity="high",
+            confidence=0.9,
             src_ip="10.0.0.1",
         )
         a2 = Alert(
-            alert_id="a2", timestamp="", source="test",
-            alert_type="recon", severity="medium", confidence=0.7,
+            alert_id="a2",
+            timestamp="",
+            source="test",
+            alert_type="recon",
+            severity="medium",
+            confidence=0.7,
             src_ip="10.0.0.1",
         )
         t1 = analyzer.triage_alert(a1)
@@ -1624,9 +1902,14 @@ class TestSOCAnalyzer:
 
     def test_generate_sigma_rule(self, analyzer):
         from tools.soc_analyzer import Alert
+
         alert = Alert(
-            alert_id="a1", timestamp="", source="suricata",
-            alert_type="intrusion", severity="high", confidence=0.9,
+            alert_id="a1",
+            timestamp="",
+            source="suricata",
+            alert_type="intrusion",
+            severity="high",
+            confidence=0.9,
             signature="ET EXPLOIT Detected",
             src_ip="10.0.0.1",
         )
@@ -1637,9 +1920,14 @@ class TestSOCAnalyzer:
 
     def test_generate_sigma_rule_low_confidence(self, analyzer):
         from tools.soc_analyzer import Alert
+
         alert = Alert(
-            alert_id="a1", timestamp="", source="test",
-            alert_type="intrusion", severity="high", confidence=0.3,
+            alert_id="a1",
+            timestamp="",
+            source="test",
+            alert_type="intrusion",
+            severity="high",
+            confidence=0.3,
         )
         rule = analyzer.generate_sigma_rule(alert)
         assert rule is None
@@ -1652,13 +1940,21 @@ class TestSOCAnalyzer:
 class TestFormatSocReport:
     def test_format(self):
         from tools.soc_analyzer import format_soc_report
+
         report = {
             "total_alerts": 10,
             "severity_distribution": {"high": 5, "medium": 3, "low": 2},
             "category_distribution": {"true_positive": 3, "needs_investigation": 7},
             "top_priority_alerts": [
-                {"id": "a1", "type": "intrusion", "severity": "high", "priority": 8.5,
-                 "src_ip": "10.0.0.1", "threat_actor": "cobalt_strike", "action": "Contain"},
+                {
+                    "id": "a1",
+                    "type": "intrusion",
+                    "severity": "high",
+                    "priority": 8.5,
+                    "src_ip": "10.0.0.1",
+                    "threat_actor": "cobalt_strike",
+                    "action": "Contain",
+                },
             ],
             "threat_actors_identified": ["cobalt_strike"],
             "generated_rules": [{"title": "Test Rule", "level": "high", "tags": ["intrusion"]}],

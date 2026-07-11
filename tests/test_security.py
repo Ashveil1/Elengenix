@@ -17,7 +17,8 @@ def test_execute_tool_destructive_requires_approval():
     agent = _lightweight_agent()
     # Mock the popup to return "deny"
     from unittest.mock import patch
-    with patch('agents.agent_executor._prompt_approval', return_value=(False, False)):
+
+    with patch("agents.agent_executor._prompt_approval", return_value=(False, False)):
         result = agent._execute_tool({"action": "run_shell", "command": "rm -rf /"})
     assert "rejected" in result.lower() or "blocked" in result.lower() or "deny" in result.lower()
 
@@ -26,8 +27,11 @@ def test_execute_tool_destructive_dd_requires_approval():
     """DESTRUCTIVE dd commands now show popup for user approval."""
     agent = _lightweight_agent()
     from unittest.mock import patch
-    with patch('agents.agent_executor._prompt_approval', return_value=(False, False)):
-        result = agent._execute_tool({"action": "run_shell", "command": "dd if=/dev/zero of=/dev/sda"})
+
+    with patch("agents.agent_executor._prompt_approval", return_value=(False, False)):
+        result = agent._execute_tool(
+            {"action": "run_shell", "command": "dd if=/dev/zero of=/dev/sda"}
+        )
     assert "rejected" in result.lower() or "blocked" in result.lower() or "deny" in result.lower()
 
 

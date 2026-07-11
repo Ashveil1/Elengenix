@@ -146,4 +146,3 @@ exclude = ["venv", "__pycache__", ".git"]
 [tool.pyrefly]
 disable-search-path-heuristics = true
 search-path = ["."]
-

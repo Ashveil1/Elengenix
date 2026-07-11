@@ -224,12 +224,12 @@ class Easing:
     EASE_IN = "EASE_IN"
     EASE_OUT = "EASE_OUT"
     EASE_IN_OUT = "EASE_IN_OUT"
-    
+
     @staticmethod
     def apply(easing_type, t, start, end):
         """Apply easing function to interpolate between start and end."""
         t = max(0.0, min(1.0, t))
-        
+
         if easing_type == Easing.LINEAR:
             return start + (end - start) * t
         elif easing_type == Easing.EASE_IN:
@@ -273,16 +273,16 @@ def test_export_to_html_escapes():
     from tui.export import export_to_html
     import tempfile
     import os
-    
+
     data = {
         "findings": [
             {"title": "<script>alert(1)</script>", "severity": "HIGH"}
         ]
     }
-    
+
     with tempfile.NamedTemporaryFile(suffix=".html", delete=False) as f:
         output_path = f.name
-    
+
     try:
         result = export_to_html(data, output_path)
         with open(result) as f:
@@ -296,12 +296,12 @@ def test_export_to_pdf_produces_svg():
     from tui.export import export_to_pdf
     import tempfile
     import os
-    
+
     data = {"findings": []}
-    
+
     with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as f:
         output_path = f.name
-    
+
     try:
         result = export_to_pdf(data, output_path)
         assert result.endswith(".svg")
@@ -345,10 +345,10 @@ def export_to_pdf(dashboard_data, output_path, title="Elengenix Report"):
     """Export to SVG (not PDF)."""
     from rich.console import Console
     from rich.panel import Panel
-    
+
     # Fix path handling
     svg_path = output_path.replace(".pdf", ".svg")
-    
+
     console = Console(record=True, width=120)
     # ... render findings
     console.save_svg(svg_path)
@@ -463,31 +463,31 @@ class KnowledgeGraph:
         self.nodes: Dict[str, Node] = {}
         self.edges: List[Edge] = []
         self._adjacency: Dict[str, List[Tuple[EdgeType, str]]] = {}
-    
+
     def add_asset(self, asset_id: str, data: Dict = None):
         self.nodes[asset_id] = Node(asset_id, NodeType.ASSET, data or {})
-    
+
     def add_finding(self, finding_id: str, data: Dict = None):
         self.nodes[finding_id] = Node(finding_id, NodeType.FINDING, data or {})
-    
+
     def add_tool(self, tool_id: str, data: Dict = None):
         self.nodes[tool_id] = Node(tool_id, NodeType.TOOL, data or {})
-    
+
     def add_edge(self, source: str, edge_type: str, target: str):
         et = EdgeType(edge_type)
         self.edges.append(Edge(source, et, target))
         if source not in self._adjacency:
             self._adjacency[source] = []
         self._adjacency[source].append((et, target))
-    
+
     def get_asset(self, asset_id: str) -> Optional[Dict]:
         node = self.nodes.get(asset_id)
         return node.data if node and node.node_type == NodeType.ASSET else None
-    
+
     def get_finding(self, finding_id: str) -> Optional[Dict]:
         node = self.nodes.get(finding_id)
         return node.data if node and node.node_type == NodeType.FINDING else None
-    
+
     def find_related_findings(self, finding_id: str) -> List[str]:
         related = []
         for edge in self.edges:
@@ -496,26 +496,26 @@ class KnowledgeGraph:
             elif edge.target == finding_id and edge.edge_type == EdgeType.CHAINS_TO:
                 related.append(edge.source)
         return related
-    
+
     def get_tools_for_vuln_class(self, vuln_class: str) -> List[str]:
         tools = []
         for edge in self.edges:
             if edge.edge_type == EdgeType.WORKS_ON and edge.target == vuln_class:
                 tools.append(edge.source)
         return tools
-    
+
     def get_chains(self) -> List[List[str]]:
         chains = []
         for edge in self.edges:
             if edge.edge_type == EdgeType.CHAINS_TO:
                 chains.append([edge.source, edge.target])
         return chains
-    
+
     def to_dict(self) -> Dict:
         return {
-            "nodes": {k: {"type": v.node_type.value, "data": v.data} 
+            "nodes": {k: {"type": v.node_type.value, "data": v.data}
                      for k, v in self.nodes.items()},
-            "edges": [{"source": e.source, "type": e.edge_type.value, 
+            "edges": [{"source": e.source, "type": e.edge_type.value,
                        "target": e.target} for e in self.edges]
         }
 ```
@@ -595,7 +595,7 @@ class EscalationPath:
 class EscalationEngine:
     def __init__(self):
         self.escalation_map = self._build_escalation_map()
-    
+
     def _build_escalation_map(self) -> Dict[str, EscalationPath]:
         return {
             "XSS": EscalationPath(
@@ -634,11 +634,11 @@ class EscalationEngine:
                 description="Combine with other findings to increase impact"
             ),
         }
-    
+
     def can_escalate(self, finding: Dict) -> Optional[EscalationPath]:
         finding_type = finding.get("type", "")
         return self.escalation_map.get(finding_type)
-    
+
     def get_escalation_steps(self, finding: Dict) -> List[str]:
         path = self.can_escalate(finding)
         return path.next_steps if path else []
@@ -716,7 +716,7 @@ class AttackChain:
 class ChainingEngine:
     def __init__(self):
         self.chain_rules = self._build_chain_rules()
-    
+
     def _build_chain_rules(self) -> Dict[str, Dict]:
         return {
             "IDOR+info_disclosure": {
@@ -744,10 +744,10 @@ class ChainingEngine:
                 "chain_type": "data_exfiltration"
             },
         }
-    
+
     def analyze_chain(self, findings: List[Dict]) -> Optional[AttackChain]:
         finding_types = [f.get("type", "") for f in findings]
-        
+
         for rule_name, rule in self.chain_rules.items():
             if all(ft in finding_types for ft in rule["findings"]):
                 return AttackChain(
@@ -756,9 +756,9 @@ class ChainingEngine:
                     impact_description=rule["impact"],
                     chain_type=rule["chain_type"]
                 )
-        
+
         return None
-    
+
     def find_chainable_findings(self, findings: List[Dict]) -> List[Tuple[Dict, Dict]]:
         chainable = []
         for i, f1 in enumerate(findings):
@@ -838,12 +838,12 @@ class VerificationResult:
 class VerificationEngine:
     def __init__(self):
         self.severity_levels = ["INFO", "LOW", "MEDIUM", "HIGH", "CRITICAL"]
-    
-    def verify(self, finding: Dict, model_a_response: str, 
+
+    def verify(self, finding: Dict, model_a_response: str,
                model_b_response: str) -> VerificationResult:
         a_confirms = "confirm" in model_a_response.lower() or "true" in model_a_response.lower()
         b_confirms = "confirm" in model_b_response.lower() or "true" in model_b_response.lower()
-        
+
         if a_confirms and b_confirms:
             return VerificationResult(
                 finding=finding,
@@ -968,7 +968,7 @@ class AdaptivePlanner:
             "standard_page": 2,
             "static": 1,
         }
-    
+
     def rank_targets(self, targets: List[Dict]) -> List[Dict]:
         ranked = []
         for target in targets:
@@ -977,29 +977,29 @@ class AdaptivePlanner:
             target["rank"] = rank
             ranked.append(target)
         return sorted(ranked, key=lambda x: x["rank"], reverse=True)
-    
+
     def decide_next(self, state: Dict) -> Dict:
         findings = state.get("findings", [])
         tried = state.get("tried_paths", [])
         budget = state.get("budget_remaining", 1.0)
-        
+
         if budget < 0.1:
             return {"action": ActionType.REPORT.value, "reason": "budget_low"}
-        
+
         if not findings and not tried:
             return {"action": ActionType.RECON.value, "reason": "initial_scan"}
-        
+
         if findings:
             high_findings = [f for f in findings if f.get("severity") in ["HIGH", "CRITICAL"]]
             if high_findings:
-                return {"action": ActionType.ESCALATE.value, 
+                return {"action": ActionType.ESCALATE.value,
                         "finding": high_findings[0],
                         "reason": "high_severity_found"}
-        
-        return {"action": ActionType.SCAN.value, 
+
+        return {"action": ActionType.SCAN.value,
                 "reason": "continue_scanning",
                 "tried": tried}
-    
+
     def should_replan(self, state: Dict) -> bool:
         findings = state.get("findings", [])
         gaps = state.get("gaps", [])
@@ -1089,19 +1089,19 @@ class MissionState:
     cost: float = 0.0
 
 class VulnFinder:
-    def __init__(self, target: str, max_steps: int = 100, 
+    def __init__(self, target: str, max_steps: int = 100,
                  budget_limit: float = 50.0):
         self.target = target
         self.max_steps = max_steps
         self.budget_limit = budget_limit
-        
+
         self.state = MissionState(target=target)
         self.kg = KnowledgeGraph()
         self.escalation = EscalationEngine()
         self.chaining = ChainingEngine()
         self.verification = VerificationEngine()
         self.planner = AdaptivePlanner()
-    
+
     def recon(self) -> Dict:
         """Perform reconnaissance on target."""
         self.state.status = MissionStatus.RECON
@@ -1114,7 +1114,7 @@ class VulnFinder:
         }
         self.state.assets = assets
         return assets
-    
+
     def plan(self) -> List[Dict]:
         """Create attack plan based on assets."""
         self.state.status = MissionStatus.PLANNING
@@ -1124,22 +1124,22 @@ class VulnFinder:
         ]
         ranked = self.planner.rank_targets(targets)
         return ranked
-    
+
     def execute(self, attack_path: Dict) -> Dict:
         """Execute a single attack path."""
         self.state.status = MissionStatus.EXECUTING
         self.state.steps += 1
-        
+
         result = {
             "path": attack_path,
             "success": False,
             "finding": None,
             "output": ""
         }
-        
+
         self.state.tried_paths.append(attack_path.get("url", ""))
         return result
-    
+
     def escalate(self, finding: Dict) -> Optional[Dict]:
         """Try to escalate a finding to higher severity."""
         path = self.escalation.can_escalate(finding)
@@ -1150,7 +1150,7 @@ class VulnFinder:
                 "expected_severity": path.expected_severity
             }
         return None
-    
+
     def chain(self, findings: List[Dict]) -> Optional[Dict]:
         """Try to chain multiple findings."""
         chain = self.chaining.analyze_chain(findings)
@@ -1161,11 +1161,11 @@ class VulnFinder:
                 "impact": chain.impact_description
             }
         return None
-    
+
     def verify(self, finding: Dict, model_a: str, model_b: str):
         """Verify a finding with dual-model verification."""
         return self.verification.verify(finding, model_a, model_b)
-    
+
     def should_continue(self) -> bool:
         """Check if mission should continue."""
         if self.state.steps >= self.max_steps:
@@ -1174,7 +1174,7 @@ class VulnFinder:
             return False
         budget_remaining = 1.0 - (self.state.cost / self.budget_limit)
         return budget_remaining > 0.1
-    
+
     def get_status(self) -> Dict:
         """Get current mission status."""
         return {
@@ -1289,14 +1289,14 @@ git commit -m "feat: add progressive disclosure system prompt template"
 def test_vuln_finder_agent_integration():
     from tools.vuln_finder import VulnFinder
     finder = VulnFinder(target="http://test.com")
-    
+
     # Test full flow
     assets = finder.recon()
     assert assets is not None
-    
+
     plan = finder.plan()
     assert isinstance(plan, list)
-    
+
     status = finder.get_status()
     assert status["status"] == "planning"
 ```

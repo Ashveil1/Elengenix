@@ -288,20 +288,18 @@ class CommandSimplifier:
 
     SHORTCUTS = {
         # Unified scan shortcuts (all go to scan with --phase)
-        "bb": "scan --phase bola",      # Bug bounty BOLA testing
-        "check": "scan --phase recon",   # Quick recon check
-        "test": "scan --phase waf",      # WAF detection test
-        "recon": "scan --phase recon",   # Reconnaissance
-        "scan": "scan",                  # Full scan (no change)
-
+        "bb": "scan --phase bola",  # Bug bounty BOLA testing
+        "check": "scan --phase recon",  # Quick recon check
+        "test": "scan --phase waf",  # WAF detection test
+        "recon": "scan --phase recon",  # Reconnaissance
+        "scan": "scan",  # Full scan (no change)
         # Interactive mode shortcuts (advanced)
-        "bola": "scan --interactive bola",   # Interactive BOLA
-        "waf": "scan --interactive waf",     # Interactive WAF bypass
-
+        "bola": "scan --interactive bola",  # Interactive BOLA
+        "waf": "scan --interactive waf",  # Interactive WAF bypass
         # Other shortcuts
-        "hack": "ai",      # AI mode
-        "learn": "ai",     # AI mode
-        "help": "menu",    # Show menu
+        "hack": "ai",  # AI mode
+        "learn": "ai",  # AI mode
+        "help": "menu",  # Show menu
         "report": "report",
         "pd": "report",
         "red": "evasion",  # Red team

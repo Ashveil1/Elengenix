@@ -1824,16 +1824,18 @@ def main(target: str = "", mode: str = "auto", session_id: str = "") -> None:
     # Start MCP server if enabled
     try:
         from mcp.manager import start_mcp
+
         start_mcp()
     except Exception:
         pass  # MCP not critical for TUI
-    
+
     app = ElengenixTextualApp(target=target, mode=mode, session_id=session_id)
     app.run()
-    
+
     # Stop MCP server on exit
     try:
         from mcp.manager import stop_mcp
+
         stop_mcp()
     except Exception:
         pass

@@ -110,7 +110,9 @@ def _make_app_stub():
     app.set_focus = MagicMock()
     app.set_timer = MagicMock()
     app.set_interval = MagicMock()
-    app.call_from_thread = MagicMock(side_effect=lambda fn, *a, **kw: fn(*a, **kw) if callable(fn) else None)
+    app.call_from_thread = MagicMock(
+        side_effect=lambda fn, *a, **kw: fn(*a, **kw) if callable(fn) else None
+    )
     app._mock_screen = MagicMock()
     app._mock_screen.add_class = MagicMock()
     app._mock_screen.remove_class = MagicMock()
@@ -133,16 +135,21 @@ def _get_widget(app, sel):
 
 def _patch_screen(app):
     """Patch the screen property to return app._mock_screen."""
-    return patch.object(type(app).__mro__[0], 'screen',
-                        new_callable=PropertyMock, return_value=app._mock_screen)
+    return patch.object(
+        type(app).__mro__[0], "screen", new_callable=PropertyMock, return_value=app._mock_screen
+    )
 
 
 def _patch_theme(app):
     """Patch the theme reactive so setting it works."""
     # theme is a Reactive, we need to allow setting
-    return patch.object(type(app).__mro__[0], 'theme', new_callable=PropertyMock,
-                        return_value="chill",
-                        side_effect=lambda self, val: None)
+    return patch.object(
+        type(app).__mro__[0],
+        "theme",
+        new_callable=PropertyMock,
+        return_value="chill",
+        side_effect=lambda self, val: None,
+    )
 
 
 # ===========================================================================
@@ -563,13 +570,13 @@ def test_settings_overlay_has_css():
 
 
 def test_settings_overlay_compose_exists():
-    assert hasattr(mod.SettingsOverlayWidget, 'compose')
+    assert hasattr(mod.SettingsOverlayWidget, "compose")
 
 
 def test_settings_overlay_on_mount():
     w = mod.SettingsOverlayWidget.__new__(mod.SettingsOverlayWidget)
     w._overlay = None
-    with patch.object(mod.SettingsOverlayWidget, '_reload'):
+    with patch.object(mod.SettingsOverlayWidget, "_reload"):
         w.on_mount()
         assert w._overlay is None
 
@@ -589,8 +596,9 @@ def test_settings_overlay_show_hide():
     mock_app.query_one = MagicMock(return_value=mock_input)
     mock_app.set_timer = MagicMock()
 
-    with patch.object(mod.SettingsOverlayWidget, 'app',
-                      new_callable=PropertyMock, return_value=mock_app):
+    with patch.object(
+        mod.SettingsOverlayWidget, "app", new_callable=PropertyMock, return_value=mock_app
+    ):
         w.show()
         w.add_class.assert_called_with("visible")
         w.hide()
@@ -623,8 +631,9 @@ def test_settings_overlay_reload_failure():
     mock_app._agent = None
 
     # _reload tries to import and create SettingsOverlay, which fails
-    with patch.object(mod.SettingsOverlayWidget, 'app',
-                      new_callable=PropertyMock, return_value=mock_app):
+    with patch.object(
+        mod.SettingsOverlayWidget, "app", new_callable=PropertyMock, return_value=mock_app
+    ):
         with patch("cli.textual.time") as mock_time:
             mock_time.monotonic.side_effect = [0, 4]
             mock_time.sleep = MagicMock()
@@ -657,8 +666,9 @@ def test_settings_overlay_on_key_escape():
     event.stop = MagicMock()
 
     mock_app = MagicMock()
-    with patch.object(mod.SettingsOverlayWidget, 'app',
-                      new_callable=PropertyMock, return_value=mock_app):
+    with patch.object(
+        mod.SettingsOverlayWidget, "app", new_callable=PropertyMock, return_value=mock_app
+    ):
         w.on_key(event)
     w.hide.assert_called_once()
 
@@ -690,8 +700,9 @@ def test_settings_overlay_on_key_saved():
     mock_app._load_agent = MagicMock()
     mock_app._chat_write_system = MagicMock()
 
-    with patch.object(mod.SettingsOverlayWidget, 'app',
-                      new_callable=PropertyMock, return_value=mock_app):
+    with patch.object(
+        mod.SettingsOverlayWidget, "app", new_callable=PropertyMock, return_value=mock_app
+    ):
         event = MagicMock()
         event.key = "enter"
         event.character = "\r"
@@ -713,8 +724,9 @@ def test_settings_overlay_on_key_saved_with_models():
     mock_app._load_agent = MagicMock()
     mock_app._chat_write_system = MagicMock()
 
-    with patch.object(mod.SettingsOverlayWidget, 'app',
-                      new_callable=PropertyMock, return_value=mock_app):
+    with patch.object(
+        mod.SettingsOverlayWidget, "app", new_callable=PropertyMock, return_value=mock_app
+    ):
         event = MagicMock()
         event.key = "enter"
         event.character = "\r"
@@ -736,8 +748,9 @@ def test_settings_overlay_on_key_error():
     mock_app = MagicMock()
     mock_app._chat_write_system = MagicMock()
 
-    with patch.object(mod.SettingsOverlayWidget, 'app',
-                      new_callable=PropertyMock, return_value=mock_app):
+    with patch.object(
+        mod.SettingsOverlayWidget, "app", new_callable=PropertyMock, return_value=mock_app
+    ):
         event = MagicMock()
         event.key = "enter"
         event.character = "\r"
@@ -776,8 +789,9 @@ def test_settings_overlay_on_key_load_session():
     mock_app = MagicMock()
     mock_app._load_session_by_id = MagicMock()
 
-    with patch.object(mod.SettingsOverlayWidget, 'app',
-                      new_callable=PropertyMock, return_value=mock_app):
+    with patch.object(
+        mod.SettingsOverlayWidget, "app", new_callable=PropertyMock, return_value=mock_app
+    ):
         event = MagicMock()
         event.key = "enter"
         event.character = "\r"
@@ -830,9 +844,12 @@ def test_settings_overlay_show_custom_url():
     mi.focus = MagicMock()
 
     def qs(sel, cls=None, **kw):
-        if sel == "#settings_content": return mc
-        if sel == "#custom_url_row": return mr
-        if sel == "#custom_url_input": return mi
+        if sel == "#settings_content":
+            return mc
+        if sel == "#custom_url_row":
+            return mr
+        if sel == "#custom_url_input":
+            return mi
         return _mock_widget()
 
     w.query_one = qs
@@ -860,8 +877,9 @@ def test_settings_overlay_on_input_empty():
     mock_app = MagicMock()
     mock_app.set_timer = MagicMock()
 
-    with patch.object(mod.SettingsOverlayWidget, 'app',
-                      new_callable=PropertyMock, return_value=mock_app):
+    with patch.object(
+        mod.SettingsOverlayWidget, "app", new_callable=PropertyMock, return_value=mock_app
+    ):
         event = MagicMock()
         event.input = MagicMock()
         event.input.id = "custom_url_input"
@@ -881,8 +899,9 @@ def test_settings_overlay_on_input_apikey():
     mock_app = MagicMock()
     mock_app.set_timer = MagicMock()
 
-    with patch.object(mod.SettingsOverlayWidget, 'app',
-                      new_callable=PropertyMock, return_value=mock_app):
+    with patch.object(
+        mod.SettingsOverlayWidget, "app", new_callable=PropertyMock, return_value=mock_app
+    ):
         event = MagicMock()
         event.input = MagicMock()
         event.input.id = "custom_url_input"
@@ -906,8 +925,9 @@ def test_settings_overlay_on_input_model():
     mock_app = MagicMock()
     mock_app.set_timer = MagicMock()
 
-    with patch.object(mod.SettingsOverlayWidget, 'app',
-                      new_callable=PropertyMock, return_value=mock_app):
+    with patch.object(
+        mod.SettingsOverlayWidget, "app", new_callable=PropertyMock, return_value=mock_app
+    ):
         event = MagicMock()
         event.input = MagicMock()
         event.input.id = "custom_url_input"
@@ -933,8 +953,9 @@ def test_settings_overlay_on_input_model_no_url():
     mock_app = MagicMock()
     mock_app.set_timer = MagicMock()
 
-    with patch.object(mod.SettingsOverlayWidget, 'app',
-                      new_callable=PropertyMock, return_value=mock_app):
+    with patch.object(
+        mod.SettingsOverlayWidget, "app", new_callable=PropertyMock, return_value=mock_app
+    ):
         event = MagicMock()
         event.input = MagicMock()
         event.input.id = "custom_url_input"
@@ -951,8 +972,9 @@ def test_settings_overlay_on_input_default_step():
     w._overlay._custom_step = ""
     mock_app = MagicMock()
 
-    with patch.object(mod.SettingsOverlayWidget, 'app',
-                      new_callable=PropertyMock, return_value=mock_app):
+    with patch.object(
+        mod.SettingsOverlayWidget, "app", new_callable=PropertyMock, return_value=mock_app
+    ):
         event = MagicMock()
         event.input = MagicMock()
         event.input.id = "custom_url_input"
@@ -971,8 +993,9 @@ def test_settings_overlay_on_input_no_overlay():
     mock_app = MagicMock()
     mock_app.set_timer = MagicMock()
 
-    with patch.object(mod.SettingsOverlayWidget, 'app',
-                      new_callable=PropertyMock, return_value=mock_app):
+    with patch.object(
+        mod.SettingsOverlayWidget, "app", new_callable=PropertyMock, return_value=mock_app
+    ):
         event = MagicMock()
         event.input = MagicMock()
         event.input.id = "custom_url_input"
@@ -992,7 +1015,7 @@ def test_help_overlay_css():
 
 
 def test_help_overlay_compose_exists():
-    assert hasattr(mod.HelpOverlayWidget, 'compose')
+    assert hasattr(mod.HelpOverlayWidget, "compose")
 
 
 def test_help_overlay_on_mount():
@@ -1012,8 +1035,9 @@ def test_help_overlay_show_hide():
     mock_app.query_one = MagicMock(return_value=mock_input)
     mock_app.set_timer = MagicMock()
 
-    with patch.object(mod.HelpOverlayWidget, 'app',
-                      new_callable=PropertyMock, return_value=mock_app):
+    with patch.object(
+        mod.HelpOverlayWidget, "app", new_callable=PropertyMock, return_value=mock_app
+    ):
         w.show()
         w.add_class.assert_called_with("visible")
         w.hide()
@@ -1085,11 +1109,12 @@ def test_app_init_with_params():
 
 def test_app_compose():
     """compose() needs active Textual app context for containers."""
-    assert hasattr(mod.ElengenixTextualApp, 'compose')
+    assert hasattr(mod.ElengenixTextualApp, "compose")
     # Verify compose method signature
     import inspect
+
     sig = inspect.signature(mod.ElengenixTextualApp.compose)
-    assert 'self' in sig.parameters
+    assert "self" in sig.parameters
 
 
 def test_app_chat_write_user():
@@ -1107,6 +1132,7 @@ def test_app_chat_write_agent():
 def test_app_chat_write_agent_md_fallback():
     app = _make_app_stub()
     from rich.markdown import Markdown
+
     call_count = [0]
 
     def side(content):
@@ -1145,6 +1171,7 @@ def test_app_chat_write_system():
 
 def test_app_chat_write_panel():
     from rich.panel import Panel
+
     app = _make_app_stub()
     p = Panel("test")
     app._chat_write_panel(p)
@@ -1399,7 +1426,7 @@ def test_app_run_transition_mode_switch():
     mw = _mock_widget()
     mw.styles = MagicMock()
     app.query_one = MagicMock(return_value=mw)
-    with patch.object(type(app), 'theme', new_callable=PropertyMock):
+    with patch.object(type(app), "theme", new_callable=PropertyMock):
         app._run_transition(11)
     assert app.mode == "HUNT"
 
@@ -1446,12 +1473,14 @@ def test_app_finish_transition_hunt():
     mg.styles = MagicMock()
 
     def qs(sel, **kw):
-        if sel == "#scanline": return msl
-        if sel == "#glitch": return mg
+        if sel == "#scanline":
+            return msl
+        if sel == "#glitch":
+            return mg
         return _mock_widget()
 
     app.query_one = qs
-    with patch.object(type(app), 'theme', new_callable=PropertyMock):
+    with patch.object(type(app), "theme", new_callable=PropertyMock):
         app._finish_transition()
     assert app._trans is False
     assert app.mode == "HUNT"
@@ -1468,12 +1497,14 @@ def test_app_finish_transition_chill():
     mg.styles = MagicMock()
 
     def qs(sel, **kw):
-        if sel == "#scanline": return msl
-        if sel == "#glitch": return mg
+        if sel == "#scanline":
+            return msl
+        if sel == "#glitch":
+            return mg
         return _mock_widget()
 
     app.query_one = qs
-    with patch.object(type(app), 'theme', new_callable=PropertyMock):
+    with patch.object(type(app), "theme", new_callable=PropertyMock):
         app._finish_transition()
     assert app.mode == "CHILL"
 
@@ -1486,7 +1517,7 @@ def test_app_finish_transition_exception():
     # query_one will fail in _finish_transition trying to hide overlays,
     # then mode/theme setting happens — patch those to avoid Reactive errors
     app.query_one = MagicMock(side_effect=Exception("err"))
-    with patch.object(type(app), 'theme', new_callable=PropertyMock):
+    with patch.object(type(app), "theme", new_callable=PropertyMock):
         app._finish_transition()
     assert app._trans is False
 
@@ -1506,8 +1537,7 @@ def test_app_trigger_border_glow():
     ms = MagicMock()
     ms.add_class = MagicMock()
 
-    with patch.object(type(app), 'screen',
-                      new_callable=PropertyMock, return_value=ms):
+    with patch.object(type(app), "screen", new_callable=PropertyMock, return_value=ms):
         app._trigger_border_glow()
     ms.add_class.assert_called_with("glow")
 
@@ -1517,8 +1547,7 @@ def test_app_trigger_border_glow_failure():
     ms = MagicMock()
     ms.add_class.side_effect = Exception("err")
 
-    with patch.object(type(app), 'screen',
-                      new_callable=PropertyMock, return_value=ms):
+    with patch.object(type(app), "screen", new_callable=PropertyMock, return_value=ms):
         app._trigger_border_glow()
 
 
@@ -1924,7 +1953,9 @@ def test_app_load_session_by_id():
     # then calls SessionManager().resume_session() — patch the class at import path
     mock_sm = MagicMock()
     mock_sm.return_value.resume_session.return_value = {
-        "target": "new.com", "mode": "HUNT", "turns": 5,
+        "target": "new.com",
+        "mode": "HUNT",
+        "turns": 5,
     }
     with patch("tools.session_manager.SessionManager", mock_sm):
         app._load_session_by_id("abc")
@@ -2215,7 +2246,9 @@ def test_slash_session_load():
     app = _make_app_stub()
     app._session_mgr = MagicMock()
     app._session_mgr.resume_session.return_value = {
-        "target": "loaded.com", "mode": "CHILL", "turns": 10,
+        "target": "loaded.com",
+        "mode": "CHILL",
+        "turns": 10,
     }
     app._replay_history = MagicMock()
     app._update_sidebar = MagicMock()
@@ -2396,10 +2429,14 @@ def _setup_key(app):
     ms.query_one = MagicMock(return_value=_mock_widget())
 
     def qs(sel, *args, **kw):
-        if sel == "#user_input": return mi
-        if sel == "#suggest_box": return mb
-        if sel == "#help_overlay": return mh
-        if sel == "#settings_overlay": return ms
+        if sel == "#user_input":
+            return mi
+        if sel == "#suggest_box":
+            return mb
+        if sel == "#help_overlay":
+            return mh
+        if sel == "#settings_overlay":
+            return ms
         return _mock_widget()
 
     app.query_one = qs
@@ -2620,7 +2657,8 @@ def test_on_key_help_visible():
     mh.on_key = MagicMock()
 
     def qs(sel, *args, **kw):
-        if sel == "#help_overlay": return mh
+        if sel == "#help_overlay":
+            return mh
         return _mock_widget()
 
     app.query_one = qs
@@ -2645,7 +2683,8 @@ def test_on_key_settings_visible():
             w = _mock_widget()
             w.has_class = MagicMock(return_value=False)
             return w
-        if sel == "#settings_overlay": return ms
+        if sel == "#settings_overlay":
+            return ms
         return _mock_widget()
 
     app.query_one = qs
@@ -2669,7 +2708,8 @@ def test_on_key_settings_custom_url_visible():
             w = _mock_widget()
             w.has_class = MagicMock(return_value=False)
             return w
-        if sel == "#settings_overlay": return ms
+        if sel == "#settings_overlay":
+            return ms
         return _mock_widget()
 
     app.query_one = qs
@@ -2711,8 +2751,10 @@ def test_refresh_dashboard_available():
     mt.add_finding = MagicMock()
 
     def qs(sel, **kw):
-        if sel == "#findings_display": return mf
-        if sel == "#threat_dashboard": return mt
+        if sel == "#findings_display":
+            return mf
+        if sel == "#threat_dashboard":
+            return mt
         return _mock_widget()
 
     app.query_one = qs
@@ -2735,8 +2777,10 @@ def test_refresh_dashboard_object_findings():
     mt.add_finding = MagicMock()
 
     def qs(sel, *args, **kw):
-        if sel == "#findings_display": return mf
-        if sel == "#threat_dashboard": return mt
+        if sel == "#findings_display":
+            return mf
+        if sel == "#threat_dashboard":
+            return mt
         return _mock_widget()
 
     app.query_one = qs
@@ -2802,9 +2846,19 @@ def test_bindings():
 
 def test_slash_commands():
     cmds = mod.ElengenixTextualApp.SLASH_COMMANDS
-    for c in ("/clear", "/reset", "/quit", "/mode chill", "/mode hunt",
-              "/target <domain>", "/talk 1", "/session", "/game", "/help",
-              "/theme <name>"):
+    for c in (
+        "/clear",
+        "/reset",
+        "/quit",
+        "/mode chill",
+        "/mode hunt",
+        "/target <domain>",
+        "/talk 1",
+        "/session",
+        "/game",
+        "/help",
+        "/theme <name>",
+    ):
         assert c in cmds
     assert len(cmds) >= 18
 
@@ -2874,9 +2928,11 @@ def test_on_mount_loads_session():
     # on_mount does `self._session_mgr = SessionManager()` then resume_session
     mock_sm_cls = MagicMock()
     mock_sm_cls.return_value.resume_session.return_value = {
-        "target": "loaded.com", "mode": "HUNT", "turns": 3,
+        "target": "loaded.com",
+        "mode": "HUNT",
+        "turns": 3,
     }
-    with patch.object(type(app), 'theme', new_callable=PropertyMock):
+    with patch.object(type(app), "theme", new_callable=PropertyMock):
         with patch("tools.session_manager.SessionManager", mock_sm_cls):
             app.on_mount()
     assert app.target == "loaded.com"
@@ -2896,7 +2952,7 @@ def test_on_mount_session_not_found():
     mb = _mock_widget()
     app.query_one = MagicMock(return_value=mb)
 
-    with patch.object(type(app), 'theme', new_callable=PropertyMock):
+    with patch.object(type(app), "theme", new_callable=PropertyMock):
         app.on_mount()
     assert app._load_sid == ""
 
@@ -2912,7 +2968,7 @@ def test_on_mount_no_session():
     mb = _mock_widget()
     app.query_one = MagicMock(return_value=mb)
 
-    with patch.object(type(app), 'theme', new_callable=PropertyMock):
+    with patch.object(type(app), "theme", new_callable=PropertyMock):
         app.on_mount()
     app._load_agent.assert_called_once()
     app._run_boot_sequence.assert_called_once()
@@ -2931,7 +2987,7 @@ def test_on_mount_session_mgr_failure():
     app.query_one = MagicMock(return_value=mb)
 
     with patch.dict("sys.modules", {"tools.session_manager": None}):
-        with patch.object(type(app), 'theme', new_callable=PropertyMock):
+        with patch.object(type(app), "theme", new_callable=PropertyMock):
             app.on_mount()
 
 

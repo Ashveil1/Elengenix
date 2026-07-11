@@ -130,8 +130,11 @@ class ScanLoop:
             # Phase 6: Post-process
             if result is not None:
                 self.post_processor.process(
-                    ctx, result, decision.action_data.get("tool", "unknown"),
-                    decision.action_data, step
+                    ctx,
+                    result,
+                    decision.action_data.get("tool", "unknown"),
+                    decision.action_data,
+                    step,
                 )
 
             # Phase 7: Update context counters
@@ -258,9 +261,7 @@ class ScanLoop:
         # Fallback: no executor
         return False, None, "No executor available"
 
-    def _handle_submit_findings(
-        self, ctx: "ScanContext", action_data: Dict
-    ) -> tuple:
+    def _handle_submit_findings(self, ctx: "ScanContext", action_data: Dict) -> tuple:
         """Handle submit_findings action (creates ToolResult from findings)."""
         from tools.tool_registry import ToolCategory, ToolResult
 

@@ -104,7 +104,13 @@ class TestReconToFindings:
     def test_interesting_params(self):
         recon = {
             "parameters": [
-                {"url": "http://example.com/api", "param": "q", "method": "GET", "is_interesting": True, "delta_pct": 50}
+                {
+                    "url": "http://example.com/api",
+                    "param": "q",
+                    "method": "GET",
+                    "is_interesting": True,
+                    "delta_pct": 50,
+                }
             ]
         }
         findings = _recon_to_findings(recon, "http://example.com")
@@ -188,7 +194,10 @@ class TestPipelineExecution:
         # Replace with simple phases
         pipeline.phase_registry = PhaseRegistry()
         pipeline.phase_registry.register(
-            Phase(name="test", func=AsyncMock(return_value=PhaseResult(success=True, findings=[{"type": "test"}])))
+            Phase(
+                name="test",
+                func=AsyncMock(return_value=PhaseResult(success=True, findings=[{"type": "test"}])),
+            )
         )
 
         config = ScanConfig(target="example.com", phases=["test"])
@@ -205,7 +214,10 @@ class TestPipelineExecution:
 
         pipeline.phase_registry = PhaseRegistry()
         pipeline.phase_registry.register(
-            Phase(name="test", func=AsyncMock(return_value=PhaseResult(success=True, findings=[{"type": "xss"}])))
+            Phase(
+                name="test",
+                func=AsyncMock(return_value=PhaseResult(success=True, findings=[{"type": "xss"}])),
+            )
         )
 
         config = ScanConfig(target="example.com", phases=["test"])
@@ -251,7 +263,14 @@ class TestPhaseWiring:
 
         import asyncio
 
-        for func in [_phase_recon, _phase_waf, _phase_fuzz, _phase_bola, _phase_learn, _phase_coverage]:
+        for func in [
+            _phase_recon,
+            _phase_waf,
+            _phase_fuzz,
+            _phase_bola,
+            _phase_learn,
+            _phase_coverage,
+        ]:
             assert asyncio.iscoroutinefunction(func), f"{func.__name__} is not async"
 
     def test_registry_has_correct_deps(self):

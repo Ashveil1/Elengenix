@@ -446,7 +446,9 @@ class TestPromptApproval:
     def test_unknown_input_defaults_to_deny(self):
         """Any input that is not y/Y/a/A must default to deny."""
         for bad_input in ["yes", "allow", "", "q", "1", "no"]:
-            with patch("cli.ui_components.console"), patch("builtins.input", return_value=bad_input):
+            with patch("cli.ui_components.console"), patch(
+                "builtins.input", return_value=bad_input
+            ):
                 approved, _ = _prompt_approval(cmd="pip install x", risk_level="PRIVILEGED")
             assert approved is False, f"Expected deny for input={bad_input!r}"
 

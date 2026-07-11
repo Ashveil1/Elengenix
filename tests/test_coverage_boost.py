@@ -169,22 +169,25 @@ class TestIsInScope:
     def test_in_scope_matching_domain(self):
         from core.orchestrator import is_in_scope
 
-        with patch("core.orchestrator._get_allowed_domains", return_value={"example.com"}), \
-             patch("core.orchestrator._check_dns_resolution", return_value=True):
+        with patch("core.orchestrator._get_allowed_domains", return_value={"example.com"}), patch(
+            "core.orchestrator._check_dns_resolution", return_value=True
+        ):
             assert is_in_scope("example.com") is True
 
     def test_in_scope_subdomain(self):
         from core.orchestrator import is_in_scope
 
-        with patch("core.orchestrator._get_allowed_domains", return_value={"example.com"}), \
-             patch("core.orchestrator._check_dns_resolution", return_value=True):
+        with patch("core.orchestrator._get_allowed_domains", return_value={"example.com"}), patch(
+            "core.orchestrator._check_dns_resolution", return_value=True
+        ):
             assert is_in_scope("sub.example.com") is True
 
     def test_not_in_scope(self):
         from core.orchestrator import is_in_scope
 
-        with patch("core.orchestrator._get_allowed_domains", return_value={"example.com"}), \
-             patch("core.orchestrator._check_dns_resolution", return_value=True):
+        with patch("core.orchestrator._get_allowed_domains", return_value={"example.com"}), patch(
+            "core.orchestrator._check_dns_resolution", return_value=True
+        ):
             assert is_in_scope("other.com") is False
 
     def test_in_scope_empty_target(self):

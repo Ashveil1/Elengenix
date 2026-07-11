@@ -33,8 +33,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 # Mock heavy optional imports that may not be installed
 for mod_name in [
-    "chromadb", "google.generativeai", "anthropic", "cohere",
-    "trafilatura", "googlesearch", "questionary", "prompt_toolkit",
+    "chromadb",
+    "google.generativeai",
+    "anthropic",
+    "cohere",
+    "trafilatura",
+    "googlesearch",
+    "questionary",
+    "prompt_toolkit",
 ]:
     if mod_name not in sys.modules:
         sys.modules[mod_name] = MagicMock()
@@ -211,6 +217,7 @@ class TestEnsureDependencies:
             if name == "yaml":
                 return False
             return True
+
         mock_check.side_effect = side_effect
         assert main.ensure_dependencies() is False
 
@@ -370,7 +377,9 @@ class TestCmdMarketplace:
         mock_mp.list_installed.return_value = []
         mock_mp.install_dir = "/tmp/plugins"
         mock_mp_cls.return_value = mock_mp
-        args = SimpleNamespace(subcommand="list", query=None, verified=False, upgrade=False, target=None)
+        args = SimpleNamespace(
+            subcommand="list", query=None, verified=False, upgrade=False, target=None
+        )
         try:
             main._cmd_marketplace(args)
         except Exception:
@@ -383,7 +392,9 @@ class TestCmdMarketplace:
             {"name": "test-plugin", "version": "1.0", "author": "test", "description": "desc"}
         ]
         mock_mp_cls.return_value = mock_mp
-        args = SimpleNamespace(subcommand="list", query=None, verified=False, upgrade=False, target=None)
+        args = SimpleNamespace(
+            subcommand="list", query=None, verified=False, upgrade=False, target=None
+        )
         try:
             main._cmd_marketplace(args)
         except Exception:
@@ -402,7 +413,9 @@ class TestCmdMarketplace:
         entry.tags = ["security"]
         mock_mp.search.return_value = [entry]
         mock_mp_cls.return_value = mock_mp
-        args = SimpleNamespace(subcommand="search", query="test", verified=False, upgrade=False, target=None)
+        args = SimpleNamespace(
+            subcommand="search", query="test", verified=False, upgrade=False, target=None
+        )
         try:
             main._cmd_marketplace(args)
         except Exception:
@@ -413,7 +426,9 @@ class TestCmdMarketplace:
         mock_mp = MagicMock()
         mock_mp.search.return_value = []
         mock_mp_cls.return_value = mock_mp
-        args = SimpleNamespace(subcommand="search", query="nothing", verified=False, upgrade=False, target=None)
+        args = SimpleNamespace(
+            subcommand="search", query="nothing", verified=False, upgrade=False, target=None
+        )
         try:
             main._cmd_marketplace(args)
         except Exception:
@@ -424,7 +439,14 @@ class TestCmdMarketplace:
         mock_mp = MagicMock()
         mock_mp.install.return_value = (True, "Installed")
         mock_mp_cls.return_value = mock_mp
-        args = SimpleNamespace(subcommand="install", name="test-plugin", query=None, verified=False, upgrade=False, target=None)
+        args = SimpleNamespace(
+            subcommand="install",
+            name="test-plugin",
+            query=None,
+            verified=False,
+            upgrade=False,
+            target=None,
+        )
         try:
             main._cmd_marketplace(args)
         except Exception:
@@ -435,7 +457,14 @@ class TestCmdMarketplace:
         mock_mp = MagicMock()
         mock_mp.install.return_value = (False, "Failed")
         mock_mp_cls.return_value = mock_mp
-        args = SimpleNamespace(subcommand="install", name="test-plugin", query=None, verified=False, upgrade=False, target=None)
+        args = SimpleNamespace(
+            subcommand="install",
+            name="test-plugin",
+            query=None,
+            verified=False,
+            upgrade=False,
+            target=None,
+        )
         try:
             main._cmd_marketplace(args)
         except Exception:
@@ -445,7 +474,9 @@ class TestCmdMarketplace:
     def test_install_no_name(self, mock_mp_cls):
         mock_mp = MagicMock()
         mock_mp_cls.return_value = mock_mp
-        args = SimpleNamespace(subcommand="install", name=None, query=None, verified=False, upgrade=False, target=None)
+        args = SimpleNamespace(
+            subcommand="install", name=None, query=None, verified=False, upgrade=False, target=None
+        )
         try:
             main._cmd_marketplace(args)
         except Exception:
@@ -456,7 +487,14 @@ class TestCmdMarketplace:
         mock_mp = MagicMock()
         mock_mp.uninstall.return_value = (True, "Uninstalled")
         mock_mp_cls.return_value = mock_mp
-        args = SimpleNamespace(subcommand="uninstall", name="test-plugin", query=None, verified=False, upgrade=False, target=None)
+        args = SimpleNamespace(
+            subcommand="uninstall",
+            name="test-plugin",
+            query=None,
+            verified=False,
+            upgrade=False,
+            target=None,
+        )
         try:
             main._cmd_marketplace(args)
         except Exception:
@@ -466,7 +504,14 @@ class TestCmdMarketplace:
     def test_uninstall_no_name(self, mock_mp_cls):
         mock_mp = MagicMock()
         mock_mp_cls.return_value = mock_mp
-        args = SimpleNamespace(subcommand="uninstall", name=None, query=None, verified=False, upgrade=False, target=None)
+        args = SimpleNamespace(
+            subcommand="uninstall",
+            name=None,
+            query=None,
+            verified=False,
+            upgrade=False,
+            target=None,
+        )
         try:
             main._cmd_marketplace(args)
         except Exception:
@@ -476,7 +521,9 @@ class TestCmdMarketplace:
     def test_unknown_subcommand(self, mock_mp_cls):
         mock_mp = MagicMock()
         mock_mp_cls.return_value = mock_mp
-        args = SimpleNamespace(subcommand="unknown", query=None, verified=False, upgrade=False, target=None)
+        args = SimpleNamespace(
+            subcommand="unknown", query=None, verified=False, upgrade=False, target=None
+        )
         try:
             main._cmd_marketplace(args)
         except Exception:
@@ -1057,7 +1104,9 @@ class TestMainCommandRouting:
         mock_hist.return_value = MagicMock()
         with patch("tools.profile_manager.ProfileManager") as mock_pm_cls:
             pm = MagicMock()
-            pm.get_profile.return_value = SimpleNamespace(description="Quick scan", base_command="scan")
+            pm.get_profile.return_value = SimpleNamespace(
+                description="Quick scan", base_command="scan"
+            )
             mock_pm_cls.return_value = pm
             try:
                 main.main()
@@ -1328,7 +1377,9 @@ class TestOrchestratorNormalizeTarget:
         assert orchestrator.normalize_target("[::1]:8080") == "::1"
 
     def test_complex_url(self):
-        assert orchestrator.normalize_target("https://sub.example.com:443/api/v1") == "sub.example.com"
+        assert (
+            orchestrator.normalize_target("https://sub.example.com:443/api/v1") == "sub.example.com"
+        )
 
 
 class TestOrchestratorIsValidTarget:
@@ -1529,15 +1580,13 @@ class TestCheckCvesForTech:
 
     def test_no_techs(self):
         result = orchestrator._check_cves_for_tech(
-            {"http_probe": {"tech": [], "headers": {}}},
-            "http://example.com"
+            {"http_probe": {"tech": [], "headers": {}}}, "http://example.com"
         )
         assert result == []
 
     def test_with_techs(self):
         result = orchestrator._check_cves_for_tech(
-            {"http_probe": {"tech": ["php"], "headers": {"Server": "Apache"}}},
-            "http://example.com"
+            {"http_probe": {"tech": ["php"], "headers": {"Server": "Apache"}}}, "http://example.com"
         )
         # May or may not find CVEs depending on KNOWN_CVES database
         assert isinstance(result, list)
@@ -1573,10 +1622,21 @@ class TestReconToFindings:
                 {"subdomain": "api.example.com", "ips": ["1.2.3.4"]},
             ],
             "parameters": [
-                {"url": "http://example.com/search", "param": "q", "method": "GET",
-                 "is_interesting": True, "delta_pct": 50, "baseline_len": 100, "test_len": 150},
-                {"url": "http://example.com/page", "param": "id", "method": "GET",
-                 "is_interesting": False},
+                {
+                    "url": "http://example.com/search",
+                    "param": "q",
+                    "method": "GET",
+                    "is_interesting": True,
+                    "delta_pct": 50,
+                    "baseline_len": 100,
+                    "test_len": 150,
+                },
+                {
+                    "url": "http://example.com/page",
+                    "param": "id",
+                    "method": "GET",
+                    "is_interesting": False,
+                },
             ],
         }
         result = orchestrator._recon_to_findings(recon, "http://example.com")
@@ -1598,6 +1658,7 @@ class TestCalculateCvssForResults:
 
     def test_with_findings(self):
         from tools.tool_registry import ToolResult, ToolCategory
+
         tr = ToolResult(
             success=True,
             tool_name="test",
@@ -1617,6 +1678,7 @@ class TestPrintFindingsSummary:
 
     def test_with_findings(self):
         from tools.tool_registry import ToolResult, ToolCategory
+
         tr = ToolResult(
             success=True,
             tool_name="test",
@@ -1640,66 +1702,82 @@ class TestFastPathClassify:
 
     def test_empty(self):
         from agents.agent_intent import _fast_path_classify
+
         assert _fast_path_classify("") == "casual"
 
     def test_hi(self):
         from agents.agent_intent import _fast_path_classify
+
         assert _fast_path_classify("hi") == "casual"
 
     def test_hello(self):
         from agents.agent_intent import _fast_path_classify
+
         assert _fast_path_classify("hello") == "casual"
 
     def test_hey(self):
         from agents.agent_intent import _fast_path_classify
+
         assert _fast_path_classify("hey") == "casual"
 
     def test_who_are_you(self):
         from agents.agent_intent import _fast_path_classify
+
         assert _fast_path_classify("who are you") == "casual"
 
     def test_what_can_you_do(self):
         from agents.agent_intent import _fast_path_classify
+
         assert _fast_path_classify("what can you do") == "casual"
 
     def test_help(self):
         from agents.agent_intent import _fast_path_classify
+
         assert _fast_path_classify("help") == "casual"
 
     def test_help_me(self):
         from agents.agent_intent import _fast_path_classify
+
         assert _fast_path_classify("help me") == "casual"
 
     def test_scan_pattern(self):
         from agents.agent_intent import _fast_path_classify
+
         assert _fast_path_classify("scan example.com") == "scan"
 
     def test_pentest_pattern(self):
         from agents.agent_intent import _fast_path_classify
+
         assert _fast_path_classify("pentest example.com") == "scan"
 
     def test_hack_pattern(self):
         from agents.agent_intent import _fast_path_classify
+
         assert _fast_path_classify("hack example.com") == "scan"
 
     def test_research_today(self):
         from agents.agent_intent import _fast_path_classify
+
         assert _fast_path_classify("today's scores") == "research"
 
     def test_research_latest(self):
         from agents.agent_intent import _fast_path_classify
+
         assert _fast_path_classify("latest news") == "research"
 
     def test_research_stock(self):
         from agents.agent_intent import _fast_path_classify
+
         assert _fast_path_classify("stock price") == "research"
 
     def test_thai_short_casual(self):
         from agents.agent_intent import _fast_path_classify
+
         assert _fast_path_classify("สวัสดี") == "casual"
 
     def test_ambiguous_returns_none(self):
         from agents.agent_intent import _fast_path_classify
+
         result = _fast_path_classify("review this code for vulnerabilities")
         assert result is None
 
@@ -1709,6 +1787,7 @@ class TestAiClassify:
 
     def test_returns_security_chat_on_none(self):
         from agents.agent_intent import _ai_classify
+
         client = MagicMock()
         response = MagicMock()
         response.content = None
@@ -1717,6 +1796,7 @@ class TestAiClassify:
 
     def test_returns_casual(self):
         from agents.agent_intent import _ai_classify
+
         client = MagicMock()
         response = MagicMock()
         response.content = "casual"
@@ -1725,6 +1805,7 @@ class TestAiClassify:
 
     def test_returns_scan(self):
         from agents.agent_intent import _ai_classify
+
         client = MagicMock()
         response = MagicMock()
         response.content = "scan"
@@ -1733,6 +1814,7 @@ class TestAiClassify:
 
     def test_returns_research(self):
         from agents.agent_intent import _ai_classify
+
         client = MagicMock()
         response = MagicMock()
         response.content = "research"
@@ -1741,6 +1823,7 @@ class TestAiClassify:
 
     def test_returns_unknown_defaults_security_chat(self):
         from agents.agent_intent import _ai_classify
+
         client = MagicMock()
         response = MagicMock()
         response.content = "something_weird"
@@ -1749,6 +1832,7 @@ class TestAiClassify:
 
     def test_exception_returns_security_chat(self):
         from agents.agent_intent import _ai_classify
+
         client = MagicMock()
         client.chat.side_effect = Exception("API error")
         assert _ai_classify(client, "test") == "security_chat"
@@ -1759,21 +1843,25 @@ class TestAnalyzeIntent:
 
     def test_fast_path_casual(self):
         from agents.agent_intent import analyze_intent
+
         client = MagicMock()
         assert analyze_intent(client, "hello") == "casual"
 
     def test_fast_path_scan(self):
         from agents.agent_intent import analyze_intent
+
         client = MagicMock()
         assert analyze_intent(client, "scan example.com") == "scan"
 
     def test_fast_path_research(self):
         from agents.agent_intent import analyze_intent
+
         client = MagicMock()
         assert analyze_intent(client, "today's scores") == "research"
 
     def test_ambiguous_delegates_to_ai(self):
         from agents.agent_intent import analyze_intent
+
         client = MagicMock()
         response = MagicMock()
         response.content = "security_chat"
@@ -1792,15 +1880,18 @@ class TestStripCodeFences:
 
     def test_no_fence(self):
         from agents.agent_helpers import _strip_code_fences
+
         assert _strip_code_fences('{"key": "value"}') == '{"key": "value"}'
 
     def test_json_fence(self):
         from agents.agent_helpers import _strip_code_fences
+
         result = _strip_code_fences('```json\n{"key": "value"}\n```')
         assert result == '{"key": "value"}'
 
     def test_plain_fence(self):
         from agents.agent_helpers import _strip_code_fences
+
         result = _strip_code_fences('```\n{"key": "value"}\n```')
         assert result == '{"key": "value"}'
 
@@ -1810,27 +1901,32 @@ class TestScanBalanced:
 
     def test_no_open(self):
         from agents.agent_helpers import _scan_balanced
+
         assert _scan_balanced("no braces here", "{", "}") is None
 
     def test_simple(self):
         from agents.agent_helpers import _scan_balanced
+
         result = _scan_balanced('prefix {"key": "value"} suffix', "{", "}")
         assert result == '{"key": "value"}'
 
     def test_nested(self):
         from agents.agent_helpers import _scan_balanced
+
         result = _scan_balanced('{"a": {"b": 1}}', "{", "}")
         assert result == '{"a": {"b": 1}}'
 
     def test_in_string(self):
         from agents.agent_helpers import _scan_balanced
+
         result = _scan_balanced('{"key": "val}ue"}', "{", "}")
         assert result == '{"key": "val}ue"}'
 
     def test_array(self):
         from agents.agent_helpers import _scan_balanced
-        result = _scan_balanced('[1, 2, 3]', "[", "]")
-        assert result == '[1, 2, 3]'
+
+        result = _scan_balanced("[1, 2, 3]", "[", "]")
+        assert result == "[1, 2, 3]"
 
 
 class TestRepairJson:
@@ -1838,18 +1934,21 @@ class TestRepairJson:
 
     def test_smart_quotes(self):
         from agents.agent_helpers import _repair_json
-        result = _repair_json('\u201ckey\u201d: \u201cvalue\u201d')
+
+        result = _repair_json("\u201ckey\u201d: \u201cvalue\u201d")
         assert result == '"key": "value"'
 
     def test_trailing_comma(self):
         from agents.agent_helpers import _repair_json
+
         result = _repair_json('{"a": 1,}')
         assert result == '{"a": 1}'
 
     def test_trailing_comma_in_array(self):
         from agents.agent_helpers import _repair_json
-        result = _repair_json('[1, 2, 3,]')
-        assert result == '[1, 2, 3]'
+
+        result = _repair_json("[1, 2, 3,]")
+        assert result == "[1, 2, 3]"
 
 
 class TestExtractJson:
@@ -1857,43 +1956,52 @@ class TestExtractJson:
 
     def test_none(self):
         from agents.agent_helpers import extract_json
+
         assert extract_json(None) is None
 
     def test_empty_string(self):
         from agents.agent_helpers import extract_json
+
         assert extract_json("") is None
 
     def test_whitespace_only(self):
         from agents.agent_helpers import extract_json
+
         assert extract_json("   ") is None
 
     def test_non_string(self):
         from agents.agent_helpers import extract_json
+
         result = extract_json(42)
         assert result == 42  # coerced to str then parsed as int
 
     def test_direct_json(self):
         from agents.agent_helpers import extract_json
+
         result = extract_json('{"action": "run_shell"}')
         assert result == {"action": "run_shell"}
 
     def test_in_code_fence(self):
         from agents.agent_helpers import extract_json
+
         result = extract_json('```json\n{"action": "run_shell"}\n```')
         assert result == {"action": "run_shell"}
 
     def test_array_expect_any(self):
         from agents.agent_helpers import extract_json
-        result = extract_json('[1, 2, 3]', expect="any")
+
+        result = extract_json("[1, 2, 3]", expect="any")
         assert result == [1, 2, 3]
 
     def test_repair_trailing_comma(self):
         from agents.agent_helpers import extract_json
+
         result = extract_json('{"a": 1, "b": 2,}')
         assert result == {"a": 1, "b": 2}
 
     def test_no_json_found(self):
         from agents.agent_helpers import extract_json
+
         assert extract_json("no json here at all") is None
 
 
@@ -1902,12 +2010,14 @@ class TestExtractJsonObject:
 
     def test_valid(self):
         from agents.agent_helpers import _extract_json_object
+
         result = _extract_json_object('{"action": "run_shell", "command": "ls"}')
         assert isinstance(result, dict)
 
     def test_array_returns_none(self):
         from agents.agent_helpers import _extract_json_object
-        result = _extract_json_object('[1, 2, 3]')
+
+        result = _extract_json_object("[1, 2, 3]")
         assert result is None
 
 
@@ -1916,24 +2026,29 @@ class TestExtractTargetFromText:
 
     def test_empty(self):
         from agents.agent_helpers import _extract_target_from_text
+
         assert _extract_target_from_text("") == ""
 
     def test_none(self):
         from agents.agent_helpers import _extract_target_from_text
+
         assert _extract_target_from_text(None) == ""
 
     def test_with_domain(self):
         from agents.agent_helpers import _extract_target_from_text
+
         result = _extract_target_from_text("scan example.com")
         assert "example.com" in result
 
     def test_with_ip(self):
         from agents.agent_helpers import _extract_target_from_text
+
         result = _extract_target_from_text("scan 8.8.8.8")
         assert "8.8.8.8" in result
 
     def test_stop_words_filtered(self):
         from agents.agent_helpers import _extract_target_from_text
+
         result = _extract_target_from_text("please scan for bug bounty")
         # After filtering stop words, no valid candidate should remain
         assert result == "" or "." in result
@@ -1944,17 +2059,20 @@ class TestSafeOperation:
 
     def test_success(self):
         from agents.agent_helpers import _safe_operation
+
         result = _safe_operation("test", lambda: 42)
         assert result == 42
 
     def test_failure_returns_default(self):
         from agents.agent_helpers import _safe_operation
-        result = _safe_operation("test", lambda: 1/0, default="fallback")
+
+        result = _safe_operation("test", lambda: 1 / 0, default="fallback")
         assert result == "fallback"
 
     def test_failure_logs(self):
         from agents.agent_helpers import _safe_operation
-        result = _safe_operation("test", lambda: 1/0, log_level="debug")
+
+        result = _safe_operation("test", lambda: 1 / 0, log_level="debug")
         assert result is None
 
 
@@ -1963,18 +2081,22 @@ class TestThaiMonthName:
 
     def test_january(self):
         from agents.agent_helpers import _thai_month_name
+
         assert _thai_month_name(1) == "มกราคม"
 
     def test_december(self):
         from agents.agent_helpers import _thai_month_name
+
         assert _thai_month_name(12) == "ธันวาคม"
 
     def test_invalid_month(self):
         from agents.agent_helpers import _thai_month_name
+
         assert _thai_month_name(13) == "13"
 
     def test_zero(self):
         from agents.agent_helpers import _thai_month_name
+
         assert _thai_month_name(0) == "0"
 
 
@@ -1983,18 +2105,21 @@ class TestGetNowContext:
 
     def test_returns_string(self):
         from agents.agent_helpers import _get_now_context
+
         result = _get_now_context()
         assert isinstance(result, str)
         assert "CURRENT TIME CONTEXT" in result
 
     def test_with_tz(self, monkeypatch):
         from agents.agent_helpers import _get_now_context
+
         monkeypatch.setenv("ELENGENIX_TZ", "Asia/Bangkok")
         result = _get_now_context()
         assert isinstance(result, str)
 
     def test_with_invalid_tz(self, monkeypatch):
         from agents.agent_helpers import _get_now_context
+
         monkeypatch.setenv("ELENGENIX_TZ", "Invalid/Timezone")
         result = _get_now_context()
         assert isinstance(result, str)
@@ -2010,34 +2135,44 @@ class TestExecuteTool:
 
     def test_finish_action(self):
         from agents.agent_executor import execute_tool
+
         gov = MagicMock()
         result = execute_tool({"action": "finish"}, gov)
         assert result == "__FINISH__"
 
     def test_save_memory(self):
         from agents.agent_executor import execute_tool
+
         gov = MagicMock()
         with patch("agents.agent_executor.remember"):
             result = execute_tool(
-                {"action": "save_memory", "learning": "test learning", "target": "test", "category": "test"},
+                {
+                    "action": "save_memory",
+                    "learning": "test learning",
+                    "target": "test",
+                    "category": "test",
+                },
                 gov,
             )
             assert "recorded" in result.lower()
 
     def test_ask_user_no_question(self):
         from agents.agent_executor import execute_tool
+
         gov = MagicMock()
         result = execute_tool({"action": "ask_user"}, gov)
         assert "error" in result.lower()
 
     def test_web_search_no_query(self):
         from agents.agent_executor import execute_tool
+
         gov = MagicMock()
         result = execute_tool({"action": "web_search"}, gov)
         assert "error" in result.lower()
 
     def test_web_search_success(self):
         from agents.agent_executor import execute_tool
+
         gov = MagicMock()
         with patch("tools.research_tool.search_web", return_value=[{"title": "test"}]):
             result = execute_tool({"action": "web_search", "query": "test query"}, gov)
@@ -2045,6 +2180,7 @@ class TestExecuteTool:
 
     def test_web_search_exception(self):
         from agents.agent_executor import execute_tool
+
         gov = MagicMock()
         with patch("tools.research_tool.search_web", side_effect=Exception("fail")):
             result = execute_tool({"action": "web_search", "query": "test"}, gov)
@@ -2052,24 +2188,28 @@ class TestExecuteTool:
 
     def test_unknown_action(self):
         from agents.agent_executor import execute_tool
+
         gov = MagicMock()
         result = execute_tool({"action": "unknown_action"}, gov)
         assert "unknown action" in result.lower()
 
     def test_run_shell_empty_command(self):
         from agents.agent_executor import execute_tool
+
         gov = MagicMock()
         result = execute_tool({"action": "run_shell", "command": ""}, gov)
         assert "error" in result.lower() or "invalid" in result.lower()
 
     def test_run_shell_none_command(self):
         from agents.agent_executor import execute_tool
+
         gov = MagicMock()
         result = execute_tool({"action": "run_shell"}, gov)
         assert "error" in result.lower() or "invalid" in result.lower()
 
     def test_action_dict_with_params(self):
         from agents.agent_executor import execute_tool
+
         gov = MagicMock()
         result = execute_tool(
             {"action": {"type": "finish", "params": {}}},
@@ -2079,6 +2219,7 @@ class TestExecuteTool:
 
     def test_action_aliases_shell(self):
         from agents.agent_executor import execute_tool
+
         gov = MagicMock()
         result = execute_tool({"action": "bash", "command": "echo test"}, gov)
         # Should be treated as run_shell
@@ -2086,6 +2227,7 @@ class TestExecuteTool:
 
     def test_action_aliases_search(self):
         from agents.agent_executor import execute_tool
+
         gov = MagicMock()
         with patch("tools.research_tool.search_web", return_value=[{"title": "test"}]):
             result = execute_tool({"action": "google", "query": "test"}, gov)
@@ -2093,30 +2235,35 @@ class TestExecuteTool:
 
     def test_action_aliases_done(self):
         from agents.agent_executor import execute_tool
+
         gov = MagicMock()
         result = execute_tool({"action": "done"}, gov)
         assert result == "__FINISH__"
 
     def test_action_aliases_complete(self):
         from agents.agent_executor import execute_tool
+
         gov = MagicMock()
         result = execute_tool({"action": "complete"}, gov)
         assert result == "__FINISH__"
 
     def test_action_aliases_end(self):
         from agents.agent_executor import execute_tool
+
         gov = MagicMock()
         result = execute_tool({"action": "end"}, gov)
         assert result == "__FINISH__"
 
     def test_action_aliases_exit(self):
         from agents.agent_executor import execute_tool
+
         gov = MagicMock()
         result = execute_tool({"action": "exit"}, gov)
         assert result == "__FINISH__"
 
     def test_action_aliases_remember(self):
         from agents.agent_executor import execute_tool
+
         gov = MagicMock()
         with patch("agents.agent_executor.remember"):
             result = execute_tool({"action": "remember", "learning": "test"}, gov)
@@ -2128,29 +2275,34 @@ class TestHandleAskUser:
 
     def test_no_question(self):
         from agents.agent_executor import handle_ask_user
+
         result = handle_ask_user({})
         assert "error" in result.lower()
 
     def test_confirm_type(self):
         from agents.agent_executor import handle_ask_user
+
         with patch("cli.ui_components.confirm", return_value=True):
             result = handle_ask_user({"question": "Proceed?", "input_type": "confirm"})
             assert result == "yes"
 
     def test_confirm_deny(self):
         from agents.agent_executor import handle_ask_user
+
         with patch("cli.ui_components.confirm", return_value=False):
             result = handle_ask_user({"question": "Proceed?", "input_type": "confirm"})
             assert result == "no"
 
     def test_text_type(self):
         from agents.agent_executor import handle_ask_user
+
         with patch("prompt_toolkit.prompt", return_value="user input"):
             result = handle_ask_user({"question": "Enter text:", "input_type": "text"})
             assert result == "user input"
 
     def test_text_eof(self):
         from agents.agent_executor import handle_ask_user
+
         with patch("prompt_toolkit.prompt", side_effect=EOFError):
             result = handle_ask_user({"question": "Enter text:", "input_type": "text"})
             assert "cancelled" in result.lower()
@@ -2161,6 +2313,7 @@ class TestExecuteToolRegistry:
 
     def test_tool_found_and_available(self):
         from agents.agent_executor import execute_tool_registry
+
         with patch("agents.agent_executor.registry") as mock_reg:
             tool = MagicMock()
             tool.is_available = True
@@ -2171,6 +2324,7 @@ class TestExecuteToolRegistry:
 
     def test_tool_not_found_fallback(self):
         from agents.agent_executor import execute_tool_registry
+
         with patch("agents.agent_executor.registry") as mock_reg:
             mock_reg.get_tool.return_value = None
             with patch("agents.agent_executor.execute_tool_subprocess") as mock_sub:
@@ -2184,6 +2338,7 @@ class TestExecuteToolSubprocess:
 
     def test_tool_not_in_path(self):
         from agents.agent_executor import execute_tool_subprocess
+
         with patch("shutil.which", return_value=None):
             result = execute_tool_subprocess("nonexistent_tool", "example.com")
             assert result.success is False
@@ -2191,6 +2346,7 @@ class TestExecuteToolSubprocess:
 
     def test_no_known_template(self):
         from agents.agent_executor import execute_tool_subprocess
+
         with patch("shutil.which", return_value="/usr/bin/unknown"):
             result = execute_tool_subprocess("unknown_tool", "example.com")
             assert result.success is False
@@ -2202,12 +2358,14 @@ class TestExecuteWriteScript:
 
     def test_no_code(self):
         from agents.agent_executor import execute_write_script
+
         gov = MagicMock()
         result = execute_write_script({}, gov)
         assert "code" in result.lower()
 
     def test_auto_detect_runner(self):
         from agents.agent_executor import execute_write_script
+
         gov = MagicMock()
         with patch("agents.agent_executor.execute_shell_command", return_value="output"):
             result = execute_write_script(
@@ -2222,12 +2380,14 @@ class TestExecuteInstallTool:
 
     def test_no_name_no_cmd(self):
         from agents.agent_executor import execute_install_tool
+
         gov = MagicMock()
         result = execute_install_tool({}, gov)
         assert "fail" in result.lower()
 
     def test_with_name(self):
         from agents.agent_executor import execute_install_tool
+
         gov = MagicMock()
         with patch("agents.agent_executor.execute_shell_command", return_value="installed"):
             result = execute_install_tool(
@@ -2238,6 +2398,7 @@ class TestExecuteInstallTool:
 
     def test_custom_install_cmd(self):
         from agents.agent_executor import execute_install_tool
+
         gov = MagicMock()
         with patch("agents.agent_executor.execute_shell_command", return_value="done"):
             result = execute_install_tool(
@@ -2257,6 +2418,7 @@ class TestConversationManager:
 
     def _make_manager(self):
         from agents.agent_conversation import ConversationManager
+
         client = MagicMock()
         return ConversationManager(client=client, max_history_turns=5, history_limit=3)
 
@@ -2325,7 +2487,10 @@ class TestConversationManager:
 
     def test_load_persistent_conversation(self):
         mgr = self._make_manager()
-        with patch("tools.memory_persistence.load_conversation", return_value=[{"role": "user", "content": "loaded"}]):
+        with patch(
+            "tools.memory_persistence.load_conversation",
+            return_value=[{"role": "user", "content": "loaded"}],
+        ):
             mgr.load_persistent_conversation()
             assert len(mgr.conversation_history) == 1
 
@@ -2340,6 +2505,7 @@ class TestModeProcessor:
 
     def _make_processor(self):
         from agents.agent_modes import ModeProcessor
+
         client = MagicMock()
         return ModeProcessor(client=client)
 
@@ -2401,6 +2567,7 @@ class TestTargetFingerprinter:
 
     def test_empty_fingerprint(self):
         from agents.agent_planner import TargetFingerprinter
+
         fp = TargetFingerprinter()
         result = fp.fingerprint()
         assert result["server"] is None
@@ -2408,6 +2575,7 @@ class TestTargetFingerprinter:
 
     def test_nginx_server(self):
         from agents.agent_planner import TargetFingerprinter
+
         fp = TargetFingerprinter()
         result = fp.fingerprint(headers={"Server": "nginx/1.21"})
         assert result["server"] == "nginx"
@@ -2415,132 +2583,154 @@ class TestTargetFingerprinter:
 
     def test_apache_server(self):
         from agents.agent_planner import TargetFingerprinter
+
         fp = TargetFingerprinter()
         result = fp.fingerprint(headers={"Server": "Apache/2.4.51"})
         assert result["server"] == "apache"
 
     def test_iis_server(self):
         from agents.agent_planner import TargetFingerprinter
+
         fp = TargetFingerprinter()
         result = fp.fingerprint(headers={"Server": "Microsoft-IIS/10.0"})
         assert result["server"] == "iis"
 
     def test_php_powered_by(self):
         from agents.agent_planner import TargetFingerprinter
+
         fp = TargetFingerprinter()
         result = fp.fingerprint(headers={"X-Powered-By": "PHP/8.1"})
         assert result["language"] == "php"
 
     def test_aspnet_powered_by(self):
         from agents.agent_planner import TargetFingerprinter
+
         fp = TargetFingerprinter()
         result = fp.fingerprint(headers={"X-Powered-By": "ASP.NET"})
         assert result["language"] == "aspnet"
 
     def test_express_powered_by(self):
         from agents.agent_planner import TargetFingerprinter
+
         fp = TargetFingerprinter()
         result = fp.fingerprint(headers={"X-Powered-By": "Express"})
         assert result["framework"] == "express"
 
     def test_drupal_generator(self):
         from agents.agent_planner import TargetFingerprinter
+
         fp = TargetFingerprinter()
         result = fp.fingerprint(headers={"X-Generator": "Drupal"})
         assert result["cms"] == "drupal"
 
     def test_wordpress_generator(self):
         from agents.agent_planner import TargetFingerprinter
+
         fp = TargetFingerprinter()
         result = fp.fingerprint(headers={"X-Generator": "WordPress"})
         assert result["cms"] == "wordpress"
 
     def test_wordpress_body(self):
         from agents.agent_planner import TargetFingerprinter
+
         fp = TargetFingerprinter()
         result = fp.fingerprint(body="<html>wp-content/themes/test</html>")
         assert result["cms"] == "wordpress"
 
     def test_django_body(self):
         from agents.agent_planner import TargetFingerprinter
+
         fp = TargetFingerprinter()
         result = fp.fingerprint(body="<html>django</html>")
         assert result["framework"] == "django"
 
     def test_php_url(self):
         from agents.agent_planner import TargetFingerprinter
+
         fp = TargetFingerprinter()
         result = fp.fingerprint(url="http://example.com/index.php")
         assert "php" in result["technologies"]
 
     def test_aspnet_url(self):
         from agents.agent_planner import TargetFingerprinter
+
         fp = TargetFingerprinter()
         result = fp.fingerprint(url="http://example.com/default.aspx")
         assert "aspnet" in result["technologies"]
 
     def test_jsp_url(self):
         from agents.agent_planner import TargetFingerprinter
+
         fp = TargetFingerprinter()
         result = fp.fingerprint(url="http://example.com/page.jsp")
         assert "java" in result["technologies"]
 
     def test_wordpress_url(self):
         from agents.agent_planner import TargetFingerprinter
+
         fp = TargetFingerprinter()
         result = fp.fingerprint(url="http://example.com/wp-admin/")
         assert "wordpress" in result["technologies"]
 
     def test_phpsessid_cookie(self):
         from agents.agent_planner import TargetFingerprinter
+
         fp = TargetFingerprinter()
         result = fp.fingerprint(cookies={"PHPSESSID": "abc123"})
         assert "php" in result["technologies"]
 
     def test_jsessionid_cookie(self):
         from agents.agent_planner import TargetFingerprinter
+
         fp = TargetFingerprinter()
         result = fp.fingerprint(cookies={"JSESSIONID": "abc123"})
         assert "java" in result["technologies"]
 
     def test_aspsession_cookie(self):
         from agents.agent_planner import TargetFingerprinter
+
         fp = TargetFingerprinter()
         result = fp.fingerprint(cookies={"ASP.NET_SessionId": "abc123"})
         assert "aspnet" in result["technologies"]
 
     def test_rails_cookie(self):
         from agents.agent_planner import TargetFingerprinter
+
         fp = TargetFingerprinter()
         result = fp.fingerprint(cookies={"_rails_session": "abc"})
         assert "rails" in result["technologies"]
 
     def test_express_cookie(self):
         from agents.agent_planner import TargetFingerprinter
+
         fp = TargetFingerprinter()
         result = fp.fingerprint(cookies={"connect.sid": "abc"})
         assert "express" in result["technologies"]
 
     def test_django_cookie(self):
         from agents.agent_planner import TargetFingerprinter
+
         fp = TargetFingerprinter()
         result = fp.fingerprint(cookies={"csrftoken": "abc"})
         assert "django" in result["technologies"]
 
     def test_cdn_header(self):
         from agents.agent_planner import TargetFingerprinter
+
         fp = TargetFingerprinter()
         result = fp.fingerprint(headers={"Cf-Ray": "12345"})
         assert result["cdn"] is not None
 
     def test_waf_cloudflare(self):
         from agents.agent_planner import TargetFingerprinter
+
         fp = TargetFingerprinter()
         result = fp.fingerprint(headers={"Server": "cloudflare"})
         assert result["waf"] is not None
 
     def test_php_mysql_inferred(self):
         from agents.agent_planner import TargetFingerprinter
+
         fp = TargetFingerprinter()
         result = fp.fingerprint(headers={"X-Powered-By": "PHP/8.1"})
         assert result["language"] == "php"
@@ -2548,6 +2738,7 @@ class TestTargetFingerprinter:
 
     def test_aspnet_mssql_inferred(self):
         from agents.agent_planner import TargetFingerprinter
+
         fp = TargetFingerprinter()
         result = fp.fingerprint(headers={"Server": "Microsoft-IIS/10.0"})
         assert result["server"] == "iis"
@@ -2556,54 +2747,63 @@ class TestTargetFingerprinter:
 
     def test_wordpress_body_magento(self):
         from agents.agent_planner import TargetFingerprinter
+
         fp = TargetFingerprinter()
         result = fp.fingerprint(body="<html>Magento Commerce</html>")
         assert result["cms"] == "magento"
 
     def test_laravel_body(self):
         from agents.agent_planner import TargetFingerprinter
+
         fp = TargetFingerprinter()
         result = fp.fingerprint(body="<html>laravel_session=abc</html>")
         assert result["framework"] == "laravel"
 
     def test_flask_body(self):
         from agents.agent_planner import TargetFingerprinter
+
         fp = TargetFingerprinter()
         result = fp.fingerprint(body="<html>flask</html>")
         assert result["framework"] == "flask"
 
     def test_graphql_body(self):
         from agents.agent_planner import TargetFingerprinter
+
         fp = TargetFingerprinter()
         result = fp.fingerprint(body="<html>graphql</html>")
         assert "graphql" in result["technologies"]
 
     def test_openapi_body(self):
         from agents.agent_planner import TargetFingerprinter
+
         fp = TargetFingerprinter()
         result = fp.fingerprint(body="<html>swagger/openapi</html>")
         assert "openapi" in result["technologies"]
 
     def test_jenkins_body(self):
         from agents.agent_planner import TargetFingerprinter
+
         fp = TargetFingerprinter()
         result = fp.fingerprint(body="<html>jenkins</html>")
         assert "jenkins" in result["technologies"]
 
     def test_kibana_body(self):
         from agents.agent_planner import TargetFingerprinter
+
         fp = TargetFingerprinter()
         result = fp.fingerprint(body="<html>kibana</html>")
         assert "kibana" in result["technologies"]
 
     def test_grafana_body(self):
         from agents.agent_planner import TargetFingerprinter
+
         fp = TargetFingerprinter()
         result = fp.fingerprint(body="<html>grafana</html>")
         assert "grafana" in result["technologies"]
 
     def test_cloudflare_server_overrides(self):
         from agents.agent_planner import TargetFingerprinter
+
         fp = TargetFingerprinter()
         # Cloudflare overrides nginx
         result = fp.fingerprint(headers={"Server": "cloudflare"})
@@ -2611,102 +2811,119 @@ class TestTargetFingerprinter:
 
     def test_server_timing(self):
         from agents.agent_planner import TargetFingerprinter
+
         fp = TargetFingerprinter()
         result = fp.fingerprint(headers={"Server-Timing": "total;dur=100"})
         assert "perf-hints" in result["technologies"]
 
     def test_via_varnish(self):
         from agents.agent_planner import TargetFingerprinter
+
         fp = TargetFingerprinter()
         result = fp.fingerprint(headers={"Via": "varnish"})
         assert "varnish" in result["technologies"]
 
     def test_varnish_header(self):
         from agents.agent_planner import TargetFingerprinter
+
         fp = TargetFingerprinter()
         result = fp.fingerprint(headers={"X-Varnish": "12345"})
         assert "varnish" in result["technologies"]
 
     def test_akamai_header(self):
         from agents.agent_planner import TargetFingerprinter
+
         fp = TargetFingerprinter()
         result = fp.fingerprint(headers={"X-Akamai-Transformed": "9 - 12345"})
         assert "akamai" in result["technologies"]
 
     def test_sucuri_header(self):
         from agents.agent_planner import TargetFingerprinter
+
         fp = TargetFingerprinter()
         result = fp.fingerprint(headers={"X-Sucuri-ID": "12345"})
         assert "sucuri" in result["technologies"]
 
     def test_joomla_body(self):
         from agents.agent_planner import TargetFingerprinter
+
         fp = TargetFingerprinter()
         result = fp.fingerprint(body="joomla")
         assert "joomla" not in result["technologies"]  # No joomla regex in body fingerprints
 
     def test_react_body(self):
         from agents.agent_planner import TargetFingerprinter
+
         fp = TargetFingerprinter()
         result = fp.fingerprint(body="<div id='root'></div><script>__NEXT_DATA__</script>")
         assert "react" in result["technologies"]
 
     def test_vue_body(self):
         from agents.agent_planner import TargetFingerprinter
+
         fp = TargetFingerprinter()
         result = fp.fingerprint(body="<html><div id='app'></div>vue</html>")
         assert "vue" in result["technologies"]
 
     def test_angular_body(self):
         from agents.agent_planner import TargetFingerprinter
+
         fp = TargetFingerprinter()
         result = fp.fingerprint(body="<html>angular</html>")
         assert "angular" in result["technologies"]
 
     def test_jquery_body(self):
         from agents.agent_planner import TargetFingerprinter
+
         fp = TargetFingerprinter()
         result = fp.fingerprint(body="<html>jQuery</html>")
         assert "jquery" in result["technologies"]
 
     def test_rails_body(self):
         from agents.agent_planner import TargetFingerprinter
+
         fp = TargetFingerprinter()
         result = fp.fingerprint(body="<html>csrf-token</html>")
         assert "rails" in result["technologies"]
 
     def test_tomcat_body(self):
         from agents.agent_planner import TargetFingerprinter
+
         fp = TargetFingerprinter()
         result = fp.fingerprint(body="<html>Apache Tomcat</html>")
         assert "tomcat" in result["technologies"]
 
     def test_phpmyadmin_body(self):
         from agents.agent_planner import TargetFingerprinter
+
         fp = TargetFingerprinter()
         result = fp.fingerprint(body="<html>phpmyadmin</html>")
         assert "phpmyadmin" in result["technologies"]
 
     def test_do_action_url(self):
         from agents.agent_planner import TargetFingerprinter
+
         fp = TargetFingerprinter()
         result = fp.fingerprint(url="http://example.com/action.do")
         assert "java" in result["technologies"]
 
     def test_action_url(self):
         from agents.agent_planner import TargetFingerprinter
+
         fp = TargetFingerprinter()
         result = fp.fingerprint(url="http://example.com/test.action")
         assert "java" in result["technologies"]
 
     def test_cloudfront_header(self):
         from agents.agent_planner import TargetFingerprinter
+
         fp = TargetFingerprinter()
         result = fp.fingerprint(headers={"X-Amz-Cf-Id": "abc"})
         assert result["cdn"] is not None
 
     def test_azure_header(self):
         from agents.agent_planner import TargetFingerprinter
+
         fp = TargetFingerprinter()
         result = fp.fingerprint(headers={"X-Azure-Re": "abc"})
         assert "azure" in result["technologies"]
@@ -2714,24 +2931,28 @@ class TestTargetFingerprinter:
 
     def test_shopify_header(self):
         from agents.agent_planner import TargetFingerprinter
+
         fp = TargetFingerprinter()
         result = fp.fingerprint(headers={"X-Shopify-Stage": "production"})
         assert "shopify" in result["technologies"]
 
     def test_tomcat_cookie(self):
         from agents.agent_planner import TargetFingerprinter
+
         fp = TargetFingerprinter()
         result = fp.fingerprint(cookies={"sid_tomcat": "abc"})
         assert "tomcat" in result["technologies"]
 
     def test_cloudflare_server_lowercase(self):
         from agents.agent_planner import TargetFingerprinter
+
         fp = TargetFingerprinter()
         result = fp.fingerprint(headers={"server": "cloudflare"})
         assert result["waf"] is not None
 
     def test_sucuri_server(self):
         from agents.agent_planner import TargetFingerprinter
+
         fp = TargetFingerprinter()
         result = fp.fingerprint(headers={"Server": "Sucuri/Cloudproxy"})
         assert result["waf"] is not None
@@ -2742,6 +2963,7 @@ class TestAttackVectorDatabase:
 
     def test_hypotheses_for_php(self):
         from agents.agent_planner import AttackVectorDatabase
+
         db = AttackVectorDatabase()
         hyps = db.hypotheses_for(["php"])
         assert len(hyps) > 0
@@ -2749,18 +2971,21 @@ class TestAttackVectorDatabase:
 
     def test_hypotheses_for_empty(self):
         from agents.agent_planner import AttackVectorDatabase
+
         db = AttackVectorDatabase()
         hyps = db.hypotheses_for([])
         assert hyps == []
 
     def test_technologies_for_vuln(self):
         from agents.agent_planner import AttackVectorDatabase
+
         db = AttackVectorDatabase()
         techs = db.technologies_for_vuln("sqli")
         assert "php" in techs
 
     def test_add(self):
         from agents.agent_planner import AttackVectorDatabase
+
         db = AttackVectorDatabase()
         db.add("custom_tech", [("test_vuln", "test hyp", ("tool1",))])
         hyps = db.hypotheses_for(["custom_tech"])
@@ -2768,6 +2993,7 @@ class TestAttackVectorDatabase:
 
     def test_dedup(self):
         from agents.agent_planner import AttackVectorDatabase
+
         db = AttackVectorDatabase()
         # php and mysql both have sqli - should dedup
         hyps = db.hypotheses_for(["php", "mysql"])
@@ -2781,6 +3007,7 @@ class TestStrategicPlanner:
 
     def _make_planner(self):
         from agents.agent_planner import StrategicPlanner
+
         client = MagicMock()
         return StrategicPlanner(client=client)
 
@@ -2791,12 +3018,12 @@ class TestStrategicPlanner:
     def test_generate_attack_tree_ai_success(self):
         planner = self._make_planner()
         response = MagicMock()
-        response.content = json.dumps({
-            "reasoning": "test reasoning",
-            "phases": [
-                {"phase": "recon", "tools": ["dns_lookup"], "purpose": "DNS enum"}
-            ]
-        })
+        response.content = json.dumps(
+            {
+                "reasoning": "test reasoning",
+                "phases": [{"phase": "recon", "tools": ["dns_lookup"], "purpose": "DNS enum"}],
+            }
+        )
         planner.client.chat.return_value = response
         tree = planner.generate_attack_tree("example.com", "find vulns")
         assert tree is not None
@@ -2848,6 +3075,7 @@ class TestStrategicPlanner:
 
     def test_select_next_tool_from_tree(self):
         from agents.agent_dataclasses import AttackTree, AttackStep, AttackPhase
+
         planner = self._make_planner()
         tree = AttackTree(target="example.com", objective="find vulns")
         tree.steps = [
@@ -2860,13 +3088,16 @@ class TestStrategicPlanner:
     def test_select_next_tool_critical_finding(self):
         from agents.agent_dataclasses import AttackTree, AttackStep, AttackPhase
         from tools.tool_registry import ToolResult, ToolCategory
+
         planner = self._make_planner()
         tree = AttackTree(target="example.com", objective="find vulns")
         tree.steps = [
             AttackStep(AttackPhase.EXPLOITATION, "vuln_scan", "example.com", "Scan"),
         ]
         tr = ToolResult(
-            success=True, tool_name="test", category=ToolCategory.RECON,
+            success=True,
+            tool_name="test",
+            category=ToolCategory.RECON,
             findings=[{"type": "secret", "severity": "critical"}],
         )
         tool = planner.select_next_tool(tree, [tr])
@@ -2875,13 +3106,16 @@ class TestStrategicPlanner:
     def test_select_next_tool_rce_finding(self):
         from agents.agent_dataclasses import AttackTree, AttackStep, AttackPhase
         from tools.tool_registry import ToolResult, ToolCategory
+
         planner = self._make_planner()
         tree = AttackTree(target="example.com", objective="find vulns")
         tree.steps = [
             AttackStep(AttackPhase.EXPLOITATION, "vuln_scan", "example.com", "Scan"),
         ]
         tr = ToolResult(
-            success=True, tool_name="test", category=ToolCategory.RECON,
+            success=True,
+            tool_name="test",
+            category=ToolCategory.RECON,
             findings=[{"type": "rce", "severity": "critical"}],
         )
         tool = planner.select_next_tool(tree, [tr])
@@ -2890,13 +3124,16 @@ class TestStrategicPlanner:
     def test_select_next_tool_sqli_finding(self):
         from agents.agent_dataclasses import AttackTree, AttackStep, AttackPhase
         from tools.tool_registry import ToolResult, ToolCategory
+
         planner = self._make_planner()
         tree = AttackTree(target="example.com", objective="find vulns")
         tree.steps = [
             AttackStep(AttackPhase.EXPLOITATION, "vuln_scan", "example.com", "Scan"),
         ]
         tr = ToolResult(
-            success=True, tool_name="test", category=ToolCategory.RECON,
+            success=True,
+            tool_name="test",
+            category=ToolCategory.RECON,
             findings=[{"type": "sqli", "severity": "high"}],
         )
         tool = planner.select_next_tool(tree, [tr])
@@ -2905,13 +3142,16 @@ class TestStrategicPlanner:
     def test_select_next_tool_xss_finding(self):
         from agents.agent_dataclasses import AttackTree, AttackStep, AttackPhase
         from tools.tool_registry import ToolResult, ToolCategory
+
         planner = self._make_planner()
         tree = AttackTree(target="example.com", objective="find vulns")
         tree.steps = [
             AttackStep(AttackPhase.EXPLOITATION, "vuln_scan", "example.com", "Scan"),
         ]
         tr = ToolResult(
-            success=True, tool_name="test", category=ToolCategory.RECON,
+            success=True,
+            tool_name="test",
+            category=ToolCategory.RECON,
             findings=[{"type": "xss", "severity": "high"}],
         )
         tool = planner.select_next_tool(tree, [tr])
@@ -2920,13 +3160,16 @@ class TestStrategicPlanner:
     def test_select_next_tool_db_port(self):
         from agents.agent_dataclasses import AttackTree, AttackStep, AttackPhase
         from tools.tool_registry import ToolResult, ToolCategory
+
         planner = self._make_planner()
         tree = AttackTree(target="example.com", objective="find vulns")
         tree.steps = [
             AttackStep(AttackPhase.EXPLOITATION, "vuln_scan", "example.com", "Scan"),
         ]
         tr = ToolResult(
-            success=True, tool_name="test", category=ToolCategory.RECON,
+            success=True,
+            tool_name="test",
+            category=ToolCategory.RECON,
             findings=[{"type": "open_port", "severity": "info", "port": 3306}],
         )
         tool = planner.select_next_tool(tree, [tr])
@@ -2935,13 +3178,16 @@ class TestStrategicPlanner:
     def test_select_next_tool_web_port(self):
         from agents.agent_dataclasses import AttackTree, AttackStep, AttackPhase
         from tools.tool_registry import ToolResult, ToolCategory
+
         planner = self._make_planner()
         tree = AttackTree(target="example.com", objective="find vulns")
         tree.steps = [
             AttackStep(AttackPhase.EXPLOITATION, "vuln_scan", "example.com", "Scan"),
         ]
         tr = ToolResult(
-            success=True, tool_name="test", category=ToolCategory.RECON,
+            success=True,
+            tool_name="test",
+            category=ToolCategory.RECON,
             findings=[{"type": "open_port", "severity": "info", "port": 80}],
         )
         tool = planner.select_next_tool(tree, [tr])
@@ -2950,13 +3196,16 @@ class TestStrategicPlanner:
     def test_select_next_tool_api_endpoint(self):
         from agents.agent_dataclasses import AttackTree, AttackStep, AttackPhase
         from tools.tool_registry import ToolResult, ToolCategory
+
         planner = self._make_planner()
         tree = AttackTree(target="example.com", objective="find vulns")
         tree.steps = [
             AttackStep(AttackPhase.EXPLOITATION, "vuln_scan", "example.com", "Scan"),
         ]
         tr = ToolResult(
-            success=True, tool_name="test", category=ToolCategory.RECON,
+            success=True,
+            tool_name="test",
+            category=ToolCategory.RECON,
             findings=[{"type": "api_endpoint", "severity": "info"}],
         )
         tool = planner.select_next_tool(tree, [tr])
@@ -2965,13 +3214,16 @@ class TestStrategicPlanner:
     def test_select_next_tool_hidden_parameter(self):
         from agents.agent_dataclasses import AttackTree, AttackStep, AttackPhase
         from tools.tool_registry import ToolResult, ToolCategory
+
         planner = self._make_planner()
         tree = AttackTree(target="example.com", objective="find vulns")
         tree.steps = [
             AttackStep(AttackPhase.EXPLOITATION, "vuln_scan", "example.com", "Scan"),
         ]
         tr = ToolResult(
-            success=True, tool_name="test", category=ToolCategory.RECON,
+            success=True,
+            tool_name="test",
+            category=ToolCategory.RECON,
             findings=[{"type": "hidden_parameter", "severity": "info"}],
         )
         tool = planner.select_next_tool(tree, [tr])
@@ -2979,33 +3231,49 @@ class TestStrategicPlanner:
 
     def test_select_next_tool_all_completed(self):
         from agents.agent_dataclasses import AttackTree, AttackStep, AttackPhase
+
         planner = self._make_planner()
         tree = AttackTree(target="example.com", objective="find vulns")
         tree.steps = [
-            AttackStep(AttackPhase.RECONNAISSANCE, "dns_lookup", "example.com", "DNS", completed=True),
+            AttackStep(
+                AttackPhase.RECONNAISSANCE, "dns_lookup", "example.com", "DNS", completed=True
+            ),
         ]
         tool = planner.select_next_tool(tree, [])
         assert tool is None
 
     def test_select_next_tool_dependency_not_met(self):
         from agents.agent_dataclasses import AttackTree, AttackStep, AttackPhase
+
         planner = self._make_planner()
         tree = AttackTree(target="example.com", objective="find vulns")
         tree.steps = [
-            AttackStep(AttackPhase.EXPLOITATION, "vuln_scan", "example.com", "Scan",
-                       depends_on=["dns_lookup"]),
-            AttackStep(AttackPhase.RECONNAISSANCE, "dns_lookup", "example.com", "DNS",
-                       completed=False),
+            AttackStep(
+                AttackPhase.EXPLOITATION,
+                "vuln_scan",
+                "example.com",
+                "Scan",
+                depends_on=["dns_lookup"],
+            ),
+            AttackStep(
+                AttackPhase.RECONNAISSANCE, "dns_lookup", "example.com", "DNS", completed=False
+            ),
         ]
         # dns_lookup not completed yet, vuln_scan depends on it
         # But dns_lookup is in RECONNAISSANCE phase which comes first, so it would be selected
         # Let's test with ALL steps having unmet deps and all completed
         tree2 = AttackTree(target="example.com", objective="find vulns")
         tree2.steps = [
-            AttackStep(AttackPhase.EXPLOITATION, "vuln_scan", "example.com", "Scan",
-                       depends_on=["dns_lookup"]),
-            AttackStep(AttackPhase.RECONNAISSANCE, "dns_lookup", "example.com", "DNS",
-                       completed=True),
+            AttackStep(
+                AttackPhase.EXPLOITATION,
+                "vuln_scan",
+                "example.com",
+                "Scan",
+                depends_on=["dns_lookup"],
+            ),
+            AttackStep(
+                AttackPhase.RECONNAISSANCE, "dns_lookup", "example.com", "DNS", completed=True
+            ),
         ]
         # dns_lookup completed, vuln_scan dep met -> vuln_scan returned
         tool = planner.select_next_tool(tree2, [])
@@ -3013,13 +3281,17 @@ class TestStrategicPlanner:
 
     def test_adapt_strategy_api_endpoint(self):
         from agents.agent_dataclasses import AttackTree
+
         planner = self._make_planner()
         tree = AttackTree(target="example.com", objective="find vulns")
-        steps = planner.adapt_strategy(tree, {"type": "api_endpoint", "url": "http://example.com/api"})
+        steps = planner.adapt_strategy(
+            tree, {"type": "api_endpoint", "url": "http://example.com/api"}
+        )
         assert len(steps) == 2
 
     def test_adapt_strategy_subdomain(self):
         from agents.agent_dataclasses import AttackTree
+
         planner = self._make_planner()
         tree = AttackTree(target="example.com", objective="find vulns")
         steps = planner.adapt_strategy(tree, {"type": "subdomain", "subdomain": "api.example.com"})
@@ -3027,6 +3299,7 @@ class TestStrategicPlanner:
 
     def test_adapt_strategy_hidden_parameter(self):
         from agents.agent_dataclasses import AttackTree
+
         planner = self._make_planner()
         tree = AttackTree(target="example.com", objective="find vulns")
         steps = planner.adapt_strategy(tree, {"type": "hidden_parameter"})
@@ -3034,6 +3307,7 @@ class TestStrategicPlanner:
 
     def test_adapt_strategy_sqli(self):
         from agents.agent_dataclasses import AttackTree
+
         planner = self._make_planner()
         tree = AttackTree(target="example.com", objective="find vulns")
         steps = planner.adapt_strategy(tree, {"type": "sqli"})
@@ -3041,6 +3315,7 @@ class TestStrategicPlanner:
 
     def test_adapt_strategy_xss(self):
         from agents.agent_dataclasses import AttackTree
+
         planner = self._make_planner()
         tree = AttackTree(target="example.com", objective="find vulns")
         steps = planner.adapt_strategy(tree, {"type": "xss"})
@@ -3048,6 +3323,7 @@ class TestStrategicPlanner:
 
     def test_adapt_strategy_lfi(self):
         from agents.agent_dataclasses import AttackTree
+
         planner = self._make_planner()
         tree = AttackTree(target="example.com", objective="find vulns")
         steps = planner.adapt_strategy(tree, {"type": "lfi"})
@@ -3055,6 +3331,7 @@ class TestStrategicPlanner:
 
     def test_adapt_strategy_rce(self):
         from agents.agent_dataclasses import AttackTree
+
         planner = self._make_planner()
         tree = AttackTree(target="example.com", objective="find vulns")
         steps = planner.adapt_strategy(tree, {"type": "rce"})
@@ -3062,13 +3339,17 @@ class TestStrategicPlanner:
 
     def test_adapt_strategy_open_port_db(self):
         from agents.agent_dataclasses import AttackTree
+
         planner = self._make_planner()
         tree = AttackTree(target="example.com", objective="find vulns")
-        steps = planner.adapt_strategy(tree, {"type": "open_port", "port": 3306, "service": "mysql"})
+        steps = planner.adapt_strategy(
+            tree, {"type": "open_port", "port": 3306, "service": "mysql"}
+        )
         assert len(steps) == 1
 
     def test_adapt_strategy_open_port_web(self):
         from agents.agent_dataclasses import AttackTree
+
         planner = self._make_planner()
         tree = AttackTree(target="example.com", objective="find vulns")
         steps = planner.adapt_strategy(tree, {"type": "open_port", "port": 443, "service": "https"})
@@ -3076,6 +3357,7 @@ class TestStrategicPlanner:
 
     def test_adapt_strategy_secret(self):
         from agents.agent_dataclasses import AttackTree
+
         planner = self._make_planner()
         tree = AttackTree(target="example.com", objective="find vulns")
         steps = planner.adapt_strategy(tree, {"type": "secret", "severity": "critical"})
@@ -3083,6 +3365,7 @@ class TestStrategicPlanner:
 
     def test_adapt_strategy_waf(self):
         from agents.agent_dataclasses import AttackTree
+
         planner = self._make_planner()
         tree = AttackTree(target="example.com", objective="find vulns")
         steps = planner.adapt_strategy(tree, {"type": "waf_detected", "waf_name": "cloudflare"})
@@ -3090,6 +3373,7 @@ class TestStrategicPlanner:
 
     def test_adapt_strategy_unknown(self):
         from agents.agent_dataclasses import AttackTree
+
         planner = self._make_planner()
         tree = AttackTree(target="example.com", objective="find vulns")
         steps = planner.adapt_strategy(tree, {"type": "unknown_type"})
@@ -3120,6 +3404,7 @@ class TestStrategicPlanner:
 def _lightweight_agent():
     """Create a lightweight agent for testing without full initialization."""
     from core.brain import ElengenixAgent
+
     agent = ElengenixAgent.__new__(ElengenixAgent)
     agent.max_output_len = 2000
     agent.max_steps = 3
@@ -3144,12 +3429,16 @@ class TestElengenixAgentHelpers:
 
     def test_summarize_results_with_data(self):
         from tools.tool_registry import ToolResult, ToolCategory
+
         agent = _lightweight_agent()
         results = [
-            ToolResult(success=True, tool_name="tool1", category=ToolCategory.RECON,
-                       findings=[{"type": "xss"}]),
-            ToolResult(success=True, tool_name="tool2", category=ToolCategory.RECON,
-                       findings=[]),
+            ToolResult(
+                success=True,
+                tool_name="tool1",
+                category=ToolCategory.RECON,
+                findings=[{"type": "xss"}],
+            ),
+            ToolResult(success=True, tool_name="tool2", category=ToolCategory.RECON, findings=[]),
         ]
         summary = agent._summarize_results(results)
         assert "tool1" in summary
@@ -3170,6 +3459,7 @@ class TestElengenixAgentHelpers:
     def test_build_chat_messages(self):
         agent = _lightweight_agent()
         from agents.agent_conversation import ConversationManager
+
         agent.conversation_manager = ConversationManager(
             client=MagicMock(), max_history_turns=5, history_limit=3
         )
@@ -3180,6 +3470,7 @@ class TestElengenixAgentHelpers:
     def test_append_history(self):
         agent = _lightweight_agent()
         from agents.agent_conversation import ConversationManager
+
         agent.conversation_manager = ConversationManager(
             client=MagicMock(), max_history_turns=5, history_limit=3
         )
@@ -3192,6 +3483,7 @@ class TestElengenixAgentHelpers:
     def test_clear_conversation_history(self):
         agent = _lightweight_agent()
         from agents.agent_conversation import ConversationManager
+
         agent.conversation_manager = ConversationManager(
             client=MagicMock(), max_history_turns=5, history_limit=3
         )
@@ -3202,6 +3494,7 @@ class TestElengenixAgentHelpers:
 
     def test_base_url_hint_with_target(self):
         from tools.mission_state import MissionState
+
         agent = _lightweight_agent()
         ms = MissionState(mission_id="test", target="example.com", objective="scan")
         hint = agent._base_url_hint(ms)
@@ -3209,6 +3502,7 @@ class TestElengenixAgentHelpers:
 
     def test_base_url_hint_with_http(self):
         from tools.mission_state import MissionState
+
         agent = _lightweight_agent()
         ms = MissionState(mission_id="test", target="https://example.com", objective="scan")
         hint = agent._base_url_hint(ms)
@@ -3216,6 +3510,7 @@ class TestElengenixAgentHelpers:
 
     def test_base_url_hint_fallback(self):
         from tools.mission_state import MissionState
+
         agent = _lightweight_agent()
         ms = MagicMock()
         ms.snapshot.side_effect = Exception("error")
@@ -3233,6 +3528,7 @@ class TestElengenixAgentHelpers:
         with patch("core.brain.execute_tool_registry") as mock_exec:
             mock_exec.return_value = MagicMock()
             from tools.tool_registry import ToolResult
+
             result = agent._execute_tool_registry("test_tool", "example.com", Path("/tmp"))
             mock_exec.assert_called_once()
 
@@ -3284,8 +3580,18 @@ class TestElengenixAgentHelpers:
     def test_check_context_overflow_near_full(self):
         agent = _lightweight_agent()
         agent.client = MagicMock()
-        with patch("core.brain._get_context_status", return_value={"is_near_full": True, "percent": 95.0, "used_tokens": 120000, "capacity": 128000}):
-            agent.conversation_history = [{"role": "user", "content": f"msg {i}"} for i in range(20)]
+        with patch(
+            "core.brain._get_context_status",
+            return_value={
+                "is_near_full": True,
+                "percent": 95.0,
+                "used_tokens": 120000,
+                "capacity": 128000,
+            },
+        ):
+            agent.conversation_history = [
+                {"role": "user", "content": f"msg {i}"} for i in range(20)
+            ]
             with patch("core.brain.AIMessage"):
                 agent.client.chat.return_value = MagicMock(content="summary")
                 result = agent._check_context_overflow()
@@ -3293,7 +3599,15 @@ class TestElengenixAgentHelpers:
 
     def test_check_context_overflow_not_near_full(self):
         agent = _lightweight_agent()
-        with patch("core.brain._get_context_status", return_value={"is_near_full": False, "percent": 50.0, "used_tokens": 64000, "capacity": 128000}):
+        with patch(
+            "core.brain._get_context_status",
+            return_value={
+                "is_near_full": False,
+                "percent": 50.0,
+                "used_tokens": 64000,
+                "capacity": 128000,
+            },
+        ):
             result = agent._check_context_overflow()
             assert result is False
 
@@ -3311,9 +3625,7 @@ class TestElengenixAgentHelpers:
 
     def test_summarize_old_conversation_with_data(self):
         agent = _lightweight_agent()
-        agent.conversation_history = [
-            {"role": "user", "content": f"msg {i}"} for i in range(12)
-        ]
+        agent.conversation_history = [{"role": "user", "content": f"msg {i}"} for i in range(12)]
         agent.client = MagicMock()
         agent.client.active_client = MagicMock()
         agent.client.active_client.model = "test-model"
@@ -3329,9 +3641,7 @@ class TestElengenixAgentHelpers:
 
     def test_summarize_old_conversation_empty_summary(self):
         agent = _lightweight_agent()
-        agent.conversation_history = [
-            {"role": "user", "content": f"msg {i}"} for i in range(12)
-        ]
+        agent.conversation_history = [{"role": "user", "content": f"msg {i}"} for i in range(12)]
         agent.client = MagicMock()
         agent.client.active_client = MagicMock()
         agent.client.active_client.model = "test-model"
@@ -3345,9 +3655,7 @@ class TestElengenixAgentHelpers:
 
     def test_summarize_old_conversation_api_error(self):
         agent = _lightweight_agent()
-        agent.conversation_history = [
-            {"role": "user", "content": f"msg {i}"} for i in range(12)
-        ]
+        agent.conversation_history = [{"role": "user", "content": f"msg {i}"} for i in range(12)]
         agent.client = MagicMock()
         agent.client.active_client = MagicMock()
         agent.client.active_client.model = "test-model"
@@ -3552,11 +3860,15 @@ class TestElengenixAgentProcessQuery:
         agent.cve_db = MagicMock()
         agent.cve_db.find_similar_vulns.return_value = []
         agent.governance = MagicMock()
-        agent.governance.gate.return_value = MagicMock(allowed=True, decision="allow", risk_level="LOW")
+        agent.governance.gate.return_value = MagicMock(
+            allowed=True, decision="allow", risk_level="LOW"
+        )
         agent.reflection_tracker = MagicMock()
         agent.analysis_pipeline = MagicMock()
         agent.vuln_reasoning = MagicMock()
-        agent.vuln_reasoning.analyze_output.return_value = MagicMock(hypotheses=[], coverage_gaps=[])
+        agent.vuln_reasoning.analyze_output.return_value = MagicMock(
+            hypotheses=[], coverage_gaps=[]
+        )
         agent.planner = None
         agent.current_tree = None
         agent.skill_registry = MagicMock()
@@ -3635,11 +3947,14 @@ class TestElengenixAgentProcessQuery:
                     with patch("core.brain._get_vuln_finder"):
                         agent._smart_orchestrator = MagicMock()
                         agent.smart_orchestrator.run_smart_scan = AsyncMock(
-                            return_value=(MagicMock(results=[], findings=[], duration=10.0),
-                                         MagicMock(get_clustered_report=MagicMock(return_value=[])))
+                            return_value=(
+                                MagicMock(results=[], findings=[], duration=10.0),
+                                MagicMock(get_clustered_report=MagicMock(return_value=[])),
+                            )
                         )
-                        result = agent.process_query("scan example.com", target="example.com",
-                                                     use_smart_scan=True)
+                        result = agent.process_query(
+                            "scan example.com", target="example.com", use_smart_scan=True
+                        )
                         assert isinstance(result, str)
 
 
@@ -3655,11 +3970,13 @@ class TestMemoryFunctions:
         with patch("core.brain._get_vector_memory") as mock_vm:
             mock_vm.return_value = MagicMock()
             from core.brain import remember
+
             remember("test content", target="test", category="test")
 
     def test_remember_exception(self):
         with patch("core.brain._get_vector_memory", side_effect=Exception("error")):
             from core.brain import remember
+
             # Should not raise
             remember("test content", target="test", category="test")
 
@@ -3668,12 +3985,14 @@ class TestMemoryFunctions:
             mock_vm.return_value = MagicMock()
             mock_vm.return_value.recall.return_value = [{"content": "test"}]
             from core.brain import recall
+
             result = recall("test query")
             assert len(result) == 1
 
     def test_recall_exception(self):
         with patch("core.brain._get_vector_memory", side_effect=Exception("error")):
             from core.brain import recall
+
             result = recall("test query")
             assert result == []
 
@@ -3682,12 +4001,14 @@ class TestMemoryFunctions:
             mock_vm.return_value = MagicMock()
             mock_vm.return_value.get_context_for_ai.return_value = "context"
             from core.brain import get_context_for_ai
+
             result = get_context_for_ai("query")
             assert result == "context"
 
     def test_get_context_for_ai_exception(self):
         with patch("core.brain._get_vector_memory", side_effect=Exception("error")):
             from core.brain import get_context_for_ai
+
             result = get_context_for_ai("query")
             assert result == ""
 
@@ -3695,24 +4016,33 @@ class TestMemoryFunctions:
         with patch("core.brain._get_memory_persistence") as mock_mp:
             mock_mp.return_value = MagicMock()
             from core.brain import _sqlite_save_message
+
             _sqlite_save_message("session", "user", "hello")
 
     def test_sqlite_save_message_exception(self):
         with patch("core.brain._get_memory_persistence", side_effect=Exception("error")):
             from core.brain import _sqlite_save_message
+
             _sqlite_save_message("session", "user", "hello")
 
     def test_get_context_status_success(self):
         with patch("core.brain._get_memory_persistence") as mock_mp:
             mock_mp.return_value = MagicMock()
-            mock_mp.return_value.get_context_status.return_value = {"is_near_full": False, "percent": 0, "used_tokens": 0, "capacity": 128000}
+            mock_mp.return_value.get_context_status.return_value = {
+                "is_near_full": False,
+                "percent": 0,
+                "used_tokens": 0,
+                "capacity": 128000,
+            }
             from core.brain import _get_context_status
+
             result = _get_context_status("session")
             assert isinstance(result, dict)
 
     def test_get_context_status_exception(self):
         with patch("core.brain._get_memory_persistence", side_effect=Exception("error")):
             from core.brain import _get_context_status
+
             result = _get_context_status("session")
             assert result["is_near_full"] is False
 
@@ -3720,11 +4050,13 @@ class TestMemoryFunctions:
         with patch("core.brain._get_memory_persistence") as mock_mp:
             mock_mp.return_value = MagicMock()
             from core.brain import _sqlite_clear_session
+
             _sqlite_clear_session("session")
 
     def test_sqlite_clear_session_exception(self):
         with patch("core.brain._get_memory_persistence", side_effect=Exception("error")):
             from core.brain import _sqlite_clear_session
+
             _sqlite_clear_session("session")
 
 
@@ -3750,8 +4082,12 @@ class TestReconToFindingsEdgeCases:
     def test_non_interesting_params(self):
         recon = {
             "parameters": [
-                {"url": "http://example.com/page", "param": "id", "method": "GET",
-                 "is_interesting": False},
+                {
+                    "url": "http://example.com/page",
+                    "param": "id",
+                    "method": "GET",
+                    "is_interesting": False,
+                },
             ]
         }
         result = orchestrator._recon_to_findings(recon, "http://example.com")
@@ -3768,6 +4104,7 @@ class TestAgentDataclasses:
 
     def test_attack_phase_values(self):
         from agents.agent_dataclasses import AttackPhase
+
         assert AttackPhase.RECONNAISSANCE.value == "recon"
         assert AttackPhase.SCANNING.value == "scanning"
         assert AttackPhase.ENUMERATION.value == "enumeration"
@@ -3775,6 +4112,7 @@ class TestAgentDataclasses:
 
     def test_attack_step_creation(self):
         from agents.agent_dataclasses import AttackStep, AttackPhase
+
         step = AttackStep(
             phase=AttackPhase.RECONNAISSANCE,
             tool_name="dns_lookup",
@@ -3786,6 +4124,7 @@ class TestAgentDataclasses:
 
     def test_attack_tree_creation(self):
         from agents.agent_dataclasses import AttackTree
+
         tree = AttackTree(target="example.com", objective="find vulns")
         assert tree.steps == []
         assert tree.reasoning == ""
@@ -3889,8 +4228,15 @@ class TestReconToFindingsComprehensive:
                 {"subdomain": "api.example.com", "ips": ["1.2.3.4"]},
             ],
             "parameters": [
-                {"url": "http://example.com/search", "param": "q", "method": "GET",
-                 "is_interesting": True, "delta_pct": 50, "baseline_len": 100, "test_len": 150},
+                {
+                    "url": "http://example.com/search",
+                    "param": "q",
+                    "method": "GET",
+                    "is_interesting": True,
+                    "delta_pct": 50,
+                    "baseline_len": 100,
+                    "test_len": 150,
+                },
             ],
         }
         result = orchestrator._recon_to_findings(recon, "http://example.com")

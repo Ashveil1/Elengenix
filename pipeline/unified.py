@@ -188,24 +188,28 @@ async def _phase_fuzz(ctx: PhaseContext) -> PhaseResult:
             xss_fuzz, sql_fuzz = result
             for fr in xss_fuzz:
                 if fr.is_interesting:
-                    findings.append({
-                        "tool": "active_fuzzer",
-                        "type": "xss",
-                        "severity": "High",
-                        "url": fr.url,
-                        "title": f"Possible XSS: {fr.payload[:30]}",
-                        "details": fr.reasoning,
-                    })
+                    findings.append(
+                        {
+                            "tool": "active_fuzzer",
+                            "type": "xss",
+                            "severity": "High",
+                            "url": fr.url,
+                            "title": f"Possible XSS: {fr.payload[:30]}",
+                            "details": fr.reasoning,
+                        }
+                    )
             for fr in sql_fuzz:
                 if fr.is_interesting:
-                    findings.append({
-                        "tool": "active_fuzzer",
-                        "type": "sqli",
-                        "severity": "Critical",
-                        "url": fr.url,
-                        "title": f"Possible SQLi: {fr.payload[:30]}",
-                        "details": fr.reasoning,
-                    })
+                    findings.append(
+                        {
+                            "tool": "active_fuzzer",
+                            "type": "sqli",
+                            "severity": "Critical",
+                            "url": fr.url,
+                            "title": f"Possible SQLi: {fr.payload[:30]}",
+                            "details": fr.reasoning,
+                        }
+                    )
             all_results.extend(xss_fuzz)
             all_results.extend(sql_fuzz)
 
@@ -253,14 +257,16 @@ async def _phase_bola(ctx: PhaseContext) -> PhaseResult:
         findings = []
         for br in bola_results:
             if br.is_bola:
-                findings.append({
-                    "tool": "bola_tester",
-                    "type": "bola",
-                    "severity": br.severity,
-                    "url": bola_target.replace("{id}", br.object_id),
-                    "title": f"BOLA: {br.object_id} accessible to other user",
-                    "details": f"A={br.status_a}, B={br.status_b}",
-                })
+                findings.append(
+                    {
+                        "tool": "bola_tester",
+                        "type": "bola",
+                        "severity": br.severity,
+                        "url": bola_target.replace("{id}", br.object_id),
+                        "title": f"BOLA: {br.object_id} accessible to other user",
+                        "details": f"A={br.status_a}, B={br.status_b}",
+                    }
+                )
 
         return PhaseResult(success=True, findings=findings)
     except Exception as e:
@@ -322,55 +328,65 @@ def _recon_to_findings(recon_result: Dict[str, Any], base_url: str) -> List[Dict
     http = recon_result.get("http_probe", {})
     if http.get("status"):
         techs = ",".join(http.get("tech", []))
-        findings.append({
-            "tool": "python_recon",
-            "type": "recon_http",
-            "severity": "Informational",
-            "url": base_url,
-            "title": f"HTTP {http['status']} | {http.get('title', '')[:50]}",
-            "details": f"Server: {http.get('headers', {}).get('Server', '?')} | Tech: {techs}",
-        })
+        findings.append(
+            {
+                "tool": "python_recon",
+                "type": "recon_http",
+                "severity": "Informational",
+                "url": base_url,
+                "title": f"HTTP {http['status']} | {http.get('title', '')[:50]}",
+                "details": f"Server: {http.get('headers', {}).get('Server', '?')} | Tech: {techs}",
+            }
+        )
 
     for d in recon_result.get("directories", []):
-        findings.append({
-            "tool": "python_recon",
-            "type": "endpoint",
-            "severity": "Low" if d.get("status") in (200, 301, 302) else "Informational",
-            "url": d.get("url"),
-            "title": f"Discovered endpoint: {(d.get('url') or '').split('/')[-1] or 'unknown'}",
-            "details": f"Status: {d.get('status')} | Length: {d.get('length')}",
-        })
+        findings.append(
+            {
+                "tool": "python_recon",
+                "type": "endpoint",
+                "severity": "Low" if d.get("status") in (200, 301, 302) else "Informational",
+                "url": d.get("url"),
+                "title": f"Discovered endpoint: {(d.get('url') or '').split('/')[-1] or 'unknown'}",
+                "details": f"Status: {d.get('status')} | Length: {d.get('length')}",
+            }
+        )
 
     for p in recon_result.get("ports", []):
-        findings.append({
-            "tool": "python_recon",
-            "type": "port",
-            "severity": "Informational",
-            "url": f"{p.get('host')}:{p.get('port')}",
-            "title": f"Open port {p.get('port')} ({p.get('service')})",
-            "details": "TCP connect succeeded",
-        })
+        findings.append(
+            {
+                "tool": "python_recon",
+                "type": "port",
+                "severity": "Informational",
+                "url": f"{p.get('host')}:{p.get('port')}",
+                "title": f"Open port {p.get('port')} ({p.get('service')})",
+                "details": "TCP connect succeeded",
+            }
+        )
 
     for sub in recon_result.get("subdomains", []):
-        findings.append({
-            "tool": "python_recon",
-            "type": "subdomain",
-            "severity": "Informational",
-            "url": f"http://{sub.get('subdomain')}",
-            "title": f"Subdomain: {sub.get('subdomain')}",
-            "details": f"IPs: {','.join(sub.get('ips', []))}",
-        })
+        findings.append(
+            {
+                "tool": "python_recon",
+                "type": "subdomain",
+                "severity": "Informational",
+                "url": f"http://{sub.get('subdomain')}",
+                "title": f"Subdomain: {sub.get('subdomain')}",
+                "details": f"IPs: {','.join(sub.get('ips', []))}",
+            }
+        )
 
     for p in recon_result.get("parameters", []):
         if p.get("is_interesting"):
-            findings.append({
-                "tool": "python_recon",
-                "type": "param_discovery",
-                "severity": "Low",
-                "url": p.get("url"),
-                "title": f"Interesting parameter: {p.get('param')} ({p.get('method')})",
-                "details": f"Delta: {p.get('delta_pct')}%",
-            })
+            findings.append(
+                {
+                    "tool": "python_recon",
+                    "type": "param_discovery",
+                    "severity": "Low",
+                    "url": p.get("url"),
+                    "title": f"Interesting parameter: {p.get('param')} ({p.get('method')})",
+                    "details": f"Delta: {p.get('delta_pct')}%",
+                }
+            )
 
     return findings
 
@@ -470,9 +486,7 @@ class UnifiedPipeline:
 
         # 5. Save findings
         findings_path = report_dir / "unified_findings.json"
-        findings_path.write_text(
-            json.dumps(ctx.findings, indent=2, default=str)
-        )
+        findings_path.write_text(json.dumps(ctx.findings, indent=2, default=str))
 
         # 6. Build summary
         total = len(ctx.findings)

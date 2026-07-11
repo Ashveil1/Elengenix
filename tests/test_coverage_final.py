@@ -100,7 +100,7 @@ class TestHybridAgentExtractJson(unittest.TestCase):
     def test_extract_json_array(self):
         from agents.hybrid_agent import _extract_json
 
-        text = 'result: [1, 2, 3]'
+        text = "result: [1, 2, 3]"
         result = _extract_json(text)
         self.assertEqual(result, [1, 2, 3])
 
@@ -125,9 +125,22 @@ class TestHybridAgentSimpleCommands(unittest.TestCase):
     def test_simple_commands_match(self):
         from agents.hybrid_agent import _SIMPLE_COMMANDS
 
-        for cmd in ["ls -la", "cat file.txt", "echo hello", "pwd", "which python",
-                     "head -n 5 file", "tail -f log", "wc -l", "whoami", "id",
-                     "date", "uptime", "env", "set"]:
+        for cmd in [
+            "ls -la",
+            "cat file.txt",
+            "echo hello",
+            "pwd",
+            "which python",
+            "head -n 5 file",
+            "tail -f log",
+            "wc -l",
+            "whoami",
+            "id",
+            "date",
+            "uptime",
+            "env",
+            "set",
+        ]:
             self.assertIsNotNone(_SIMPLE_COMMANDS.match(cmd), f"Should match: {cmd}")
 
     def test_simple_commands_no_match(self):
@@ -195,10 +208,12 @@ class TestHybridAgentRunStrategist(unittest.TestCase):
         from agents.hybrid_agent import HybridAgent
 
         mock_response = MagicMock()
-        mock_response.content = json.dumps([
-            {"description": "task 1", "status": "pending"},
-            {"description": "task 2", "status": "pending"},
-        ])
+        mock_response.content = json.dumps(
+            [
+                {"description": "task 1", "status": "pending"},
+                {"description": "task 2", "status": "pending"},
+            ]
+        )
         mock_client = MagicMock()
         mock_client.chat.return_value = mock_response
 
@@ -372,7 +387,12 @@ class TestHybridAgentFinalizeMission(unittest.TestCase):
         agent.start_time = time.time() - 10
         agent.all_findings = [
             {"type": "xss", "url": "http://target.com", "_tool": "nuclei", "severity": "high"},
-            {"type": "sqli", "url": "http://target.com/login", "_tool": "sqlmap", "severity": "critical"},
+            {
+                "type": "sqli",
+                "url": "http://target.com/login",
+                "_tool": "sqlmap",
+                "severity": "critical",
+            },
         ]
         agent.mission_key = "test-mission"
         report = agent._finalize_mission()
@@ -565,8 +585,7 @@ class TestMultiAgentDataclasses(unittest.TestCase):
         from tools.multi_agent import TeamMessage
 
         msg = TeamMessage(
-            round=1, agent_id=0, agent_role="Strategist",
-            model_name="gpt-4", content="hello"
+            round=1, agent_id=0, agent_role="Strategist", model_name="gpt-4", content="hello"
         )
         self.assertEqual(msg.round, 1)
         self.assertEqual(msg.msg_type, "discussion")
@@ -575,8 +594,7 @@ class TestMultiAgentDataclasses(unittest.TestCase):
         from tools.multi_agent import TaskAssignment
 
         ta = TaskAssignment(
-            agent_id=0, action_type="shell",
-            params={"cmd": "ls"}, description="list files"
+            agent_id=0, action_type="shell", params={"cmd": "ls"}, description="list files"
         )
         self.assertFalse(ta.completed)
         self.assertFalse(ta.success)
@@ -632,9 +650,7 @@ class TestMultiAgentInit(unittest.TestCase):
         mock_client = MagicMock()
         mock_client.provider = "openai"
         mock_client.model = "gpt-4"
-        team = TeamAegis(
-            clients=[mock_client] * 5, target="example.com"
-        )
+        team = TeamAegis(clients=[mock_client] * 5, target="example.com")
         self.assertEqual(team.team_size, 3)
 
     def test_init_assigns_roles(self):
@@ -672,11 +688,21 @@ class TestMultiAgentFormatMethods(unittest.TestCase):
 
         team = self._make_team()
         team.discussion = [
-            TeamMessage(round=1, agent_id=0, agent_role="Strategist",
-                        model_name="gpt-4", content="Hello team"),
-            TeamMessage(round=1, agent_id=1, agent_role="Recon Lead",
-                        model_name="claude-3", content="Ready",
-                        msg_type="task_result"),
+            TeamMessage(
+                round=1,
+                agent_id=0,
+                agent_role="Strategist",
+                model_name="gpt-4",
+                content="Hello team",
+            ),
+            TeamMessage(
+                round=1,
+                agent_id=1,
+                agent_role="Recon Lead",
+                model_name="claude-3",
+                content="Ready",
+                msg_type="task_result",
+            ),
         ]
         result = team._format_discussion_history()
         self.assertIn("Strategist", result)
@@ -692,8 +718,12 @@ class TestMultiAgentFormatMethods(unittest.TestCase):
 
         team = self._make_team()
         team.findings = [
-            Finding(source_agent="Strategist", description="XSS", severity="high",
-                    evidence="payload reflected"),
+            Finding(
+                source_agent="Strategist",
+                description="XSS",
+                severity="high",
+                evidence="payload reflected",
+            ),
         ]
         result = team._format_findings()
         self.assertIn("HIGH", result)
@@ -887,8 +917,14 @@ class TestMultiAgentGenerateFinalReport(unittest.TestCase):
             Finding(source_agent="Recon Lead", description="Info Leak", severity="info"),
         ]
         team.tasks = [
-            TaskAssignment(agent_id=0, action_type="shell", params={},
-                           description="scan", success=True, completed=True),
+            TaskAssignment(
+                agent_id=0,
+                action_type="shell",
+                params={},
+                description="scan",
+                success=True,
+                completed=True,
+            ),
         ]
         team.round = 5
         report = team._generate_final_report()
@@ -962,7 +998,8 @@ class TestMultiAgentProcessAgentResult(unittest.TestCase):
         mock_client.model = "gpt-4"
         team = TeamAegis(clients=[mock_client, mock_client], target="t")
         result = {
-            "agent_id": 0, "success": True,
+            "agent_id": 0,
+            "success": True,
             "action_data": {"discussion": "done", "action": {"type": "finish"}},
             "response_text": "done",
         }
@@ -984,7 +1021,8 @@ class TestMultiAgentRunRoundSequential(unittest.TestCase):
         team = TeamAegis(clients=[mock_client, mock_client], target="t", parallel_mode=False)
         with patch.object(team, "_run_single_agent") as mock_run:
             mock_run.return_value = {
-                "agent_id": 0, "success": True,
+                "agent_id": 0,
+                "success": True,
                 "action_data": {"discussion": "hi", "action": {"type": "none"}},
                 "response_text": "hi",
             }
@@ -1033,8 +1071,9 @@ class TestHuntEngineDataclasses(unittest.TestCase):
     def test_hunt_finding_to_dict(self):
         from tools.hunt_engine import HuntFinding
 
-        f = HuntFinding(phase="recon", category="endpoint", severity="High",
-                        title="test", url="http://t.com")
+        f = HuntFinding(
+            phase="recon", category="endpoint", severity="High", title="test", url="http://t.com"
+        )
         d = f.to_dict()
         self.assertEqual(d["phase"], "recon")
         self.assertEqual(d["severity"], "High")
@@ -1111,8 +1150,14 @@ class TestHuntEngineReportFormats(unittest.TestCase):
         report = HuntReport(target="t.com", started_at="2024-01-01", total_duration=10.5)
         report.phases = [HuntPhase(name="recon", status="done", duration=2.0, findings=5)]
         report.findings = [
-            HuntFinding(phase="recon", category="xss", severity="High", title="XSS found",
-                        url="http://t.com/api", evidence={"proof_of_concept": {"impact": "session hijack"}}),
+            HuntFinding(
+                phase="recon",
+                category="xss",
+                severity="High",
+                title="XSS found",
+                url="http://t.com/api",
+                evidence={"proof_of_concept": {"impact": "session hijack"}},
+            ),
         ]
         report.risk_score = 75
         report.risk_level = "High"
@@ -1161,10 +1206,15 @@ class TestTargetedAttacksDataclass(unittest.TestCase):
         from tools.targeted_attacks import ConfirmedFinding
 
         f = ConfirmedFinding(
-            title="SQL Injection", severity="Critical",
-            category="sql_injection", endpoint_url="http://t.com/login",
-            method="POST", evidence="status changed", payload="admin'--",
-            status_code=200, confidence=1.0
+            title="SQL Injection",
+            severity="Critical",
+            category="sql_injection",
+            endpoint_url="http://t.com/login",
+            method="POST",
+            evidence="status changed",
+            payload="admin'--",
+            status_code=200,
+            confidence=1.0,
         )
         self.assertEqual(f.severity, "Critical")
         self.assertEqual(f.confidence, 1.0)
@@ -1293,7 +1343,8 @@ class TestToolRegistryToolResult(unittest.TestCase):
         from tools.tool_registry import ToolResult, ToolCategory
 
         result = ToolResult(
-            success=True, tool_name="nuclei",
+            success=True,
+            tool_name="nuclei",
             category=ToolCategory.SCANNER,
             output="found xss" * 100,
             findings=[{"type": "xss"}],
@@ -1313,9 +1364,11 @@ class TestToolRegistryToolMetadata(unittest.TestCase):
         from tools.tool_registry import ToolMetadata, ToolCategory, ToolPriority
 
         meta = ToolMetadata(
-            name="test_tool", category=ToolCategory.SCANNER,
-            priority=ToolPriority.HIGH, binary_name="test",
-            description="Test tool"
+            name="test_tool",
+            category=ToolCategory.SCANNER,
+            priority=ToolPriority.HIGH,
+            binary_name="test",
+            description="Test tool",
         )
         self.assertEqual(meta.name, "test_tool")
         self.assertTrue(meta.requires_target)
@@ -1326,7 +1379,13 @@ class TestToolRegistryRegister(unittest.TestCase):
     """Tests for ToolRegistry.register and get_tool."""
 
     def test_register_and_get(self):
-        from tools.tool_registry import ToolRegistry, BaseTool, ToolMetadata, ToolCategory, ToolPriority
+        from tools.tool_registry import (
+            ToolRegistry,
+            BaseTool,
+            ToolMetadata,
+            ToolCategory,
+            ToolPriority,
+        )
 
         # Create a fresh registry to avoid polluting global state
         reg = ToolRegistry()
@@ -1334,9 +1393,11 @@ class TestToolRegistryRegister(unittest.TestCase):
 
         mock_tool = MagicMock(spec=BaseTool)
         mock_tool.metadata = ToolMetadata(
-            name="test_tool_xyz", category=ToolCategory.SCANNER,
-            priority=ToolPriority.HIGH, binary_name="test",
-            description="Test"
+            name="test_tool_xyz",
+            category=ToolCategory.SCANNER,
+            priority=ToolPriority.HIGH,
+            binary_name="test",
+            description="Test",
         )
         mock_tool.is_available = True
 
@@ -1360,9 +1421,11 @@ class TestToolRegistryRegister(unittest.TestCase):
         reg._initialized = True
         mock_tool = MagicMock()
         mock_tool.metadata = ToolMetadata(
-            name="temp_tool_xyz", category=ToolCategory.SCANNER,
-            priority=ToolPriority.HIGH, binary_name="test",
-            description="Temp"
+            name="temp_tool_xyz",
+            category=ToolCategory.SCANNER,
+            priority=ToolPriority.HIGH,
+            binary_name="test",
+            description="Temp",
         )
         reg.register(mock_tool)
         reg.unregister("temp_tool_xyz")
@@ -1379,9 +1442,11 @@ class TestToolRegistryListAvailableTools(unittest.TestCase):
         reg._initialized = True
         mock_tool = MagicMock()
         mock_tool.metadata = ToolMetadata(
-            name="list_test_xyz", category=ToolCategory.SCANNER,
-            priority=ToolPriority.HIGH, binary_name="test",
-            description="Test"
+            name="list_test_xyz",
+            category=ToolCategory.SCANNER,
+            priority=ToolPriority.HIGH,
+            binary_name="test",
+            description="Test",
         )
         mock_tool.is_available = True
         reg.register(mock_tool)
@@ -1403,9 +1468,11 @@ class TestToolRegistryListByCategory(unittest.TestCase):
         reg._initialized = True
         mock_tool = MagicMock()
         mock_tool.metadata = ToolMetadata(
-            name="cat_test_xyz", category=ToolCategory.RECON,
-            priority=ToolPriority.HIGH, binary_name="test",
-            description="Test"
+            name="cat_test_xyz",
+            category=ToolCategory.RECON,
+            priority=ToolPriority.HIGH,
+            binary_name="test",
+            description="Test",
         )
         reg.register(mock_tool)
 
@@ -1420,12 +1487,20 @@ class TestToolRegistryRegisterDecorator(unittest.TestCase):
     """Tests for @register_tool decorator."""
 
     def test_register_tool_decorator(self):
-        from tools.tool_registry import register_tool, ToolMetadata, ToolCategory, ToolPriority, BaseTool
+        from tools.tool_registry import (
+            register_tool,
+            ToolMetadata,
+            ToolCategory,
+            ToolPriority,
+            BaseTool,
+        )
 
         meta = ToolMetadata(
-            name="decorator_test_xyz", category=ToolCategory.UTILITY,
-            priority=ToolPriority.LOW, binary_name="echo",
-            description="Decorator test"
+            name="decorator_test_xyz",
+            category=ToolCategory.UTILITY,
+            priority=ToolPriority.LOW,
+            binary_name="echo",
+            description="Decorator test",
         )
 
         @register_tool(meta)
@@ -1434,6 +1509,7 @@ class TestToolRegistryRegisterDecorator(unittest.TestCase):
                 pass
 
         from tools.tool_registry import registry
+
         tool = registry.get_tool("decorator_test_xyz")
         self.assertIsNotNone(tool)
         self.assertIsInstance(tool, DecoratorTestTool)
@@ -1452,9 +1528,11 @@ class TestToolRegistryExecuteChain(unittest.TestCase):
         mock_tool = MagicMock()
         mock_tool.is_available = False
         mock_tool.metadata = ToolMetadata(
-            name="unavail_xyz", category=ToolCategory.SCANNER,
-            priority=ToolPriority.HIGH, binary_name="nonexistent_binary_xyz",
-            description="Unavailable tool"
+            name="unavail_xyz",
+            category=ToolCategory.SCANNER,
+            priority=ToolPriority.HIGH,
+            binary_name="nonexistent_binary_xyz",
+            description="Unavailable tool",
         )
         reg.register(mock_tool)
 
@@ -1673,10 +1751,9 @@ class TestUniversalExecutorExecuteAction(unittest.TestCase):
             test_file = Path(tmpdir) / "test.txt"
             test_file.write_text("content")
             executor = UniversalExecutor(base_dir=tmpdir)
-            result = executor.execute_action({
-                "type": "read_file",
-                "params": {"path": str(test_file)}
-            })
+            result = executor.execute_action(
+                {"type": "read_file", "params": {"path": str(test_file)}}
+            )
             self.assertTrue(result.success)
 
     def test_execute_write_file(self):
@@ -1684,10 +1761,12 @@ class TestUniversalExecutorExecuteAction(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmpdir:
             executor = UniversalExecutor(base_dir=tmpdir)
-            result = executor.execute_action({
-                "type": "write_file",
-                "params": {"path": str(Path(tmpdir) / "new.txt"), "content": "data"}
-            })
+            result = executor.execute_action(
+                {
+                    "type": "write_file",
+                    "params": {"path": str(Path(tmpdir) / "new.txt"), "content": "data"},
+                }
+            )
             self.assertTrue(result.success)
 
     def test_execute_edit_file(self):
@@ -1697,10 +1776,16 @@ class TestUniversalExecutorExecuteAction(unittest.TestCase):
             test_file = Path(tmpdir) / "edit.txt"
             test_file.write_text("hello")
             executor = UniversalExecutor(base_dir=tmpdir)
-            result = executor.execute_action({
-                "type": "edit_file",
-                "params": {"path": str(test_file), "old_string": "hello", "new_string": "world"}
-            })
+            result = executor.execute_action(
+                {
+                    "type": "edit_file",
+                    "params": {
+                        "path": str(test_file),
+                        "old_string": "hello",
+                        "new_string": "world",
+                    },
+                }
+            )
             self.assertTrue(result.success)
 
     def test_execute_search_file(self):
@@ -1710,10 +1795,9 @@ class TestUniversalExecutorExecuteAction(unittest.TestCase):
             test_file = Path(tmpdir) / "search.txt"
             test_file.write_text("needle in haystack")
             executor = UniversalExecutor(base_dir=tmpdir)
-            result = executor.execute_action({
-                "type": "search_file",
-                "params": {"path": str(test_file), "pattern": "needle"}
-            })
+            result = executor.execute_action(
+                {"type": "search_file", "params": {"path": str(test_file), "pattern": "needle"}}
+            )
             self.assertTrue(result.success)
 
     def test_execute_list_dir(self):
@@ -1721,20 +1805,14 @@ class TestUniversalExecutorExecuteAction(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmpdir:
             executor = UniversalExecutor(base_dir=tmpdir)
-            result = executor.execute_action({
-                "type": "list_dir",
-                "params": {"path": tmpdir}
-            })
+            result = executor.execute_action({"type": "list_dir", "params": {"path": tmpdir}})
             self.assertTrue(result.success)
 
     def test_execute_shell(self):
         from tools.universal_executor import UniversalExecutor
 
         executor = UniversalExecutor(base_dir="/tmp")
-        result = executor.execute_action({
-            "type": "shell",
-            "params": {"command": "echo hello"}
-        })
+        result = executor.execute_action({"type": "shell", "params": {"command": "echo hello"}})
         self.assertTrue(result.success)
         self.assertIn("hello", result.output)
 
@@ -1742,10 +1820,9 @@ class TestUniversalExecutorExecuteAction(unittest.TestCase):
         from tools.universal_executor import UniversalExecutor
 
         executor = UniversalExecutor(base_dir="/tmp")
-        result = executor.execute_action({
-            "type": "package",
-            "params": {"manager": "pip", "action": "list"}
-        })
+        result = executor.execute_action(
+            {"type": "package", "params": {"manager": "pip", "action": "list"}}
+        )
         # pip list may succeed or fail depending on environment
         self.assertIsInstance(result.success, bool)
 
@@ -1795,49 +1872,89 @@ class TestBountyIntelligenceBountyProgram(unittest.TestCase):
     def test_bounty_range_equal(self):
         from tools.bounty_intelligence import BountyProgram
 
-        p = BountyProgram(id="1", name="Test", platform="hackerone",
-                          url="http://t.com", offers_bounties=True,
-                          min_bounty=500, max_bounty=500)
+        p = BountyProgram(
+            id="1",
+            name="Test",
+            platform="hackerone",
+            url="http://t.com",
+            offers_bounties=True,
+            min_bounty=500,
+            max_bounty=500,
+        )
         self.assertEqual(p.bounty_range, "$500")
 
     def test_bounty_range_different(self):
         from tools.bounty_intelligence import BountyProgram
 
-        p = BountyProgram(id="1", name="Test", platform="hackerone",
-                          url="http://t.com", offers_bounties=True,
-                          min_bounty=100, max_bounty=5000)
+        p = BountyProgram(
+            id="1",
+            name="Test",
+            platform="hackerone",
+            url="http://t.com",
+            offers_bounties=True,
+            min_bounty=100,
+            max_bounty=5000,
+        )
         self.assertEqual(p.bounty_range, "$100 - $5,000")
 
     def test_is_worth_targeting_yes(self):
         from tools.bounty_intelligence import BountyProgram
 
-        p = BountyProgram(id="1", name="Test", platform="hackerone",
-                          url="http://t.com", offers_bounties=True,
-                          min_bounty=500, max_bounty=10000, is_public=True)
+        p = BountyProgram(
+            id="1",
+            name="Test",
+            platform="hackerone",
+            url="http://t.com",
+            offers_bounties=True,
+            min_bounty=500,
+            max_bounty=10000,
+            is_public=True,
+        )
         self.assertTrue(p.is_worth_targeting)
 
     def test_is_worth_targeting_no_bounties(self):
         from tools.bounty_intelligence import BountyProgram
 
-        p = BountyProgram(id="1", name="Test", platform="hackerone",
-                          url="http://t.com", offers_bounties=False,
-                          min_bounty=0, max_bounty=0, is_public=True)
+        p = BountyProgram(
+            id="1",
+            name="Test",
+            platform="hackerone",
+            url="http://t.com",
+            offers_bounties=False,
+            min_bounty=0,
+            max_bounty=0,
+            is_public=True,
+        )
         self.assertFalse(p.is_worth_targeting)
 
     def test_is_worth_targeting_low_bounty(self):
         from tools.bounty_intelligence import BountyProgram
 
-        p = BountyProgram(id="1", name="Test", platform="hackerone",
-                          url="http://t.com", offers_bounties=True,
-                          min_bounty=10, max_bounty=100, is_public=True)
+        p = BountyProgram(
+            id="1",
+            name="Test",
+            platform="hackerone",
+            url="http://t.com",
+            offers_bounties=True,
+            min_bounty=10,
+            max_bounty=100,
+            is_public=True,
+        )
         self.assertFalse(p.is_worth_targeting)
 
     def test_is_worth_targeting_private(self):
         from tools.bounty_intelligence import BountyProgram
 
-        p = BountyProgram(id="1", name="Test", platform="hackerone",
-                          url="http://t.com", offers_bounties=True,
-                          min_bounty=500, max_bounty=5000, is_public=False)
+        p = BountyProgram(
+            id="1",
+            name="Test",
+            platform="hackerone",
+            url="http://t.com",
+            offers_bounties=True,
+            min_bounty=500,
+            max_bounty=5000,
+            is_public=False,
+        )
         self.assertFalse(p.is_worth_targeting)
 
 
@@ -1873,13 +1990,27 @@ class TestBountyIntelligenceRankPrograms(unittest.TestCase):
 
         bi = BountyIntelligence()
         programs = [
-            BountyProgram(id="1", name="Low", platform="hackerone",
-                          url="http://low.com", offers_bounties=True,
-                          min_bounty=100, max_bounty=1000, response_time_hours=48),
-            BountyProgram(id="2", name="High", platform="hackerone",
-                          url="http://high.com", offers_bounties=True,
-                          min_bounty=500, max_bounty=10000, response_time_hours=24,
-                          scope=[{"asset": "api"}]),
+            BountyProgram(
+                id="1",
+                name="Low",
+                platform="hackerone",
+                url="http://low.com",
+                offers_bounties=True,
+                min_bounty=100,
+                max_bounty=1000,
+                response_time_hours=48,
+            ),
+            BountyProgram(
+                id="2",
+                name="High",
+                platform="hackerone",
+                url="http://high.com",
+                offers_bounties=True,
+                min_bounty=500,
+                max_bounty=10000,
+                response_time_hours=24,
+                scope=[{"asset": "api"}],
+            ),
         ]
         ranked = bi.rank_programs(programs)
         self.assertEqual(ranked[0].name, "High")
@@ -1890,9 +2021,16 @@ class TestBountyIntelligenceRankPrograms(unittest.TestCase):
 
         bi = BountyIntelligence()
         programs = [
-            BountyProgram(id="1", name="NoTime", platform="hackerone",
-                          url="http://t.com", offers_bounties=True,
-                          min_bounty=100, max_bounty=5000, response_time_hours=None),
+            BountyProgram(
+                id="1",
+                name="NoTime",
+                platform="hackerone",
+                url="http://t.com",
+                offers_bounties=True,
+                min_bounty=100,
+                max_bounty=5000,
+                response_time_hours=None,
+            ),
         ]
         ranked = bi.rank_programs(programs)
         self.assertEqual(ranked[0].score_response, 15)  # Default average
@@ -1913,11 +2051,17 @@ class TestBountyIntelligenceFormatProgramsList(unittest.TestCase):
 
         bi = BountyIntelligence()
         programs = [
-            BountyProgram(id="1", name="Shopify", platform="hackerone",
-                          url="http://shopify.com", offers_bounties=True,
-                          min_bounty=500, max_bounty=30000,
-                          response_time_hours=48,
-                          scope=[{"a": "1"}, {"a": "2"}]),
+            BountyProgram(
+                id="1",
+                name="Shopify",
+                platform="hackerone",
+                url="http://shopify.com",
+                offers_bounties=True,
+                min_bounty=500,
+                max_bounty=30000,
+                response_time_hours=48,
+                scope=[{"a": "1"}, {"a": "2"}],
+            ),
         ]
         result = bi.format_programs_list(programs, show_scores=True)
         self.assertIn("Shopify", result)
@@ -1941,17 +2085,17 @@ class TestBountyIntelligenceParseApiProgram(unittest.TestCase):
                 "response_time": {"hours": 24},
             },
             "relationships": {
-                "bounty_range": {
-                    "data": {"min": 500, "max": 10000, "currency": "USD"}
-                },
+                "bounty_range": {"data": {"min": 500, "max": 10000, "currency": "USD"}},
                 "structured_scopes": {
                     "data": [
-                        {"attributes": {
-                            "asset_identifier": "*.testcorp.com",
-                            "asset_type": "URL",
-                            "eligible_for_bounty": True,
-                            "instruction": "test",
-                        }}
+                        {
+                            "attributes": {
+                                "asset_identifier": "*.testcorp.com",
+                                "asset_type": "URL",
+                                "eligible_for_bounty": True,
+                                "instruction": "test",
+                            }
+                        }
                     ]
                 },
             },
@@ -2032,9 +2176,15 @@ class TestBountyIntelligenceCache(unittest.TestCase):
 
         bi = BountyIntelligence()
         programs = [
-            BountyProgram(id="cache_test_1", name="CacheTest", platform="hackerone",
-                          url="http://cache.com", offers_bounties=True,
-                          min_bounty=500, max_bounty=5000),
+            BountyProgram(
+                id="cache_test_1",
+                name="CacheTest",
+                platform="hackerone",
+                url="http://cache.com",
+                offers_bounties=True,
+                min_bounty=500,
+                max_bounty=5000,
+            ),
         ]
         bi._cache_programs(programs)
         cached = bi._get_cached_programs(limit=10)
@@ -2054,13 +2204,19 @@ class TestVulnResearcherDataclasses(unittest.TestCase):
         from tools.vuln_researcher import CVEResearchResult
 
         r = CVEResearchResult(
-            cve_id="CVE-2024-1234", cvss_score=9.8, severity="Critical",
-            description="RCE in widget", affected_products=["Widget 1.0"],
+            cve_id="CVE-2024-1234",
+            cvss_score=9.8,
+            severity="Critical",
+            description="RCE in widget",
+            affected_products=["Widget 1.0"],
             exploitation_requirements=["network access"],
             exploit_conditions={"requires_auth": False},
             available_pocs=[{"source": "github", "url": "http://t.com", "type": "python"}],
-            patched_versions=["1.1"], references=["http://nvd.nist.gov"],
-            github_advisories=[], ai_summary="Critical RCE", confidence=0.9
+            patched_versions=["1.1"],
+            references=["http://nvd.nist.gov"],
+            github_advisories=[],
+            ai_summary="Critical RCE",
+            confidence=0.9,
         )
         self.assertEqual(r.cve_id, "CVE-2024-1234")
         self.assertEqual(r.confidence, 0.9)
@@ -2069,8 +2225,10 @@ class TestVulnResearcherDataclasses(unittest.TestCase):
         from tools.vuln_researcher import ExploitCondition
 
         ec = ExploitCondition(
-            prerequisite="auth", details="need valid token",
-            how_to_check="login", exploitability_score=0.8
+            prerequisite="auth",
+            details="need valid token",
+            how_to_check="login",
+            exploitability_score=0.8,
         )
         self.assertEqual(ec.exploitability_score, 0.8)
 
@@ -2078,10 +2236,15 @@ class TestVulnResearcherDataclasses(unittest.TestCase):
         from tools.vuln_researcher import DisclosedBounty
 
         db = DisclosedBounty(
-            title="SQLi in API", program="Shopify", severity="Critical",
-            payout="$5000", disclosed_at="2024-01-01",
-            summary="Found SQL injection", key_techniques=["sqli"],
-            url="http://h1.com", reporter="researcher"
+            title="SQLi in API",
+            program="Shopify",
+            severity="Critical",
+            payout="$5000",
+            disclosed_at="2024-01-01",
+            summary="Found SQL injection",
+            key_techniques=["sqli"],
+            url="http://h1.com",
+            reporter="researcher",
         )
         self.assertEqual(db.payout, "$5000")
 
@@ -2089,10 +2252,12 @@ class TestVulnResearcherDataclasses(unittest.TestCase):
         from tools.vuln_researcher import CustomPoC
 
         poc = CustomPoC(
-            code="print('hello')", language="python",
+            code="print('hello')",
+            language="python",
             target_framework="Django",
-            verification_steps=["step1"], expected_output="hello",
-            mitigations=["parameterize"]
+            verification_steps=["step1"],
+            expected_output="hello",
+            mitigations=["parameterize"],
         )
         self.assertEqual(poc.language, "python")
 
@@ -2152,9 +2317,12 @@ class TestSmartScannerPhaseConfig(unittest.TestCase):
         from tools.smart_scanner import ScanPhaseConfig
 
         config = ScanPhaseConfig(
-            name="test", description="test phase",
-            estimated_tokens=1000, estimated_duration_minutes=5,
-            required_tools=["tool1"], is_critical=True
+            name="test",
+            description="test phase",
+            estimated_tokens=1000,
+            estimated_duration_minutes=5,
+            required_tools=["tool1"],
+            is_critical=True,
         )
         self.assertEqual(config.name, "test")
         self.assertTrue(config.is_critical)
@@ -2297,10 +2465,15 @@ class TestWelcomeWizard(unittest.TestCase):
     def test_setup_config(self):
         try:
             from tools.welcome_wizard import SetupConfig
+
             config = SetupConfig(
-                ai_provider="openai", ai_model="gpt-4",
-                default_mode="autonomous", rate_limit=10,
-                theme="minimal", auto_update=True, telemetry=False
+                ai_provider="openai",
+                ai_model="gpt-4",
+                default_mode="autonomous",
+                rate_limit=10,
+                theme="minimal",
+                auto_update=True,
+                telemetry=False,
             )
             self.assertEqual(config.ai_provider, "openai")
             self.assertFalse(config.telemetry)
@@ -2319,18 +2492,21 @@ class TestSmartRecon(unittest.TestCase):
 
     def test_asset_node(self):
         from tools.smart_recon import AssetNode
+
         node = AssetNode(id="n1", asset_type="domain", value="example.com")
-        self.assertTrue(hasattr(node, '__dataclass_fields__') or hasattr(node, '__init__'))
+        self.assertTrue(hasattr(node, "__dataclass_fields__") or hasattr(node, "__init__"))
 
     def test_asset_edge(self):
         from tools.smart_recon import AssetEdge
+
         edge = AssetEdge(source="n1", target="n2", relation="has_finding")
-        self.assertTrue(hasattr(edge, '__dataclass_fields__') or hasattr(edge, '__init__'))
+        self.assertTrue(hasattr(edge, "__dataclass_fields__") or hasattr(edge, "__init__"))
 
     def test_recon_result(self):
         from tools.smart_recon import ReconResult
+
         result = ReconResult(nodes=[], edges=[], findings=[], stats={})
-        self.assertTrue(hasattr(result, '__dataclass_fields__') or hasattr(result, '__init__'))
+        self.assertTrue(hasattr(result, "__dataclass_fields__") or hasattr(result, "__init__"))
 
 
 # ============================================================================
@@ -2344,7 +2520,8 @@ class TestTuiDashboard(unittest.TestCase):
     def test_import(self):
         try:
             import tools.tui_dashboard
-            self.assertTrue(hasattr(tools.tui_dashboard, '__file__'))
+
+            self.assertTrue(hasattr(tools.tui_dashboard, "__file__"))
         except ImportError:
             self.skipTest("tui_dashboard not importable")
 
@@ -2360,8 +2537,7 @@ class TestProgressDisplay(unittest.TestCase):
     def test_scan_phase(self):
         from tools.progress_display import ScanPhase
 
-        phase = ScanPhase(id="recon", name="Reconnaissance",
-                          subtasks=["DNS", "Subdomains"])
+        phase = ScanPhase(id="recon", name="Reconnaissance", subtasks=["DNS", "Subdomains"])
         self.assertEqual(phase.status, "pending")
         self.assertEqual(phase.progress, 0.0)
         self.assertEqual(phase.duration, 0.0)
@@ -2386,7 +2562,9 @@ class TestProgressDisplay(unittest.TestCase):
             from tools.progress_display import ProgressMetrics
 
             metrics = ProgressMetrics()
-            self.assertTrue(hasattr(metrics, '__dataclass_fields__') or hasattr(metrics, '__init__'))
+            self.assertTrue(
+                hasattr(metrics, "__dataclass_fields__") or hasattr(metrics, "__init__")
+            )
         except (ImportError, TypeError):
             self.skipTest("ProgressMetrics not available")
 
@@ -2402,6 +2580,7 @@ class TestProgressDisplay(unittest.TestCase):
     def test_spinner(self):
         try:
             from tools.progress_display import Spinner
+
             spinner = Spinner()
             self.assertIsNotNone(spinner)
         except (ImportError, TypeError, AttributeError):
@@ -2410,6 +2589,7 @@ class TestProgressDisplay(unittest.TestCase):
     def test_compact_progress(self):
         try:
             from tools.progress_display import CompactProgress
+
             cp = CompactProgress()
             self.assertIsNotNone(cp)
         except (ImportError, TypeError, AttributeError):
@@ -2544,7 +2724,8 @@ class TestAiToolCreator(unittest.TestCase):
     def test_import(self):
         try:
             import tools.ai_tool_creator
-            self.assertTrue(hasattr(tools.ai_tool_creator, '__file__'))
+
+            self.assertTrue(hasattr(tools.ai_tool_creator, "__file__"))
         except ImportError:
             self.skipTest("ai_tool_creator not importable")
 
@@ -2560,7 +2741,8 @@ class TestScanEngineUpgrade(unittest.TestCase):
     def test_import(self):
         try:
             from core import scan_engine
-            self.assertTrue(hasattr(scan_engine, '__file__'))
+
+            self.assertTrue(hasattr(scan_engine, "__file__"))
         except ImportError:
             self.skipTest("scan_engine_upgrade not importable")
 
@@ -2576,7 +2758,8 @@ class TestOrchestrator(unittest.TestCase):
     def test_import(self):
         try:
             import core.orchestrator
-            self.assertTrue(hasattr(core.orchestrator, '__file__'))
+
+            self.assertTrue(hasattr(core.orchestrator, "__file__"))
         except ImportError:
             self.skipTest("orchestrator not importable")
 

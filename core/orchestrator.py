@@ -165,6 +165,7 @@ def _check_dns_resolution(target: str) -> bool:
 
     try:
         import socket
+
         # Resolve domain to IP (with timeout)
         ips = socket.getaddrinfo(target, None, socket.AF_UNSPEC, socket.SOCK_STREAM)
         for family, _, _, _, sockaddr in ips:
@@ -217,11 +218,11 @@ def is_in_scope(target: str) -> bool:
     allowed = _get_allowed_domains()
     if not allowed:
         # Fail-closed: no scope configured = deny all
-        logger.warning("No scope configured — denying all targets. Set scope.txt or ELENGENIX_SCOPE.")
+        logger.warning(
+            "No scope configured — denying all targets. Set scope.txt or ELENGENIX_SCOPE."
+        )
         return False
-    return normalized in allowed or any(
-        normalized.endswith(f".{a}") for a in allowed
-    )
+    return normalized in allowed or any(normalized.endswith(f".{a}") for a in allowed)
 
 
 def are_targets_in_scope(targets: List[str]) -> bool:
@@ -324,9 +325,7 @@ async def run_registry_pipeline(
     # Execute all tools in parallel (bounded by semaphore)
     async def _run_one(tool):
         async with semaphore:
-            return await run_tool_with_registry(
-                tool.metadata.name, target, report_dir, semaphore
-            )
+            return await run_tool_with_registry(tool.metadata.name, target, report_dir, semaphore)
 
     tasks = [_run_one(tool) for tool in available_tools]
     results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -465,14 +464,12 @@ async def _run_phase1_recon(
     async def _run_recon():
         """Run sync recon in thread to avoid blocking event loop."""
         recon = PythonRecon(timeout=1.0, max_concurrent=40)
-        return recon.full_recon(target, quick=True)
+        return await asyncio.to_thread(recon.full_recon, target, quick=True)
 
     with Timer() as timer:
         try:
             recon_result = await asyncio.wait_for(
-                asyncio.to_thread(
-                    lambda: asyncio.new_event_loop().run_until_complete(_run_recon())
-                ),
+                _run_recon(),
                 timeout=timeout,
             )
 
@@ -797,7 +794,9 @@ async def _run_phase4_bola(
         session_b = os.environ.get("BOLA_SESSION_B")
 
         if not session_a or not session_b:
-            console.print("  [dim][SKIP] BOLA: No credentials configured (set BOLA_SESSION_A/BOLA_SESSION_B)[/dim]")
+            console.print(
+                "  [dim][SKIP] BOLA: No credentials configured (set BOLA_SESSION_A/BOLA_SESSION_B)[/dim]"
+            )
             return []
 
         bola = BOLATester()
@@ -982,6 +981,177 @@ async def run_elengenix_modules(
     return findings
 
 
+# ── Helper Functions for run_standard_scan ──────────────────────
+def _prepare_scan_targets(target: str, timeout: int) -> tuple:
+    """Validate targets and prepare report directory. Returns (targets, primary, report_dir) or (None, None, None)."""
+    targets = normalize_targets(target)
+
+    if not targets:
+        console.print("[bold red]SCOPE VIOLATION: No valid targets provided[/bold red]")
+        return None, None, None
+
+    if not are_targets_in_scope(targets):
+        invalid = [t for t in targets if not is_in_scope(t)]
+        console.print(f"[bold red]SCOPE VIOLATION: {', '.join(invalid)}[/bold red]")
+        return None, None, None
+
+    primary = targets[0]
+    safe_name = sanitize_path(primary)
+    report_dir = Path("reports").resolve() / safe_name
+    report_dir.mkdir(parents=True, exist_ok=True)
+    return targets, primary, report_dir
+
+
+def _send_telegram_async(message: str) -> None:
+    """Send telegram notification in thread pool."""
+    asyncio.get_event_loop().run_in_executor(None, send_telegram_notification, message)
+
+
+def _print_scan_banner(
+    target_display: str, use_registry: bool, rate_limit: int, target_count: int
+) -> None:
+    """Print scan banner."""
+    if Panel is not None:
+        console.print(
+            Panel(
+                f"SECURE PIPELINE ACTIVATED: {target_display}\n"
+                f"[dim]Mode: {'Tool Registry' if use_registry else 'Legacy'} | Rate: {rate_limit} concurrent | Targets: {target_count}[/dim]",
+                border_style="red",
+            )
+        )
+    else:
+        console.print(f"SECURE PIPELINE ACTIVATED: {target_display}")
+
+
+async def _run_elengenix_pipeline(
+    targets: List[str], report_dir: Path, timeout: int
+) -> List[Dict[str, Any]]:
+    """Run Elengenix 5-module pipeline for all targets."""
+    all_findings: List[Dict[str, Any]] = []
+    for t in targets:
+        try:
+            t_base_url = t if t.startswith(("http://", "https://")) else f"http://{t}"
+            elengenix_findings = await asyncio.wait_for(
+                run_elengenix_modules(t, report_dir, timeout=min(timeout, 300)),
+                timeout=min(timeout, 300) + 30,
+            )
+            all_findings.extend(elengenix_findings)
+        except asyncio.TimeoutError:
+            logger.warning(f"Elengenix modules timed out for {t} — continuing")
+        except Exception as e:
+            logger.error(f"Elengenix modules failed for {t}: {e}")
+            console.print(f"[bold yellow][WARN] Elengenix modules error for {t}: {e}[/bold yellow]")
+    return all_findings
+
+
+def _save_findings(path: Path, findings: List[Dict[str, Any]]) -> None:
+    """Save findings to JSON file."""
+    path.write_text(json.dumps(findings, indent=2, default=str))
+    console.print(f"[bold white][OK] Saved: {path}[/bold white]")
+
+
+async def _run_smart_scan_mode(
+    primary: str, report_dir: Path, tool_filter: Optional[List[str]], rate_limit: int
+) -> None:
+    """Run smart scan mode with file relationship analysis."""
+    orchestrator = SmartOrchestrator(max_concurrency=rate_limit)
+    state, correlator = await orchestrator.run_smart_scan(
+        target=primary,
+        report_dir=report_dir,
+        tools=tool_filter,
+        rate_limit=rate_limit,
+        correlate=True,
+        use_smart_chain=True,
+    )
+
+    # Calculate CVSS scores from smart scan state
+    scored_findings = []
+    if state and state.results:
+        scored_findings = calculate_cvss_for_results(list(state.results.values()))
+
+        # Save CVSS results
+        cvss_file = report_dir / "cvss_scores.json"
+        cvss_file.write_text(json.dumps(scored_findings, indent=2))
+
+    # Show correlated findings summary
+    if correlator and hasattr(correlator, "get_clustered_report"):
+        clusters = correlator.get_clustered_report()
+        if clusters:
+            console.print(f"\n[bold]Correlated Findings: {len(clusters)} clusters[/bold]")
+
+    # Print findings summary
+    if state and state.results:
+        print_findings_summary(list(state.results.values()))
+
+    console.print("\n[bold green][OK] Smart scan complete[/bold green]")
+
+
+async def _run_registry_pipeline_mode(
+    targets: List[str], report_dir: Path, rate_limit: int, tool_filter: Optional[List[str]]
+) -> None:
+    """Run registry pipeline mode for all targets."""
+    all_results: List[ToolResult] = []
+    for t in targets:
+        try:
+            t_results = await asyncio.wait_for(
+                run_registry_pipeline(t, report_dir, rate_limit, tool_filter),
+                timeout=600,
+            )
+            all_results.extend(t_results)
+        except asyncio.TimeoutError:
+            logger.warning(f"Registry pipeline timed out for {t}")
+
+    # Calculate CVSS scores
+    scored_findings = calculate_cvss_for_results(all_results)
+
+    # Save CVSS results
+    cvss_file = report_dir / "cvss_scores.json"
+    cvss_file.write_text(json.dumps(scored_findings, indent=2))
+
+    # Print summary
+    print_findings_summary(all_results)
+
+    # Summary stats
+    total_findings = sum(len(r.findings) for r in all_results)
+    critical = len([s for s in scored_findings if s["severity"] == "Critical"])
+    high = len([s for s in scored_findings if s["severity"] == "High"])
+
+    console.print(
+        f"\n[bold green][OK] Scan complete: {len(all_results)} tools, {total_findings} findings[/bold green]"
+    )
+
+    if critical > 0:
+        console.print(
+            f"[bold red][CRITICAL] {critical} findings require immediate attention![/bold red]"
+        )
+    if high > 0:
+        console.print(f"[bold orange3][HIGH] {high} findings need review[/bold orange3]")
+
+
+def _handle_timeout(timeout: int, target_display: str, report_dir: Path) -> Optional[str]:
+    """Handle timeout error."""
+    logger.error(f"Scan timeout after {timeout}s")
+    console.print(f"[bold red][TIMEOUT] Scan exceeded {timeout} seconds[/bold red]")
+    _send_telegram_async(f" Scan timeout for `{target_display}`")
+    return str(report_dir) if report_dir.exists() else None
+
+
+def _handle_interrupt(target_display: str, report_dir: Path) -> Optional[str]:
+    """Handle keyboard interrupt."""
+    logger.warning("Scan interrupted by user")
+    console.print("[yellow][WARN] Scan interrupted by user[/yellow]")
+    _send_telegram_async(f" Scan interrupted for `{target_display}`")
+    return str(report_dir) if report_dir.exists() else None
+
+
+def _handle_error(e: Exception, target_display: str, report_dir: Path) -> Optional[str]:
+    """Handle generic error."""
+    logger.exception(f"Pipeline crash: {e}")
+    console.print(f"[bold red][FAIL] Error: {e}[/bold red]")
+    _send_telegram_async(f" Scan FAILED for `{target_display}`: {e}")
+    return None
+
+
 # ── Core Orchestrator ────────────────────────────────────────
 async def run_standard_scan(
     target: str,
@@ -1006,61 +1176,21 @@ async def run_standard_scan(
         use_smart_scan: Use intelligent smart scan with file relationship
                         analysis and finding correlation (default: False)
     """
-    # Normalize and validate all targets
-    targets = normalize_targets(target)
-
-    if not targets:
-        console.print("[bold red]SCOPE VIOLATION: No valid targets provided[/bold red]")
+    # Validate and prepare targets
+    targets, primary, report_dir = _prepare_scan_targets(target, timeout)
+    if targets is None:
         return None
-
-    # Check scope for all targets
-    if not are_targets_in_scope(targets):
-        invalid = [t for t in targets if not is_in_scope(t)]
-        console.print(f"[bold red]SCOPE VIOLATION: {', '.join(invalid)}[/bold red]")
-        return None
-
-    # Use first target for report naming (primary target)
-    primary = targets[0]
-    safe_name = sanitize_path(primary)
-    report_dir = Path("reports").resolve() / safe_name
-    report_dir.mkdir(parents=True, exist_ok=True)
 
     target_display = ", ".join(targets) if len(targets) > 1 else primary
-    send_telegram_notification(f" Mission Authorized: `{target_display}`")
-    if Panel is not None:
-        console.print(
-            Panel(
-                f"SECURE PIPELINE ACTIVATED: {target_display}\n"
-                f"[dim]Mode: {'Tool Registry' if use_registry else 'Legacy'} | Rate: {rate_limit} concurrent | Targets: {len(targets)}[/dim]",
-                border_style="red",
-            )
-        )
-    else:
-        console.print(f"SECURE PIPELINE ACTIVATED: {target_display}")
+    _send_telegram_async(f" Mission Authorized: `{target_display}`")
+    _print_scan_banner(target_display, use_registry, rate_limit, len(targets))
 
     # ── Elengenix 5-module pipeline (P0-B) — runs FIRST and independently ──
-    # This is the production fallback that produces real findings even when
-    # AI providers and third-party tools are unavailable.
-    # Run pipeline for each target (primary target first)
-    all_elengenix_findings: List[Dict[str, Any]] = []
-    for t in targets:
-        try:
-            t_base_url = t if t.startswith(("http://", "https://")) else f"http://{t}"
-            elengenix_findings = await asyncio.wait_for(
-                run_elengenix_modules(t, report_dir, timeout=min(timeout, 300)),
-                timeout=min(timeout, 300) + 30,
-            )
-            all_elengenix_findings.extend(elengenix_findings)
-        except asyncio.TimeoutError:
-            logger.warning(f"Elengenix modules timed out for {t} — continuing")
-        except Exception as e:
-            logger.error(f"Elengenix modules failed for {t}: {e}")
-            console.print(f"[bold yellow][WARN] Elengenix modules error for {t}: {e}[/bold yellow]")
+    all_elengenix_findings = await _run_elengenix_pipeline(targets, report_dir, timeout)
 
     # Save all Elengenix findings
     if all_elengenix_findings:
-        elengenix_path = report_dir / "elengenix_findings.json"
-        elengenix_path.write_text(json.dumps(all_elengenix_findings, indent=2, default=str))
+        _save_findings(report_dir / "elengenix_findings.json", all_elengenix_findings)
         console.print(
             f"[bold white][OK] Elengenix modules: {len(all_elengenix_findings)} findings[/bold white]"
         )
@@ -1068,98 +1198,17 @@ async def run_standard_scan(
     try:
         if use_registry:
             if use_smart_scan:
-                # Smart scan with file relationship analysis
-                orchestrator = SmartOrchestrator(max_concurrency=rate_limit)
-                state, correlator = await orchestrator.run_smart_scan(
-                    target=primary,
-                    report_dir=report_dir,
-                    tools=tool_filter,
-                    rate_limit=rate_limit,
-                    correlate=True,
-                    use_smart_chain=True,
-                )
-
-                # Calculate CVSS scores from smart scan state
-                scored_findings = []
-                if state and state.results:
-                    scored_findings = calculate_cvss_for_results(
-                        list(state.results.values())
-                    )
-
-                    # Save CVSS results
-                    cvss_file = report_dir / "cvss_scores.json"
-                    cvss_file.write_text(json.dumps(scored_findings, indent=2))
-
-                # Show correlated findings summary
-                if correlator and hasattr(correlator, "get_clustered_report"):
-                    clusters = correlator.get_clustered_report()
-                    if clusters:
-                        console.print(f"\n[bold]Correlated Findings: {len(clusters)} clusters[/bold]")
-
-                # Print findings summary
-                if state and state.results:
-                    print_findings_summary(list(state.results.values()))
-
-                console.print("\n[bold green][OK] Smart scan complete[/bold green]")
+                await _run_smart_scan_mode(primary, report_dir, tool_filter, rate_limit)
             else:
-                # Modern Tool Registry approach — run for each target
-                all_results: List[ToolResult] = []
-                for t in targets:
-                    try:
-                        t_results = await asyncio.wait_for(
-                            run_registry_pipeline(t, report_dir, rate_limit, tool_filter),
-                            timeout=timeout,
-                        )
-                        all_results.extend(t_results)
-                    except asyncio.TimeoutError:
-                        logger.warning(f"Registry pipeline timed out for {t}")
-
-                # Calculate CVSS scores
-                scored_findings = calculate_cvss_for_results(all_results)
-
-                # Save CVSS results
-                cvss_file = report_dir / "cvss_scores.json"
-                cvss_file.write_text(json.dumps(scored_findings, indent=2))
-
-                # Print summary
-                print_findings_summary(all_results)
-
-                # Summary stats
-                total_findings = sum(len(r.findings) for r in all_results)
-                critical = len([s for s in scored_findings if s["severity"] == "Critical"])
-                high = len([s for s in scored_findings if s["severity"] == "High"])
-
-                console.print(
-                    f"\n[bold green][OK] Scan complete: {len(all_results)} tools, {total_findings} findings[/bold green]"
-                )
-
-                if critical > 0:
-                    console.print(
-                        f"[bold red][CRITICAL] {critical} findings require immediate attention![/bold red]"
-                    )
-                if high > 0:
-                    console.print(
-                        f"[bold orange3][HIGH] {high} findings need review[/bold orange3]"
-                    )
+                await _run_registry_pipeline_mode(targets, report_dir, rate_limit, tool_filter)
 
         console.print(f"[bold green][OK] Reports saved: {report_dir}[/bold green]")
-        send_telegram_notification(f" Scan complete for `{target_display}` - Reports saved")
+        _send_telegram_async(f" Scan complete for `{target_display}` - Reports saved")
         return str(report_dir)
 
     except asyncio.TimeoutError:
-        logger.error(f"Scan timeout after {timeout}s")
-        console.print(f"[bold red][TIMEOUT] Scan exceeded {timeout} seconds[/bold red]")
-        send_telegram_notification(f" Scan timeout for `{target_display}`")
-        return str(report_dir) if report_dir.exists() else None
-
+        return _handle_timeout(timeout, target_display, report_dir)
     except KeyboardInterrupt:
-        logger.warning("Scan interrupted by user")
-        console.print("[yellow][WARN] Scan interrupted by user[/yellow]")
-        send_telegram_notification(f" Scan interrupted for `{target_display}`")
-        return str(report_dir) if report_dir.exists() else None
-
+        return _handle_interrupt(target_display, report_dir)
     except Exception as e:
-        logger.exception(f"Pipeline crash: {e}")
-        console.print(f"[bold red][FAIL] Error: {e}[/bold red]")
-        send_telegram_notification(f" Scan FAILED for `{target_display}`: {e}")
-        return None
+        return _handle_error(e, target_display, report_dir)

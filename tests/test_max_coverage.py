@@ -23,6 +23,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 # ─── Fixtures ───────────────────────────────────────────────────────────────
 
+
 @pytest.fixture
 def tmp_db(tmp_path):
     """Provide a temp SQLite DB path."""
@@ -51,9 +52,11 @@ def mock_console():
 #  tools/perf.py — SmartCache, Timer, AsyncBatcher, FastHTTP, StreamingAggregator
 # ═════════════════════════════════════════════════════════════════════════════
 
+
 class TestSmartCache:
     def test_set_get_hit(self):
         from tools.perf import SmartCache
+
         c = SmartCache(max_size=10, default_ttl=60)
         c.set("k1", "v1")
         assert c.get("k1") == "v1"
@@ -61,12 +64,14 @@ class TestSmartCache:
 
     def test_miss(self):
         from tools.perf import SmartCache
+
         c = SmartCache()
         assert c.get("nonexistent") is None
         assert c.misses == 1
 
     def test_ttl_expiry(self):
         from tools.perf import SmartCache
+
         c = SmartCache(default_ttl=0.01)
         c.set("k", "v")
         time.sleep(0.02)
@@ -74,6 +79,7 @@ class TestSmartCache:
 
     def test_lru_eviction(self):
         from tools.perf import SmartCache
+
         c = SmartCache(max_size=2)
         c.set("a", 1)
         c.set("b", 2)
@@ -84,6 +90,7 @@ class TestSmartCache:
 
     def test_invalidate_all(self):
         from tools.perf import SmartCache
+
         c = SmartCache()
         c.set("a", 1)
         c.set("b", 2)
@@ -92,6 +99,7 @@ class TestSmartCache:
 
     def test_invalidate_pattern(self):
         from tools.perf import SmartCache
+
         c = SmartCache()
         c.set("http://a.com", 1)
         c.set("http://b.com", 2)
@@ -102,6 +110,7 @@ class TestSmartCache:
 
     def test_stats(self):
         from tools.perf import SmartCache
+
         c = SmartCache(max_size=5)
         c.set("x", 1)
         c.get("x")
@@ -113,6 +122,7 @@ class TestSmartCache:
 
     def test_set_existing_key(self):
         from tools.perf import SmartCache
+
         c = SmartCache(max_size=3)
         c.set("k", "old")
         c.set("k", "new")
@@ -123,6 +133,7 @@ class TestSmartCache:
 class TestTimer:
     def test_timer_context(self):
         from tools.perf import Timer
+
         with Timer(name="test") as t:
             time.sleep(0.01)
         assert t.result is not None
@@ -131,11 +142,13 @@ class TestTimer:
 
     def test_duration_ms_before_exit(self):
         from tools.perf import Timer
+
         t = Timer()
         assert t.duration_ms == 0.0
 
     def test_timer_with_metadata(self):
         from tools.perf import Timer
+
         with Timer(name="op", metadata={"key": "val"}) as t:
             pass
         assert t.result.metadata == {"key": "val"}
@@ -155,6 +168,7 @@ class TestTimeitDecorator:
 class TestCachedDecorator:
     def test_cached_decorator(self):
         from tools.perf import SmartCache, cached
+
         cache = SmartCache(default_ttl=60)
         call_count = 0
 
@@ -170,6 +184,7 @@ class TestCachedDecorator:
 
     def test_cached_with_key_fn(self):
         from tools.perf import SmartCache, cached
+
         cache = SmartCache(default_ttl=60)
 
         @cached(cache=cache, key_fn=lambda x, **kw: f"key_{x}")
@@ -181,6 +196,7 @@ class TestCachedDecorator:
 
     def test_cached_none_result_not_stored(self):
         from tools.perf import SmartCache, cached
+
         cache = SmartCache(default_ttl=60)
         call_count = 0
 
@@ -199,6 +215,7 @@ class TestAsyncBatcher:
     @pytest.mark.asyncio
     async def test_run_all(self):
         from tools.perf import AsyncBatcher
+
         batcher = AsyncBatcher(concurrency=2, timeout=5)
 
         async def coro(x):
@@ -210,6 +227,7 @@ class TestAsyncBatcher:
     @pytest.mark.asyncio
     async def test_run_all_with_error(self):
         from tools.perf import AsyncBatcher
+
         batcher = AsyncBatcher(concurrency=2, timeout=5)
 
         async def ok(x):
@@ -225,6 +243,7 @@ class TestAsyncBatcher:
 class TestStreamingAggregator:
     def test_add_findings(self):
         from tools.perf import StreamingAggregator
+
         agg = StreamingAggregator()
         agg.add({"severity": "High", "cvss": 8.0})
         agg.add({"severity": "Low", "cvss": 2.0})
@@ -234,6 +253,7 @@ class TestStreamingAggregator:
 
     def test_summary(self):
         from tools.perf import StreamingAggregator
+
         agg = StreamingAggregator()
         agg.add({"severity": "Critical", "cvss": 9.5})
         s = agg.summary()
@@ -242,6 +262,7 @@ class TestStreamingAggregator:
 
     def test_duration(self):
         from tools.perf import StreamingAggregator
+
         agg = StreamingAggregator()
         time.sleep(0.01)
         assert agg.duration_seconds > 0
@@ -250,6 +271,7 @@ class TestStreamingAggregator:
 class TestFastHTTP:
     def test_get_returns_dict(self):
         from tools.perf import FastHTTP
+
         # Just test instantiation and session creation
         http = FastHTTP(timeout=5, use_cache=False)
         assert http.timeout == 5
@@ -257,6 +279,7 @@ class TestFastHTTP:
 
     def test_get_session(self):
         from tools.perf import FastHTTP
+
         http = FastHTTP()
         s = http._get_session()
         assert s is not None
@@ -266,12 +289,14 @@ class TestFastHTTP:
 #  tools/token_manager.py — TokenManager
 # ═════════════════════════════════════════════════════════════════════════════
 
+
 class TestTokenManager:
     @pytest.fixture
     def tm(self, tmp_path):
         from tools.token_manager import TokenManager
+
         db_path = tmp_path / "tokens.db"
-        patcher = patch.object(TokenManager, 'DB_PATH', db_path)
+        patcher = patch.object(TokenManager, "DB_PATH", db_path)
         patcher.start()
         mgr = TokenManager(daily_budget_usd=10.0, monthly_budget_usd=100.0)
         yield mgr
@@ -346,12 +371,13 @@ class TestTokenManager:
 
     def test_recommend_provider_cheapest(self, tmp_path):
         from tools.token_manager import TokenManager, ProviderConfig
+
         configs = {
             "cheap": ProviderConfig("Cheap", 1.0, 2.0, "m"),
             "expensive": ProviderConfig("Expensive", 50.0, 100.0, "m"),
         }
         db_path = tmp_path / "cheapest.db"
-        with patch.object(TokenManager, 'DB_PATH', db_path):
+        with patch.object(TokenManager, "DB_PATH", db_path):
             tm = TokenManager(provider_configs=configs)
         rec = tm.recommend_provider("expensive")
         assert rec == "cheap"
@@ -401,8 +427,9 @@ class TestTokenManager:
 
     def test_ensure_db_creates_tables(self, tmp_path):
         from tools.token_manager import TokenManager
+
         db_path = tmp_path / "new.db"
-        with patch.object(TokenManager, 'DB_PATH', db_path):
+        with patch.object(TokenManager, "DB_PATH", db_path):
             tm = TokenManager()
         assert db_path.exists()
 
@@ -411,10 +438,12 @@ class TestTokenManager:
 #  tools/session_manager.py — SessionManager, LiveSessionState
 # ═════════════════════════════════════════════════════════════════════════════
 
+
 class TestSessionManager:
     @pytest.fixture
     def mgr(self, tmp_sessions_dir):
         from tools.session_manager import SessionManager
+
         return SessionManager(sessions_dir=tmp_sessions_dir)
 
     def test_start_session_auto_name(self, mgr):
@@ -488,6 +517,7 @@ class TestSessionManager:
 
     def test_generate_session_id(self):
         from tools.session_manager import generate_session_id
+
         sid = generate_session_id()
         assert len(sid) == 9
         assert sid.isalnum()
@@ -496,6 +526,7 @@ class TestSessionManager:
 class TestLiveSessionState:
     def test_defaults(self):
         from tools.session_manager import LiveSessionState
+
         state = LiveSessionState()
         assert state.turn_count == 0
         assert state.token_count == 0
@@ -506,9 +537,11 @@ class TestLiveSessionState:
 #  tools/universal_ai_client.py — UniversalAIClient, AIMessage, AIResponse
 # ═════════════════════════════════════════════════════════════════════════════
 
+
 class TestAIMessage:
     def test_creation(self):
         from tools.universal_ai_client import AIMessage
+
         msg = AIMessage(role="user", content="hello")
         assert msg.role == "user"
         assert msg.content == "hello"
@@ -516,6 +549,7 @@ class TestAIMessage:
 
     def test_with_metadata(self):
         from tools.universal_ai_client import AIMessage
+
         msg = AIMessage(role="assistant", content="hi", metadata={"key": "val"})
         assert msg.metadata == {"key": "val"}
 
@@ -523,6 +557,7 @@ class TestAIMessage:
 class TestAIResponse:
     def test_creation(self):
         from tools.universal_ai_client import AIResponse
+
         resp = AIResponse(content="ok", model="gpt-4", usage={"prompt": 10, "completion": 20})
         assert resp.content == "ok"
         assert resp.tool_calls is None
@@ -531,6 +566,7 @@ class TestAIResponse:
 class TestToolCall:
     def test_creation(self):
         from tools.universal_ai_client import ToolCall
+
         tc = ToolCall(id="1", name="run_shell", arguments={"command": "ls"})
         assert tc.name == "run_shell"
 
@@ -539,6 +575,7 @@ class TestUniversalAIClient:
     @pytest.fixture
     def client(self):
         from tools.universal_ai_client import UniversalAIClient
+
         return UniversalAIClient(provider="openai", api_key="test-key", model="gpt-4")
 
     def test_init(self, client):
@@ -547,6 +584,7 @@ class TestUniversalAIClient:
 
     def test_provider_configs_exist(self):
         from tools.universal_ai_client import UniversalAIClient
+
         assert "openai" in UniversalAIClient.PROVIDER_CONFIGS
         assert "ollama" in UniversalAIClient.PROVIDER_CONFIGS
         assert "gemini" in UniversalAIClient.PROVIDER_CONFIGS
@@ -566,9 +604,11 @@ class TestUniversalAIClient:
 
     def test_detect_provider_fallback(self):
         from tools.universal_ai_client import UniversalAIClient
+
         c = UniversalAIClient(provider="openai", api_key="test", model="gpt-4")
-        with patch.dict("os.environ", {}, clear=True), \
-             patch.object(c, '_check_ollama', return_value=False):
+        with patch.dict("os.environ", {}, clear=True), patch.object(
+            c, "_check_ollama", return_value=False
+        ):
             p = c._detect_provider()
             assert p == "ollama"
 
@@ -605,10 +645,19 @@ class TestUniversalAIClient:
         mock_resp = MagicMock()
         mock_resp.status_code = 200
         mock_resp.json.return_value = {
-            "choices": [{"message": {
-                "content": "",
-                "tool_calls": [{"id": "1", "function": {"name": "run_shell", "arguments": '{"command":"ls"}'}}],
-            }}],
+            "choices": [
+                {
+                    "message": {
+                        "content": "",
+                        "tool_calls": [
+                            {
+                                "id": "1",
+                                "function": {"name": "run_shell", "arguments": '{"command":"ls"}'},
+                            }
+                        ],
+                    }
+                }
+            ],
             "model": "gpt-4",
             "usage": {"prompt_tokens": 5, "completion_tokens": 3},
         }
@@ -630,12 +679,17 @@ class TestUniversalAIClient:
 #  tools/vector_memory.py — VectorMemory, MemoryEntry
 # ═════════════════════════════════════════════════════════════════════════════
 
+
 class TestMemoryEntry:
     def test_to_dict(self):
         from tools.vector_memory import MemoryEntry
+
         entry = MemoryEntry(
-            id="abc", content="test", target="x.com",
-            category="finding", timestamp="2024-01-01",
+            id="abc",
+            content="test",
+            target="x.com",
+            category="finding",
+            timestamp="2024-01-01",
             metadata={"key": "val"},
         )
         d = entry.to_dict()
@@ -647,6 +701,7 @@ class TestVectorMemory:
     @pytest.fixture
     def vm(self, tmp_path):
         from tools.vector_memory import VectorMemory
+
         return VectorMemory(persist_directory=str(tmp_path / "vdb"))
 
     def test_init(self, vm):
@@ -688,8 +743,7 @@ class TestVectorMemory:
     def test_add_memory_with_metadata(self, vm):
         vm._initialized = False
         mid = vm.add_memory(
-            "test", "x.com", category="finding",
-            metadata={"source": "test", "severity": "high"}
+            "test", "x.com", category="finding", metadata={"source": "test", "severity": "high"}
         )
         assert mid is not None
 
@@ -709,80 +763,98 @@ class TestVectorMemory:
 #  orchestrator.py — scope, validation, pipeline functions
 # ═════════════════════════════════════════════════════════════════════════════
 
+
 class TestOrchestratorScope:
     def test_normalize_target_empty(self):
         from core.orchestrator import normalize_target
+
         assert normalize_target("") == ""
 
     def test_normalize_target_url(self):
         from core.orchestrator import normalize_target
+
         assert normalize_target("https://example.com/path") == "example.com"
 
     def test_normalize_target_http(self):
         from core.orchestrator import normalize_target
+
         assert normalize_target("http://example.com:8080") == "example.com"
 
     def test_normalize_target_strips_port(self):
         from core.orchestrator import normalize_target
+
         assert normalize_target("example.com:443") == "example.com"
 
     def test_normalize_target_trailing_dot(self):
         from core.orchestrator import normalize_target
+
         assert normalize_target("example.com.") == "example.com"
 
     def test_normalize_target_whitespace(self):
         from core.orchestrator import normalize_target
+
         assert normalize_target("  EXAMPLE.COM  ") == "example.com"
 
     def test_is_valid_target_empty(self):
         from core.orchestrator import is_valid_target
+
         assert is_valid_target("") is False
 
     def test_is_valid_target_valid_domain(self):
         from core.orchestrator import is_valid_target
+
         assert is_valid_target("example.com") is True
 
     def test_is_valid_target_invalid_no_dot(self):
         from core.orchestrator import is_valid_target
+
         assert is_valid_target("localhost") is False
 
     def test_is_valid_target_too_long(self):
         from core.orchestrator import is_valid_target
+
         assert is_valid_target("a" * 254) is False
 
     def test_is_valid_target_valid_ip(self):
         from core.orchestrator import is_valid_target
+
         assert is_valid_target("8.8.8.8") is True
 
     def test_is_valid_target_private_ip(self):
         from core.orchestrator import is_valid_target
+
         assert is_valid_target("127.0.0.1") is False
         assert is_valid_target("192.168.1.1") is False
         assert is_valid_target("10.0.0.1") is False
 
     def test_is_valid_target_ipv6(self):
         from core.orchestrator import is_valid_target
+
         # IPv6 loopback
         assert is_valid_target("::1") is False
 
     def test_is_in_scope_empty(self):
         from core.orchestrator import is_in_scope
+
         assert is_in_scope("") is False
 
     def test_is_in_scope_valid(self):
         from core.orchestrator import is_in_scope
+
         # Without allowed domains configured, should return False (fail-closed)
         with patch("core.orchestrator._get_allowed_domains", return_value=set()):
             assert is_in_scope("example.com") is False
 
     def test_sanitize_path(self):
         from core.orchestrator import sanitize_path
+
         result = sanitize_path("example.com/path?q=1")
         assert " " not in result
         assert len(result) <= 100
 
     def test_load_allowed_domains_env(self):
         from core.orchestrator import load_allowed_domains
+
         with patch.dict("os.environ", {"ELENGENIX_SCOPE": "a.com,b.com"}):
             domains = load_allowed_domains()
             assert "a.com" in domains
@@ -790,6 +862,7 @@ class TestOrchestratorScope:
 
     def test_load_allowed_domains_file(self, tmp_path):
         from core.orchestrator import load_allowed_domains
+
         scope_file = tmp_path / "scope.txt"
         scope_file.write_text("test.com\n# comment\ndev.com\n")
         domains = load_allowed_domains(str(scope_file))
@@ -799,6 +872,7 @@ class TestOrchestratorScope:
 
     def test_load_allowed_domains_empty_file(self, tmp_path):
         from core.orchestrator import load_allowed_domains
+
         scope_file = tmp_path / "empty.txt"
         scope_file.write_text("")
         domains = load_allowed_domains(str(scope_file))
@@ -806,6 +880,7 @@ class TestOrchestratorScope:
 
     def test_load_allowed_domains_no_file(self):
         from core.orchestrator import load_allowed_domains
+
         domains = load_allowed_domains("/nonexistent/scope.txt")
         assert isinstance(domains, set)
 
@@ -813,17 +888,34 @@ class TestOrchestratorScope:
 class TestOrchestratorReconToFindings:
     def test_empty_recon(self):
         from core.orchestrator import _recon_to_findings
+
         result = _recon_to_findings({}, "http://x.com")
         assert result == []
 
     def test_recon_with_http(self):
         from core.orchestrator import _recon_to_findings
+
         recon = {
-            "http_probe": {"status": 200, "title": "Test", "tech": ["Apache"], "headers": {"Server": "nginx"}},
+            "http_probe": {
+                "status": 200,
+                "title": "Test",
+                "tech": ["Apache"],
+                "headers": {"Server": "nginx"},
+            },
             "directories": [{"url": "http://x.com/api", "status": 200, "length": 500}],
             "ports": [{"host": "x.com", "port": 443, "service": "https"}],
             "subdomains": [{"subdomain": "api.x.com", "ips": ["1.2.3.4"]}],
-            "parameters": [{"url": "http://x.com/api", "param": "id", "method": "GET", "is_interesting": True, "delta_pct": 50, "baseline_len": 100, "test_len": 200}],
+            "parameters": [
+                {
+                    "url": "http://x.com/api",
+                    "param": "id",
+                    "method": "GET",
+                    "is_interesting": True,
+                    "delta_pct": 50,
+                    "baseline_len": 100,
+                    "test_len": 200,
+                }
+            ],
         }
         findings = _recon_to_findings(recon, "http://x.com")
         types = [f["type"] for f in findings]
@@ -835,6 +927,7 @@ class TestOrchestratorReconToFindings:
 
     def test_recon_not_interesting_params(self):
         from core.orchestrator import _recon_to_findings
+
         recon = {
             "http_probe": {},
             "directories": [],
@@ -849,6 +942,7 @@ class TestOrchestratorReconToFindings:
 class TestOrchestratorGetRecommendedToolChain:
     def test_get_recommended_tool_chain(self):
         from core.orchestrator import get_recommended_tool_chain
+
         chain = get_recommended_tool_chain("web")
         assert isinstance(chain, list)
 
@@ -856,6 +950,7 @@ class TestOrchestratorGetRecommendedToolChain:
 class TestOrchestratorManualCmd:
     def test_manual_cmd(self):
         from core.orchestrator import _manual_cmd
+
         result = _manual_cmd("nuclei")
         assert "nuclei" in result
 
@@ -864,18 +959,25 @@ class TestOrchestratorManualCmd:
 #  tools/hunt_engine.py — HuntFinding, HuntPhase, HuntReport, data classes
 # ═════════════════════════════════════════════════════════════════════════════
 
+
 class TestHuntFinding:
     def test_creation(self):
         from tools.hunt_engine import HuntFinding
+
         f = HuntFinding(
-            phase="recon", category="endpoint", severity="High",
-            title="test", details="d", url="http://x.com",
+            phase="recon",
+            category="endpoint",
+            severity="High",
+            title="test",
+            details="d",
+            url="http://x.com",
         )
         assert f.phase == "recon"
         assert f.severity == "High"
 
     def test_to_dict(self):
         from tools.hunt_engine import HuntFinding
+
         f = HuntFinding(phase="smart", category="xss", severity="Critical", title="XSS")
         d = f.to_dict()
         assert d["phase"] == "smart"
@@ -885,6 +987,7 @@ class TestHuntFinding:
 class TestHuntPhase:
     def test_creation(self):
         from tools.hunt_engine import HuntPhase
+
         p = HuntPhase(name="recon", status="done", duration=1.5, findings=3)
         assert p.name == "recon"
         assert p.findings == 3
@@ -893,6 +996,7 @@ class TestHuntPhase:
 class TestHuntReport:
     def test_by_severity(self):
         from tools.hunt_engine import HuntReport, HuntFinding
+
         report = HuntReport(target="x.com", started_at="2024-01-01")
         report.findings = [
             HuntFinding(phase="a", category="b", severity="High", title="1"),
@@ -905,6 +1009,7 @@ class TestHuntReport:
 
     def test_by_phase(self):
         from tools.hunt_engine import HuntReport, HuntFinding
+
         report = HuntReport(target="x.com", started_at="2024-01-01")
         report.findings = [
             HuntFinding(phase="recon", category="b", severity="High", title="1"),
@@ -916,6 +1021,7 @@ class TestHuntReport:
 
     def test_empty_report(self):
         from tools.hunt_engine import HuntReport
+
         report = HuntReport(target="x.com", started_at="2024-01-01")
         assert report.by_severity() == {}
         assert report.by_phase() == {}
@@ -924,6 +1030,7 @@ class TestHuntReport:
 class TestSeverityEnum:
     def test_values(self):
         from tools.hunt_engine import Severity
+
         assert Severity.CRITICAL.value == "Critical"
         assert Severity.HIGH.value == "High"
         assert Severity.MEDIUM.value == "Medium"
@@ -935,13 +1042,19 @@ class TestSeverityEnum:
 #  tools/vuln_finder.py — VulnFinder, MissionState, MissionStatus
 # ═════════════════════════════════════════════════════════════════════════════
 
+
 class TestMissionStatus:
     def test_all_statuses(self):
         from tools.vuln_finder import MissionStatus
+
         statuses = [
-            MissionStatus.INIT, MissionStatus.RECON, MissionStatus.PLANNING,
-            MissionStatus.EXECUTING, MissionStatus.VERIFYING,
-            MissionStatus.COMPLETED, MissionStatus.FAILED,
+            MissionStatus.INIT,
+            MissionStatus.RECON,
+            MissionStatus.PLANNING,
+            MissionStatus.EXECUTING,
+            MissionStatus.VERIFYING,
+            MissionStatus.COMPLETED,
+            MissionStatus.FAILED,
         ]
         assert len(statuses) == 7
         for s in statuses:
@@ -951,6 +1064,7 @@ class TestMissionStatus:
 class TestMissionState:
     def test_creation(self):
         from tools.vuln_finder import MissionState, MissionStatus
+
         state = MissionState(target="example.com")
         assert state.target == "example.com"
         assert state.status == MissionStatus.INIT
@@ -963,6 +1077,7 @@ class TestVulnFinder:
     @pytest.fixture
     def finder(self):
         from tools.vuln_finder import VulnFinder
+
         return VulnFinder(target="http://example.com", max_steps=10, budget_limit=5.0)
 
     def test_init(self, finder):
@@ -972,6 +1087,7 @@ class TestVulnFinder:
 
     def test_state_initial(self, finder):
         from tools.vuln_finder import MissionStatus
+
         assert finder.state.status == MissionStatus.INIT
 
     def test_plan(self, finder):
@@ -1026,15 +1142,20 @@ class TestVulnFinder:
 #  tools/autonomous_agent.py — data classes, helper functions
 # ═════════════════════════════════════════════════════════════════════════════
 
+
 class TestAutonomousAgentDataClasses:
     def test_agent_action(self):
         from tools.autonomous_agent import AgentAction
-        a = AgentAction(name="recon", target="example.com", params={"depth": 2}, reasoning="testing")
+
+        a = AgentAction(
+            name="recon", target="example.com", params={"depth": 2}, reasoning="testing"
+        )
         assert a.name == "recon"
         assert a.params["depth"] == 2
 
     def test_agent_state(self):
         from tools.autonomous_agent import AgentState
+
         s = AgentState(root_target="x.com", goal="find vulns")
         assert s.root_target == "x.com"
         assert s.findings == []
@@ -1043,20 +1164,31 @@ class TestAutonomousAgentDataClasses:
     def test_scan_result(self):
         from tools.autonomous_agent import ScanResult
         from datetime import datetime, timezone
+
         sr = ScanResult(
-            target="x.com", start_time=datetime.now(timezone.utc),
-            end_time=datetime.now(timezone.utc), findings=[],
-            bounty_predictions=[], tools_created=[],
-            ai_decisions=[], report_path=None, success=True, summary="ok",
+            target="x.com",
+            start_time=datetime.now(timezone.utc),
+            end_time=datetime.now(timezone.utc),
+            findings=[],
+            bounty_predictions=[],
+            tools_created=[],
+            ai_decisions=[],
+            report_path=None,
+            success=True,
+            summary="ok",
         )
         assert sr.success is True
 
     def test_autonomous_decision(self):
         from tools.autonomous_agent import AutonomousDecision
+
         d = AutonomousDecision(
-            decision_type="attack", reasoning="test",
-            action_plan={"tool": "x"}, expected_outcome="vuln",
-            risk_level="high", auto_approved=True,
+            decision_type="attack",
+            reasoning="test",
+            action_plan={"tool": "x"},
+            expected_outcome="vuln",
+            risk_level="high",
+            auto_approved=True,
         )
         assert d.auto_approved is True
 
@@ -1064,24 +1196,29 @@ class TestAutonomousAgentDataClasses:
 class TestAutonomousAgentHelpers:
     def test_to_domain_plain(self):
         from tools.autonomous_agent import _to_domain
+
         assert _to_domain("example.com") == "example.com"
 
     def test_to_domain_with_url(self):
         from tools.autonomous_agent import _to_domain
+
         assert _to_domain("https://example.com/path") == "example.com"
 
     def test_to_domain_with_port(self):
         from tools.autonomous_agent import _to_domain
+
         assert _to_domain("https://example.com:8080/path") == "example.com"
 
     def test_build_headers_default(self):
         from tools.autonomous_agent import _build_headers, AgentState
+
         state = AgentState(root_target="x.com", goal="test")
         h = _build_headers(state)
         assert "User-Agent" in h
 
     def test_build_headers_with_auth(self):
         from tools.autonomous_agent import _build_headers, AgentState
+
         state = AgentState(root_target="x.com", goal="test")
         state.assets["auth_headers"] = {"Authorization": "Bearer token123"}
         h = _build_headers(state)
@@ -1089,32 +1226,38 @@ class TestAutonomousAgentHelpers:
 
     def test_build_headers_extra(self):
         from tools.autonomous_agent import _build_headers, AgentState
+
         state = AgentState(root_target="x.com", goal="test")
         h = _build_headers(state, extra={"X-Custom": "value"})
         assert h["X-Custom"] == "value"
 
     def test_parse_json_valid(self):
         from tools.autonomous_agent import _parse_json
+
         result = _parse_json('{"key": "value"}')
         assert result["key"] == "value"
 
     def test_parse_json_fenced(self):
         from tools.autonomous_agent import _parse_json
+
         result = _parse_json('```json\n{"key": "val"}\n```')
         assert result["key"] == "val"
 
     def test_parse_json_invalid(self):
         from tools.autonomous_agent import _parse_json
+
         result = _parse_json("not json at all")
         assert result == {}
 
     def test_display(self):
         from tools.autonomous_agent import _display
+
         # Should not raise
         _display("test message", level="info")
 
     def test_ai_call_success(self):
         from tools.autonomous_agent import _ai_call
+
         mock_client = MagicMock()
         mock_client.chat.return_value = MagicMock(content='{"action": "done"}')
         result = _ai_call(mock_client, "system", "user")
@@ -1122,6 +1265,7 @@ class TestAutonomousAgentHelpers:
 
     def test_ai_call_error(self):
         from tools.autonomous_agent import _ai_call
+
         mock_client = MagicMock()
         mock_client.chat.side_effect = Exception("API error")
         result = _ai_call(mock_client, "system", "user")
@@ -1129,6 +1273,7 @@ class TestAutonomousAgentHelpers:
 
     def test_exec_recon_error(self):
         from tools.autonomous_agent import _exec_recon, AgentAction, AgentState
+
         action = AgentAction(name="recon", target="example.com")
         state = AgentState(root_target="example.com", goal="test")
         with patch("tools.smart_recon.SmartReconEngine", side_effect=Exception("fail")):
@@ -1140,21 +1285,29 @@ class TestAutonomousAgentHelpers:
 #  tools/multi_agent.py — TeamAegis, data structures
 # ═════════════════════════════════════════════════════════════════════════════
 
+
 class TestMultiAgentDataStructures:
     def test_team_message(self):
         from tools.multi_agent import TeamMessage
-        msg = TeamMessage(round=1, agent_id=0, agent_role="Strategist", model_name="gpt-4", content="hello")
+
+        msg = TeamMessage(
+            round=1, agent_id=0, agent_role="Strategist", model_name="gpt-4", content="hello"
+        )
         assert msg.round == 1
         assert msg.msg_type == "discussion"
 
     def test_task_assignment(self):
         from tools.multi_agent import TaskAssignment
-        ta = TaskAssignment(agent_id=0, action_type="shell", params={"cmd": "ls"}, description="list files")
+
+        ta = TaskAssignment(
+            agent_id=0, action_type="shell", params={"cmd": "ls"}, description="list files"
+        )
         assert ta.completed is False
         assert ta.success is False
 
     def test_finding(self):
         from tools.multi_agent import Finding
+
         f = Finding(source_agent="Strategist", description="XSS found", severity="high")
         assert f.severity == "high"
         assert f.confirmed_by == []
@@ -1165,6 +1318,7 @@ class TestTeamAegis:
     def team(self):
         from tools.multi_agent import TeamAegis
         from tools.universal_ai_client import UniversalAIClient
+
         c1 = MagicMock(spec=UniversalAIClient)
         c1.provider = "openai"
         c1.model = "gpt-4"
@@ -1183,6 +1337,7 @@ class TestTeamAegis:
     def test_init_requires_2(self):
         from tools.multi_agent import TeamAegis
         from tools.universal_ai_client import UniversalAIClient
+
         c1 = MagicMock(spec=UniversalAIClient)
         with pytest.raises(ValueError, match="at least 2"):
             TeamAegis(clients=[c1], target="x.com")
@@ -1190,6 +1345,7 @@ class TestTeamAegis:
     def test_init_truncates_to_3(self):
         from tools.multi_agent import TeamAegis
         from tools.universal_ai_client import UniversalAIClient
+
         c1 = MagicMock(spec=UniversalAIClient)
         c2 = MagicMock(spec=UniversalAIClient)
         c3 = MagicMock(spec=UniversalAIClient)
@@ -1244,20 +1400,27 @@ class TestTeamAegis:
 
     def test_save_memory(self, team):
         from tools.multi_agent import Finding
-        f = Finding(source_agent="Strategist", description="XSS found", severity="high", evidence="payload")
+
+        f = Finding(
+            source_agent="Strategist", description="XSS found", severity="high", evidence="payload"
+        )
         with patch("tools.vector_memory.remember", create=True):
             team._save_memory(f)
             assert team.target in team._memories
 
     def test_save_memory_error(self, team):
         from tools.multi_agent import Finding
+
         f = Finding(source_agent="test", description="X", severity="low", evidence="e")
         with patch("tools.vector_memory.remember", side_effect=Exception("fail"), create=True):
             team._save_memory(f)  # should not raise
 
     def test_estimate_discussion_tokens(self, team):
         from tools.multi_agent import TeamMessage
-        team.discussion.append(TeamMessage(round=1, agent_id=0, agent_role="S", model_name="m", content="hello world"))
+
+        team.discussion.append(
+            TeamMessage(round=1, agent_id=0, agent_role="S", model_name="m", content="hello world")
+        )
         total = team._estimate_discussion_tokens()
         assert total > 0
 
@@ -1271,10 +1434,12 @@ class TestTeamAegis:
 #  tools/overlay_menu.py — SettingsOverlay
 # ═════════════════════════════════════════════════════════════════════════════
 
+
 class TestOverlayMenu:
     @pytest.fixture
     def overlay(self):
         from tools.overlay_menu import SettingsOverlay
+
         mock_agent = MagicMock()
         mock_console = MagicMock()
         mock_console.width = 80
@@ -1467,13 +1632,19 @@ class TestOverlayMenu:
 #  tools/config_wizard.py — AIProviderConfig, ConfigWizard
 # ═════════════════════════════════════════════════════════════════════════════
 
+
 class TestAIProviderConfig:
     def test_creation(self):
         from tools.config_wizard import AIProviderConfig
+
         c = AIProviderConfig(
-            name="Test", env_key="TEST_KEY", base_url="https://api.test.com",
-            signup_url="https://test.com/signup", is_free=True,
-            notes="test notes", api_type="openai",
+            name="Test",
+            env_key="TEST_KEY",
+            base_url="https://api.test.com",
+            signup_url="https://test.com/signup",
+            is_free=True,
+            notes="test notes",
+            api_type="openai",
         )
         assert c.name == "Test"
         assert c.is_free is True
@@ -1483,6 +1654,7 @@ class TestConfigWizard:
     @pytest.fixture
     def wizard(self, tmp_path):
         from tools.config_wizard import ConfigWizard
+
         return ConfigWizard(config_dir=tmp_path)
 
     def test_init(self, wizard):
@@ -1490,31 +1662,39 @@ class TestConfigWizard:
 
     def test_providers_list(self):
         from tools.config_wizard import ConfigWizard
+
         assert len(ConfigWizard.AI_PROVIDERS) >= 13
 
     def test_default_models(self):
         from tools.config_wizard import ConfigWizard
+
         assert "OpenAI (GPT-4)" in ConfigWizard.DEFAULT_MODELS
         assert "Gemini (Google)" in ConfigWizard.DEFAULT_MODELS
         assert "NVIDIA" in ConfigWizard.DEFAULT_MODELS
 
     def test_priority_order(self):
         from tools.config_wizard import ConfigWizard
+
         assert ConfigWizard.PRIORITY_ORDER[0] == "nvidia"
 
     def test_provider_key_map(self):
         from tools.config_wizard import ConfigWizard
+
         assert ConfigWizard._PROVIDER_KEY_MAP["OpenAI (GPT-4)"] == "openai"
 
     def test_integrations(self):
         from tools.config_wizard import ConfigWizard
+
         names = [i["name"] for i in ConfigWizard.INTEGRATIONS]
         assert "Telegram Bot" in names
         assert "HackerOne" in names
 
     def test_fetch_remote_models_anthropic(self, wizard):
         from tools.config_wizard import AIProviderConfig
-        p = AIProviderConfig("Anthropic", "ANTHROPIC_KEY", "https://api.anthropic.com/v1", "", False, "", "native")
+
+        p = AIProviderConfig(
+            "Anthropic", "ANTHROPIC_KEY", "https://api.anthropic.com/v1", "", False, "", "native"
+        )
         result = wizard._fetch_remote_models(p, "fake-key")
         assert result == []
 
@@ -1541,9 +1721,11 @@ class TestConfigWizard:
 #  tools/zero_day_heuristics.py — data classes, helpers, HTTPClient
 # ═════════════════════════════════════════════════════════════════════════════
 
+
 class TestZeroDaySeverityLevel:
     def test_values(self):
         from tools.zero_day_heuristics import SeverityLevel
+
         assert SeverityLevel.INFO.value == "info"
         assert SeverityLevel.LOW.value == "low"
         assert SeverityLevel.MEDIUM.value == "medium"
@@ -1555,8 +1737,10 @@ class TestZeroDayFinding:
     def test_creation(self):
         from tools.zero_day_heuristics import Finding, SeverityLevel
         from tools.vuln_engine import VulnClass
+
         f = Finding(
-            detector="test", title="test finding",
+            detector="test",
+            title="test finding",
             severity=SeverityLevel.HIGH,
             vuln_class=VulnClass.XSS,
             url="http://x.com",
@@ -1567,8 +1751,10 @@ class TestZeroDayFinding:
     def test_to_vuln_finding(self):
         from tools.zero_day_heuristics import Finding, SeverityLevel
         from tools.vuln_engine import VulnClass
+
         f = Finding(
-            detector="test", title="test",
+            detector="test",
+            title="test",
             severity=SeverityLevel.HIGH,
             vuln_class=VulnClass.XSS,
         )
@@ -1580,18 +1766,21 @@ class TestZeroDayFinding:
 class TestZeroDayHelpers:
     def test_entropy(self):
         from tools.zero_day_heuristics import _entropy
+
         assert _entropy("") == 0.0
         e = _entropy("aaaa")
         assert e >= 0.0
 
     def test_shannon(self):
         from tools.zero_day_heuristics import _shannon
+
         assert _shannon(b"") == 0.0
         e = _shannon(b"abcd")
         assert e > 0.0
 
     def test_short_hash(self):
         from tools.zero_day_heuristics import _short_hash
+
         h1 = _short_hash("a", "b")
         h2 = _short_hash("a", "b")
         h3 = _short_hash("a", "c")
@@ -1602,12 +1791,14 @@ class TestZeroDayHelpers:
     def test_default_vector_for(self):
         from tools.zero_day_heuristics import _default_vector_for
         from tools.vuln_engine import VulnClass
+
         v = _default_vector_for(VulnClass.XSS)
         assert "CVSS:3.1" in v
 
     def test_default_vector_for_unknown(self):
         from tools.zero_day_heuristics import _default_vector_for
         from tools.vuln_engine import VulnClass
+
         v = _default_vector_for(VulnClass.ZERO_DAY)
         assert "CVSS:3.1" in v
 
@@ -1615,12 +1806,14 @@ class TestZeroDayHelpers:
 class TestHTTPClient:
     def test_init(self):
         from tools.zero_day_heuristics import HTTPClient
+
         hc = HTTPClient(timeout=5.0, max_retries=2, verify_ssl=True)
         assert hc.timeout == 5.0
         assert hc.max_retries == 2
 
     def test_request_failure(self):
         from tools.zero_day_heuristics import HTTPClient
+
         hc = HTTPClient(timeout=1.0)
         # Request to non-existent host should return None
         result = hc.request("GET", "http://192.0.2.1:1/nonesense")
@@ -1628,16 +1821,19 @@ class TestHTTPClient:
 
     def test_sync_to_dict_none(self):
         from tools.zero_day_heuristics import HTTPClient
+
         assert HTTPClient._sync_to_dict(None) is None
 
     def test_close(self):
         from tools.zero_day_heuristics import HTTPClient
+
         hc = HTTPClient()
         hc.close()  # should not raise
 
     @pytest.mark.asyncio
     async def test_async_request_failure(self):
         from tools.zero_day_heuristics import HTTPClient
+
         hc = HTTPClient(timeout=1.0)
         result = await hc.async_request("GET", "http://192.0.2.1:1/nonesense")
         assert result is None
@@ -1647,9 +1843,11 @@ class TestHTTPClient:
 #  tools/exploitation.py — ExploitProof, exploit functions
 # ═════════════════════════════════════════════════════════════════════════════
 
+
 class TestExploitProof:
     def test_creation(self):
         from tools.exploitation import ExploitProof
+
         p = ExploitProof(title="test", description="desc")
         assert p.title == "test"
         assert p.steps == []
@@ -1657,6 +1855,7 @@ class TestExploitProof:
 
     def test_defaults(self):
         from tools.exploitation import ExploitProof
+
         p = ExploitProof(title="x", description="y")
         assert p.curl_command == ""
         assert p.python_repro == ""
@@ -1665,8 +1864,18 @@ class TestExploitProof:
 class TestExploitByCategory:
     def test_exploit_by_category_keys(self):
         from tools.exploitation import EXPLOIT_BY_CATEGORY
-        expected = {"sql_injection", "path_traversal", "ssti", "mass_assignment",
-                    "jwt_confusion", "prototype_pollution", "bola", "xss_reflected", "xss_stored"}
+
+        expected = {
+            "sql_injection",
+            "path_traversal",
+            "ssti",
+            "mass_assignment",
+            "jwt_confusion",
+            "prototype_pollution",
+            "bola",
+            "xss_reflected",
+            "xss_stored",
+        }
         assert set(EXPLOIT_BY_CATEGORY.keys()) == expected
 
 
@@ -1674,6 +1883,7 @@ class TestExploitFunctions:
     @pytest.mark.asyncio
     async def test_exploit_sqli_no_success(self):
         from tools.exploitation import exploit_sqli
+
         mock_session = AsyncMock()
         mock_resp = AsyncMock()
         mock_resp.status = 200
@@ -1686,6 +1896,7 @@ class TestExploitFunctions:
     @pytest.mark.asyncio
     async def test_exploit_path_traversal_no_success(self):
         from tools.exploitation import exploit_path_traversal
+
         mock_session = AsyncMock()
         mock_resp = AsyncMock()
         mock_resp.status = 404
@@ -1698,6 +1909,7 @@ class TestExploitFunctions:
     @pytest.mark.asyncio
     async def test_exploit_ssti_no_success(self):
         from tools.exploitation import exploit_ssti
+
         mock_session = AsyncMock()
         mock_resp = AsyncMock()
         mock_resp.status = 200
@@ -1710,6 +1922,7 @@ class TestExploitFunctions:
     @pytest.mark.asyncio
     async def test_exploit_jwt_none_no_success(self):
         from tools.exploitation import exploit_jwt_alg_none
+
         mock_session = AsyncMock()
         mock_resp = AsyncMock()
         mock_resp.status = 401
@@ -1722,6 +1935,7 @@ class TestExploitFunctions:
     @pytest.mark.asyncio
     async def test_exploit_proto_pollution_no_success(self):
         from tools.exploitation import exploit_proto_pollution
+
         mock_session = AsyncMock()
         mock_resp = AsyncMock()
         mock_resp.status = 200
@@ -1734,6 +1948,7 @@ class TestExploitFunctions:
     @pytest.mark.asyncio
     async def test_exploit_xss_no_success(self):
         from tools.exploitation import exploit_xss
+
         mock_session = AsyncMock()
         mock_resp = AsyncMock()
         mock_resp.status = 200
@@ -1746,6 +1961,7 @@ class TestExploitFunctions:
     @pytest.mark.asyncio
     async def test_exploit_mass_assignment_no_success(self):
         from tools.exploitation import exploit_mass_assignment
+
         mock_session = AsyncMock()
         mock_resp = AsyncMock()
         mock_resp.status = 400
@@ -1760,13 +1976,19 @@ class TestExploitFunctions:
 #  tools/targeted_attacks.py — ConfirmedFinding, SQLI/XSS payloads
 # ═════════════════════════════════════════════════════════════════════════════
 
+
 class TestConfirmedFinding:
     def test_creation(self):
         from tools.targeted_attacks import ConfirmedFinding
+
         f = ConfirmedFinding(
-            title="SQLi", severity="Critical", category="sql_injection",
-            endpoint_url="http://x.com/login", method="POST",
-            evidence="status changed", payload="' OR 1=1",
+            title="SQLi",
+            severity="Critical",
+            category="sql_injection",
+            endpoint_url="http://x.com/login",
+            method="POST",
+            evidence="status changed",
+            payload="' OR 1=1",
         )
         assert f.confidence == 1.0
         assert f.severity == "Critical"
@@ -1775,10 +1997,12 @@ class TestConfirmedFinding:
 class TestSQLIPayloads:
     def test_payload_count(self):
         from tools.targeted_attacks import SQLI_PAYLOADS
+
         assert len(SQLI_PAYLOADS) >= 5
 
     def test_payload_format(self):
         from tools.targeted_attacks import SQLI_PAYLOADS
+
         for payload, kind in SQLI_PAYLOADS:
             assert isinstance(payload, str)
             assert isinstance(kind, str)
@@ -1787,6 +2011,7 @@ class TestSQLIPayloads:
 class TestXSSPayloads:
     def test_payload_count(self):
         from tools.targeted_attacks import XSS_PAYLOADS
+
         assert len(XSS_PAYLOADS) >= 3
 
 
@@ -1794,12 +2019,15 @@ class TestXSSPayloads:
 #  tools/dynamic_waf_mutator.py — DynamicWAFMutator
 # ═════════════════════════════════════════════════════════════════════════════
 
+
 class TestDynamicWAFMutator:
     @pytest.fixture
     def mutator(self):
         from tools.dynamic_waf_mutator import DynamicWAFMutator
-        with patch("tools.dynamic_waf_mutator.WAFEvasionEngine"), \
-             patch("tools.dynamic_waf_mutator.AIClientManager"):
+
+        with patch("tools.dynamic_waf_mutator.WAFEvasionEngine"), patch(
+            "tools.dynamic_waf_mutator.AIClientManager"
+        ):
             return DynamicWAFMutator("http://example.com")
 
     def test_init(self, mutator):
@@ -1845,9 +2073,11 @@ class TestDynamicWAFMutator:
 #  tools/api_server.py — ScanRecord, data models
 # ═════════════════════════════════════════════════════════════════════════════
 
+
 class TestScanRecord:
     def test_creation(self):
         from tools.api_server import ScanRecord
+
         r = ScanRecord(target="example.com", scan_type="full")
         assert r.target == "example.com"
         assert r.status == "pending"
@@ -1855,6 +2085,7 @@ class TestScanRecord:
 
     def test_to_dict(self):
         from tools.api_server import ScanRecord
+
         r = ScanRecord(target="x.com", scan_type="quick")
         d = r.to_dict()
         assert d["target"] == "x.com"
@@ -1865,6 +2096,7 @@ class TestScanRecord:
     def test_to_dict_completed(self):
         from tools.api_server import ScanRecord
         from datetime import datetime, timezone
+
         r = ScanRecord(target="x.com")
         r.completed_at = datetime.now(timezone.utc)
         d = r.to_dict()
@@ -1872,6 +2104,7 @@ class TestScanRecord:
 
     def test_with_findings(self):
         from tools.api_server import ScanRecord
+
         r = ScanRecord(target="x.com")
         r.findings.append({"title": "XSS", "severity": "high"})
         d = r.to_dict()
@@ -1879,6 +2112,7 @@ class TestScanRecord:
 
     def test_with_error(self):
         from tools.api_server import ScanRecord
+
         r = ScanRecord(target="x.com")
         r.error = "scan failed"
         d = r.to_dict()
@@ -1888,6 +2122,7 @@ class TestScanRecord:
 class TestScanStore:
     def test_scan_store_is_dict(self):
         from tools.api_server import _scan_store
+
         assert isinstance(_scan_store, dict)
 
 
@@ -1895,10 +2130,12 @@ class TestScanStore:
 #  tools/universal_executor.py — FileEditor, PackageManager, UniversalExecutor
 # ═════════════════════════════════════════════════════════════════════════════
 
+
 class TestFileEditor:
     @pytest.fixture
     def editor(self, tmp_path):
         from tools.universal_executor import FileEditor
+
         return FileEditor(base_dir=str(tmp_path))
 
     def test_read_file(self, editor, tmp_path):
@@ -1995,6 +2232,7 @@ class TestFileEditor:
 class TestPackageManager:
     def test_unknown_manager(self):
         from tools.universal_executor import PackageManager
+
         pm = PackageManager()
         result = pm.execute("unknown", "install", "pkg")
         assert result.success is False
@@ -2002,6 +2240,7 @@ class TestPackageManager:
 
     def test_unknown_action(self):
         from tools.universal_executor import PackageManager
+
         pm = PackageManager()
         result = pm.execute("pip", "unknown_action", "pkg")
         assert result.success is False
@@ -2009,12 +2248,14 @@ class TestPackageManager:
 
     def test_pip_list(self):
         from tools.universal_executor import PackageManager
+
         pm = PackageManager()
         result = pm.execute("pip", "list")
         assert result.success is True  # pip list should work
 
     def test_managers_coverage(self):
         from tools.universal_executor import PackageManager
+
         assert "pip" in PackageManager.MANAGERS
         assert "npm" in PackageManager.MANAGERS
         assert "apt" in PackageManager.MANAGERS
@@ -2026,6 +2267,7 @@ class TestUniversalExecutor:
     @pytest.fixture
     def executor(self, tmp_path):
         from tools.universal_executor import UniversalExecutor
+
         return UniversalExecutor(base_dir=str(tmp_path))
 
     def test_is_safe_command_empty(self, executor):
@@ -2039,54 +2281,72 @@ class TestUniversalExecutor:
 
     def test_execute_action_read_file(self, executor, tmp_path):
         (tmp_path / "data.txt").write_text("content")
-        result = executor.execute_action({
-            "type": "read_file",
-            "params": {"path": str(tmp_path / "data.txt")},
-        })
+        result = executor.execute_action(
+            {
+                "type": "read_file",
+                "params": {"path": str(tmp_path / "data.txt")},
+            }
+        )
         assert result.success is True
 
     def test_execute_action_write_file(self, executor, tmp_path):
-        result = executor.execute_action({
-            "type": "write_file",
-            "params": {"path": str(tmp_path / "out.txt"), "content": "data"},
-        })
+        result = executor.execute_action(
+            {
+                "type": "write_file",
+                "params": {"path": str(tmp_path / "out.txt"), "content": "data"},
+            }
+        )
         assert result.success is True
 
     def test_execute_action_edit_file(self, executor, tmp_path):
         (tmp_path / "e.txt").write_text("hello")
-        result = executor.execute_action({
-            "type": "edit_file",
-            "params": {"path": str(tmp_path / "e.txt"), "old_string": "hello", "new_string": "world"},
-        })
+        result = executor.execute_action(
+            {
+                "type": "edit_file",
+                "params": {
+                    "path": str(tmp_path / "e.txt"),
+                    "old_string": "hello",
+                    "new_string": "world",
+                },
+            }
+        )
         assert result.success is True
 
     def test_execute_action_search_file(self, executor, tmp_path):
         (tmp_path / "s.txt").write_text("hello world")
-        result = executor.execute_action({
-            "type": "search_file",
-            "params": {"path": str(tmp_path / "s.txt"), "pattern": "hello"},
-        })
+        result = executor.execute_action(
+            {
+                "type": "search_file",
+                "params": {"path": str(tmp_path / "s.txt"), "pattern": "hello"},
+            }
+        )
         assert result.success is True
 
     def test_execute_action_list_dir(self, executor, tmp_path):
-        result = executor.execute_action({
-            "type": "list_dir",
-            "params": {"path": str(tmp_path)},
-        })
+        result = executor.execute_action(
+            {
+                "type": "list_dir",
+                "params": {"path": str(tmp_path)},
+            }
+        )
         assert result.success is True
 
     def test_execute_action_shell(self, executor):
-        result = executor.execute_action({
-            "type": "shell",
-            "params": {"command": "echo hello"},
-        })
+        result = executor.execute_action(
+            {
+                "type": "shell",
+                "params": {"command": "echo hello"},
+            }
+        )
         assert result.success is True
 
     def test_execute_action_package(self, executor):
-        result = executor.execute_action({
-            "type": "package",
-            "params": {"manager": "pip", "action": "list"},
-        })
+        result = executor.execute_action(
+            {
+                "type": "package",
+                "params": {"manager": "pip", "action": "list"},
+            }
+        )
         assert result.success is True
 
     def test_execute_action_unknown(self, executor):
@@ -2099,11 +2359,13 @@ class TestUniversalExecutor:
 #  main.py — additional argparse handler tests (if accessible)
 # ═════════════════════════════════════════════════════════════════════════════
 
+
 class TestMainHelpers:
     """Test standalone functions imported from main.py or used by main.py."""
 
     def test_normalize_target_main(self):
         from core.orchestrator import normalize_target
+
         assert normalize_target("") == ""
         assert normalize_target("https://example.com/path") == "example.com"
         assert normalize_target("example.com:8080") == "example.com"
@@ -2111,6 +2373,7 @@ class TestMainHelpers:
     def test_validate_target_main(self):
         try:
             from main import validate_target
+
             assert validate_target("example.com") is True
             assert validate_target("") is False
             assert validate_target("127.0.0.1") is False
@@ -2119,6 +2382,7 @@ class TestMainHelpers:
 
     def test_is_valid_target_main(self):
         from core.orchestrator import is_valid_target
+
         assert is_valid_target("example.com") is True
         assert is_valid_target("") is False
 
@@ -2127,11 +2391,13 @@ class TestMainHelpers:
 #  Integration / Edge Cases
 # ═════════════════════════════════════════════════════════════════════════════
 
+
 class TestIntegrationEdgeCases:
     """Cross-module edge case tests to cover remaining branches."""
 
     def test_action_tools_schema(self):
         from tools.universal_ai_client import ACTION_TOOLS
+
         assert len(ACTION_TOOLS) >= 9
         names = [t["function"]["name"] for t in ACTION_TOOLS]
         assert "run_shell" in names
@@ -2139,16 +2405,19 @@ class TestIntegrationEdgeCases:
 
     def test_severity_cvss_floor_keys(self):
         from tools.zero_day_heuristics import SEVERITY_CVSS_FLOOR, SeverityLevel
+
         for level in SeverityLevel:
             assert level in SEVERITY_CVSS_FLOOR
 
     def test_hunt_engine_severity_enum(self):
         from tools.hunt_engine import Severity
+
         for s in Severity:
             assert isinstance(s.value, str)
 
     def test_token_provider_configs_complete(self):
         from tools.token_manager import PROVIDER_CONFIGS
+
         assert "openai" in PROVIDER_CONFIGS
         assert "anthropic" in PROVIDER_CONFIGS
         assert "ollama" in PROVIDER_CONFIGS
@@ -2156,12 +2425,14 @@ class TestIntegrationEdgeCases:
 
     def test_session_manager_ensure_dir(self, tmp_path):
         from tools.session_manager import _ensure_sessions_dir
+
         with patch("tools.session_manager.SESSIONS_DIR", tmp_path / "sessions"):
             d = _ensure_sessions_dir()
             assert d.exists()
 
     def test_smart_cache_size_one(self):
         from tools.perf import SmartCache
+
         c = SmartCache(max_size=1)
         c.set("a", 1)
         c.set("b", 2)
@@ -2170,6 +2441,7 @@ class TestIntegrationEdgeCases:
 
     def test_overlay_menu_items_build(self, overlay=None):
         from tools.overlay_menu import SettingsOverlay
+
         mock_agent = MagicMock()
         mock_console = MagicMock()
         mock_console.width = 80
@@ -2180,6 +2452,7 @@ class TestIntegrationEdgeCases:
 
     def test_config_wizard_many_providers(self):
         from tools.config_wizard import ConfigWizard
+
         providers = ConfigWizard.AI_PROVIDERS
         env_keys = [p.env_key for p in providers]
         names = [p.name for p in providers]
@@ -2189,6 +2462,7 @@ class TestIntegrationEdgeCases:
 
     def test_multi_agent_roles_complete(self):
         from tools.multi_agent import AGENT_ROLES
+
         assert len(AGENT_ROLES) == 3
         names = [r["name"] for r in AGENT_ROLES]
         assert "Strategist" in names
@@ -2197,12 +2471,14 @@ class TestIntegrationEdgeCases:
 
     def test_universal_executor_history(self, tmp_path):
         from tools.universal_executor import UniversalExecutor
+
         executor = UniversalExecutor(base_dir=str(tmp_path))
         executor.execute_action({"type": "shell", "params": {"command": "echo test"}})
         assert len(executor.execution_history) > 0
 
     def test_vuln_finder_execute_no_tool(self):
         from tools.vuln_finder import VulnFinder
+
         finder = VulnFinder(target="http://x.com")
         result = finder.execute({"url": "http://x.com"})
         assert result["success"] is False
@@ -2210,14 +2486,16 @@ class TestIntegrationEdgeCases:
 
     def test_vuln_finder_execute_unknown_tool(self):
         from tools.vuln_finder import VulnFinder
+
         finder = VulnFinder(target="http://x.com")
         result = finder.execute({"url": "http://x.com", "tool": "nonexistent_tool_xyz"})
         assert result["success"] is False
 
     def test_token_manager_format_status_comprehensive(self, tmp_path):
         from tools.token_manager import TokenManager
+
         db_path = tmp_path / "fmt.db"
-        with patch.object(TokenManager, 'DB_PATH', db_path):
+        with patch.object(TokenManager, "DB_PATH", db_path):
             tm = TokenManager(daily_budget_usd=5.0, monthly_budget_usd=50.0)
         tm.record_usage("openai", "gpt-4", 1000, 500)
         output = tm.format_status()
@@ -2226,6 +2504,7 @@ class TestIntegrationEdgeCases:
 
     def test_overlay_render_model_select_search(self):
         from tools.overlay_menu import SettingsOverlay
+
         mock_agent = MagicMock()
         mock_console = MagicMock()
         mock_console.width = 80

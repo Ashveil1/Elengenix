@@ -10,6 +10,7 @@ import asyncio
 import functools
 import hashlib
 import logging
+import threading
 import time
 from collections import OrderedDict
 from dataclasses import dataclass, field
@@ -32,7 +33,7 @@ class CacheEntry:
 
 
 class SmartCache:
-    """LRU + TTL cache for expensive operations."""
+    """LRU + TTL cache for expensive operations. Thread-safe."""
 
     def __init__(self, max_size: int = 256, default_ttl: float = 300.0):
         self.max_size = max_size
@@ -40,51 +41,56 @@ class SmartCache:
         self._store: OrderedDict[str, CacheEntry] = OrderedDict()
         self.hits = 0
         self.misses = 0
+        self._lock = threading.Lock()
 
     def get(self, key: str) -> Optional[Any]:
-        if key not in self._store:
-            self.misses += 1
-            return None
-        entry = self._store[key]
-        if time.time() > entry.expires_at:
-            del self._store[key]
-            self.misses += 1
-            return None
-        entry.hits += 1
-        self.hits += 1
-        self._store.move_to_end(key)
-        return entry.value
+        with self._lock:
+            if key not in self._store:
+                self.misses += 1
+                return None
+            entry = self._store[key]
+            if time.time() > entry.expires_at:
+                del self._store[key]
+                self.misses += 1
+                return None
+            entry.hits += 1
+            self.hits += 1
+            self._store.move_to_end(key)
+            return entry.value
 
     def set(self, key: str, value: Any, ttl: Optional[float] = None) -> None:
-        if key in self._store:
-            self._store.move_to_end(key)
-        if len(self._store) >= self.max_size:
-            self._store.popitem(last=False)
-        self._store[key] = CacheEntry(
-            value=value,
-            expires_at=time.time() + (ttl or self.default_ttl),
-            created_at=time.time(),
-        )
+        with self._lock:
+            if key in self._store:
+                self._store.move_to_end(key)
+            if len(self._store) >= self.max_size:
+                self._store.popitem(last=False)
+            self._store[key] = CacheEntry(
+                value=value,
+                expires_at=time.time() + (ttl or self.default_ttl),
+                created_at=time.time(),
+            )
 
     def invalidate(self, pattern: Optional[str] = None) -> int:
-        if pattern is None:
-            n = len(self._store)
-            self._store.clear()
-            return n
-        keys_to_del = [k for k in self._store if pattern in k]
-        for k in keys_to_del:
-            del self._store[k]
-        return len(keys_to_del)
+        with self._lock:
+            if pattern is None:
+                n = len(self._store)
+                self._store.clear()
+                return n
+            keys_to_del = [k for k in self._store if pattern in k]
+            for k in keys_to_del:
+                del self._store[k]
+            return len(keys_to_del)
 
     def stats(self) -> Dict[str, Any]:
-        total = self.hits + self.misses
-        return {
-            "size": len(self._store),
-            "max_size": self.max_size,
-            "hits": self.hits,
-            "misses": self.misses,
-            "hit_rate": self.hits / total if total > 0 else 0,
-        }
+        with self._lock:
+            total = self.hits + self.misses
+            return {
+                "size": len(self._store),
+                "max_size": self.max_size,
+                "hits": self.hits,
+                "misses": self.misses,
+                "hit_rate": self.hits / total if total > 0 else 0,
+            }
 
 
 # Global shared caches

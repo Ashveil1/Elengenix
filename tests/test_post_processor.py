@@ -337,9 +337,7 @@ class TestMissionState:
         ctx.mission_state = ms
         processor = PostExecutionProcessor()
 
-        result = MockToolResult(
-            findings=[{"type": "xss", "url": "http://example.com/xss"}]
-        )
+        result = MockToolResult(findings=[{"type": "xss", "url": "http://example.com/xss"}])
         processor._process_mission_state(ctx, result, "fuzzer", 0)
         assert len(ms.edges) == 1
         assert ms.edges[0].edge_type == "has_finding"

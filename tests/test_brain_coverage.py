@@ -120,7 +120,9 @@ class TestFingerprintTarget:
         mock_resp.cookies = []
         mock_resp.text = ""
         with patch("requests.get", return_value=mock_resp):
-            with patch("agents.agent_planner.TargetFingerprinter", side_effect=Exception("fp error")):
+            with patch(
+                "agents.agent_planner.TargetFingerprinter", side_effect=Exception("fp error")
+            ):
                 result = agent._fingerprint_target_for_planning("http://example.com")
                 assert result is None
 
@@ -191,16 +193,24 @@ class TestCheckContextOverflow:
     def test_not_near_full(self):
         agent = _make_agent()
         with patch("core.brain._get_context_status") as mock_status:
-            mock_status.return_value = {"is_near_full": False, "percent": 30.0,
-                                        "used_tokens": 30000, "capacity": 100000}
+            mock_status.return_value = {
+                "is_near_full": False,
+                "percent": 30.0,
+                "used_tokens": 30000,
+                "capacity": 100000,
+            }
             assert agent._check_context_overflow() is False
 
     def test_near_full_triggers_summarize(self):
         agent = _make_agent()
         agent.conversation_history = [{"role": "user", "content": "hi"}] * 10
         with patch("core.brain._get_context_status") as mock_status:
-            mock_status.return_value = {"is_near_full": True, "percent": 95.0,
-                                        "used_tokens": 95000, "capacity": 100000}
+            mock_status.return_value = {
+                "is_near_full": True,
+                "percent": 95.0,
+                "used_tokens": 95000,
+                "capacity": 100000,
+            }
             with patch.object(agent, "_summarize_old_conversation") as mock_sum:
                 assert agent._check_context_overflow() is True
                 mock_sum.assert_called_once()
@@ -234,9 +244,9 @@ class TestSummarizeOldConversation:
         mock_response = SimpleNamespace(content="This is a summary of the conversation.")
         agent.client.chat.return_value = mock_response
 
-        with patch("core.brain._sqlite_clear_session"), \
-             patch("core.brain._sqlite_save_message"), \
-             patch("core.brain.logger"):
+        with patch("core.brain._sqlite_clear_session"), patch(
+            "core.brain._sqlite_save_message"
+        ), patch("core.brain.logger"):
             with patch("tools.token_counter.count_tokens", return_value=100):
                 agent._summarize_old_conversation()
 
@@ -256,8 +266,7 @@ class TestSummarizeOldConversation:
         agent.client.chat.return_value = mock_response
 
         original_len = len(agent.conversation_history)
-        with patch("core.brain._sqlite_clear_session"), \
-             patch("core.brain.logger"):
+        with patch("core.brain._sqlite_clear_session"), patch("core.brain.logger"):
             agent._summarize_old_conversation()
         assert len(agent.conversation_history) == original_len
 
@@ -330,7 +339,7 @@ class TestExtractJson:
 
     def test_array_input_returns_none_for_object_expect(self):
         agent = _make_agent()
-        result = agent._extract_json('[1, 2, 3]')
+        result = agent._extract_json("[1, 2, 3]")
         assert result is None
 
     def test_trailing_comma_repaired(self):
@@ -444,7 +453,9 @@ class TestProcessQuery:
 
     def test_governance_blocks_tool(self):
         agent = _make_agent()
-        agent.governance.gate = MagicMock(return_value=MagicMock(decision="deny", rationale="blocked"))
+        agent.governance.gate = MagicMock(
+            return_value=MagicMock(decision="deny", rationale="blocked")
+        )
         with patch("core.brain._analyze_intent", return_value="scan"):
             result = agent.process_query("run nmap", target="example.com")
             assert result is not None
@@ -523,7 +534,6 @@ class TestFingerprintActivityLog:
 # ═══════════════════════════════════════════════════════════════════════════════
 # _init_team_aegis_clients with enabled config
 # ═══════════════════════════════════════════════════════════════════════════════
-
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

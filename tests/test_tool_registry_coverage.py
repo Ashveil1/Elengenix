@@ -38,7 +38,9 @@ def _run_async(coro):
 class TestToolResultEdgeCases:
     def test_to_dict_long_output_truncated(self):
         result = ToolResult(
-            success=True, tool_name="test", category=ToolCategory.SCANNER,
+            success=True,
+            tool_name="test",
+            category=ToolCategory.SCANNER,
             output="x" * 1000,
         )
         d = result.to_dict()
@@ -46,7 +48,9 @@ class TestToolResultEdgeCases:
 
     def test_to_dict_short_output_not_truncated(self):
         result = ToolResult(
-            success=True, tool_name="test", category=ToolCategory.SCANNER,
+            success=True,
+            tool_name="test",
+            category=ToolCategory.SCANNER,
             output="short",
         )
         d = result.to_dict()
@@ -54,7 +58,9 @@ class TestToolResultEdgeCases:
 
     def test_to_dict_with_findings(self):
         result = ToolResult(
-            success=True, tool_name="test", category=ToolCategory.SCANNER,
+            success=True,
+            tool_name="test",
+            category=ToolCategory.SCANNER,
             findings=[{"type": "xss"}, {"type": "sqli"}],
         )
         d = result.to_dict()
@@ -62,7 +68,9 @@ class TestToolResultEdgeCases:
 
     def test_to_dict_with_error(self):
         result = ToolResult(
-            success=False, tool_name="test", category=ToolCategory.SCANNER,
+            success=False,
+            tool_name="test",
+            category=ToolCategory.SCANNER,
             error_message="Connection refused",
         )
         d = result.to_dict()
@@ -138,14 +146,21 @@ class TestExecuteChainCoverage:
         mock_tool = MagicMock()
         mock_tool.is_available = True
         mock_tool.metadata = ToolMetadata(
-            name="avail_test", category=ToolCategory.SCANNER,
-            priority=ToolPriority.HIGH, binary_name="python3",
-            description="Available test tool"
+            name="avail_test",
+            category=ToolCategory.SCANNER,
+            priority=ToolPriority.HIGH,
+            binary_name="python3",
+            description="Available test tool",
         )
-        mock_tool.execute = AsyncMock(return_value=ToolResult(
-            success=True, tool_name="avail_test", category=ToolCategory.SCANNER,
-            output="done", findings=[{"type": "test"}]
-        ))
+        mock_tool.execute = AsyncMock(
+            return_value=ToolResult(
+                success=True,
+                tool_name="avail_test",
+                category=ToolCategory.SCANNER,
+                output="done",
+                findings=[{"type": "test"}],
+            )
+        )
         reg.register(mock_tool)
 
         async def run():
@@ -162,23 +177,29 @@ class TestExecuteChainCoverage:
         mock_tool = MagicMock()
         mock_tool.is_available = True
         mock_tool.metadata = ToolMetadata(
-            name="cb_test", category=ToolCategory.SCANNER,
-            priority=ToolPriority.HIGH, binary_name="python3",
-            description="Callback test"
+            name="cb_test",
+            category=ToolCategory.SCANNER,
+            priority=ToolPriority.HIGH,
+            binary_name="python3",
+            description="Callback test",
         )
-        mock_tool.execute = AsyncMock(return_value=ToolResult(
-            success=True, tool_name="cb_test", category=ToolCategory.SCANNER,
-        ))
+        mock_tool.execute = AsyncMock(
+            return_value=ToolResult(
+                success=True,
+                tool_name="cb_test",
+                category=ToolCategory.SCANNER,
+            )
+        )
         reg.register(mock_tool)
 
         callback_results = []
+
         def progress_cb(result):
             callback_results.append(result)
 
         async def run():
             return await reg.execute_chain(
-                [mock_tool], "target", Path("/tmp"),
-                progress_callback=progress_cb
+                [mock_tool], "target", Path("/tmp"), progress_callback=progress_cb
             )
 
         results = _run_async(run())
@@ -191,9 +212,11 @@ class TestExecuteChainCoverage:
         mock_tool = MagicMock()
         mock_tool.is_available = True
         mock_tool.metadata = ToolMetadata(
-            name="err_test", category=ToolCategory.SCANNER,
-            priority=ToolPriority.HIGH, binary_name="python3",
-            description="Error test"
+            name="err_test",
+            category=ToolCategory.SCANNER,
+            priority=ToolPriority.HIGH,
+            binary_name="python3",
+            description="Error test",
         )
         mock_tool.execute = AsyncMock(side_effect=RuntimeError("boom"))
         reg.register(mock_tool)
@@ -214,20 +237,28 @@ class TestExecuteChainCoverage:
         tool1 = MagicMock()
         tool1.is_available = True
         tool1.metadata = ToolMetadata(
-            name="mixed_ok", category=ToolCategory.RECON,
-            priority=ToolPriority.HIGH, binary_name="python3",
-            description="OK tool"
+            name="mixed_ok",
+            category=ToolCategory.RECON,
+            priority=ToolPriority.HIGH,
+            binary_name="python3",
+            description="OK tool",
         )
-        tool1.execute = AsyncMock(return_value=ToolResult(
-            success=True, tool_name="mixed_ok", category=ToolCategory.RECON,
-        ))
+        tool1.execute = AsyncMock(
+            return_value=ToolResult(
+                success=True,
+                tool_name="mixed_ok",
+                category=ToolCategory.RECON,
+            )
+        )
 
         tool2 = MagicMock()
         tool2.is_available = False
         tool2.metadata = ToolMetadata(
-            name="mixed_unavail", category=ToolCategory.SCANNER,
-            priority=ToolPriority.HIGH, binary_name="nonexistent_xyz",
-            description="Unavailable"
+            name="mixed_unavail",
+            category=ToolCategory.SCANNER,
+            priority=ToolPriority.HIGH,
+            binary_name="nonexistent_xyz",
+            description="Unavailable",
         )
 
         reg.register(tool1)
@@ -251,9 +282,11 @@ class TestExecuteChainCoverage:
 class TestBaseToolEdgeCases:
     def test_build_command_raises_not_implemented(self):
         meta = ToolMetadata(
-            name="test", category=ToolCategory.SCANNER,
-            priority=ToolPriority.HIGH, binary_name="python3",
-            description="Test"
+            name="test",
+            category=ToolCategory.SCANNER,
+            priority=ToolPriority.HIGH,
+            binary_name="python3",
+            description="Test",
         )
 
         class StubTool(BaseTool):
@@ -266,9 +299,11 @@ class TestBaseToolEdgeCases:
 
     def test_is_available_checks_binary(self):
         meta = ToolMetadata(
-            name="test", category=ToolCategory.SCANNER,
-            priority=ToolPriority.HIGH, binary_name="python3",
-            description="Test"
+            name="test",
+            category=ToolCategory.SCANNER,
+            priority=ToolPriority.HIGH,
+            binary_name="python3",
+            description="Test",
         )
 
         class StubTool(BaseTool):
@@ -280,9 +315,11 @@ class TestBaseToolEdgeCases:
 
     def test_is_available_false_for_missing_binary(self):
         meta = ToolMetadata(
-            name="test", category=ToolCategory.SCANNER,
-            priority=ToolPriority.HIGH, binary_name="nonexistent_binary_xyz_123",
-            description="Test"
+            name="test",
+            category=ToolCategory.SCANNER,
+            priority=ToolPriority.HIGH,
+            binary_name="nonexistent_binary_xyz_123",
+            description="Test",
         )
 
         class StubTool(BaseTool):
@@ -303,12 +340,15 @@ class TestRegisterToolDecorator:
         from tools.tool_registry import register_tool
 
         meta = ToolMetadata(
-            name="bad_tool", category=ToolCategory.SCANNER,
-            priority=ToolPriority.HIGH, binary_name="python3",
-            description="Not a BaseTool"
+            name="bad_tool",
+            category=ToolCategory.SCANNER,
+            priority=ToolPriority.HIGH,
+            binary_name="python3",
+            description="Not a BaseTool",
         )
 
         with pytest.raises(TypeError):
+
             @register_tool(meta)
             class NotATool:
                 pass
@@ -348,9 +388,11 @@ class TestDynamicToolLoading:
 class TestRunSubprocess:
     def test_run_subprocess_with_semaphore(self):
         meta = ToolMetadata(
-            name="test", category=ToolCategory.SCANNER,
-            priority=ToolPriority.HIGH, binary_name="python3",
-            description="Test"
+            name="test",
+            category=ToolCategory.SCANNER,
+            priority=ToolPriority.HIGH,
+            binary_name="python3",
+            description="Test",
         )
 
         class StubTool(BaseTool):
@@ -369,9 +411,12 @@ class TestRunSubprocess:
 
     def test_run_subprocess_timeout(self):
         meta = ToolMetadata(
-            name="test", category=ToolCategory.SCANNER,
-            priority=ToolPriority.HIGH, binary_name="python3",
-            description="Test", timeout_seconds=1
+            name="test",
+            category=ToolCategory.SCANNER,
+            priority=ToolPriority.HIGH,
+            binary_name="python3",
+            description="Test",
+            timeout_seconds=1,
         )
 
         class StubTool(BaseTool):
@@ -389,9 +434,11 @@ class TestRunSubprocess:
 
     def test_run_subprocess_file_not_found(self):
         meta = ToolMetadata(
-            name="test", category=ToolCategory.SCANNER,
-            priority=ToolPriority.HIGH, binary_name="python3",
-            description="Test"
+            name="test",
+            category=ToolCategory.SCANNER,
+            priority=ToolPriority.HIGH,
+            binary_name="python3",
+            description="Test",
         )
 
         class StubTool(BaseTool):

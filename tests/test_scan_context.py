@@ -188,11 +188,13 @@ class TestScanContextAccumulation:
 
     def test_add_findings(self):
         ctx = ScanContext(target="example.com")
-        ctx.add_findings([
-            {"type": "xss"},
-            {"type": "sqli"},
-            {"type": "ssrf"},
-        ])
+        ctx.add_findings(
+            [
+                {"type": "xss"},
+                {"type": "sqli"},
+                {"type": "ssrf"},
+            ]
+        )
         assert ctx.finding_count == 3
 
     def test_add_result(self):

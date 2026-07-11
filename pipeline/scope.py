@@ -63,9 +63,7 @@ class ScopeManager:
         # Load from env var
         env_scope = os.getenv("ELENGENIX_SCOPE")
         if env_scope:
-            domains.update(
-                d.strip().lower() for d in env_scope.split(",") if d.strip()
-            )
+            domains.update(d.strip().lower() for d in env_scope.split(",") if d.strip())
 
         # Load from file
         scope_path = Path(self.scope_file)

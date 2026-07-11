@@ -1313,7 +1313,9 @@ class ConfigWizard:
         from mcp.config import get_config_manager, MCPConfig, MCPServerConfig
 
         console.print("\n[bold cyan]MCP Server Configuration[/bold cyan]")
-        console.print("[dim]MCP (Model Context Protocol) allows AI agents to use external tools.[/dim]\n")
+        console.print(
+            "[dim]MCP (Model Context Protocol) allows AI agents to use external tools.[/dim]\n"
+        )
 
         while True:
             manager = get_config_manager()
@@ -1367,10 +1369,22 @@ class ConfigWizard:
             elif choice == "4":
                 # Add default MCP servers
                 defaults = {
-                    "sequential-thinking": {"command": "npx", "args": ["-y", "@modelcontextprotocol/server-sequential-thinking"]},
-                    "chain-of-recursive-thoughts": {"command": "npx", "args": ["-y", "recursive-thinking-mcp"]},
-                    "mcp-structured-thinking": {"command": "npx", "args": ["-y", "structured-thinking"]},
-                    "memory": {"command": "npx", "args": ["-y", "@modelcontextprotocol/server-memory"]},
+                    "sequential-thinking": {
+                        "command": "npx",
+                        "args": ["-y", "@modelcontextprotocol/server-sequential-thinking"],
+                    },
+                    "chain-of-recursive-thoughts": {
+                        "command": "npx",
+                        "args": ["-y", "recursive-thinking-mcp"],
+                    },
+                    "mcp-structured-thinking": {
+                        "command": "npx",
+                        "args": ["-y", "structured-thinking"],
+                    },
+                    "memory": {
+                        "command": "npx",
+                        "args": ["-y", "@modelcontextprotocol/server-memory"],
+                    },
                 }
                 for name, server_data in defaults.items():
                     if name not in config.servers:

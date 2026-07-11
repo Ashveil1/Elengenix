@@ -139,7 +139,9 @@ class ChainingEngine:
 
         return None
 
-    def find_chainable_findings(self, findings: List[Dict[str, Any]]) -> List[Tuple[Dict[str, Any], Dict[str, Any]]]:
+    def find_chainable_findings(
+        self, findings: List[Dict[str, Any]]
+    ) -> List[Tuple[Dict[str, Any], Dict[str, Any]]]:
         """Find pairs of findings that can be chained.
 
         Args:
@@ -173,7 +175,9 @@ class ChainingEngine:
                 chain = self.analyze_chain([f1, f2])
                 if chain:
                     severity_rank = best_severity_order.get(chain.combined_severity, 0)
-                    if best_chain is None or severity_rank > best_severity_order.get(best_chain.combined_severity, 0):
+                    if best_chain is None or severity_rank > best_severity_order.get(
+                        best_chain.combined_severity, 0
+                    ):
                         best_chain = chain
 
         return best_chain

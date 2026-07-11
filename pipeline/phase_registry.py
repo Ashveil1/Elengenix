@@ -177,9 +177,7 @@ class PhaseRegistry:
         for name, phase in self.phases.items():
             for dep in phase.deps:
                 if dep not in self.phases:
-                    raise ValueError(
-                        f"Phase '{name}' depends on '{dep}' which is not registered"
-                    )
+                    raise ValueError(f"Phase '{name}' depends on '{dep}' which is not registered")
 
         resolved: Set[str] = set()
         waves: List[List[Phase]] = []
@@ -197,9 +195,7 @@ class PhaseRegistry:
             if not wave:
                 # No progress — cycle detected
                 remaining = [n for n in self.phases if n not in resolved]
-                raise CyclicDependencyError(
-                    f"Cyclic dependency detected among: {remaining}"
-                )
+                raise CyclicDependencyError(f"Cyclic dependency detected among: {remaining}")
 
             waves.append(wave)
             resolved.update(p.name for p in wave)
@@ -245,9 +241,7 @@ class PhaseRegistry:
             for phase, result in zip(wave, wave_results):
                 if isinstance(result, Exception):
                     logger.error(f"Phase '{phase.name}' failed: {result}")
-                    all_results.append(
-                        PhaseResult(success=False, error=str(result))
-                    )
+                    all_results.append(PhaseResult(success=False, error=str(result)))
                 elif isinstance(result, PhaseResult):
                     all_results.append(result)
                     # Accumulate findings for dependent phases

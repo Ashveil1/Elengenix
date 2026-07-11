@@ -74,7 +74,7 @@ for rank in [5, 4, 3, 2, 1]:
         if result.finding:
             # escalate, chain, verify
             ...
-    
+
     # หลังทำ rank นี้เสร็จ — AI ตัดสินใจว่า:
     # - ข้อมูลพอหรือยัง? → หยุด
     # - ยังไม่พอ? → ทำ rank ถัดไป
@@ -116,26 +116,26 @@ while not done:
         findings=findings,
         gaps=gaps
     )
-    
+
     # ตัวอย่างการ flow ที่ AI เลือกเอง:
     # Recon → Planning → Execution → เจอ nothing → กลับ Recon → Execution → เจอ low bug → Escalate → Chain → Report
-    
+
     result = execute(next_action)
-    
+
     if result.finding:
         # Escalation mindset
         if severity == LOW or severity == MEDIUM:
             escalated = try_escalate(result)
             if escalated:
                 finding = escalated
-        
+
         # Chaining mindset
         related = find_related_findings(result)
         if related and len(related) >= 2:
             chain = create_attack_chain(related + [result])
             if chain.impact >= HIGH:
                 finding = chain
-    
+
     # AI ตัดสินใจว่า:
     # - ข้อมูลพอหรือยัง?
     # - ต้อง recon เพิ่มไหม?
@@ -143,7 +143,7 @@ while not done:
     # - ควร escalate finding นี้ไหม?
     # - ควร chain findings ไหม?
     # - ควรทำต่อหรือพอแล้ว?
-    
+
     update_memory(result)
     current_phase = ai_decide_next_phase()
 ```
@@ -530,15 +530,15 @@ vuln_finder:
   primary_model: "claude-3-opus"      # สำหรับ planning + execution
   validator_model: "gpt-4"            # สำหรับ verification
   reasoning_model: "claude-3-opus"    # สำหรับ sequential-thinking
-  
+
   strategy: "adaptive"                # adaptive | systematic | hybrid
   max_steps: 100                      # จำนวน steps สูงสุดต่อ mission
   verification: "dual-model"          # dual-model | single | none
-  
+
   escalation:
     enabled: true
     max_escalation_depth: 3           # ลอง escalate กี่ครั้ง
-    
+
   chaining:
     enabled: true
     min_findings_to_chain: 2          # ต้องมี findings กี่ตัวถึงจะ chain

@@ -53,9 +53,7 @@ def test_export_to_svg_returns_svg():
         data = {
             "target": "example.com",
             "risk_score": 50,
-            "findings": [
-                {"title": "Test Finding", "severity": "HIGH", "location": "/api"}
-            ],
+            "findings": [{"title": "Test Finding", "severity": "HIGH", "location": "/api"}],
         }
         result = export_to_svg(data, output_path)
         assert result.endswith(".svg")

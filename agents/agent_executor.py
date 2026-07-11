@@ -260,9 +260,7 @@ def execute_shell_command(
 
             # Check if failure is due to missing tool
             if "not found" in err.lower() or "command not found" in err.lower():
-                install_result = detect_and_install_missing_tool(
-                    cmd_raw, governance, callback
-                )
+                install_result = detect_and_install_missing_tool(cmd_raw, governance, callback)
                 if install_result is not None:
                     # Tool was installed — retry the command
                     try:
@@ -587,8 +585,7 @@ def detect_and_install_missing_tool(
 
     # Ask user if they want to install
     console.print(
-        "  [bold][[green]y[/green]][/bold] Install tool  "
-        "[bold][[red]n[/red]][/bold] Skip"
+        "  [bold][[green]y[/green]][/bold] Install tool  " "[bold][[red]n[/red]][/bold] Skip"
     )
 
     try:
@@ -605,6 +602,7 @@ def detect_and_install_missing_tool(
         console.print("  [dim]Enter sudo password (or press Enter to skip sudo):[/dim]")
         try:
             import getpass
+
             sudo_password = getpass.getpass("  Sudo password: ")
         except (EOFError, KeyboardInterrupt):
             sudo_password = None
@@ -613,7 +611,9 @@ def detect_and_install_missing_tool(
     install_cmd = _build_install_command(tool_name, sudo_password)
 
     if not install_cmd:
-        console.print(f"  [red]Don't know how to install {tool_name}. Please install manually.[/red]")
+        console.print(
+            f"  [red]Don't know how to install {tool_name}. Please install manually.[/red]"
+        )
         return None
 
     console.print(f"  [dim]Running: {install_cmd}[/dim]")

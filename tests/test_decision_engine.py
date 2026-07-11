@@ -192,7 +192,11 @@ class TestAIDynamicPlanning:
 
     def test_ai_planning_with_tool_calls(self):
         response = MockAIResponse(
-            tool_calls=[MockToolCall("run_shell", {"command": "nmap -sV target", "purpose": "Service detection"})]
+            tool_calls=[
+                MockToolCall(
+                    "run_shell", {"command": "nmap -sV target", "purpose": "Service detection"}
+                )
+            ]
         )
         client = MockAIClient(response)
         engine = self._make_engine(client=client)
@@ -206,7 +210,9 @@ class TestAIDynamicPlanning:
         assert client.call_count == 1
 
     def test_ai_planning_with_json_fallback(self):
-        response = MockAIResponse(content='{"action": "web_search", "query": "SQLi techniques", "purpose": "Research"}')
+        response = MockAIResponse(
+            content='{"action": "web_search", "query": "SQLi techniques", "purpose": "Research"}'
+        )
         client = MockAIClient(response)
         engine = self._make_engine(client=client)
 

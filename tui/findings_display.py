@@ -38,6 +38,7 @@ except ImportError:
         def __init__(self, *args, **kwargs):
             pass
 
+
 # Severity configuration
 SEVERITY_CONFIG = {
     "critical": {"color": "#ff003c", "badge": "CRIT", "priority": 0},

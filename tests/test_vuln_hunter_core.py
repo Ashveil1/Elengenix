@@ -31,7 +31,12 @@ def _clean_db():
 class TestBeliefState:
     def test_add_and_retrieve_belief(self):
         bs = vhc.BeliefState("test_mission")
-        hyp_id = bs.add_belief("sqli", "https://example.com/login", "Login page has user input in SQL query", confidence=0.7)
+        hyp_id = bs.add_belief(
+            "sqli",
+            "https://example.com/login",
+            "Login page has user input in SQL query",
+            confidence=0.7,
+        )
 
         assert hyp_id is not None
         assert hyp_id.startswith("sqli")
@@ -44,9 +49,13 @@ class TestBeliefState:
 
     def test_update_confidence(self):
         bs = vhc.BeliefState("test_mission")
-        hyp_id = bs.add_belief("xss", "https://example.com/search", "Search reflects user input", confidence=0.5)
+        hyp_id = bs.add_belief(
+            "xss", "https://example.com/search", "Search reflects user input", confidence=0.5
+        )
 
-        bs.update_confidence(hyp_id, 0.9, {"stage": "confirm", "result": "payload reflected unencoded"})
+        bs.update_confidence(
+            hyp_id, 0.9, {"stage": "confirm", "result": "payload reflected unencoded"}
+        )
 
         active = bs.get_active_beliefs()
         assert len(active) == 1
@@ -54,7 +63,12 @@ class TestBeliefState:
 
     def test_set_status(self):
         bs = vhc.BeliefState("test_mission")
-        hyp_id = bs.add_belief("ssrf", "https://example.com/proxy", "Proxy endpoint takes URL parameter", confidence=0.6)
+        hyp_id = bs.add_belief(
+            "ssrf",
+            "https://example.com/proxy",
+            "Proxy endpoint takes URL parameter",
+            confidence=0.6,
+        )
 
         bs.set_status(hyp_id, "refuted")
 
@@ -63,7 +77,9 @@ class TestBeliefState:
 
     def test_confirm_belief(self):
         bs = vhc.BeliefState("test_mission")
-        hyp_id = bs.add_belief("rce", "https://example.com/exec", "Command injection point", confidence=0.7)
+        hyp_id = bs.add_belief(
+            "rce", "https://example.com/exec", "Command injection point", confidence=0.7
+        )
 
         bs.set_status(hyp_id, "confirmed")
 
@@ -125,7 +141,9 @@ class TestCoverageMap:
 
         gap = cm.get_gaps()
         # This cell should NOT be in gaps since it was tested
-        tested_for_xss = [g for g in gap if g.vuln_class == "xss" and g.endpoint == "https://example.com/login"]
+        tested_for_xss = [
+            g for g in gap if g.vuln_class == "xss" and g.endpoint == "https://example.com/login"
+        ]
         # The cell was tested (test_count=1) so it should not appear with min_count=2
         assert all(g.test_count >= 1 for g in tested_for_xss) or len(tested_for_xss) == 0
 
@@ -183,7 +201,9 @@ class TestNegativeResultStore:
         ns = vhc.NegativeResultStore("test_mission")
         assert not ns.was_tested("/api/login", "sqli")
 
-        ns.record("/api/login", "sqli", "sqlmap", "sqlmap -u /api/login", reason="no injection detected")
+        ns.record(
+            "/api/login", "sqli", "sqlmap", "sqlmap -u /api/login", reason="no injection detected"
+        )
 
         assert ns.was_tested("/api/login", "sqli")
 
@@ -229,7 +249,11 @@ class TestVerificationPipeline:
     def test_verify_different_types(self):
         vp = vhc.VerificationPipeline()
         verdict = vp.verify_finding(
-            {"type": "rce", "url": "https://example.com/exec", "evidence": "command injection in id parameter"},
+            {
+                "type": "rce",
+                "url": "https://example.com/exec",
+                "evidence": "command injection in id parameter",
+            },
         )
         assert verdict.status == "false_positive"  # no agent = can't verify
 
@@ -312,7 +336,9 @@ class TestReflectEngine:
         ref3 = re.reflect(cycle=2, recent_findings_count=0)
 
         # Adaptation kicks in at 3 consecutive no-findings (counter=3 after 3 no-finding calls)
-        assert ref3.status == "needs_adaptation", f"Got {ref3.status} with consecutive={ref3.consecutive_no_findings}"
+        assert (
+            ref3.status == "needs_adaptation"
+        ), f"Got {ref3.status} with consecutive={ref3.consecutive_no_findings}"
 
     def test_on_track_with_findings(self):
         re = vhc.ReflectEngine(max_steps_without_findings=5)
@@ -361,7 +387,9 @@ class TestIntegration:
         cm = vhc.CoverageMap("integration_test", "example.com")
 
         cm.register_endpoint("https://example.com/login")
-        bs.add_belief("sqli", "https://example.com/login", "User input in SQL query", confidence=0.6)
+        bs.add_belief(
+            "sqli", "https://example.com/login", "User input in SQL query", confidence=0.6
+        )
 
         gaps = cm.get_gaps()
         assert len(gaps) > 0
@@ -393,7 +421,9 @@ class TestIntegration:
 
         # Cycle 4: Nothing (consecutive=3 → needs adaptation)
         r4 = re.reflect(3, recent_findings_count=0)
-        assert r4.status == "needs_adaptation", f"Got {r4.status} consecutive={r4.consecutive_no_findings}"
+        assert (
+            r4.status == "needs_adaptation"
+        ), f"Got {r4.status} consecutive={r4.consecutive_no_findings}"
 
         # Cycle 5: Nothing (consecutive=4, still adapting)
         r5 = re.reflect(4, recent_findings_count=0)

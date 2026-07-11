@@ -83,6 +83,7 @@ def test_w2_fingerprint_detects_tech_stack(mock_server):
     agent = ElengenixAgent.__new__(ElengenixAgent)
     agent._fingerprint_cache = {}
     agent.activity_logger = _StubActivityLogger()
+    agent.verify_ssl = False  # Mock server uses HTTP
     fp = agent._fingerprint_target_for_planning(mock_server, max_probe_seconds=8)
     assert fp is not None, "Fingerprint should not be None for live mock"
     techs = fp.get("technologies", [])

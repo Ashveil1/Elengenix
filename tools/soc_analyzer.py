@@ -199,7 +199,21 @@ class SOCAnalyzer:
             signature = json_data.get("signature") or json_data.get("rule_name") or ""
             if any(kw in signature.lower() for kw in ["malware", "trojan", "virus"]):
                 alert_type = "malware"
-            elif any(kw in signature.lower() for kw in ["intrusion", "exploit", "attack", "cve", "injection", "sqli", "xss", "rce", "lfi", "ssti"]):
+            elif any(
+                kw in signature.lower()
+                for kw in [
+                    "intrusion",
+                    "exploit",
+                    "attack",
+                    "cve",
+                    "injection",
+                    "sqli",
+                    "xss",
+                    "rce",
+                    "lfi",
+                    "ssti",
+                ]
+            ):
                 alert_type = "intrusion"
             elif any(kw in signature.lower() for kw in ["recon", "scan", "probe"]):
                 alert_type = "recon"

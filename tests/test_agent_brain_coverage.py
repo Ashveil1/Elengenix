@@ -23,6 +23,7 @@ from tools.tool_registry import ToolCategory, ToolResult, registry
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _make_lightweight_agent():
     """Create a minimal ElengenixAgent bypassing __init__."""
     from core.brain import ElengenixAgent
@@ -36,6 +37,8 @@ def _make_lightweight_agent():
     agent.enable_cot_logging = True
     agent.max_history_turns = 20
     agent.verbose_thoughts = True
+    agent.verify_ssl = False  # For test mock server
+    agent.agent_prompt_template = ""  # Required for process_query
     agent.conversation_history = []
     agent.current_tree = None
     agent._fingerprint_cache = {}
@@ -104,10 +107,12 @@ def _make_lightweight_agent():
 # Module-level lazy loaders
 # ===================================================================
 
+
 class TestModuleLevelLazyLoaders:
     @patch("core.brain._vector_memory", None)
     def test_get_vector_memory(self):
         import core.brain as brain_mod
+
         mock_vm = MagicMock()
         with patch.dict("sys.modules", {"tools.vector_memory": mock_vm}):
             result = brain_mod._get_vector_memory()
@@ -116,6 +121,7 @@ class TestModuleLevelLazyLoaders:
     @patch("core.brain._memory_persistence", None)
     def test_get_memory_persistence(self):
         import core.brain as brain_mod
+
         mock_mp = MagicMock()
         with patch.dict("sys.modules", {"tools.memory_persistence": mock_mp}):
             result = brain_mod._get_memory_persistence()
@@ -124,6 +130,7 @@ class TestModuleLevelLazyLoaders:
     @patch("core.brain._cve_database", None)
     def test_get_cve_database(self):
         import core.brain as brain_mod
+
         mock_db = MagicMock()
         with patch.dict("sys.modules", {"tools.cve_database": mock_db}):
             result = brain_mod._get_cve_database()
@@ -132,6 +139,7 @@ class TestModuleLevelLazyLoaders:
     @patch("core.brain._mission_state", None)
     def test_get_mission_state(self):
         import core.brain as brain_mod
+
         mock_ms = MagicMock()
         with patch.dict("sys.modules", {"tools.mission_state": mock_ms}):
             result = brain_mod._get_mission_state()
@@ -140,6 +148,7 @@ class TestModuleLevelLazyLoaders:
     @patch("core.brain._agent_reflection", None)
     def test_get_agent_reflection(self):
         import core.brain as brain_mod
+
         mock_ar = MagicMock()
         with patch.dict("sys.modules", {"tools.agent_reflection": mock_ar}):
             result = brain_mod._get_agent_reflection()
@@ -148,6 +157,7 @@ class TestModuleLevelLazyLoaders:
     @patch("core.brain._vuln_finder", None)
     def test_get_vuln_finder(self):
         import core.brain as brain_mod
+
         mock_vf = MagicMock()
         with patch.dict("sys.modules", {"tools.vuln_finder": mock_vf}):
             result = brain_mod._get_vuln_finder()
@@ -158,10 +168,12 @@ class TestModuleLevelLazyLoaders:
 # Module-level memory/SQL functions
 # ===================================================================
 
+
 class TestModuleLevelMemoryFunctions:
     @patch("core.brain._get_vector_memory")
     def test_remember_success(self, mock_get_vm):
         import core.brain as brain_mod
+
         mock_vm = MagicMock()
         mock_get_vm.return_value = mock_vm
         brain_mod.remember("test content", target="t", category="cat")
@@ -170,11 +182,13 @@ class TestModuleLevelMemoryFunctions:
     @patch("core.brain._get_vector_memory", side_effect=Exception("fail"))
     def test_remember_exception(self, mock_get_vm):
         import core.brain as brain_mod
+
         brain_mod.remember("test content")
 
     @patch("core.brain._get_vector_memory")
     def test_recall_success(self, mock_get_vm):
         import core.brain as brain_mod
+
         mock_vm = MagicMock()
         mock_vm.recall.return_value = [{"content": "mem1"}]
         mock_get_vm.return_value = mock_vm
@@ -184,12 +198,14 @@ class TestModuleLevelMemoryFunctions:
     @patch("core.brain._get_vector_memory", side_effect=Exception("fail"))
     def test_recall_exception(self, mock_get_vm):
         import core.brain as brain_mod
+
         result = brain_mod.recall("query")
         assert result == []
 
     @patch("core.brain._get_vector_memory")
     def test_get_context_for_ai_success(self, mock_get_vm):
         import core.brain as brain_mod
+
         mock_vm = MagicMock()
         mock_vm.get_context_for_ai.return_value = "context lines"
         mock_get_vm.return_value = mock_vm
@@ -199,6 +215,7 @@ class TestModuleLevelMemoryFunctions:
     @patch("core.brain._get_vector_memory", side_effect=Exception("fail"))
     def test_get_context_for_ai_exception(self, mock_get_vm):
         import core.brain as brain_mod
+
         result = brain_mod.get_context_for_ai("q")
         assert result == ""
 
@@ -207,6 +224,7 @@ class TestModuleLevelSqliteFunctions:
     @patch("core.brain._get_memory_persistence")
     def test_sqlite_save_message_success(self, mock_get_mp):
         import core.brain as brain_mod
+
         mock_mp = MagicMock()
         mock_get_mp.return_value = mock_mp
         brain_mod._sqlite_save_message("sid", "user", "content", "model", 100)
@@ -215,11 +233,13 @@ class TestModuleLevelSqliteFunctions:
     @patch("core.brain._get_memory_persistence", side_effect=Exception("fail"))
     def test_sqlite_save_message_exception(self, mock_get_mp):
         import core.brain as brain_mod
+
         brain_mod._sqlite_save_message("sid", "user", "content")
 
     @patch("core.brain._get_memory_persistence")
     def test_get_context_status_success(self, mock_get_mp):
         import core.brain as brain_mod
+
         mock_mp = MagicMock()
         mock_mp.get_context_status.return_value = {"is_near_full": True, "percent": 90.0}
         mock_get_mp.return_value = mock_mp
@@ -229,6 +249,7 @@ class TestModuleLevelSqliteFunctions:
     @patch("core.brain._get_memory_persistence", side_effect=Exception("fail"))
     def test_get_context_status_exception(self, mock_get_mp):
         import core.brain as brain_mod
+
         result = brain_mod._get_context_status("sid")
         assert result["is_near_full"] is False
         assert result["percent"] == 0
@@ -236,6 +257,7 @@ class TestModuleLevelSqliteFunctions:
     @patch("core.brain._get_memory_persistence")
     def test_sqlite_clear_session_success(self, mock_get_mp):
         import core.brain as brain_mod
+
         mock_mp = MagicMock()
         mock_get_mp.return_value = mock_mp
         brain_mod._sqlite_clear_session("sid")
@@ -244,12 +266,14 @@ class TestModuleLevelSqliteFunctions:
     @patch("core.brain._get_memory_persistence", side_effect=Exception("fail"))
     def test_sqlite_clear_session_exception(self, mock_get_mp):
         import core.brain as brain_mod
+
         brain_mod._sqlite_clear_session("sid")
 
 
 # ===================================================================
 # ElengenixAgent class methods
 # ===================================================================
+
 
 class TestElengenixAgentInitAndProperties:
     def test_logic_analyzer_lazy_init(self):
@@ -411,7 +435,7 @@ class TestElengenixAgentExtractJson:
     def test_array_input_returns_none_for_object_expect(self):
         agent = _make_lightweight_agent()
         # extract_json with expect="object" + isinstance(dict) check
-        result = agent._extract_json('[1, 2, 3]')
+        result = agent._extract_json("[1, 2, 3]")
         # May return the array from extract_json, but isinstance dict returns None
         assert result is None or isinstance(result, dict)
 
@@ -429,16 +453,24 @@ class TestElengenixAgentSummarizeResults:
 
     def test_single_result(self):
         agent = _make_lightweight_agent()
-        tr = ToolResult(success=True, tool_name="nmap", category=ToolCategory.RECON,
-                        findings=[{"type": "xss"}])
+        tr = ToolResult(
+            success=True, tool_name="nmap", category=ToolCategory.RECON, findings=[{"type": "xss"}]
+        )
         result = agent._summarize_results([tr])
         assert "nmap" in result
         assert "1 findings" in result
 
     def test_multiple_results_last_3(self):
         agent = _make_lightweight_agent()
-        results = [ToolResult(success=True, tool_name=f"t{i}", category=ToolCategory.RECON,
-                             findings=[{"type": f"v{i}"} for _ in range(i)]) for i in range(5)]
+        results = [
+            ToolResult(
+                success=True,
+                tool_name=f"t{i}",
+                category=ToolCategory.RECON,
+                findings=[{"type": f"v{i}"} for _ in range(i)],
+            )
+            for i in range(5)
+        ]
         result = agent._summarize_results(results)
         assert "t2" in result or "t3" in result or "t4" in result
         assert "t0" not in result
@@ -464,16 +496,24 @@ class TestElengenixAgentCheckContextOverflow:
     def test_not_near_full(self):
         agent = _make_lightweight_agent()
         with patch("core.brain._get_context_status") as mock_status:
-            mock_status.return_value = {"is_near_full": False, "percent": 30.0,
-                                        "used_tokens": 30000, "capacity": 100000}
+            mock_status.return_value = {
+                "is_near_full": False,
+                "percent": 30.0,
+                "used_tokens": 30000,
+                "capacity": 100000,
+            }
             assert agent._check_context_overflow() is False
 
     def test_near_full_triggers_summarize(self):
         agent = _make_lightweight_agent()
         agent.conversation_history = [{"role": "user", "content": "hi"}] * 10
         with patch("core.brain._get_context_status") as mock_status:
-            mock_status.return_value = {"is_near_full": True, "percent": 95.0,
-                                        "used_tokens": 95000, "capacity": 100000}
+            mock_status.return_value = {
+                "is_near_full": True,
+                "percent": 95.0,
+                "used_tokens": 95000,
+                "capacity": 100000,
+            }
             with patch.object(agent, "_summarize_old_conversation") as mock_sum:
                 assert agent._check_context_overflow() is True
                 mock_sum.assert_called_once()
@@ -502,9 +542,9 @@ class TestElengenixAgentSummarizeOldConversation:
         mock_response = SimpleNamespace(content="This is a summary of the conversation.")
         agent.client.chat.return_value = mock_response
 
-        with patch("core.brain._sqlite_clear_session"), \
-             patch("core.brain._sqlite_save_message"), \
-             patch("core.brain.logger"):
+        with patch("core.brain._sqlite_clear_session"), patch(
+            "core.brain._sqlite_save_message"
+        ), patch("core.brain.logger"):
             with patch("tools.token_counter.count_tokens", return_value=100):
                 agent._summarize_old_conversation()
 
@@ -524,8 +564,7 @@ class TestElengenixAgentSummarizeOldConversation:
         agent.client.chat.return_value = mock_response
 
         original_len = len(agent.conversation_history)
-        with patch("core.brain._sqlite_clear_session"), \
-             patch("core.brain.logger"):
+        with patch("core.brain._sqlite_clear_session"), patch("core.brain.logger"):
             agent._summarize_old_conversation()
         assert len(agent.conversation_history) == original_len
 
@@ -591,9 +630,9 @@ class TestElengenixAgentInitTeamAegisClients:
     def test_team_aegis_disabled(self):
         agent = _make_lightweight_agent()
         config_data = {"team_aegis": {"enabled": False}}
-        with patch("pathlib.Path.exists", return_value=True), \
-             patch("builtins.open", mock_open(read_data="")), \
-             patch("yaml.safe_load", return_value=config_data):
+        with patch("pathlib.Path.exists", return_value=True), patch(
+            "builtins.open", mock_open(read_data="")
+        ), patch("yaml.safe_load", return_value=config_data):
             result = agent._init_team_aegis_clients()
             assert result["enabled"] is False
 
@@ -677,8 +716,9 @@ class TestElengenixAgentRunSmartScan:
         # Set _smart_orchestrator directly (property reads this)
         agent._smart_orchestrator = MagicMock()
 
-        with patch("asyncio.run_coroutine_threadsafe", return_value=mock_future), \
-             patch.object(agent, "_get_shared_loop", return_value=MagicMock()):
+        with patch("asyncio.run_coroutine_threadsafe", return_value=mock_future), patch.object(
+            agent, "_get_shared_loop", return_value=MagicMock()
+        ):
             result = agent.run_smart_scan("target.com", Path("/tmp/reports"))
             assert "Smart Scan Results" in result
             assert "42.5" in result
@@ -686,8 +726,9 @@ class TestElengenixAgentRunSmartScan:
     def test_smart_scan_failure(self):
         agent = _make_lightweight_agent()
         agent._smart_orchestrator = MagicMock()
-        with patch("asyncio.run_coroutine_threadsafe", side_effect=Exception("timeout")), \
-             patch.object(agent, "_get_shared_loop", return_value=MagicMock()):
+        with patch(
+            "asyncio.run_coroutine_threadsafe", side_effect=Exception("timeout")
+        ), patch.object(agent, "_get_shared_loop", return_value=MagicMock()):
             result = agent.run_smart_scan("target.com", Path("/tmp/reports"))
             assert "Smart scan failed" in result
 
@@ -717,16 +758,18 @@ class TestElengenixAgentProcessHybrid:
 
     def test_hybrid_scan_no_target_inferred(self):
         agent = _make_lightweight_agent()
-        with patch.object(agent, "_analyze_intent", return_value="scan"), \
-             patch("core.brain._extract_target_from_text", return_value="example.com"):
+        with patch.object(agent, "_analyze_intent", return_value="scan"), patch(
+            "core.brain._extract_target_from_text", return_value="example.com"
+        ):
             result = agent.process_hybrid("scan example.com", target="")
             # Should delegate to mode_processor since target is inferred
             assert result == "hybrid result"
 
     def test_hybrid_scan_no_target_no_inference(self):
         agent = _make_lightweight_agent()
-        with patch.object(agent, "_analyze_intent", return_value="scan"), \
-             patch("core.brain._extract_target_from_text", return_value=""):
+        with patch.object(agent, "_analyze_intent", return_value="scan"), patch(
+            "core.brain._extract_target_from_text", return_value=""
+        ):
             result = agent.process_hybrid("scan something", target="")
             assert "No target specified" in result
 
@@ -838,9 +881,11 @@ class TestElengenixAgentRequestToolInstall:
 # Intent fast-path patterns
 # ===================================================================
 
+
 class TestIntentFastPath:
     def test_casual_greeting(self):
         from agents.agent_intent import _fast_path_classify
+
         assert _fast_path_classify("hello") == "casual"
         assert _fast_path_classify("hi") == "casual"
         assert _fast_path_classify("hey") == "casual"
@@ -848,6 +893,7 @@ class TestIntentFastPath:
 
     def test_scan_pattern(self):
         from agents.agent_intent import _fast_path_classify
+
         assert _fast_path_classify("scan example.com") == "scan"
         assert _fast_path_classify("pentest 192.168.1.1") == "scan"
         assert _fast_path_classify("recon target.org") == "scan"
@@ -855,6 +901,7 @@ class TestIntentFastPath:
 
     def test_research_pattern(self):
         from agents.agent_intent import _fast_path_classify
+
         assert _fast_path_classify("today's scores") == "research"
         assert _fast_path_classify("latest news") == "research"
         assert _fast_path_classify("current weather") == "research"
@@ -862,14 +909,17 @@ class TestIntentFastPath:
 
     def test_empty_input(self):
         from agents.agent_intent import _fast_path_classify
+
         assert _fast_path_classify("") == "casual"
 
     def test_ambiguous_input_returns_none(self):
         from agents.agent_intent import _fast_path_classify
+
         assert _fast_path_classify("explain how sql injection works") is None
 
     def test_thai_short_text(self):
         from agents.agent_intent import _fast_path_classify
+
         assert _fast_path_classify("สวัสดี") == "casual"
 
 
@@ -877,37 +927,45 @@ class TestIntentFastPath:
 # Agent helpers
 # ===================================================================
 
+
 class TestAgentHelpersExtractJson:
     def test_valid_json(self):
         from agents.agent_helpers import extract_json
+
         result = extract_json('{"key": "value"}', expect="object")
         assert result == {"key": "value"}
 
     def test_in_code_fence(self):
         from agents.agent_helpers import extract_json
+
         result = extract_json('```json\n{"key": "val"}\n```', expect="object")
         assert result == {"key": "val"}
 
     def test_array_expect(self):
         from agents.agent_helpers import extract_json
-        result = extract_json('[1, 2, 3]', expect="array")
+
+        result = extract_json("[1, 2, 3]", expect="array")
         assert result == [1, 2, 3]
 
     def test_none_input(self):
         from agents.agent_helpers import extract_json
+
         assert extract_json(None) is None
 
     def test_empty_string(self):
         from agents.agent_helpers import extract_json
+
         assert extract_json("") is None
 
     def test_trailing_comma_repair(self):
         from agents.agent_helpers import extract_json
+
         result = extract_json('{"key": "val",}', expect="object")
         assert result == {"key": "val"}
 
     def test_smart_quotes_repair(self):
         from agents.agent_helpers import extract_json
+
         text = '\u201c{"key": "val"}\u201d'
         result = extract_json(text, expect="object")
         assert result == {"key": "val"}
@@ -916,20 +974,24 @@ class TestAgentHelpersExtractJson:
 class TestAgentHelpersExtractTarget:
     def test_url_in_text(self):
         from agents.agent_helpers import _extract_target_from_text
+
         result = _extract_target_from_text("scan example.com please")
         assert result == "example.com"
 
     def test_ip_in_text(self):
         from agents.agent_helpers import _extract_target_from_text
+
         result = _extract_target_from_text("scan 192.168.1.1")
         assert result == "192.168.1.1"
 
     def test_empty_text(self):
         from agents.agent_helpers import _extract_target_from_text
+
         assert _extract_target_from_text("") == ""
 
     def test_no_target_words(self):
         from agents.agent_helpers import _extract_target_from_text
+
         result = _extract_target_from_text("hello world")
         assert result != ""
 
@@ -937,24 +999,28 @@ class TestAgentHelpersExtractTarget:
 class TestAgentHelpersSafeOperation:
     def test_success(self):
         from agents.agent_helpers import _safe_operation
+
         result = _safe_operation("test", lambda: 42)
         assert result == 42
 
     def test_failure_returns_default(self):
         from agents.agent_helpers import _safe_operation
-        result = _safe_operation("test", lambda: 1/0, default="fallback")
+
+        result = _safe_operation("test", lambda: 1 / 0, default="fallback")
         assert result == "fallback"
 
     def test_failure_logs_warning(self):
         from agents.agent_helpers import _safe_operation
+
         with patch("agents.agent_helpers.logger") as mock_logger:
-            _safe_operation("test_op", lambda: 1/0)
+            _safe_operation("test_op", lambda: 1 / 0)
             mock_logger.warning.assert_called_once()
 
 
 class TestAgentHelpersGetNowContext:
     def test_returns_string(self):
         from agents.agent_helpers import _get_now_context
+
         result = _get_now_context()
         assert isinstance(result, str)
         assert "CURRENT TIME CONTEXT" in result
@@ -962,6 +1028,7 @@ class TestAgentHelpersGetNowContext:
     def test_with_timezone(self):
         import os
         from agents.agent_helpers import _get_now_context
+
         old_tz = os.environ.pop("ELENGENIX_TZ", None)
         os.environ["ELENGENIX_TZ"] = "Asia/Bangkok"
         try:
@@ -978,9 +1045,11 @@ class TestAgentHelpersGetNowContext:
 # Chain of Thought Logger
 # ===================================================================
 
+
 class TestChainOfThoughtLogger:
     def test_log_adds_thought(self):
         from agents.agent_logger import ChainOfThoughtLogger
+
         logger = ChainOfThoughtLogger(log_dir=Path(tempfile.mkdtemp()))
         logger.log(0, "test", "reasoning", "test_action", "result", 0.8)
         assert len(logger.current_session) == 1
@@ -988,6 +1057,7 @@ class TestChainOfThoughtLogger:
 
     def test_save_session(self):
         from agents.agent_logger import ChainOfThoughtLogger
+
         tmpdir = Path(tempfile.mkdtemp())
         logger = ChainOfThoughtLogger(log_dir=tmpdir)
         logger.log(0, "ctx", "reason", "act", "res", 0.9)
@@ -997,11 +1067,13 @@ class TestChainOfThoughtLogger:
 
     def test_save_empty_session(self):
         from agents.agent_logger import ChainOfThoughtLogger
+
         logger = ChainOfThoughtLogger(log_dir=Path(tempfile.mkdtemp()))
         assert logger.save_session("target") is None
 
     def test_set_target(self):
         from agents.agent_logger import ChainOfThoughtLogger
+
         logger = ChainOfThoughtLogger(log_dir=Path(tempfile.mkdtemp()))
         logger.set_target("example.com")
         assert logger._pending_target == "example.com"
@@ -1011,9 +1083,11 @@ class TestChainOfThoughtLogger:
 # AttackTree data classes
 # ===================================================================
 
+
 class TestAttackTreeDataclasses:
     def test_attack_step_defaults(self):
         from agents.agent_dataclasses import AttackStep, AttackPhase
+
         step = AttackStep(
             phase=AttackPhase.RECONNAISSANCE,
             tool_name="nmap",
@@ -1025,16 +1099,22 @@ class TestAttackTreeDataclasses:
 
     def test_attack_tree_defaults(self):
         from agents.agent_dataclasses import AttackTree
+
         tree = AttackTree(target="example.com", objective="find vulns")
         assert tree.steps == []
         assert tree.reasoning == ""
 
     def test_agent_thought(self):
         from agents.agent_dataclasses import AgentThought
+
         thought = AgentThought(
-            step=0, timestamp=1.0, context="ctx",
-            reasoning="reason", action_taken="act",
-            result="res", confidence=0.8,
+            step=0,
+            timestamp=1.0,
+            context="ctx",
+            reasoning="reason",
+            action_taken="act",
+            result="res",
+            confidence=0.8,
         )
         assert thought.confidence == 0.8
 
@@ -1043,9 +1123,11 @@ class TestAttackTreeDataclasses:
 # ConversationManager
 # ===================================================================
 
+
 class TestConversationManager:
     def test_build_chat_messages(self):
         from agents.agent_conversation import ConversationManager
+
         cm = ConversationManager(client=MagicMock())
         cm.conversation_history = [
             {"role": "user", "content": "hello"},
@@ -1059,6 +1141,7 @@ class TestConversationManager:
 
     def test_clear(self):
         from agents.agent_conversation import ConversationManager
+
         cm = ConversationManager(client=MagicMock())
         cm.conversation_history = [{"role": "user", "content": "hi"}]
         cm.clear()
@@ -1066,6 +1149,7 @@ class TestConversationManager:
 
     def test_get_recent_history(self):
         from agents.agent_conversation import ConversationManager
+
         cm = ConversationManager(client=MagicMock(), history_limit=2)
         cm.conversation_history = [
             {"role": "user", "content": "1"},
@@ -1077,6 +1161,7 @@ class TestConversationManager:
 
     def test_append_history_trims(self):
         from agents.agent_conversation import ConversationManager
+
         cm = ConversationManager(client=MagicMock(), max_history_turns=2)
         cm.conversation_history = [{"role": "user", "content": f"msg {i}"} for i in range(10)]
         with patch.object(cm, "_save_to_persistent_memory"):
@@ -1085,6 +1170,7 @@ class TestConversationManager:
 
     def test_check_context_overflow(self):
         from agents.agent_conversation import ConversationManager
+
         cm = ConversationManager(client=MagicMock(), max_history_turns=5)
         cm.conversation_history = [{"role": "user", "content": f"msg {i}"} for i in range(20)]
         with patch.object(cm, "_summarize_old_conversation") as mock_sum:
@@ -1094,6 +1180,7 @@ class TestConversationManager:
 
     def test_check_context_overflow_short(self):
         from agents.agent_conversation import ConversationManager
+
         cm = ConversationManager(client=MagicMock(), max_history_turns=20)
         cm.conversation_history = [{"role": "user", "content": "hi"}]
         assert cm.check_context_overflow() is False
@@ -1102,6 +1189,7 @@ class TestConversationManager:
 # ===================================================================
 # Process query tests
 # ===================================================================
+
 
 def _make_process_query_patches(agent):
     """Return a dict of common patches needed for process_query tests.
@@ -1146,11 +1234,13 @@ def _stop_patches(patch_dict):
 class TestProcessQueryEdgeCases:
     def test_process_query_casual_intent(self):
         agent = _make_lightweight_agent()
-        with patch.object(agent, "_analyze_intent", return_value="casual"), \
-             patch("core.brain.get_context_for_ai", return_value=""), \
-             patch("core.brain._get_now_context", return_value="now"), \
-             patch("core.brain.remember"), \
-             patch("core.brain.display_in_chat_mode"):
+        with patch.object(agent, "_analyze_intent", return_value="casual"), patch(
+            "core.brain.get_context_for_ai", return_value=""
+        ), patch("core.brain._get_now_context", return_value="now"), patch(
+            "core.brain.remember"
+        ), patch(
+            "core.brain.display_in_chat_mode"
+        ):
             agent.client.chat.return_value = SimpleNamespace(content="Hi there!")
             agent.conversation_manager.build_chat_messages.return_value = [
                 SimpleNamespace(role="system", content="sys"),
@@ -1231,7 +1321,14 @@ class TestProcessQuerySaveMemory:
 
         responses = [
             SimpleNamespace(
-                content=json.dumps({"action": "save_memory", "learning": "XSS found", "target": "t", "category": "finding"}),
+                content=json.dumps(
+                    {
+                        "action": "save_memory",
+                        "learning": "XSS found",
+                        "target": "t",
+                        "category": "finding",
+                    }
+                ),
                 tool_calls=None,
             ),
             SimpleNamespace(
@@ -1277,8 +1374,9 @@ class TestProcessQueryToolExecution:
         mock_mission.target = "example.com"
         mock_mission.snapshot.return_value = {"target": "example.com"}
 
-        gate_decision = GateDecision(allowed=False, risk_level="DESTRUCTIVE",
-                                     decision="deny", rationale="dangerous")
+        gate_decision = GateDecision(
+            allowed=False, risk_level="DESTRUCTIVE", decision="deny", rationale="dangerous"
+        )
 
         mock_governance = MagicMock()
         mock_governance.gate.return_value = gate_decision
@@ -1306,12 +1404,14 @@ class TestProcessQueryToolExecution:
         mocks["mission"].return_value = mock_mission
         try:
             agent.client.chat.return_value = SimpleNamespace(
-                content=json.dumps({
-                    "action": "run_shell",
-                    "tool": "nmap",
-                    "command": "rm -rf /",
-                    "purpose": "recon",
-                }),
+                content=json.dumps(
+                    {
+                        "action": "run_shell",
+                        "tool": "nmap",
+                        "command": "rm -rf /",
+                        "purpose": "recon",
+                    }
+                ),
                 tool_calls=None,
             )
             result = agent.process_query("scan example.com", target="example.com")
@@ -1330,12 +1430,14 @@ class TestProcessQueryDeadlock:
         mock_mission.target = "example.com"
         mock_mission.snapshot.return_value = {"target": "example.com"}
 
-        action_data = json.dumps({
-            "action": "run_shell",
-            "tool": "nmap",
-            "command": "nmap example.com",
-            "purpose": "recon",
-        })
+        action_data = json.dumps(
+            {
+                "action": "run_shell",
+                "tool": "nmap",
+                "command": "nmap example.com",
+                "purpose": "recon",
+            }
+        )
         agent.client.chat.return_value = SimpleNamespace(content=action_data, tool_calls=None)
 
         gate_decision = GateDecision(allowed=True, risk_level="SAFE", decision="allow")
@@ -1343,7 +1445,9 @@ class TestProcessQueryDeadlock:
         mock_governance.gate.return_value = gate_decision
         agent.governance = mock_governance
 
-        mock_tool_result = ToolResult(success=True, tool_name="nmap", category=ToolCategory.RECON, findings=[])
+        mock_tool_result = ToolResult(
+            success=True, tool_name="nmap", category=ToolCategory.RECON, findings=[]
+        )
 
         mock_reflect = MagicMock()
         mock_reflect.status = "ok"
@@ -1391,12 +1495,14 @@ class TestProcessQueryMaxStepsHalt:
         mock_mission.target = "example.com"
         mock_mission.snapshot.return_value = {"target": "example.com"}
 
-        action_data = json.dumps({
-            "action": "save_memory",
-            "learning": "test",
-            "target": "t",
-            "category": "cat",
-        })
+        action_data = json.dumps(
+            {
+                "action": "save_memory",
+                "learning": "test",
+                "target": "t",
+                "category": "cat",
+            }
+        )
         agent.client.chat.return_value = SimpleNamespace(content=action_data, tool_calls=None)
 
         mock_reflect = MagicMock()
@@ -1477,7 +1583,7 @@ class TestProcessQueryCallback:
 class TestAdditionalEdgeCases:
     def test_extract_json_with_array(self):
         agent = _make_lightweight_agent()
-        result = agent._extract_json('[1, 2, 3]')
+        result = agent._extract_json("[1, 2, 3]")
         assert result is None
 
     def test_process_query_no_target_scan_inferred(self):
@@ -1528,6 +1634,7 @@ class TestAdditionalEdgeCases:
 
     def test_allowed_tools_set(self):
         from core.brain import ElengenixAgent
+
         assert isinstance(ElengenixAgent.ALLOWED_TOOLS, set)
         assert len(ElengenixAgent.ALLOWED_TOOLS) == 0
 
@@ -1537,7 +1644,10 @@ class TestAdditionalEdgeCases:
         r1 = ToolResult(success=True, tool_name="a", category=ToolCategory.RECON, findings=[])
         summary = agent._summarize_results([r1])
         assert "a" in summary
-        many = [ToolResult(success=True, tool_name=f"t{i}", category=ToolCategory.RECON, findings=[]) for i in range(10)]
+        many = [
+            ToolResult(success=True, tool_name=f"t{i}", category=ToolCategory.RECON, findings=[])
+            for i in range(10)
+        ]
         summary = agent._summarize_results(many)
         assert "t9" in summary
         assert "t0" not in summary
@@ -1547,6 +1657,7 @@ class TestGetNowContext:
     def test_default_tz(self):
         import os
         from agents.agent_helpers import _get_now_context
+
         old_tz = os.environ.pop("ELENGENIX_TZ", None)
         try:
             result = _get_now_context()

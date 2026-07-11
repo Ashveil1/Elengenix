@@ -64,14 +64,17 @@ def _handle_full_scan(args) -> int:
     # Start MCP server if enabled
     try:
         from mcp.manager import start_mcp
+
         start_mcp()
     except Exception:
         pass
 
     # Register cleanup for MCP server
     import atexit
+
     try:
         from mcp.manager import stop_mcp
+
         atexit.register(stop_mcp)
     except Exception:
         pass
@@ -319,7 +322,9 @@ def _handle_phase_scan(args, phase: str) -> int:
             if r.success:
                 console.print(f"[OK] {phase}: {len(r.findings)} findings")
                 for f in r.findings[:10]:
-                    console.print(f"  - [{f.get('severity', '?')}] {f.get('type', '?')}: {f.get('title', '?')[:60]}")
+                    console.print(
+                        f"  - [{f.get('severity', '?')}] {f.get('type', '?')}: {f.get('title', '?')[:60]}"
+                    )
             else:
                 console.print(f"[FAIL] {phase}: {r.error}")
 
@@ -367,8 +372,7 @@ def _run_interactive_bola(args) -> int:
 
     show_section("BOLA/IDOR Differential Harness")
     base_url = (
-        args.target
-        or console.input("[red]Base URL[/red] (e.g., https://target.tld): ").strip()
+        args.target or console.input("[red]Base URL[/red] (e.g., https://target.tld): ").strip()
     )
     if not base_url:
         print_error("Base URL is required")
@@ -431,7 +435,13 @@ def _run_interactive_bola(args) -> int:
 def _run_interactive_waf(args) -> int:
     """Run interactive WAF detection & bypass testing."""
     from tools.waf_evasion import WAFEvasionEngine
-    from cli.ui_components import print_error, print_info, print_success, print_warning, show_section
+    from cli.ui_components import (
+        print_error,
+        print_info,
+        print_success,
+        print_warning,
+        show_section,
+    )
 
     from main import require_authorized_scan_target
 
@@ -490,10 +500,7 @@ def _run_interactive_recon(args) -> int:
     from main import require_authorized_scan_target
 
     show_section("Smart Reconnaissance - Asset Correlation Engine")
-    target = (
-        args.target
-        or console.input("[red]Target domain[/red] (e.g., example.com): ").strip()
-    )
+    target = args.target or console.input("[red]Target domain[/red] (e.g., example.com): ").strip()
     if not target:
         print_error("Target domain is required")
         return 1

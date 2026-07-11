@@ -113,9 +113,7 @@ class DecisionEngine:
         step = ctx.step_count
 
         # Phase 1: Reflection
-        reflection = self._reflect(
-            ctx, reflect_engine, step, user_input
-        )
+        reflection = self._reflect(ctx, reflect_engine, step, user_input)
         self.last_reflection = reflection
 
         # Phase 2: AI decides with full context
@@ -201,9 +199,7 @@ class DecisionEngine:
 
             # Display strategy switch warning
             if switch and self.callback:
-                self.callback(
-                    f"[Reflection] Strategy switch needed: {recommendation[:100]}"
-                )
+                self.callback(f"[Reflection] Strategy switch needed: {recommendation[:100]}")
 
             return reflection
 
@@ -283,9 +279,7 @@ class DecisionEngine:
             try:
                 from cli.ui_components import show_spinner
 
-                with show_spinner(
-                    "AI Agent is planning its next move...", spinner_style="#ffffff"
-                ):
+                with show_spinner("AI Agent is planning its next move...", spinner_style="#ffffff"):
                     response = self.ai_client.chat(
                         messages,
                         temperature=0.3,  # Slightly higher temp for creative strategy
@@ -324,9 +318,7 @@ class DecisionEngine:
                 source="fallback",
             )
 
-    def _build_strategy_prompt(
-        self, ctx: "ScanContext", user_input: str, reflection=None
-    ) -> str:
+    def _build_strategy_prompt(self, ctx: "ScanContext", user_input: str, reflection=None) -> str:
         """Build a strategy-focused prompt for AI decision making.
 
         Gives AI full context and authority to override the attack tree.
@@ -350,10 +342,10 @@ class DecisionEngine:
 
         # Add attack tree context
         if ctx.attack_tree and ctx.attack_tree.steps:
-            remaining_steps = ctx.attack_tree.steps[ctx.step_count:]
+            remaining_steps = ctx.attack_tree.steps[ctx.step_count :]
             strategy_context += "### SUGGESTED ATTACK TREE (you can override):\n"
             for i, step in enumerate(remaining_steps[:5]):  # Show next 5 steps
-                phase_name = step.phase.value if hasattr(step.phase, 'value') else str(step.phase)
+                phase_name = step.phase.value if hasattr(step.phase, "value") else str(step.phase)
                 strategy_context += f"  {i+1}. [{phase_name}] {step.tool_name}: {step.purpose}\n"
             strategy_context += "\n"
 

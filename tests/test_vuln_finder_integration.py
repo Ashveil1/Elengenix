@@ -82,10 +82,12 @@ def test_full_flow_escalation_and_chain_together():
     finder.add_finding({"type": "XSS", "severity": "LOW"})
 
     # Chain: IDOR + info_disclosure
-    chain_result = finder.chain([
-        {"type": "IDOR", "severity": "LOW"},
-        {"type": "info_disclosure", "severity": "LOW"},
-    ])
+    chain_result = finder.chain(
+        [
+            {"type": "IDOR", "severity": "LOW"},
+            {"type": "info_disclosure", "severity": "LOW"},
+        ]
+    )
     assert chain_result is not None
 
     # Escalate: XSS

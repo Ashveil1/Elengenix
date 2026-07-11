@@ -81,8 +81,7 @@ def get_agent(config: Optional[Dict[str, Any]] = None) -> "ElengenixAgent":
         except ImportError as e:
             logger.exception("Failed to import core.brain module")
             raise ImportError(
-                f"Cannot import core.brain: {e}. "
-                "Check your installation or reinstall Elengenix."
+                f"Cannot import core.brain: {e}. " "Check your installation or reinstall Elengenix."
             ) from e
 
         # Validate config keys
@@ -102,8 +101,7 @@ def get_agent(config: Optional[Dict[str, Any]] = None) -> "ElengenixAgent":
             # Config key error — provide helpful message
             logger.exception("Invalid config parameter")
             raise RuntimeError(
-                f"Invalid config parameter: {e}. "
-                f"Check ElengenixAgent.__init__ signature."
+                f"Invalid config parameter: {e}. " f"Check ElengenixAgent.__init__ signature."
             ) from e
         except Exception as e:
             logger.exception("Agent initialization failed")
@@ -181,8 +179,13 @@ def _validate_config(config: Dict[str, Any]) -> None:
         ValueError: If unknown config keys are found.
     """
     valid_keys = {
-        "max_steps", "loop_threshold", "history_limit", "max_output_len",
-        "enable_planning", "enable_cot_logging", "max_history_turns",
+        "max_steps",
+        "loop_threshold",
+        "history_limit",
+        "max_output_len",
+        "enable_planning",
+        "enable_cot_logging",
+        "max_history_turns",
         "verbose_thoughts",
     }
     unknown_keys = set(config.keys()) - valid_keys

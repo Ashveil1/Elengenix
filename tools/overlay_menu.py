@@ -64,24 +64,25 @@ class SettingsOverlay:
         """Render the settings overlay as a Rich Panel."""
         title = self._get_title()
         lines = []
-        
+
         for i, item in enumerate(self._items):
             label = item.get("label", "")
             if not label:
                 lines.append("")
                 continue
-            
+
             # Highlight selected item
             if i == self._selected_idx:
                 lines.append(f"[bold white]> {label}[/bold white]")
             else:
                 lines.append(f"  {label}")
-        
+
         content = "\n".join(lines) if lines else "[dim]No items[/dim]"
-        
+
         from rich.text import Text
+
         text = Text.from_markup(content)
-        
+
         return Panel(
             text,
             title=f"[bold]{title}[/bold]",
@@ -169,21 +170,21 @@ class SettingsOverlay:
         """Handle Space key - toggle MCP server."""
         if self._current_layer != "mcp_servers":
             return None
-        
+
         if not self._items:
             return None
-        
+
         idx = min(self._selected_idx, len(self._items) - 1)
         item = self._items[idx]
         action = item.get("action", "")
-        
+
         if action == "mcp_toggle":
             server_name = item.get("server_name", "")
             if server_name:
                 self._toggle_mcp_server(server_name)
                 self._update_items()
                 return "toggled"
-        
+
         return None
 
     def _handle_enter(self) -> Optional[str]:
@@ -272,7 +273,13 @@ class SettingsOverlay:
                 self._selected_idx = 0
                 self._update_items()
                 return None
-            if item_id in ("agent_setup", "api_keys", "rate_limits", "mcp_servers", "mode_settings"):
+            if item_id in (
+                "agent_setup",
+                "api_keys",
+                "rate_limits",
+                "mcp_servers",
+                "mode_settings",
+            ):
                 self._current_layer = item_id
                 self._selected_idx = 0
                 self._update_items()
@@ -570,37 +577,39 @@ class SettingsOverlay:
     def _build_mcp_items(self):
         """Build MCP servers list with status indicators."""
         items = [{"id": "", "label": "--- MCP SERVERS ---", "action": ""}]
-        
+
         try:
             from mcp.config import get_config_manager
             from mcp.manager import get_mcp_manager
-            
+
             manager = get_config_manager()
             config = manager.config
             mcp_manager = get_mcp_manager()
-            
+
             if config.servers:
                 for name, server in config.servers.items():
                     # Check if server is actually running
                     is_running = mcp_manager.is_running and server.enabled
-                    
+
                     if is_running:
                         indicator = "[bold red]\u25cf[/bold red]"  # Red = connected
                     else:
                         indicator = "[grey50]\u25cb[/grey50]"  # Gray = not connected
-                    
+
                     status_text = "connected" if is_running else "disabled"
-                    items.append({
-                        "id": f"mcp_toggle_{name}",
-                        "label": f"  {indicator} {name} [dim]({status_text})[/dim]",
-                        "action": "mcp_toggle",
-                        "server_name": name,
-                    })
+                    items.append(
+                        {
+                            "id": f"mcp_toggle_{name}",
+                            "label": f"  {indicator} {name} [dim]({status_text})[/dim]",
+                            "action": "mcp_toggle",
+                            "server_name": name,
+                        }
+                    )
             else:
                 items.append({"id": "", "label": "  (no servers configured)", "action": ""})
         except Exception as e:
             items.append({"id": "", "label": f"  Error: {e}", "action": ""})
-        
+
         items.append({"id": "", "label": "", "action": ""})
         items.append({"id": "mcp_add", "label": "[+] Add Server", "action": "mcp_add"})
         items.append({"id": "mcp_defaults", "label": "[*] Add Defaults", "action": "mcp_defaults"})
@@ -803,16 +812,16 @@ class SettingsOverlay:
         try:
             from mcp.config import get_config_manager
             from mcp.manager import get_mcp_manager
-            
+
             manager = get_config_manager()
             config = manager.config
             mcp_manager = get_mcp_manager()
-            
+
             if server_name in config.servers:
                 server = config.servers[server_name]
                 server.enabled = not server.enabled
                 manager.save()
-                
+
                 # Start/stop MCP manager based on any server being enabled
                 has_enabled = any(s.enabled for s in config.servers.values())
                 if has_enabled and not mcp_manager.is_running:
@@ -826,23 +835,32 @@ class SettingsOverlay:
         """Add default MCP servers."""
         try:
             from mcp.config import get_config_manager
-            
+
             manager = get_config_manager()
             config = manager.config
-            
+
             defaults = {
-                "sequential-thinking": {"command": "npx", "args": ["-y", "@modelcontextprotocol/server-sequential-thinking"]},
+                "sequential-thinking": {
+                    "command": "npx",
+                    "args": ["-y", "@modelcontextprotocol/server-sequential-thinking"],
+                },
                 "reasoning-server": {"command": "npx", "args": ["-y", "mcp-reasoning-server"]},
-                "chain-of-recursive-thoughts": {"command": "npx", "args": ["-y", "@modelcontextprotocol/server-chain-of-recursive-thoughts"]},
+                "chain-of-recursive-thoughts": {
+                    "command": "npx",
+                    "args": ["-y", "@modelcontextprotocol/server-chain-of-recursive-thoughts"],
+                },
                 "mcp-thinking": {"command": "npx", "args": ["-y", "mcp-thinking"]},
-                "mcp-structured-thinking": {"command": "npx", "args": ["-y", "mcp-structured-thinking"]},
+                "mcp-structured-thinking": {
+                    "command": "npx",
+                    "args": ["-y", "mcp-structured-thinking"],
+                },
                 "memory": {"command": "npx", "args": ["-y", "@modelcontextprotocol/server-memory"]},
             }
-            
+
             for name, server_data in defaults.items():
                 if name not in config.servers:
                     manager.add_server(name, server_data["command"], server_data["args"])
-            
+
             self._update_items()
         except Exception as e:
             logger.debug(f"Failed to add MCP defaults: {e}")

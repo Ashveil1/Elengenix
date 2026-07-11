@@ -52,13 +52,13 @@ MARGIN_TOP = 50
 LINE_H = int(ASCII_SIZE * 1.35)
 
 # Colors
-BG = (13, 13, 13)       # #0d0d0d
-WHITE = (255, 255, 255) # #ffffff
-DIM = (136, 136, 136)   # #888888
-RED = (255, 95, 87)     # macOS close
-YEL = (255, 189, 46)    # macOS minimize
-GRN = (39, 201, 63)     # macOS maximize
-BORDER = (40, 40, 40)   # subtle border
+BG = (13, 13, 13)  # #0d0d0d
+WHITE = (255, 255, 255)  # #ffffff
+DIM = (136, 136, 136)  # #888888
+RED = (255, 95, 87)  # macOS close
+YEL = (255, 189, 46)  # macOS minimize
+GRN = (39, 201, 63)  # macOS maximize
+BORDER = (40, 40, 40)  # subtle border
 
 font_ascii = ImageFont.truetype(FONT_BOLD, ASCII_SIZE)
 font_sub = ImageFont.truetype(FONT_REG, SUB_SIZE)
@@ -90,8 +90,19 @@ draw.rectangle([0, 0, total_w - 1, total_h - 1], outline=BORDER, width=1)
 # Draw macOS window controls
 ctrl_x = MARGIN_LEFT
 draw.ellipse([ctrl_x, ctrl_y, ctrl_x + CTRL_R * 2, ctrl_y + CTRL_R * 2], fill=RED)
-draw.ellipse([ctrl_x + CTRL_GAP + CTRL_R * 2, ctrl_y, ctrl_x + CTRL_GAP + CTRL_R * 4, ctrl_y + CTRL_R * 2], fill=YEL)
-draw.ellipse([ctrl_x + CTRL_GAP * 2 + CTRL_R * 4, ctrl_y, ctrl_x + CTRL_GAP * 2 + CTRL_R * 6, ctrl_y + CTRL_R * 2], fill=GRN)
+draw.ellipse(
+    [ctrl_x + CTRL_GAP + CTRL_R * 2, ctrl_y, ctrl_x + CTRL_GAP + CTRL_R * 4, ctrl_y + CTRL_R * 2],
+    fill=YEL,
+)
+draw.ellipse(
+    [
+        ctrl_x + CTRL_GAP * 2 + CTRL_R * 4,
+        ctrl_y,
+        ctrl_x + CTRL_GAP * 2 + CTRL_R * 6,
+        ctrl_y + CTRL_R * 2,
+    ],
+    fill=GRN,
+)
 
 # Draw ASCII art
 y = MARGIN_TOP

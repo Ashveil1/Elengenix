@@ -12,20 +12,174 @@ from __future__ import annotations
 
 import json
 import logging
+import os
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 if TYPE_CHECKING:
     from agents.scan_context import ScanContext
+
+import yaml
 
 logger = logging.getLogger("elengenix.prompt_builder")
 
 # Rough token estimate: ~4 chars per token (English)
 CHARS_PER_TOKEN = 4
 
+# Few-shot cache (lazy loaded)
+_FEW_SHOT_CACHE: Dict[str, Any] = {}
+
 
 def _estimate_tokens(text: str) -> int:
     """Rough token estimate."""
     return len(text) // CHARS_PER_TOKEN
+
+
+def _load_few_shots(vuln_type: str) -> List[Dict[str, Any]]:
+    """Load few-shot traces for a vulnerability type."""
+    cache_key = vuln_type
+    if cache_key in _FEW_SHOT_CACHE:
+        return _FEW_SHOT_CACHE[cache_key]
+
+    # Try multiple locations
+    search_paths = [
+        Path(__file__).parent.parent / "prompts" / "few_shots" / f"{vuln_type}.yaml",
+        Path(__file__).parent.parent.parent / "prompts" / "few_shots" / f"{vuln_type}.yaml",
+        Path.cwd() / "prompts" / "few_shots" / f"{vuln_type}.yaml",
+    ]
+
+    few_shots = []
+    for path in search_paths:
+        if path.exists():
+            try:
+                import yaml
+                with open(path, "r", encoding="utf-8") as f:
+                    data = yaml.safe_load(f)
+                    if isinstance(data, list):
+                        few_shots = data
+                    elif isinstance(data, dict) and "traces" in data:
+                        few_shots = data["traces"]
+                    else:
+                        few_shots = [data] if data else []
+                    logger.debug(f"Loaded {len(few_shots)} few-shot traces for {vuln_type} from {path}")
+                    break
+            except Exception as e:
+                logger.debug(f"Could not load few-shots from {path}: {e}")
+    else:
+        logger.debug(f"No few-shot file found for {vuln_type}")
+
+    _FEW_SHOT_CACHE[cache_key] = few_shots
+    return few_shots
+
+
+def _get_relevant_few_shots(ctx: "ScanContext", max_traces: int = 3) -> List[Dict[str, Any]]:
+    """Select relevant few-shot traces based on current context."""
+    traces = []
+
+    # Determine vulnerability types from:
+    # 1. Active hypotheses (belief_state)
+    # 2. Recent findings
+    # 3. Attack tree phases
+    vuln_types = set()
+
+    # From belief state
+    if ctx.belief_state:
+        try:
+            for belief in ctx.belief_state.beliefs.values():
+                vuln_type = belief.metadata.get("vuln_type") or belief.metadata.get("vulnerability_type")
+                if vuln_type:
+                    vuln_types.add(vuln_type.lower())
+        except Exception:
+            pass
+
+    # From findings
+    for finding in ctx.all_findings[-5:]:  # Last 5 findings
+        vtype = finding.get("type") or finding.get("vulnerability_type") or finding.get("vuln_type")
+        if vtype:
+            vuln_types.add(vtype.lower())
+
+    # From attack tree
+    if ctx.attack_tree and ctx.attack_tree.steps:
+        for step in ctx.attack_tree.steps:
+            vtype = step.metadata.get("vuln_type") if step.metadata else None
+            if vtype:
+                vuln_types.add(vtype.lower())
+
+    # Map common vuln types to few-shot files
+    vuln_type_mapping = {
+        "sqli": "sqli",
+        "sql_injection": "sqli",
+        "xss": "xss",
+        "ssrf": "ssrf",
+        "idor": "idor",
+        "bola": "idor",
+        "rce": "rce",
+        "command_injection": "rce",
+        "ssti": "ssti",
+        "xxe": "xxe",
+        "lfi": "lfi",
+        "rfi": "rfi",
+        "path_traversal": "lfi",
+    }
+
+    mapped_types = set()
+    for vt in vuln_types:
+        mapped = vuln_type_mapping.get(vt.lower(), vt.lower())
+        mapped_types.add(mapped)
+
+    # Load traces for each mapped type
+    for vtype in mapped_types:
+        type_traces = _load_few_shots(vtype)
+        traces.extend(type_traces[:max_traces])
+
+    # If no specific types, load generic
+    if not traces:
+        traces = _load_few_shots("sqli")[:max_traces]  # Default fallback
+
+    return traces[:max_traces]
+
+
+def _format_few_shots(traces: List[Dict[str, Any]]) -> str:
+    """Format few-shot traces into prompt section."""
+    if not traces:
+        return ""
+
+    lines = ["### FEW-SHOT REASONING TRACES (Study these patterns):"]
+    lines.append("These are real reasoning traces from successful vulnerability discoveries.")
+    lines.append("Adapt the THINKING PATTERNS, not the exact payloads.")
+    lines.append("")
+
+    for i, trace in enumerate(traces, 1):
+        trace_id = trace.get("id", f"trace_{i}")
+        name = trace.get("name", trace_id)
+        scenario = trace.get("scenario", "")
+        reasoning = trace.get("reasoning", "")
+        action = trace.get("action", {})
+        expected = trace.get("expected_evidence", [])
+        confidence = trace.get("confidence", 0)
+
+        lines.append(f"--- Trace {i}: {name} ({trace_id}) ---")
+        if scenario:
+            lines.append(f"Scenario: {scenario[:300]}...")
+        if reasoning:
+            lines.append(f"Reasoning: {reasoning[:500]}...")
+        if action:
+            lines.append(f"Action: {json.dumps(action, ensure_ascii=False)[:300]}")
+        if expected:
+            ev_str = "; ".join(str(e) for e in expected[:3])
+            lines.append(f"Expected Evidence: {ev_str}")
+        lines.append(f"Confidence: {confidence:.0%}")
+        lines.append("")
+
+    lines.append("KEY PATTERNS TO EMULATE:")
+    lines.append("1. ALWAYS capture baseline before injecting")
+    lines.append("2. Use differential oracles (baseline vs injected)")
+    lines.append("3. Chain channels: error → UNION → time/boolean fallback")
+    lines.append("4. Validate scope before every injection")
+    lines.append("5. Report with EXFILTRATED DATA, not just 'error triggered'")
+    lines.append("")
+
+    return "\n".join(lines)
 
 
 class PromptBuilder:
@@ -76,7 +230,11 @@ class PromptBuilder:
         tool_list = self._build_tool_list()
         sections.append((tool_list, 0))
 
-        # Priority 3: Strategy authority (high priority - NEW)
+        # Priority 3: FEW-SHOT REASONING TRACES (high priority - NEW)
+        few_shot_section = _format_few_shots(_get_relevant_few_shots(ctx))
+        sections.append((few_shot_section, 1500))
+
+        # Priority 4: Strategy authority (high priority - NEW)
         strategy_section = self._build_strategy_authority(ctx)
         sections.append((strategy_section, 600))
 
@@ -128,9 +286,7 @@ class PromptBuilder:
 
         return prompt
 
-    def build_chat_prompt(
-        self, ctx: "ScanContext", user_input: str, intent: str
-    ) -> str:
+    def build_chat_prompt(self, ctx: "ScanContext", user_input: str, intent: str) -> str:
         """Build prompt for casual/security chat mode.
 
         Simpler than scan mode — just system prompt + memory + history.
@@ -165,9 +321,7 @@ Do NOT attempt to run a scan. Respond naturally in the user's language (English 
 
             available_tools = registry.list_available_tools()
             tool_names = [
-                name
-                for name, info in available_tools.items()
-                if info.get("available", False)
+                name for name, info in available_tools.items() if info.get("available", False)
             ]
             tool_list = ", ".join(tool_names) if tool_names else "No tools currently available"
         except Exception as e:
@@ -214,16 +368,18 @@ Do NOT attempt to run a scan. Respond naturally in the user's language (English 
         if not ctx.attack_tree or not ctx.attack_tree.steps:
             return "### ATTACK TREE:\nNo attack tree available. You have full freedom to choose your approach.\n"
 
-        remaining_steps = ctx.attack_tree.steps[ctx.step_count:]
+        remaining_steps = ctx.attack_tree.steps[ctx.step_count :]
         if not remaining_steps:
             return "### ATTACK TREE:\nAttack tree completed. You have full freedom to choose your approach.\n"
 
         lines = ["### SUGGESTED ATTACK TREE (you can override):"]
         for i, step in enumerate(remaining_steps[:5]):  # Show next 5 steps
-            phase_name = step.phase.value if hasattr(step.phase, 'value') else str(step.phase)
+            phase_name = step.phase.value if hasattr(step.phase, "value") else str(step.phase)
             lines.append(f"  {i+1}. [{phase_name}] {step.tool_name}: {step.purpose}")
         lines.append("")
-        lines.append("Remember: This is a SUGGESTION. You can override it if you have a better idea.")
+        lines.append(
+            "Remember: This is a SUGGESTION. You can override it if you have a better idea."
+        )
         lines.append("")
 
         return "\n".join(lines)
@@ -249,9 +405,7 @@ Do NOT attempt to run a scan. Respond naturally in the user's language (English 
         try:
             from tools.vector_memory import recall
 
-            related_memories = recall(
-                query=user_input, target=ctx.target, n_results=5
-            )
+            related_memories = recall(query=user_input, target=ctx.target, n_results=5)
         except Exception as e:
             logger.debug(f"Could not load related memories: {e}")
             related_memories = []
@@ -287,9 +441,7 @@ Do NOT attempt to run a scan. Respond naturally in the user's language (English 
             if hasattr(result, "tool_name"):
                 status = "OK" if result.success else "FAIL"
                 findings = len(result.findings) if result.findings else 0
-                lines.append(
-                    f"- {result.tool_name}: {status} ({findings} findings)"
-                )
+                lines.append(f"- {result.tool_name}: {status} ({findings} findings)")
             elif isinstance(result, dict):
                 tool = result.get("tool", "unknown")
                 success = result.get("success", False)
@@ -361,9 +513,7 @@ Do NOT attempt to run a scan. Respond naturally in the user's language (English 
         now = datetime.datetime.now()
         return f"Current date/time: {now.strftime('%Y-%m-%d %H:%M:%S')}"
 
-    def _assemble_with_budget(
-        self, sections: List[Tuple[str, int]]
-    ) -> str:
+    def _assemble_with_budget(self, sections: List[Tuple[str, int]]) -> str:
         """Assemble sections into a prompt, respecting token budget.
 
         Sections with max_tokens=0 are always included (never truncated).
@@ -403,8 +553,8 @@ Do NOT attempt to run a scan. Respond naturally in the user's language (English 
             if excess > 0:
                 cut_chars = min(excess * CHARS_PER_TOKEN, over_budget * CHARS_PER_TOKEN)
                 # Truncate from the end, keep beginning
-                truncated = text[: -cut_chars] if cut_chars < len(text) else text[:100]
-                over_budget -= (current_tokens - _estimate_tokens(truncated))
+                truncated = text[:-cut_chars] if cut_chars < len(text) else text[:100]
+                over_budget -= current_tokens - _estimate_tokens(truncated)
 
         # Rebuild sections with truncated versions
         result_parts = []
@@ -415,7 +565,7 @@ Do NOT attempt to run a scan. Respond naturally in the user's language (English 
                 estimated = _estimate_tokens(text)
                 if estimated > max_tokens:
                     cut_chars = (estimated - max_tokens) * CHARS_PER_TOKEN
-                    text = text[: -cut_chars] if cut_chars < len(text) else text[:100]
+                    text = text[:-cut_chars] if cut_chars < len(text) else text[:100]
             result_parts.append(text)
 
         return "\n\n".join(result_parts)

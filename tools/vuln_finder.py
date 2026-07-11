@@ -36,6 +36,7 @@ def _get_vector_memory():
     if _vector_memory is None:
         try:
             from tools import vector_memory
+
             _vector_memory = vector_memory
         except ImportError:
             _vector_memory = None
@@ -47,6 +48,7 @@ def _get_mission_state_module():
     if _mission_state_module is None:
         try:
             from tools import mission_state
+
             _mission_state_module = mission_state
         except ImportError:
             _mission_state_module = None
@@ -137,6 +139,7 @@ class VulnFinder:
 
         # Tool registry for execute()
         from tools.tool_registry import registry
+
         self.registry = registry
 
     def recon(self, quick: bool = False) -> Dict[str, Any]:
@@ -177,7 +180,11 @@ class VulnFinder:
                     for p in result.get("ports", [])
                 ],
                 "parameters": [
-                    {"param": p.get("param", ""), "method": p.get("method", ""), "delta_pct": p.get("delta_pct", 0)}
+                    {
+                        "param": p.get("param", ""),
+                        "method": p.get("method", ""),
+                        "delta_pct": p.get("delta_pct", 0),
+                    }
                     for p in result.get("parameters", [])
                     if p.get("is_interesting")
                 ],
@@ -237,8 +244,7 @@ class VulnFinder:
         """
         self.state.status = MissionStatus.PLANNING
         targets = [
-            {"url": ep, "type": "api_endpoint"}
-            for ep in self.state.assets.get("endpoints", [])
+            {"url": ep, "type": "api_endpoint"} for ep in self.state.assets.get("endpoints", [])
         ]
         ranked = self.planner.rank_targets(targets)
         logger.info(f"Planned {len(ranked)} attack paths")
@@ -318,10 +324,10 @@ class VulnFinder:
             if loop and loop.is_running():
                 # We're inside an async context — run in a new thread
                 import concurrent.futures
+
                 with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
                     future = pool.submit(
-                        asyncio.run,
-                        tool.execute(target_url, report_dir, semaphore, **extra_kwargs)
+                        asyncio.run, tool.execute(target_url, report_dir, semaphore, **extra_kwargs)
                     )
                     tool_result = future.result(timeout=tool.metadata.timeout_seconds)
             else:
@@ -439,8 +445,8 @@ class VulnFinder:
             try:
                 vm.remember(
                     content=f"FINDING: {finding.get('type', 'unknown')} "
-                            f"at {finding.get('url', 'unknown')} "
-                            f"(severity: {finding.get('severity', 'unknown')})",
+                    f"at {finding.get('url', 'unknown')} "
+                    f"(severity: {finding.get('severity', 'unknown')})",
                     target=self.target,
                     category="finding",
                 )
@@ -515,15 +521,18 @@ class VulnFinder:
                 findings_by_severity["INFO"].append(finding)
 
         if format == "json":
-            return json.dumps({
-                "target": self.target,
-                "status": self.state.status.value,
-                "findings": self.state.findings,
-                "findings_by_severity": {k: len(v) for k, v in findings_by_severity.items()},
-                "total_findings": len(self.state.findings),
-                "steps": self.state.steps,
-                "cost": self.state.cost,
-            }, indent=2)
+            return json.dumps(
+                {
+                    "target": self.target,
+                    "status": self.state.status.value,
+                    "findings": self.state.findings,
+                    "findings_by_severity": {k: len(v) for k, v in findings_by_severity.items()},
+                    "total_findings": len(self.state.findings),
+                    "steps": self.state.steps,
+                    "cost": self.state.cost,
+                },
+                indent=2,
+            )
 
         # Markdown report
         report = f"""# Vulnerability Report: {self.target}

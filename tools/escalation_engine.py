@@ -191,7 +191,9 @@ class EscalationEngine:
         path = self.can_escalate(finding)
         return path.expected_severity if path else None
 
-    def suggest_next_action(self, finding: Dict[str, Any], completed_steps: List[str]) -> Optional[str]:
+    def suggest_next_action(
+        self, finding: Dict[str, Any], completed_steps: List[str]
+    ) -> Optional[str]:
         """Suggest the next escalation step.
 
         Args:

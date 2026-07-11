@@ -243,8 +243,9 @@ class KnowledgeGraph:
         """
         for edge in self.edges:
             if edge.edge_type == EdgeType.CHAINS_TO:
-                if (edge.source == finding1_id and edge.target == finding2_id) or \
-                   (edge.source == finding2_id and edge.target == finding1_id):
+                if (edge.source == finding1_id and edge.target == finding2_id) or (
+                    edge.source == finding2_id and edge.target == finding1_id
+                ):
                     return True
         return False
 
@@ -256,8 +257,7 @@ class KnowledgeGraph:
         """
         return {
             "nodes": {
-                k: {"type": v.node_type.value, "data": v.data}
-                for k, v in self.nodes.items()
+                k: {"type": v.node_type.value, "data": v.data} for k, v in self.nodes.items()
             },
             "edges": [
                 {"source": e.source, "type": e.edge_type.value, "target": e.target}

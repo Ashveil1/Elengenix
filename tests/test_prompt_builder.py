@@ -174,9 +174,9 @@ class TestBudgetAssembly:
     def test_truncates_when_over_budget(self):
         pb = PromptBuilder("x", max_tokens=10)
         sections = [
-            ("A" * 200, 0),      # ~50 tokens, never truncate
-            ("B" * 200, 50),     # ~50 tokens, max 50
-            ("C" * 200, 50),     # ~50 tokens, max 50
+            ("A" * 200, 0),  # ~50 tokens, never truncate
+            ("B" * 200, 50),  # ~50 tokens, max 50
+            ("C" * 200, 50),  # ~50 tokens, max 50
         ]
         result = pb._assemble_with_budget(sections)
         # Section A (priority 0) should be preserved
@@ -186,7 +186,7 @@ class TestBudgetAssembly:
         pb = PromptBuilder("x", max_tokens=10)
         sections = [
             ("CRITICAL_SECTION", 0),  # Never truncate
-            ("B" * 500, 10),          # Will be truncated
+            ("B" * 500, 10),  # Will be truncated
         ]
         result = pb._assemble_with_budget(sections)
         assert "CRITICAL_SECTION" in result
@@ -226,9 +226,7 @@ class TestBuildScanPrompt:
     @patch("tools.tool_registry.registry")
     @patch("tools.vector_memory.recall", return_value=[])
     @patch("tools.vector_memory.get_context_for_ai", return_value="")
-    def test_scan_prompt_includes_system_prompt(
-        self, mock_memory, mock_recall, mock_registry
-    ):
+    def test_scan_prompt_includes_system_prompt(self, mock_memory, mock_recall, mock_registry):
         mock_registry.list_available_tools.return_value = {}
 
         pb = PromptBuilder(SYSTEM_PROMPT)
@@ -240,9 +238,7 @@ class TestBuildScanPrompt:
     @patch("tools.tool_registry.registry")
     @patch("tools.vector_memory.recall", return_value=[])
     @patch("tools.vector_memory.get_context_for_ai", return_value="")
-    def test_scan_prompt_includes_tool_list(
-        self, mock_memory, mock_recall, mock_registry
-    ):
+    def test_scan_prompt_includes_tool_list(self, mock_memory, mock_recall, mock_registry):
         mock_registry.list_available_tools.return_value = {
             "fuzzer": {"available": True},
         }
@@ -257,9 +253,7 @@ class TestBuildScanPrompt:
     @patch("tools.tool_registry.registry")
     @patch("tools.vector_memory.recall", return_value=[])
     @patch("tools.vector_memory.get_context_for_ai", return_value="")
-    def test_scan_prompt_includes_chat_history(
-        self, mock_memory, mock_recall, mock_registry
-    ):
+    def test_scan_prompt_includes_chat_history(self, mock_memory, mock_recall, mock_registry):
         mock_registry.list_available_tools.return_value = {}
 
         pb = PromptBuilder(SYSTEM_PROMPT)

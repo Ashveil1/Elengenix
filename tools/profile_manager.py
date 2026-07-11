@@ -167,6 +167,7 @@ class ProfileManager:
     def _load_builtin_profiles(self) -> None:
         """Load built-in profiles (deep copy to avoid shared mutable state)."""
         import copy
+
         for name, profile in self.BUILTIN_PROFILES.items():
             self.profiles[name] = copy.deepcopy(profile)
         logger.debug(f"Loaded {len(self.BUILTIN_PROFILES)} built-in profiles")

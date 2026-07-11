@@ -36,6 +36,7 @@ _DB_PATH = Path(__file__).parent.parent / "data" / "vuln_hunter.db"
 # Utilities
 # ---------------------------------------------------------------------------
 
+
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
@@ -56,19 +57,41 @@ def _get_conn() -> sqlite3.Connection:
 
 
 VULN_CLASSES = [
-    "sqli", "xss", "rce", "lfi", "ssrf", "ssti", "xxe",
-    "deser", "graphql", "race_condition", "cors", "jwt",
-    "bola", "idor", "auth_bypass", "waf_bypass",
-    "business_logic", "supply_chain", "prototype_pollution",
-    "open_redirect", "csrf", "command_injection",
-    "ldapi", "nosqli", "hpp", "cache_poisoning",
-    "info_disclosure", "misconfiguration",
+    "sqli",
+    "xss",
+    "rce",
+    "lfi",
+    "ssrf",
+    "ssti",
+    "xxe",
+    "deser",
+    "graphql",
+    "race_condition",
+    "cors",
+    "jwt",
+    "bola",
+    "idor",
+    "auth_bypass",
+    "waf_bypass",
+    "business_logic",
+    "supply_chain",
+    "prototype_pollution",
+    "open_redirect",
+    "csrf",
+    "command_injection",
+    "ldapi",
+    "nosqli",
+    "hpp",
+    "cache_poisoning",
+    "info_disclosure",
+    "misconfiguration",
 ]
 
 
 # ===================================================================
 # 1. BeliefState — tracks what the agent thinks, with confidence
 # ===================================================================
+
 
 @dataclass
 class Belief:
@@ -100,7 +123,8 @@ class BeliefState:
 
     def _init_db(self) -> None:
         conn = _get_conn()
-        conn.executescript("""
+        conn.executescript(
+            """
             CREATE TABLE IF NOT EXISTS beliefs (
                 mission_id TEXT NOT NULL,
                 hyp_id TEXT NOT NULL,
@@ -118,7 +142,8 @@ class BeliefState:
                 ON beliefs(mission_id, status);
             CREATE INDEX IF NOT EXISTS idx_beliefs_endpoint
                 ON beliefs(mission_id, target_endpoint);
-        """)
+        """
+        )
         conn.commit()
         conn.close()
 
@@ -138,15 +163,25 @@ class BeliefState:
                (mission_id, hyp_id, vuln_class, target_endpoint, reasoning,
                 confidence, evidence_json, status, created_at, updated_at)
                VALUES (?, ?, ?, ?, ?, ?, ?, 'active', ?, ?)""",
-            (self.mission_id, hyp_id, vuln_class, target_endpoint,
-             reasoning, confidence, _j(evidence or []), now, now),
+            (
+                self.mission_id,
+                hyp_id,
+                vuln_class,
+                target_endpoint,
+                reasoning,
+                confidence,
+                _j(evidence or []),
+                now,
+                now,
+            ),
         )
         conn.commit()
         conn.close()
         return hyp_id
 
-    def update_confidence(self, hyp_id: str, new_confidence: float,
-                          evidence: Optional[Dict] = None) -> None:
+    def update_confidence(
+        self, hyp_id: str, new_confidence: float, evidence: Optional[Dict] = None
+    ) -> None:
         conn = _get_conn()
         row = conn.execute(
             "SELECT evidence_json, status FROM beliefs WHERE mission_id=? AND hyp_id=?",
@@ -207,18 +242,13 @@ class BeliefState:
         confirmed = self.get_confirmed_beliefs()
         if not active and not confirmed:
             return "No beliefs yet."
-        parts = [
-            f"Beliefs ({len(active)} active, {len(confirmed)} confirmed):"
-        ]
+        parts = [f"Beliefs ({len(active)} active, {len(confirmed)} confirmed):"]
         for b in active[:10]:
             parts.append(
-                f"  [{b.vuln_class}] {b.target_endpoint} "
-                f"(confidence: {b.confidence:.0%})"
+                f"  [{b.vuln_class}] {b.target_endpoint} " f"(confidence: {b.confidence:.0%})"
             )
         for b in confirmed[:5]:
-            parts.append(
-                f"  [CONFIRMED] {b.vuln_class} at {b.target_endpoint}"
-            )
+            parts.append(f"  [CONFIRMED] {b.vuln_class} at {b.target_endpoint}")
         return "\n".join(parts)
 
     def prompt_context(self) -> str:
@@ -236,8 +266,7 @@ class BeliefState:
         for vuln_class, beliefs in sorted(by_class.items()):
             for b in beliefs[:2]:
                 parts.append(
-                    f"  [{vuln_class}] {b.target_endpoint} "
-                    f"(confidence: {b.confidence:.0%})"
+                    f"  [{vuln_class}] {b.target_endpoint} " f"(confidence: {b.confidence:.0%})"
                 )
         return "\n".join(parts)
 
@@ -260,9 +289,11 @@ class BeliefState:
 # 2. CoverageMap — 2D matrix: endpoint x vuln class
 # ===================================================================
 
+
 @dataclass
 class CoverageCell:
     """One cell in the coverage matrix."""
+
     endpoint: str
     vuln_class: str
     tested: bool = False
@@ -290,7 +321,8 @@ class CoverageMap:
 
     def _init_db(self) -> None:
         conn = _get_conn()
-        conn.executescript("""
+        conn.executescript(
+            """
             CREATE TABLE IF NOT EXISTS coverage_map (
                 mission_id TEXT NOT NULL,
                 endpoint TEXT NOT NULL,
@@ -304,7 +336,8 @@ class CoverageMap:
             );
             CREATE INDEX IF NOT EXISTS idx_coverage_tested
                 ON coverage_map(mission_id, tested);
-        """)
+        """
+        )
         conn.commit()
         conn.close()
 
@@ -340,8 +373,7 @@ class CoverageMap:
         conn.commit()
         conn.close()
 
-    def record_negative(self, endpoint: str, vuln_class: str,
-                        reason: str = "no signal") -> None:
+    def record_negative(self, endpoint: str, vuln_class: str, reason: str = "no signal") -> None:
         """Record that endpoint was tested for vuln_class and NOT vulnerable."""
         self.record_test(endpoint, vuln_class)
         conn = _get_conn()
@@ -448,7 +480,7 @@ class CoverageMap:
 
         # Group gaps by vuln class
         by_class: Dict[str, List[str]] = {}
-        for cell in (untested + gaps)[:max_gaps * 2]:
+        for cell in (untested + gaps)[: max_gaps * 2]:
             by_class.setdefault(cell.vuln_class, []).append(cell.endpoint)
 
         # Rank by most untested vuln classes
@@ -457,12 +489,16 @@ class CoverageMap:
         parts = ["### COVERAGE GAPS (attack surface not yet tested):"]
         for vuln_class, endpoints in ranked[:6]:
             eps = ", ".join(endpoints[:3])
-            label = "untested" if all(
-                c.vuln_class == vuln_class and c.test_count == 0
-                for c in (untested + gaps)
-                if c.endpoint in endpoints
-                for _ in [1]
-            ) else "undertested"
+            label = (
+                "untested"
+                if all(
+                    c.vuln_class == vuln_class and c.test_count == 0
+                    for c in (untested + gaps)
+                    if c.endpoint in endpoints
+                    for _ in [1]
+                )
+                else "undertested"
+            )
             parts.append(f"  [{vuln_class}] {label}: {eps}")
         parts.append(f"  Total coverage: {self.summary().split(chr(10))[0]}")
         return "\n".join(parts)
@@ -483,6 +519,7 @@ class CoverageMap:
 # ===================================================================
 # 3. NegativeResultStore — remembers what didn't work
 # ===================================================================
+
 
 @dataclass
 class NegativeResult:
@@ -512,7 +549,8 @@ class NegativeResultStore:
 
     def _init_db(self) -> None:
         conn = _get_conn()
-        conn.executescript("""
+        conn.executescript(
+            """
             CREATE TABLE IF NOT EXISTS negative_results (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 mission_id TEXT NOT NULL,
@@ -526,7 +564,8 @@ class NegativeResultStore:
             );
             CREATE INDEX IF NOT EXISTS idx_negative_lookup
                 ON negative_results(mission_id, endpoint, vuln_class);
-        """)
+        """
+        )
         conn.commit()
         conn.close()
 
@@ -545,8 +584,16 @@ class NegativeResultStore:
                (mission_id, endpoint, vuln_class, tool_used,
                 payload_or_command, reason, evidence_summary, timestamp)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-            (self.mission_id, endpoint, vuln_class, tool_used,
-             payload_or_command[:500], reason, evidence_summary[:500], _now()),
+            (
+                self.mission_id,
+                endpoint,
+                vuln_class,
+                tool_used,
+                payload_or_command[:500],
+                reason,
+                evidence_summary[:500],
+                _now(),
+            ),
         )
         conn.commit()
         conn.close()
@@ -593,13 +640,16 @@ class NegativeResultStore:
             return ""
         parts = ["### PREVIOUSLY TESTED (not vulnerable):"]
         for r in rows:
-            parts.append(f"  {r['endpoint']} for {r['vuln_class']} via {r['tool_used']}: {r['reason'][:80]}")
+            parts.append(
+                f"  {r['endpoint']} for {r['vuln_class']} via {r['tool_used']}: {r['reason'][:80]}"
+            )
         return "\n".join(parts)
 
 
 # ===================================================================
 # 4. VerificationPipeline — proves findings before reporting
 # ===================================================================
+
 
 @dataclass
 class Verdict:
@@ -702,9 +752,12 @@ class VerificationPipeline:
         endpoint = finding.get("url") or finding.get("endpoint") or target or "unknown"
         evidence = finding.get("evidence", str(finding))
 
-        stages = self.VERIFICATION_STAGES.get(vuln_class, [
-            ("confirm", "Check if finding reproduces"),
-        ])
+        stages = self.VERIFICATION_STAGES.get(
+            vuln_class,
+            [
+                ("confirm", "Check if finding reproduces"),
+            ],
+        )
 
         if callback:
             callback(f"Verifying {vuln_class} at {endpoint}...")
@@ -724,7 +777,9 @@ class VerificationPipeline:
                 callback(f"  [FAIL] Stage 1 ({stages[0][0]}): not confirmed")
             verdict.status = "false_positive"
             verdict.confidence = 0.1
-            verdict.evidence.append({"stage": "confirm", "success": False, "detail": confirmed.detail})
+            verdict.evidence.append(
+                {"stage": "confirm", "success": False, "detail": confirmed.detail}
+            )
             self._history.append(verdict)
             return verdict
 
@@ -742,11 +797,15 @@ class VerificationPipeline:
                 verdict.status = "proven"
                 verdict.confidence = 0.85
                 verdict.proof_of_concept = proven.detail[:1000]
-                verdict.evidence.append({"stage": "prove", "success": True, "detail": proven.detail})
+                verdict.evidence.append(
+                    {"stage": "prove", "success": True, "detail": proven.detail}
+                )
                 if callback:
                     callback(f"  [OK] Proven: {proven.detail[:100]}")
             else:
-                verdict.evidence.append({"stage": "prove", "success": False, "detail": proven.detail})
+                verdict.evidence.append(
+                    {"stage": "prove", "success": False, "detail": proven.detail}
+                )
 
         # Stage 3: Exploitable (chained impact)
         if len(stages) > 2 and verdict.status == "proven":
@@ -754,16 +813,22 @@ class VerificationPipeline:
             if escalated.success:
                 verdict.status = "exploitable"
                 verdict.confidence = 0.95
-                verdict.evidence.append({"stage": "escalate", "success": True, "detail": escalated.detail})
+                verdict.evidence.append(
+                    {"stage": "escalate", "success": True, "detail": escalated.detail}
+                )
                 if callback:
                     callback(f"  [OK] Exploitable: {escalated.detail[:100]}")
 
         self._history.append(verdict)
         return verdict
 
-    def _run_stage(self, stage: Tuple[str, str], endpoint: str,
-                   vuln_class: str, callback: Optional[Callable] = None,
-                   ) -> "StageResult":
+    def _run_stage(
+        self,
+        stage: Tuple[str, str],
+        endpoint: str,
+        vuln_class: str,
+        callback: Optional[Callable] = None,
+    ) -> "StageResult":
         """Run a single verification stage.
 
         Uses the LLM (if available) to design and execute the test,
@@ -771,7 +836,7 @@ class VerificationPipeline:
         """
         stage_name, stage_desc = stage
 
-        if not self.agent or not hasattr(self.agent, 'client'):
+        if not self.agent or not hasattr(self.agent, "client"):
             return StageResult(success=False, detail="No LLM agent available for verification")
 
         prompt = f"""You are verifying a potential {vuln_class} vulnerability at {endpoint}.
@@ -790,9 +855,13 @@ Return JSON:
 
         try:
             from tools.universal_ai_client import AIMessage
+
             resp = self.agent.client.chat(
                 [
-                    AIMessage(role="system", content="You are a vulnerability verification expert. Be precise and safe."),
+                    AIMessage(
+                        role="system",
+                        content="You are a vulnerability verification expert. Be precise and safe.",
+                    ),
                     AIMessage(role="user", content=prompt),
                 ],
                 temperature=0.2,
@@ -803,6 +872,7 @@ Return JSON:
             return StageResult(success=False, detail=f"LLM error: {e}")
 
         from agents.agent_helpers import extract_json
+
         plan = extract_json(content, expect="object")
         if not plan:
             return StageResult(success=False, detail="Could not parse verification plan")
@@ -819,14 +889,19 @@ Return JSON:
             gate = g.gate(
                 mission_id="verification",
                 target=endpoint,
-                action={"action": "run_shell", "tool": "verification", "command": test_cmd, "purpose": f"Verify {vuln_class}"},
+                action={
+                    "action": "run_shell",
+                    "tool": "verification",
+                    "command": test_cmd,
+                    "purpose": f"Verify {vuln_class}",
+                },
                 callback=callback,
             )
             if not gate.allowed:
                 return StageResult(success=False, detail=f"Gate blocked: {gate.rationale}")
 
             result = execute_safely(test_cmd, timeout=15)
-            output = result.output if hasattr(result, 'output') else str(result)
+            output = result.output if hasattr(result, "output") else str(result)
 
             success_keywords = plan.get("expect_success_signal", "")
             failure_keywords = plan.get("expect_failure_signal", "")
@@ -862,8 +937,12 @@ Return JSON:
         fps = sum(1 for v in self._history if v.status == "false_positive")
         parts = ["### VERIFICATION RESULTS:"]
         for v in self._history[-5:]:
-            parts.append(f"  [{v.status.upper()}] {v.vuln_class} at {v.endpoint} (confidence: {v.confidence:.0%})")
-        parts.append(f"  Total: {len(self._history)} findings, {len(actionables)} actionable, {fps} false positives")
+            parts.append(
+                f"  [{v.status.upper()}] {v.vuln_class} at {v.endpoint} (confidence: {v.confidence:.0%})"
+            )
+        parts.append(
+            f"  Total: {len(self._history)} findings, {len(actionables)} actionable, {fps} false positives"
+        )
         return "\n".join(parts)
 
 
@@ -876,6 +955,7 @@ class StageResult:
 # ===================================================================
 # 5. ReflectEngine — formal Plan->Execute->Observe->Reflect->Refine
 # ===================================================================
+
 
 @dataclass
 class Reflection:
@@ -946,7 +1026,10 @@ class ReflectEngine:
         elif self.consecutive_no_findings >= self.max_steps_without_findings:
             status = "stuck"
             recommendation = self._recommend_stuck(coverage_map, belief_state)
-        elif self.consecutive_no_findings >= self.adapt_after and self.consecutive_no_findings < self.max_steps_without_findings:
+        elif (
+            self.consecutive_no_findings >= self.adapt_after
+            and self.consecutive_no_findings < self.max_steps_without_findings
+        ):
             status = "needs_adaptation"
             recommendation = self._recommend_adapt(coverage_map, belief_state)
         else:
@@ -1010,7 +1093,9 @@ class ReflectEngine:
                         parts.append(f"SWITCH FOCUS: test {g.vuln_class} on {g.endpoint}")
                         break
                 else:
-                    parts.append(f"SWITCH FOCUS: test {untested[0].vuln_class} on {untested[0].endpoint}")
+                    parts.append(
+                        f"SWITCH FOCUS: test {untested[0].vuln_class} on {untested[0].endpoint}"
+                    )
 
         if belief_state:
             active = belief_state.get_active_beliefs()
@@ -1019,8 +1104,14 @@ class ReflectEngine:
             else:
                 parts.append(f"Re-evaluate active hypotheses ({len(active)} remain)")
 
-        parts.append("Consider: different payload types, different injection points, different tools.")
-        return "\n".join(parts) if parts else "No findings recently. Try a completely different approach."
+        parts.append(
+            "Consider: different payload types, different injection points, different tools."
+        )
+        return (
+            "\n".join(parts)
+            if parts
+            else "No findings recently. Try a completely different approach."
+        )
 
     def _recommend_stuck(self, coverage_map=None, belief_state=None) -> str:
         """Completely stuck. Major strategy change needed."""
@@ -1042,7 +1133,9 @@ class ReflectEngine:
             if covered_pct < 50:
                 parts.append(f"Coverage only {covered_pct}% — many areas remain untested")
             else:
-                parts.append(f"Coverage at {covered_pct}% — target may be well-hardened for tested classes")
+                parts.append(
+                    f"Coverage at {covered_pct}% — target may be well-hardened for tested classes"
+                )
 
         if belief_state:
             refuted = [b for b in belief_state.get_active_beliefs() if b.status == "refuted"]
@@ -1060,8 +1153,10 @@ class ReflectEngine:
         latest = self.history[-recent:]
         parts = ["### REFLECTION (self-assessment):"]
         for r in latest:
-            parts.append(f"  Cycle {r.cycle}: status={r.status}, findings={r.findings_this_cycle}, "
-                         f"no-findings-streak={r.consecutive_no_findings}")
+            parts.append(
+                f"  Cycle {r.cycle}: status={r.status}, findings={r.findings_this_cycle}, "
+                f"no-findings-streak={r.consecutive_no_findings}"
+            )
         last = latest[-1]
         if last.switch_strategy:
             parts.append(f"  RECOMMENDED CHANGE: {last.recommendation[:150]}")

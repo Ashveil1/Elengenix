@@ -542,7 +542,6 @@ def _append_history(history: List[Dict[str, str]], role: str, content: str) -> N
     history.append({"role": role, "content": content})
 
 
-
 def _build_research_prompt(user_input: str, now_context: str) -> str:
     return f"""You are Elengenix AI in RESEARCH MODE.
 

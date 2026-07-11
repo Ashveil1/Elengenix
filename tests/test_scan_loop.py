@@ -199,7 +199,11 @@ class TestSaveMemory:
     def test_save_memory_continues_loop(self):
         decisions = [
             Decision(
-                action_data={"action": "save_memory", "learning": "XSS found", "target": "example.com"},
+                action_data={
+                    "action": "save_memory",
+                    "learning": "XSS found",
+                    "target": "example.com",
+                },
                 reasoning="save",
                 source="test",
             ),
@@ -256,7 +260,11 @@ class TestHistory:
     def test_thought_prepended_to_history(self):
         decisions = [
             Decision(
-                action_data={"action": "run_shell", "command": "nmap", "thought": "I think there's SQLi"},
+                action_data={
+                    "action": "run_shell",
+                    "command": "nmap",
+                    "thought": "I think there's SQLi",
+                },
                 reasoning="scan",
                 source="test",
             ),
