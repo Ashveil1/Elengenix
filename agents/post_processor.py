@@ -281,7 +281,7 @@ class PostExecutionProcessor:
 
         return verified_findings
 
-    def _verify_finding(
+    async def _verify_finding(
         self,
         ctx: "ScanContext",
         finding: Dict[str, Any],
