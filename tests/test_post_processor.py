@@ -151,57 +151,57 @@ class TestSafeOperation:
 
 
 class TestCoverageAndVerification:
-    def test_records_endpoint_in_coverage_map(self):
+    async def test_records_endpoint_in_coverage_map(self):
         coverage = MockCoverageMap()
         ctx = _make_ctx()
         ctx.coverage_map = coverage
         processor = PostExecutionProcessor()
 
         result = MockToolResult(findings=[])
-        processor._process_coverage_and_verification(
+        await processor._process_coverage_and_verification(
             ctx, result, "fuzzer", {"command": "nmap target", "purpose": "scan"}, 0
         )
         assert "nmap target" in coverage.endpoints
 
-    def test_records_test_in_coverage_map(self):
+    async def test_records_test_in_coverage_map(self):
         coverage = MockCoverageMap()
         ctx = _make_ctx()
         ctx.coverage_map = coverage
         processor = PostExecutionProcessor()
 
         result = MockToolResult(findings=[])
-        processor._process_coverage_and_verification(
+        await processor._process_coverage_and_verification(
             ctx, result, "fuzzer", {"command": "nmap", "purpose": "port_scan"}, 0
         )
         assert ("nmap", "port_scan") in coverage.tests
 
-    def test_records_negative_when_no_findings(self):
+    async def test_records_negative_when_no_findings(self):
         neg = MockNegativeResults()
         ctx = _make_ctx()
         ctx.negative_results = neg
         processor = PostExecutionProcessor()
 
         result = MockToolResult(findings=[])
-        processor._process_coverage_and_verification(
+        await processor._process_coverage_and_verification(
             ctx, result, "fuzzer", {"command": "nmap", "purpose": "scan"}, 0
         )
         assert len(neg.records) == 1
         assert neg.records[0]["reason"] == "no vulnerabilities detected"
 
-    def test_verified_finding_added_to_context(self):
+    async def test_verified_finding_added_to_context(self):
         ctx = _make_ctx()
         ctx.verification_pipeline = MockVerificationPipeline(MockVerdict("verified", 0.9))
         processor = PostExecutionProcessor()
 
         finding = {"type": "xss", "url": "http://example.com/x", "severity": "High"}
         result = MockToolResult(findings=[finding])
-        verified = processor._process_coverage_and_verification(
+        verified = await processor._process_coverage_and_verification(
             ctx, result, "fuzzer", {"command": "nmap", "purpose": "xss"}, 0
         )
         assert len(verified) == 1
         assert ctx.has_findings
 
-    def test_unverified_finding_discarded(self):
+    async def test_unverified_finding_discarded(self):
         ctx = _make_ctx()
         ctx.verification_pipeline = MockVerificationPipeline(MockVerdict("false_positive", 0.1))
         neg = MockNegativeResults()
@@ -210,14 +210,14 @@ class TestCoverageAndVerification:
 
         finding = {"type": "xss", "url": "http://example.com/x"}
         result = MockToolResult(findings=[finding])
-        verified = processor._process_coverage_and_verification(
+        verified = await processor._process_coverage_and_verification(
             ctx, result, "fuzzer", {"command": "nmap", "purpose": "xss"}, 0
         )
         assert len(verified) == 0
         assert not ctx.has_findings
         assert len(neg.records) == 1
 
-    def test_verification_error_accepts_finding(self):
+    async def test_verification_error_accepts_finding(self):
         ctx = _make_ctx()
         # Verification that raises an exception
         bad_pipeline = MagicMock()
@@ -227,12 +227,12 @@ class TestCoverageAndVerification:
 
         finding = {"type": "xss", "url": "http://example.com/x"}
         result = MockToolResult(findings=[finding])
-        verified = processor._process_coverage_and_verification(
+        verified = await processor._process_coverage_and_verification(
             ctx, result, "fuzzer", {"command": "nmap", "purpose": "xss"}, 0
         )
         assert len(verified) == 1  # Accepted on error
 
-    def test_extracts_urls_from_output(self):
+    async def test_extracts_urls_from_output(self):
         coverage = MockCoverageMap()
         ctx = _make_ctx()
         ctx.coverage_map = coverage
@@ -242,18 +242,19 @@ class TestCoverageAndVerification:
             findings=[],
             output="Found: https://api.example.com/v1/users and http://cdn.example.com",
         )
-        processor._process_coverage_and_verification(
+        await processor._process_coverage_and_verification(
             ctx, result, "recon", {"command": "recon", "purpose": "scan"}, 0
         )
         assert "https://api.example.com/v1/users" in coverage.endpoints
 
-    def test_no_coverage_map_still_works(self):
+    async def test_no_coverage_map_still_works(self):
         ctx = _make_ctx()
         ctx.coverage_map = None
+        ctx.verification_pipeline = MockVerificationPipeline()
         processor = PostExecutionProcessor()
 
         result = MockToolResult(findings=[{"type": "xss", "url": "http://example.com"}])
-        verified = processor._process_coverage_and_verification(
+        verified = await processor._process_coverage_and_verification(
             ctx, result, "fuzzer", {"command": "nmap", "purpose": "xss"}, 0
         )
         assert len(verified) == 1
@@ -406,7 +407,7 @@ class TestStrategy:
 
 
 class TestFullProcess:
-    def test_process_calls_all_groups(self):
+    async def test_process_calls_all_groups(self):
         ctx = _make_ctx()
         ctx.coverage_map = MockCoverageMap()
         ctx.verification_pipeline = MockVerificationPipeline()
@@ -416,26 +417,26 @@ class TestFullProcess:
         result = MockToolResult(
             findings=[{"type": "xss", "url": "http://example.com/xss", "severity": "High"}]
         )
-        processor.process(ctx, result, "fuzzer", {"command": "nmap", "purpose": "xss"}, 0)
+        await processor.process(ctx, result, "fuzzer", {"command": "nmap", "purpose": "xss"}, 0)
 
         assert ctx.has_findings
         assert len(ctx.previous_results) == 1
 
-    def test_process_handles_none_result(self):
+    async def test_process_handles_none_result(self):
         ctx = _make_ctx()
         processor = PostExecutionProcessor()
 
         # Should not raise
-        processor.process(ctx, None, "fuzzer", {}, 0)
+        await processor.process(ctx, None, "fuzzer", {}, 0)
         assert len(ctx.previous_results) == 0
 
-    def test_process_with_no_findings(self):
+    async def test_process_with_no_findings(self):
         ctx = _make_ctx()
         ctx.negative_results = MockNegativeResults()
         processor = PostExecutionProcessor()
 
         result = MockToolResult(findings=[])
-        processor.process(ctx, result, "fuzzer", {"command": "nmap", "purpose": "scan"}, 0)
+        await processor.process(ctx, result, "fuzzer", {"command": "nmap", "purpose": "scan"}, 0)
 
         assert not ctx.has_findings
         assert len(ctx.previous_results) == 1

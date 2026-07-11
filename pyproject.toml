@@ -125,6 +125,7 @@ include-package-data = true
 [tool.pytest.ini_options]
 minversion = "7.0"
 testpaths = ["tests"]
+asyncio_mode = "auto"
 markers = [
     "integration: opt-in integration tests that hit real network/services (deselect with '-m \"not integration\"')",
 ]

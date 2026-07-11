@@ -215,6 +215,7 @@ class PostExecutionProcessor:
         result: Any,
         tool_name: str,
         action_data: Dict[str, Any],
+        step: int = 0,  # kept for backward compat; callers may drop it
     ) -> List[Dict[str, Any]]:
         """Track coverage, verify findings, record negatives.
 
@@ -246,7 +247,7 @@ class PostExecutionProcessor:
                     ctx.coverage_map.record_test(f_endpoint, f_class)
 
                 # Run verification pipeline
-                verified = await self._verify_finding_new(ctx, finding, f_endpoint, f_class, tool_name)
+                verified = await self._verify_finding(ctx, finding, f_endpoint, f_class, tool_name)
                 if verified:
                     verified_findings.append(finding)
                 # If not verified, it's already recorded as negative in _verify_finding_new
