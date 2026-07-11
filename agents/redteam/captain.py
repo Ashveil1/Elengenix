@@ -108,23 +108,41 @@ class CaptainAgent:
                 self.registry.register(role.value, role.value)
 
         try:
-            # Phase 1: Recon
-            await self._execute_phase(MissionPhase.RECON)
+            # Dynamic phase order — the Captain can reorder/skip phases
+            # based on what was already discovered. This replaces the old
+            # hard-coded RECON→PLANNING→SCANNING→EXPLOITATION→VERIFICATION→
+            # REPORTING sequence that defeated agent autonomy.
+            phase_order: List[MissionPhase] = [
+                MissionPhase.RECON,
+                MissionPhase.PLANNING,
+                MissionPhase.SCANNING,
+                MissionPhase.EXPLOITATION,
+                MissionPhase.VERIFICATION,
+                MissionPhase.REPORTING,
+            ]
 
-            # Phase 2: Planning
-            await self._execute_phase(MissionPhase.PLANNING)
+            while phase_order:
+                phase = phase_order.pop(0)
+                await self._execute_phase(phase)
 
-            # Phase 3: Scanning (can run parallel with exploitation)
-            await self._execute_phase(MissionPhase.SCANNING)
-
-            # Phase 4: Exploitation
-            await self._execute_phase(MissionPhase.EXPLOITATION)
-
-            # Phase 5: Verification
-            await self._execute_phase(MissionPhase.VERIFICATION)
-
-            # Phase 6: Reporting
-            await self._execute_phase(MissionPhase.REPORTING)
+                # After each phase, check AI-driven transition decision
+                # (e.g. skip scanning if already covered, jump to exploit).
+                if phase_order:
+                    decision = await self._decide_phase_transition({
+                        "current_phase": phase.value,
+                        "remaining_phases": [p.value for p in phase_order],
+                        "coverage_score": 0,
+                        "time_elapsed": time.time() - self.phase_start_time,
+                    })
+                    if decision.get("decision") == "transition" and decision.get("next_phase"):
+                        next_phase_name = decision["next_phase"]
+                        try:
+                            target_phase = MissionPhase(next_phase_name)
+                            while phase_order and phase_order[0] != target_phase:
+                                skipped = phase_order.pop(0)
+                                logger.info(f"[CAPTAIN] Skipping {skipped.value} → fast-forward to {target_phase.value}")
+                        except ValueError:
+                            pass
 
             self.phase = MissionPhase.COMPLETE
             return await self._generate_mission_report()

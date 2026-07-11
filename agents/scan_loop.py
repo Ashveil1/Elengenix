@@ -10,6 +10,7 @@ Extracted from agent_brain.py process_query() lines 1045-1857.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from collections import Counter
 from dataclasses import dataclass, field
@@ -66,6 +67,7 @@ class ScanLoop:
         loop_threshold: int = 3,
         cot_logger=None,
         callback: Optional[Callable] = None,
+        client: Any = None,
     ):
         self.decision_engine = decision_engine
         self.post_processor = post_processor
@@ -74,7 +76,18 @@ class ScanLoop:
         self.cot_logger = cot_logger
         self.callback = callback
 
-    def run(
+        # Lazy LLM client for the reasoning phase. Without this the
+        # "autonomous AI reasoning" falls back to regex heuristics.
+        if client is None:
+            try:
+                from tools.universal_ai_client import AIClientManager
+
+                client = AIClientManager()
+            except Exception:
+                pass
+        self._llm_client = client
+
+    async def run(
         self,
         ctx: "ScanContext",
         user_input: str,
@@ -144,7 +157,7 @@ class ScanLoop:
 
             # Phase 6: Post-process (deterministic tool findings)
             if result is not None:
-                self.post_processor.process(
+                await self.post_processor.process(
                     ctx,
                     result,
                     decision.action_data.get("tool", "unknown"),
@@ -194,6 +207,7 @@ class ScanLoop:
                 observation="",
                 step=step,
                 target=getattr(ctx, "target", "") or "",
+                client=self._llm_client,
             )
         except Exception as e:
             logger.debug(f"reasoning phase skipped: {e}")

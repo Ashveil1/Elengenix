@@ -2090,7 +2090,7 @@ Use JSON format:
             callback=callback,
         )
 
-        result = scan_loop.run(ctx, user_input, ctx.reflect_engine)
+        result = asyncio.run(scan_loop.run(ctx, user_input, ctx.reflect_engine))
 
         # 9. Save CoT log
         if self.cot_logger:

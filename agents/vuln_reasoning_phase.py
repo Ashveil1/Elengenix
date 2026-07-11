@@ -40,11 +40,17 @@ logger = logging.getLogger("elengenix.reasoning_phase")
 DEFAULT_MIN_CONFIDENCE = 0.35
 
 
-def _get_reasoning_engine():
-    """Lazily build the VulnReasoning engine (avoids import at module load)."""
+def _get_reasoning_engine(client=None):
+    """Lazily build the VulnReasoning engine.
+
+    Pass a live LLM client so the engine performs REAL LLM reasoning rather
+    than falling back to regex heuristics. Without a client the engine is
+    useless in production (it silently degrades to keyword matching).
+    """
     try:
         from tools.vuln_reasoning import VulnReasoningEngine
-        return VulnReasoningEngine()
+
+        return VulnReasoningEngine(client=client)
     except Exception as e:  # pragma: no cover - engine optional
         logger.debug(f"Could not init reasoning engine: {e}")
         return None
@@ -86,6 +92,7 @@ def run_reasoning_phase(
     target: str = "",
     min_confidence: float = DEFAULT_MIN_CONFIDENCE,
     previous_findings: Optional[List[Dict[str, Any]]] = None,
+    client: Any = None,
 ) -> List[Dict[str, Any]]:
     """Run the autonomous reasoning phase for one step.
 
@@ -106,7 +113,7 @@ def run_reasoning_phase(
     if not evidence.strip() and not (observation or "").strip():
         return []
 
-    engine = engine or _get_reasoning_engine()
+    engine = engine or _get_reasoning_engine(client=client)
     if engine is None:
         return []
     try:

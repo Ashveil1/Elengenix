@@ -295,10 +295,10 @@ class PostExecutionProcessor:
             True if the finding is verified/actionable.
         """
         if ctx.verification_pipeline is None:
-            # No verification pipeline — accept all findings
-            if ctx.coverage_map:
-                ctx.coverage_map.record_finding(endpoint, vuln_class)
-            return True
+            # No dedicated verification pipeline — use the built-in
+            # multi-model verification engine (global singleton) instead
+            # of silently accepting all findings.
+            return await self._verify_finding_new(ctx, finding, endpoint, vuln_class, tool_name)
 
         try:
             verdict = ctx.verification_pipeline.verify_finding(

@@ -56,10 +56,10 @@ class VerificationResult:
 
 
 # Default model configurations for verification
+# Uses the system's own AI client default — not hardcoded Anthropic models
+# that would silently fail on other providers.
 DEFAULT_VERIFICATION_MODELS = [
-    {"name": "claude-opus-4-8", "provider": "anthropic", "weight": 3.0, "role": "primary"},
-    {"name": "claude-sonnet-5", "provider": "anthropic", "weight": 2.0, "role": "secondary"},
-    {"name": "claude-haiku-4-5-20251001", "provider": "anthropic", "weight": 1.0, "role": "tertiary"},
+    {"name": "default", "provider": None, "weight": 1.0, "role": "primary"},
 ]
 
 
@@ -164,11 +164,13 @@ class VerificationEngine:
         ]
 
         try:
+            # Use "default" to let AIClientManager pick the right model
+            kwargs = {"temperature": 0.1, "max_tokens": 500}
+            if model_name != "default":
+                kwargs["model"] = model_name
             response = await self.ai_client.chat(
-                model=model_name,
                 messages=messages,
-                temperature=0.1,
-                max_tokens=500,
+                **kwargs,
             )
             content = response.content if hasattr(response, "content") else str(response)
         except Exception as e:
