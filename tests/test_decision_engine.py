@@ -6,8 +6,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from agents.decision_engine import Decision, DecisionEngine, Reflection
-from agents.scan_context import ScanContext
+from elengenix.scanning.decision_engine import Decision, DecisionEngine, Reflection
+from elengenix.scanning.scan_context import ScanContext
 
 
 # ── Mock Objects ────────────────────────────────────────────────

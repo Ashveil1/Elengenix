@@ -6,8 +6,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from agents.post_processor import PostExecutionProcessor, _safe_operation
-from agents.scan_context import ScanContext
+from elengenix.scanning.post_processor import PostExecutionProcessor, _safe_operation
+from elengenix.scanning.scan_context import ScanContext
 
 
 # ── Mock Objects ────────────────────────────────────────────────

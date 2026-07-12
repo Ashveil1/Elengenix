@@ -6,9 +6,9 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from agents.decision_engine import Decision
-from agents.scan_context import ScanContext
-from agents.scan_loop import ScanLoop, ScanResult
+from elengenix.scanning.decision_engine import Decision
+from elengenix.scanning.scan_context import ScanContext
+from elengenix.scanning.scan_loop import ScanLoop, ScanResult
 
 
 # ── Mock Objects ────────────────────────────────────────────────

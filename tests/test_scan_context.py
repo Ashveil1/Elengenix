@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from agents.scan_context import ScanContext
+from elengenix.scanning.scan_context import ScanContext
 
 
 # ── Creation Tests ──────────────────────────────────────────────

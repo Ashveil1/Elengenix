@@ -14,7 +14,7 @@ from typing import Any, Dict, List
 
 import pytest
 
-from agents.vuln_reasoning_phase import run_reasoning_phase, _hypothesis_to_finding
+from elengenix.scanning.vuln_reasoning_phase import run_reasoning_phase, _hypothesis_to_finding
 
 
 class _FakeHypothesis:

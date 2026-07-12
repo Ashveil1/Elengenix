@@ -8,7 +8,7 @@ repeat itself until the pool is exhausted.
 
 from __future__ import annotations
 
-from agents.hypothesis_boost import HypothesisBoost, build_stuck_guidance
+from elengenix.scanning.hypothesis_boost import HypothesisBoost, build_stuck_guidance
 
 
 def test_emit_distinct_hypotheses_before_repeat():
@@ -25,7 +25,7 @@ def test_emit_distinct_hypotheses_before_repeat():
 def test_cycles_after_pool_exhausted():
     boost = HypothesisBoost()
     first = boost.next_hypothesis()
-    from agents.hypothesis_boost import _HYPOTHESIS_TEMPLATES
+    from elengenix.scanning.hypothesis_boost import _HYPOTHESIS_TEMPLATES
     pool_size = len(_HYPOTHESIS_TEMPLATES)
     # exhaust remaining distinct hypotheses, then one more to wrap to first
     for _ in range(pool_size - 1 + 1):

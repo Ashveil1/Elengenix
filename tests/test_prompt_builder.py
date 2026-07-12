@@ -4,8 +4,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from agents.prompt_builder import PromptBuilder, _estimate_tokens
-from agents.scan_context import ScanContext
+from elengenix.scanning.prompt_builder import PromptBuilder, _estimate_tokens
+from elengenix.scanning.scan_context import ScanContext
 
 
 # ── Helper ──────────────────────────────────────────────────────

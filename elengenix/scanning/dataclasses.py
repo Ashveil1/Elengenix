@@ -1,0 +1,60 @@
+"""agents/agent_dataclasses.py — Data classes for attack planning extracted from agent_brain.py."""
+
+from __future__ import annotations
+
+import time
+from dataclasses import dataclass, field
+from enum import Enum
+from typing import Dict, List, Optional
+
+from tools.tool_registry import ToolResult
+
+
+class AttackPhase(Enum):
+    """Standard penetration testing phases."""
+
+    RECONNAISSANCE = "recon"
+    SCANNING = "scanning"
+    ENUMERATION = "enumeration"
+    EXPLOITATION = "exploitation"
+    POST_EXPLOITATION = "post_exploitation"
+    REPORTING = "reporting"
+
+
+@dataclass
+class AttackStep:
+    """Single step in an attack tree."""
+
+    phase: AttackPhase
+    tool_name: str
+    target: str
+    purpose: str
+    depends_on: List[str] = field(default_factory=list)
+    completed: bool = False
+    result: Optional[ToolResult] = None
+    findings: List[Dict] = field(default_factory=list)
+
+
+@dataclass
+class AttackTree:
+    """Strategic plan for penetration testing."""
+
+    target: str
+    objective: str
+    steps: List[AttackStep] = field(default_factory=list)
+    current_phase: AttackPhase = AttackPhase.RECONNAISSANCE
+    reasoning: str = ""
+    created_at: float = field(default_factory=time.time)
+
+
+@dataclass
+class AgentThought:
+    """Chain of Thought logging entry."""
+
+    step: int
+    timestamp: float
+    context: str
+    reasoning: str
+    action_taken: str
+    result: str
+    confidence: float = 0.0

@@ -1,0 +1,448 @@
+"""agents/critic_agent.py — CriticAgent for TeamAegis v2.
+
+The Critic uses AI model #3 (OpenAI / second provider by default) to:
+- Review findings from the Specialist and filter false positives.
+- Assign CVSS scores and confidence levels.
+- Vote on high-risk tasks during deliberation.
+- Generate per-finding remediation notes.
+
+Sub-workers:
+- ValidatorWorker — sends safe HTTP probe to confirm a finding.
+- ReportWorker    — formats a finding into a structured report entry.
+"""
+
+from __future__ import annotations
+
+import logging
+import re
+import subprocess
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
+
+from elengenix.scanning.worker import BaseWorker, WorkerResult
+from tools.universal_ai_client import AIMessage
+
+if TYPE_CHECKING:
+    from elengenix.scanning.agent_council import SharedInbox
+
+logger = logging.getLogger("elengenix.critic")
+
+
+# ── Sub-Workers ────────────────────────────────────────────────────────────────
+
+
+class ValidatorWorker(BaseWorker):
+    """Confirms a finding by sending a minimal safe HTTP probe.
+
+    Args:
+        timeout_seconds: Max execution time.
+    """
+
+    def __init__(self, timeout_seconds: int = 20) -> None:
+        super().__init__(
+            name="ValidatorWorker",
+            description="HTTP probe to confirm findings",
+            timeout_seconds=timeout_seconds,
+        )
+
+    def run(self, target: str, params: Optional[Dict[str, Any]] = None) -> WorkerResult:
+        """Probe a URL and check response for validation signatures.
+
+        Args:
+            target: URL to probe.
+            params: Dict with optional "signatures" (list of strings to look for).
+
+        Returns:
+            WorkerResult with validation finding.
+        """
+        params = params or {}
+        signatures = params.get("signatures", [])
+
+        try:
+            cmd = [
+                "curl",
+                "-si",
+                "--max-time",
+                "8",
+                "--user-agent",
+                "Mozilla/5.0 (Validator; +https://elengenix.io)",
+                target,
+            ]
+            result = subprocess.run(
+                cmd,
+                shell=False,
+                capture_output=True,
+                text=True,
+                timeout=self.timeout_seconds,
+            )
+            response = result.stdout + result.stderr
+
+            confirmed = False
+            matched = []
+            for sig in signatures:
+                if sig.lower() in response.lower():
+                    confirmed = True
+                    matched.append(sig)
+
+            findings = []
+            if confirmed:
+                findings.append(
+                    {
+                        "type": "validated_finding",
+                        "severity": "medium",
+                        "title": f"Finding validated: {matched}",
+                        "target": target,
+                        "description": f"HTTP probe confirmed signatures: {matched}",
+                        "evidence": response[:500],
+                    }
+                )
+
+            return WorkerResult(
+                success=True,
+                worker_name=self.name,
+                output=response[:1000],
+                findings=findings,
+                metadata={"confirmed": confirmed, "matched": matched},
+            )
+        except Exception as exc:
+            return WorkerResult(
+                success=False,
+                worker_name=self.name,
+                error=str(exc),
+            )
+
+
+class ReportWorker(BaseWorker):
+    """Formats a finding into a structured, human-readable report entry.
+
+    Args:
+        None
+    """
+
+    def __init__(self) -> None:
+        super().__init__(
+            name="ReportWorker",
+            description="Formats findings into structured report entries",
+        )
+
+    def run(self, target: str, params: Optional[Dict[str, Any]] = None) -> WorkerResult:
+        """Format a finding dict into a markdown report section.
+
+        Args:
+            target: Target domain (used in metadata).
+            params: Dict with "finding" key containing the finding dict.
+
+        Returns:
+            WorkerResult with formatted output string.
+        """
+        params = params or {}
+        finding = params.get("finding", {})
+
+        severity = str(finding.get("severity", "info")).capitalize()
+        title = finding.get("title", "Security Finding")
+        description = finding.get("description", "")
+        url = finding.get("url", target)
+        cvss = finding.get("_cvss", 0.0)
+        notes = finding.get("_critic_notes", "")
+
+        report = (
+            f"### [{severity}] {title}\n"
+            f"- URL: {url}\n"
+            f"- CVSS: {cvss:.1f}\n"
+            f"- Description: {description}\n"
+            f"- Remediation: {notes}\n"
+        )
+        return WorkerResult(
+            success=True,
+            worker_name=self.name,
+            output=report,
+        )
+
+
+# ── CriticAgent ─────────────────────────────────────────────────────────────────
+
+
+class CriticAgent:
+    """AI agent that validates findings and filters false positives.
+
+    Uses AI model #3 to critically evaluate each batch of findings from the
+    Specialist. Assigns confidence levels and CVSS scores.
+
+    Args:
+        client: AIClientManager-compatible client.
+        model_label: Human-readable label for display.
+        enable_workers: If True, ValidatorWorker is used to HTTP-probe findings.
+        cvss_threshold: Minimum CVSS to include in final report (0.0 = all).
+    """
+
+    REVIEW_PROMPT = """You are a senior security researcher reviewing findings for accuracy.
+
+Target: {target}
+
+Findings to review:
+{findings_list}
+
+For EACH finding, determine:
+1. Is it a real vulnerability or false positive?
+2. Assign a CVSS 3.1 base score (0.0 - 10.0)
+3. Confidence: low / medium / high
+4. Brief remediation note (1-2 sentences)
+
+Respond ONLY with valid JSON array:
+[
+  {{
+    "index": 0,
+    "verdict": "confirmed",
+    "cvss": 7.5,
+    "confidence": "high",
+    "notes": "Remediation: patch server to latest version"
+  }},
+  {{
+    "index": 1,
+    "verdict": "false_positive",
+    "cvss": 0.0,
+    "confidence": "high",
+    "notes": "This is expected behavior, not a vulnerability"
+  }}
+]
+
+Be strict. Only confirm findings with clear security impact. No extra text."""
+
+    VOTE_PROMPT = """You are the Critic reviewing a proposed high-risk action.
+
+Proposed task: {description}
+Risk level: {risk}
+Validated findings so far: {findings_count}
+Target: {target}
+
+Should we proceed with this risky action?
+Consider:
+- Is the potential finding value worth the detection risk?
+- Are there safer alternatives?
+- Does current evidence justify escalation?
+
+Respond with ONLY one word: "approve" or "deny"."""
+
+    def __init__(
+        self,
+        client: Any,
+        model_label: str = "Critic AI",
+        enable_workers: bool = True,
+        cvss_threshold: float = 0.0,
+    ) -> None:
+        self.client = client
+        self.model_label = model_label
+        self.enable_workers = enable_workers
+        self.cvss_threshold = cvss_threshold
+        self.total_tokens_used: int = 0
+
+        # Sub-workers
+        self.validator_worker = ValidatorWorker()
+        self.report_worker = ReportWorker()
+
+    def review(
+        self,
+        findings: List[Dict[str, Any]],
+        target: str,
+        inbox: "SharedInbox",
+    ) -> List[Dict[str, Any]]:
+        """Review a batch of findings and return verdicts.
+
+        Optionally probes findings with ValidatorWorker before sending to AI.
+
+        Args:
+            findings: List of raw finding dicts from Specialist.
+            target: Primary target domain/IP.
+            inbox: SharedInbox for posting verdict messages.
+
+        Returns:
+            List of verdict dicts with keys: verdict, finding, cvss, confidence, notes.
+        """
+        from elengenix.scanning.agent_council import CouncilMessage, MessageType
+
+        if not findings:
+            return []
+
+        # Optional: HTTP probe to pre-validate findings
+        if self.enable_workers:
+            for f in findings:
+                url = f.get("url", "") or f.get("target", "")
+                if url and f.get("type") not in ("subdomains_discovered", "osint_result"):
+                    probe = self.validator_worker.execute(
+                        url,
+                        {"signatures": _extract_signatures(f)},
+                    )
+                    if probe.metadata.get("confirmed"):
+                        f["_probe_confirmed"] = True
+                        f["_probe_matched"] = probe.metadata.get("matched", [])
+
+        # Build findings list for AI
+        findings_text = "\n".join(
+            [
+                f"{i}. [{f.get('severity', 'info').upper()}] {f.get('title', 'Finding')}: "
+                f"{f.get('description', '')[:150]}"
+                f"{' [HTTP-CONFIRMED]' if f.get('_probe_confirmed') else ''}"
+                for i, f in enumerate(findings)
+            ]
+        )
+
+        prompt = self.REVIEW_PROMPT.format(
+            target=target,
+            findings_list=findings_text,
+        )
+
+        # Get AI verdicts
+        raw_verdicts = self._call_ai_for_json(prompt, "Review the findings.")
+
+        if not isinstance(raw_verdicts, list):
+            logger.warning(f"[Critic] Unexpected verdicts format: {type(raw_verdicts)}")
+            raw_verdicts = []
+
+        results = []
+        for v in raw_verdicts:
+            if not isinstance(v, dict):
+                continue
+            idx = v.get("index", -1)
+            if not isinstance(idx, int) or idx < 0 or idx >= len(findings):
+                continue
+
+            finding = findings[idx].copy()
+            verdict = v.get("verdict", "false_positive")
+            cvss = float(v.get("cvss", 0.0))
+
+            # Apply CVSS threshold
+            if verdict == "confirmed" and cvss < self.cvss_threshold:
+                verdict = "false_positive"
+
+            results.append(
+                {
+                    "verdict": verdict,
+                    "finding": finding,
+                    "cvss": cvss,
+                    "confidence": v.get("confidence", "medium"),
+                    "notes": v.get("notes", ""),
+                }
+            )
+
+        # Post verdicts to inbox
+        inbox.post(
+            CouncilMessage(
+                msg_type=MessageType.VERDICT,
+                sender="critic",
+                recipient="council",
+                payload={
+                    "total": len(findings),
+                    "confirmed": sum(1 for r in results if r["verdict"] == "confirmed"),
+                    "false_positives": sum(1 for r in results if r["verdict"] == "false_positive"),
+                },
+            )
+        )
+
+        return results
+
+    def vote(
+        self,
+        task: Dict[str, Any],
+        validated_findings: List[Dict[str, Any]],
+        target: str,
+    ) -> str:
+        """Vote on a high-risk task during deliberation.
+
+        Args:
+            task: Task dict with description and risk.
+            validated_findings: Currently confirmed findings.
+            target: Primary target.
+
+        Returns:
+            "approve" or "deny".
+        """
+        prompt = self.VOTE_PROMPT.format(
+            description=task.get("description", ""),
+            risk=task.get("risk", "high"),
+            findings_count=len(validated_findings),
+            target=target,
+        )
+        try:
+            response = (
+                self.client.chat(
+                    [
+                        AIMessage(role="user", content=prompt),
+                    ]
+                ).content
+                or ""
+            )
+            self.total_tokens_used += len(response) // 4
+            decision = response.strip().lower().split()[0] if response.strip() else "approve"
+            return "approve" if "approve" in decision else "deny"
+        except Exception as exc:
+            logger.warning(f"Critic vote AI call failed: {exc}")
+            return "deny"  # Critic defaults to deny on error (more conservative)
+
+    def _call_ai_for_json(self, prompt: str, user_msg: str) -> Any:
+        """Call AI and parse JSON response.
+
+        Args:
+            prompt: System prompt.
+            user_msg: User message.
+
+        Returns:
+            Parsed JSON object/list or empty list on failure.
+        """
+        if not self.client:
+            return []
+        try:
+            response = (
+                self.client.chat(
+                    [
+                        AIMessage(role="system", content=prompt),
+                        AIMessage(role="user", content=user_msg),
+                    ]
+                ).content
+                or ""
+            )
+            self.total_tokens_used += len(response) // 4
+            return _extract_json(response)
+        except Exception as exc:
+            logger.error(f"[Critic] AI call failed: {exc}")
+            return []
+
+
+# ── Helpers ────────────────────────────────────────────────────────────────────
+
+
+def _extract_signatures(finding: Dict[str, Any]) -> List[str]:
+    """Extract testable signatures from a finding for HTTP probing.
+
+    Args:
+        finding: Finding dict.
+
+    Returns:
+        List of signature strings to look for in HTTP response.
+    """
+    sigs = []
+    for key in ("evidence", "description", "title"):
+        val = finding.get(key, "")
+        # Extract quoted strings or error messages
+        quoted = re.findall(r'"([^"]{4,40})"', val)
+        sigs.extend(quoted[:2])
+    return sigs[:5]
+
+
+def _extract_json(text: str) -> Any:
+    """Extract JSON array or object from LLM response.
+
+    Delegates to the unified hardened extractor; preserves the historical
+    contract of returning an empty list on failure.
+
+    Args:
+        text: Raw LLM response string.
+
+    Returns:
+        Parsed Python object or empty list on failure.
+    """
+    from elengenix.scanning.helpers import extract_json
+
+    result = extract_json(text, expect="array")
+    if result is None:
+        logger.warning(f"[Critic] No valid JSON: {text[:200]}")
+        return []
+    return result
