@@ -107,19 +107,19 @@ class AgentMemory:
 
         # 1. Semantic search: find memories similar to target
         if self._vector and self._vector._initialized:
+            # Lower threshold for technical content (ChromaDB embeddings aren't ideal for security text)
             memories = self._vector.search(
                 query=target,
                 n_results=15,
-                min_similarity=0.3,
+                min_similarity=0.15,
             )
             result["memories"] = memories
 
-            # Also get all memories for this exact target
+            # Also get all memories for this exact target (always)
             target_mems = self._vector.get_target_memories(
                 target=target, limit=50
             )
             if target_mems:
-                # Merge, dedup by id
                 seen_ids = {m["id"] for m in memories}
                 for m in target_mems:
                     if m["id"] not in seen_ids:
@@ -352,7 +352,7 @@ class AgentMemory:
                 query=search_query,
                 category="skill",
                 n_results=limit,
-                min_similarity=0.3,
+                min_similarity=0.1,
             )
         except Exception:
             return ""
