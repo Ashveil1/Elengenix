@@ -273,6 +273,139 @@ def _tool_web_extract(url: str) -> Dict[str, Any]:
         return {"success": False, "error": str(exc)}
 
 
+def _tool_read_file(path: str, offset: int = 1, limit: int = 200) -> Dict[str, Any]:
+    """Read a text file with line numbers. Use this to inspect source code,
+    config files, logs, or any text file on the filesystem."""
+    try:
+        from pathlib import Path as _Path
+
+        fpath = _Path(path).expanduser().resolve()
+        if not fpath.exists():
+            return {"success": False, "error": f"File not found: {fpath}"}
+        if not fpath.is_file():
+            return {"success": False, "error": f"Not a file: {fpath}"}
+
+        text = fpath.read_text(encoding="utf-8", errors="replace")
+        lines = text.splitlines()
+        total = len(lines)
+
+        start = max(0, offset - 1)
+        end = min(total, start + limit)
+        snippet = lines[start:end]
+
+        numbered = "\n".join(
+            f"{i+1}|{line}" for i, line in enumerate(snippet, start + 1)
+        )
+        info = f"File: {fpath} ({total} lines, showing {start+1}-{end})\n"
+        return {"success": True, "output": info + numbered, "total_lines": total}
+    except Exception as exc:
+        return {"success": False, "error": str(exc)}
+
+
+def _tool_write_file(path: str, content: str) -> Dict[str, Any]:
+    """Create a new file or overwrite an existing one. Use this to save
+    findings, write PoC scripts, create reports, or modify source code."""
+    try:
+        from pathlib import Path as _Path
+
+        fpath = _Path(path).expanduser().resolve()
+        fpath.parent.mkdir(parents=True, exist_ok=True)
+        fpath.write_text(content, encoding="utf-8")
+        return {"success": True, "output": f"Written {len(content)} bytes to {fpath}"}
+    except Exception as exc:
+        return {"success": False, "error": str(exc)}
+
+
+def _tool_edit_file(path: str, old_string: str, new_string: str) -> Dict[str, Any]:
+    """Find and replace text in a file. Use this to make targeted edits
+    without rewriting the whole file. The old_string must be unique."""
+    try:
+        from pathlib import Path as _Path
+
+        fpath = _Path(path).expanduser().resolve()
+        if not fpath.exists():
+            return {"success": False, "error": f"File not found: {fpath}"}
+
+        text = fpath.read_text(encoding="utf-8")
+        count = text.count(old_string)
+        if count == 0:
+            return {"success": False, "error": "old_string not found in file"}
+        if count > 1:
+            return {"success": False, "error": f"old_string found {count} times (not unique)"}
+
+        text = text.replace(old_string, new_string, 1)
+        fpath.write_text(text, encoding="utf-8")
+        return {"success": True, "output": f"Replaced 1 occurrence in {fpath}"}
+    except Exception as exc:
+        return {"success": False, "error": str(exc)}
+
+
+def _tool_search_files(pattern: str, path: str = ".", file_glob: str = "", limit: int = 20) -> Dict[str, Any]:
+    """Search file contents using regex. Returns matching lines with context.
+    Use this to find hardcoded credentials, API keys, vulnerable patterns,
+    or any text across the filesystem."""
+    import subprocess as _sp
+
+    try:
+
+        cmd = ["grep", "-rn", "--color=never", pattern]
+        if file_glob:
+            cmd.extend(["--include", file_glob])
+        cmd.append(path)
+
+        result = _sp.run(cmd, capture_output=True, text=True, timeout=15)
+        if result.returncode == 1 and not result.stdout:
+            return {"success": True, "output": "No matches found."}
+
+        lines = result.stdout.strip().splitlines()
+        truncated = len(lines) > limit
+        output = "\n".join(lines[:limit])
+        info = f"Searched '{pattern}' in {path}"
+        if file_glob:
+            info += f" (files: {file_glob})"
+        info += f": {min(limit, len(lines))} matches"
+        if truncated:
+            info += f" (+{len(lines) - limit} more)"
+        info += "\n"
+
+        return {"success": True, "output": info + output, "total_matches": len(lines)}
+    except _sp.TimeoutExpired:
+        return {"success": False, "error": "Search timed out (15s)"}
+    except Exception as exc:
+        return {"success": False, "error": str(exc)}
+
+
+def _tool_run_command(command: str, timeout: int = 30) -> Dict[str, Any]:
+    """Run a shell command and return its output. Use this to execute
+    security tools, scripts, git commands, or any CLI program.
+    WARNING: commands run directly on the host."""
+    import subprocess as _sp
+
+    try:
+
+        result = _sp.run(
+            command,
+            shell=True,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+        )
+        output = result.stdout.strip()
+        if result.stderr:
+            output += "\n[stderr]\n" + result.stderr.strip()[:2000]
+
+        truncated = len(output) > 5000
+        return {
+            "success": result.returncode == 0,
+            "output": output[:5000] + ("\n...[truncated]" if truncated else ""),
+            "exit_code": result.returncode,
+        }
+    except _sp.TimeoutExpired:
+        return {"success": False, "error": f"Command timed out ({timeout}s)"}
+    except Exception as exc:
+        return {"success": False, "error": str(exc)}
+
+
 # Registered tool list for the agent
 # NOTE: handler_name is a string (not a function reference) so that
 # unittest.mock.patch works correctly at runtime.
@@ -390,6 +523,75 @@ AVAILABLE_TOOLS: List[Dict[str, Any]] = [
             "required": ["url"],
         },
         "handler_name": "_tool_web_extract",
+    },
+    {
+        "name": "read_file",
+        "description": "Read a text file with line numbers. Use this to inspect source code, config files, logs, or any text file on the filesystem. Supports offset and limit for large files.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "path": {"type": "string", "description": "Absolute or relative file path"},
+                "offset": {"type": "integer", "description": "Starting line number (1-based, default: 1)", "default": 1, "minimum": 1},
+                "limit": {"type": "integer", "description": "Max lines to return (default: 200, max: 1000)", "default": 200, "maximum": 1000},
+            },
+            "required": ["path"],
+        },
+        "handler_name": "_tool_read_file",
+    },
+    {
+        "name": "write_file",
+        "description": "Create a new file or overwrite an existing one. Use this to save findings, write PoC scripts, create reports, or modify source code. Creates parent directories automatically.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "path": {"type": "string", "description": "Absolute or relative file path"},
+                "content": {"type": "string", "description": "Full file content to write"},
+            },
+            "required": ["path", "content"],
+        },
+        "handler_name": "_tool_write_file",
+    },
+    {
+        "name": "edit_file",
+        "description": "Find and replace text in a file. Use this to make targeted edits without rewriting the whole file. The old_string must be unique in the file.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "path": {"type": "string", "description": "Absolute or relative file path"},
+                "old_string": {"type": "string", "description": "Existing text to replace (must be unique)"},
+                "new_string": {"type": "string", "description": "Replacement text"},
+            },
+            "required": ["path", "old_string", "new_string"],
+        },
+        "handler_name": "_tool_edit_file",
+    },
+    {
+        "name": "search_files",
+        "description": "Search file contents using regex. Returns matching lines with file paths. Use this to find hardcoded credentials, API keys, vulnerable patterns, or any text across the codebase.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "pattern": {"type": "string", "description": "Regex pattern to search for"},
+                "path": {"type": "string", "description": "Directory to search (default: current dir)", "default": "."},
+                "file_glob": {"type": "string", "description": "File pattern filter (e.g., '*.py', '*.conf'). Leave empty for all files.", "default": ""},
+                "limit": {"type": "integer", "description": "Max results to return (default: 20)", "default": 20, "maximum": 100},
+            },
+            "required": ["pattern"],
+        },
+        "handler_name": "_tool_search_files",
+    },
+    {
+        "name": "run_command",
+        "description": "Run a shell command and return its output. Use this to execute security tools, scripts, git commands, or any CLI program. WARNING: runs directly on the host system. Prefer other tools when available.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "command": {"type": "string", "description": "Shell command to execute"},
+                "timeout": {"type": "integer", "description": "Timeout in seconds (default: 30, max: 120)", "default": 30, "maximum": 120},
+            },
+            "required": ["command"],
+        },
+        "handler_name": "_tool_run_command",
     },
 ]
 
