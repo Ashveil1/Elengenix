@@ -359,6 +359,9 @@ Steps used: {step_count}/{max_steps}
 ### Recent scan history
 {scan_history}
 
+### Previous sessions memory
+{MEMORY_CONTEXT}
+
 ## Available tools
 
 {TOOL_DEFS_TEXT}
@@ -406,12 +409,14 @@ class VulnAgent:
         max_steps: int = 25,
         governance: Any = None,
         report_dir: Optional[Path] = None,
+        memory: Any = None,
     ):
         self.client = client
         self.target = target
         self.max_steps = max_steps
         self.governance = governance
         self.report_dir = report_dir or Path("reports")
+        self.memory = memory  # AgentMemory instance (optional)
 
         # Runtime state
         self.step = 0
@@ -440,10 +445,28 @@ class VulnAgent:
         self.start_time = time.time()
         self.step = 0
 
+        # Pre-hunt: recall past memories
+        memory_context = ""
+        if self.memory is not None:
+            try:
+                recall = self.memory.pre_hunt(self.target)
+                memory_context = self.memory.get_context(self.target)
+                if recall["memories"]:
+                    logger.info("Recalled %d past memories for %s", len(recall["memories"]), self.target)
+            except Exception as e:
+                logger.debug(f"Memory recall failed: {e}")
+
         if verbose:
             sys.stdout.write(f"\n🎯 Hunting: {self.target}\n")
             sys.stdout.write(f"{'─' * 50}\n")
             sys.stdout.flush()
+
+        if memory_context and verbose:
+            sys.stdout.write(f"🧠 Memory: {len(memory_context)} chars recalled\n")
+            sys.stdout.flush()
+
+        # Pre-hunt memory: inject into turn prompt for first step
+        self._memory_context = memory_context
 
         while self.step < self.max_steps:
             self.step += 1
@@ -479,6 +502,20 @@ class VulnAgent:
             # 4. ANALYZE — record and feed back next iteration
             self._record_step(action, result)
 
+            # 5. REMEMBER — store step in memory (cross-session)
+            if self.memory is not None:
+                try:
+                    self.memory.post_step(
+                        target=self.target,
+                        step=self.step,
+                        tool=action.get("tool", "?"),
+                        arguments=action.get("arguments", {}),
+                        result=result,
+                        reasoning=action.get("reasoning", ""),
+                    )
+                except Exception as e:
+                    logger.debug(f"Memory store failed: {e}")
+
             if verbose:
                 status = "✅" if result.get("success") else "❌"
                 output = result.get("output", result.get("error", ""))[:200]
@@ -490,7 +527,17 @@ class VulnAgent:
             sys.stdout.write(f"📋 Generating report...\n")
             sys.stdout.flush()
 
-        return self._generate_report()
+        report = self._generate_report()
+
+        # Post-hunt: store report and findings in memory
+        if self.memory is not None:
+            try:
+                self.memory.post_hunt(report)
+                logger.info("Memory stored for %s", self.target)
+            except Exception as e:
+                logger.debug(f"Post-hunt memory store failed: {e}")
+
+        return report
 
     # ------------------------------------------------------------------
     # Core loop
@@ -668,6 +715,7 @@ class VulnAgent:
         findings_text = self._format_findings()
         history_text = self._format_history()
         target_type = "domain" if "." in self.target and not self.target.replace(".", "").isdigit() else "IP" if self.target.replace(".", "").isdigit() else "identifier"
+        memory_text = getattr(self, "_memory_context", "") or ""
 
         return SYSTEM_PROMPT_TEMPLATE.format(
             target=self.target,
@@ -679,6 +727,7 @@ class VulnAgent:
             findings=findings_text,
             scan_history=history_text,
             TOOL_DEFS_TEXT=TOOL_DEFS_TEXT,
+            MEMORY_CONTEXT=memory_text,
         )
 
     def _format_hypotheses(self) -> str:

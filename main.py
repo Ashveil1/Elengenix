@@ -945,14 +945,18 @@ def main():
                 return
 
             from elengenix.agent import VulnAgent
+            from elengenix.agent.memory import AgentMemory
             from tools.universal_ai_client import create_default_client
 
+            # Initialize cross-session memory (silent fail if unavailable)
+            memory = AgentMemory()
             client = create_default_client()
-            agent = VulnAgent(target=target, client=client)
+            agent = VulnAgent(target=target, client=client, memory=memory)
 
             print_info("Starting autonomous vulnerability hunt...")
             print_info(f"Target: {target}")
-            print_info("AI will THINK → ACT → ANALYZE independently")
+            if memory._vector:
+                print_info("Cross-session memory: ACTIVE")
             console.print("")
 
             try:

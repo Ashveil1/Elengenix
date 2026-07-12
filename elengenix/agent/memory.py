@@ -1,0 +1,444 @@
+"""elengenix/agent/memory.py — Agent Memory Engine
+
+Integrates VectorMemory (ChromaDB) + LearningEngine into VulnAgent.
+Provides:
+  - Cross-session memory recall (semantic + keyword)
+  - Auto-memory storage after each step and hunt
+  - Skill creation from successful techniques
+  - Context injection for AI system prompt
+"""
+
+from __future__ import annotations
+
+import json
+import logging
+import time
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
+
+if TYPE_CHECKING:
+    from tools.learning_engine import ExploitRecord
+    from tools.vector_memory import VectorMemory
+    from .vuln_agent import VulnReport
+
+logger = logging.getLogger("elengenix.agent.memory")
+
+# ---------------------------------------------------------------------------
+# Lazy imports (ChromaDB / SQLite dependencies)
+# ---------------------------------------------------------------------------
+
+try:
+    import tools.vector_memory as _vm
+    _VECTOR_AVAILABLE = True
+except ImportError:
+    _vm = None  # type: ignore[assignment]
+    _VECTOR_AVAILABLE = False
+
+try:
+    import tools.learning_engine as _le
+    _LEARNING_AVAILABLE = True
+except ImportError:
+    _le = None  # type: ignore[assignment]
+    _LEARNING_AVAILABLE = False
+
+
+# ---------------------------------------------------------------------------
+# Memory Engine
+# ---------------------------------------------------------------------------
+
+
+class AgentMemory:
+    """Cross-session memory for VulnAgent.
+
+    Usage:
+        memory = AgentMemory()
+        memory.pre_hunt(target)    → recalls past sessions → inject into prompt
+        memory.post_step(step, ...) → auto-store every action+result
+        memory.post_hunt(report)    → store final findings + skill creation
+        memory.get_context(target)  → format memory for AI prompt
+    """
+
+    def __init__(
+        self,
+        vector_dir: Optional[Path] = None,
+        learning_db: Optional[Path] = None,
+    ):
+        self._vector: Any = None
+        self._learning: Any = None
+
+        vector_cls: Any = getattr(_vm, "VectorMemory", None) if _VECTOR_AVAILABLE else None
+        if vector_cls:
+            try:
+                self._vector = vector_cls(
+                    persist_directory=str(vector_dir) if vector_dir else None
+                )
+                logger.info("AgentMemory: VectorMemory initialized")
+            except Exception as e:
+                logger.warning(f"AgentMemory: VectorMemory init failed: {e}")
+
+        learning_cls: Any = getattr(_le, "LearningEngine", None) if _LEARNING_AVAILABLE else None
+        if learning_cls:
+            try:
+                self._learning = learning_cls(
+                    db_path=learning_db or Path("data/learning.db"),
+                )
+                logger.info("AgentMemory: LearningEngine initialized")
+            except Exception as e:
+                logger.warning(f"AgentMemory: LearningEngine init failed: {e}")
+                logger.warning(f"AgentMemory: LearningEngine init failed: {e}")
+
+    # ------------------------------------------------------------------
+    # Pre-hunt: recall past memories for similar targets
+    # ------------------------------------------------------------------
+
+    def pre_hunt(self, target: str) -> Dict[str, Any]:
+        """Recall relevant past memories for this target.
+
+        Returns a dict with:
+            - memories: list of past memories (semantic + keyword)
+            - learned_skills: list of reusable techniques
+            - context: formatted text for AI prompt injection
+        """
+        result: Dict[str, Any] = {
+            "memories": [],
+            "learned_skills": [],
+            "context": "",
+        }
+
+        # 1. Semantic search: find memories similar to target
+        if self._vector and self._vector._initialized:
+            memories = self._vector.search(
+                query=target,
+                n_results=15,
+                min_similarity=0.3,
+            )
+            result["memories"] = memories
+
+            # Also get all memories for this exact target
+            target_mems = self._vector.get_target_memories(
+                target=target, limit=50
+            )
+            if target_mems:
+                # Merge, dedup by id
+                seen_ids = {m["id"] for m in memories}
+                for m in target_mems:
+                    if m["id"] not in seen_ids:
+                        seen_ids.add(m["id"])
+                        memories.append(m)
+
+        # 2. Learning engine: past exploit patterns
+        if self._learning:
+            try:
+                # Extract tech hints from past memories
+                patterns = self._learning.rank_tools(limit=5)
+                result["learned_skills"] = [
+                    {"tool": tool, "success_rate": rate, "sample_size": n}
+                    for tool, rate, n in patterns
+                ]
+            except Exception as e:
+                logger.debug(f"Learning recall failed: {e}")
+
+        # 3. Build context string for AI prompt
+        result["context"] = self._format_context(result)
+        logger.info(
+            "Memory pre-hunt: %d memories, %d skills for %s",
+            len(result["memories"]),
+            len(result["learned_skills"]),
+            target,
+        )
+
+        return result
+
+    # ------------------------------------------------------------------
+    # Post-step: store each action+result as memory
+    # ------------------------------------------------------------------
+
+    def post_step(
+        self,
+        target: str,
+        step: int,
+        tool: str,
+        arguments: Dict[str, Any],
+        result: Dict[str, Any],
+        reasoning: str = "",
+    ) -> None:
+        """Store a single step's action and result as episodic memory."""
+        if not self._vector:
+            return
+
+        success = result.get("success", False)
+        output = result.get("output", result.get("error", ""))[:500]
+        args_flat = json.dumps(arguments, ensure_ascii=False)[:200]
+
+        # Store the reasoning + action
+        content = reasoning[:300] if reasoning else ""
+        if content:
+            self._add_memory(
+                content=f"Reasoning: {content}",
+                target=target,
+                category="reasoning",
+                metadata={
+                    "step": step,
+                    "tool": tool,
+                    "arguments": args_flat,
+                    "success": success,
+                },
+            )
+
+        # Store the tool result
+        if output:
+            self._add_memory(
+                content=f"Step {step}: {tool}({args_flat}) → {output[:300]}",
+                target=target,
+                category="tool_result",
+                metadata={
+                    "step": step,
+                    "tool": tool,
+                    "success": success,
+                },
+            )
+
+        # If successful and meaningful, also store in learning engine
+        if success and self._learning and output and len(output) > 20:
+            try:
+                record = ExploitRecord(
+                    target=target,
+                    tech_stack=[tool],
+                    vuln_class="recon",
+                    tool=tool,
+                    payload=args_flat,
+                    success=True,
+                    confidence=0.6,
+                )
+                self._learning.remember(record)
+            except Exception as e:
+                logger.debug(f"Learning remember failed: {e}")
+
+    # ------------------------------------------------------------------
+    # Finding memory
+    # ------------------------------------------------------------------
+
+    def remember_finding(
+        self,
+        target: str,
+        finding: Any,
+        tool: str = "",
+    ) -> None:
+        """Store a vulnerability finding as semantic memory."""
+        self._add_memory(
+            content=f"Finding: [{finding.severity.upper()}] {finding.title} — {finding.description or ''}",
+            target=target,
+            category="finding",
+            metadata={
+                "severity": finding.severity,
+                "confidence": finding.confidence,
+                "tool": tool or finding.source_tool,
+                "target_url": finding.target,
+            },
+        )
+
+        # Also store in learning engine as exploit record
+        if self._learning and finding.confidence >= 0.5:
+            try:
+                record = ExploitRecord(
+                    target=target,
+                    tech_stack=[finding.source_tool or "unknown"],
+                    vuln_class=finding.severity,
+                    tool=finding.source_tool or "analysis",
+                    payload=finding.title,
+                    success=True,
+                    confidence=finding.confidence,
+                    severity=finding.severity,
+                    notes=finding.description or "",
+                )
+                self._learning.remember(record)
+            except Exception as e:
+                logger.debug(f"Learning remember finding failed: {e}")
+
+    # ------------------------------------------------------------------
+    # Post-hunt: store final report + auto-create skills
+    # ------------------------------------------------------------------
+
+    def post_hunt(self, report: "VulnReport") -> None:
+        """Store final report and auto-create skills from successful techniques."""
+        target = report.target
+
+        # Store report summary
+        self._add_memory(
+            content=(
+                f"Hunt complete: {report.total_steps} steps, "
+                f"{len(report.findings)} findings, "
+                f"{report.hypotheses_confirmed}/{report.hypotheses_tested} hypotheses confirmed"
+            ),
+            target=target,
+            category="report_summary",
+            metadata={
+                "duration": report.scan_duration,
+                "total_steps": report.total_steps,
+                "findings_count": len(report.findings),
+            },
+        )
+
+        # Store findings as individual memories
+        for f in report.findings:
+            self.remember_finding(target, f)
+
+        # Auto-skill creation: if findings > 0, store as technique
+        if report.findings and self._vector:
+            vuln_types = set(f.severity for f in report.findings)
+            skills_text = f"Target '{target}' yielded {len(report.findings)} findings across {', '.join(vuln_types)} severities. Approach record: {report.summary[:200]}"
+
+            self._add_memory(
+                content=skills_text,
+                target=target,
+                category="skill",
+                metadata={
+                    "type": "auto_skill",
+                    "vulnerabilities_found": len(report.findings),
+                    "vuln_types": list(vuln_types),
+                },
+            )
+
+        logger.info(
+            "Memory post-hunt: stored %d findings + report for %s",
+            len(report.findings),
+            target,
+        )
+
+    # ------------------------------------------------------------------
+    # Skill management (AI-created)
+    # ------------------------------------------------------------------
+
+    def create_skill(
+        self,
+        name: str,
+        description: str,
+        technique: str,
+        target: str = "global",
+        tags: Optional[List[str]] = None,
+    ) -> Optional[str]:
+        """Store a reusable skill learned by the AI.
+
+        Skills are semantic memories tagged 'skill' so the AI can recall
+        them for similar future targets.
+        """
+        return self._add_memory(
+            content=f"SKILL: {name}\nDescription: {description}\nTechnique: {technique}",
+            target=target,
+            category="skill",
+            metadata={
+                "skill_name": name,
+                "technique": technique[:500],
+                "type": "ai_created",
+                "tags": json.dumps(tags or []),
+            },
+        )
+
+    def recall_skills(
+        self,
+        target: str = "",
+        query: str = "",
+        limit: int = 10,
+    ) -> str:
+        """Recall relevant skills for context injection."""
+        if not self._vector:
+            return ""
+
+        # Build query — try target first, then generic
+        search_query = query or target or "vulnerability hunting technique"
+
+        try:
+            memories = self._vector.search(
+                query=search_query,
+                category="skill",
+                n_results=limit,
+                min_similarity=0.3,
+            )
+        except Exception:
+            return ""
+
+        if not memories:
+            return ""
+
+        lines = ["## LEARNED SKILLS (from past sessions)"]
+        for i, mem in enumerate(memories[:5], 1):
+            content = mem.get("content", "")[:300]
+            sim = mem.get("similarity", 0)
+            meta = mem.get("metadata", {})
+            if meta.get("type") == "ai_created":
+                lines.append(f"\n{i}. 🧠 AI-CREATED SKILL (relevance: {sim:.0%})")
+            else:
+                lines.append(f"\n{i}. 📚 Past technique (relevance: {sim:.0%})")
+            lines.append(f"   {content}")
+        lines.append("")
+        return "\n".join(lines)
+
+    # ------------------------------------------------------------------
+    # Context injection
+    # ------------------------------------------------------------------
+
+    def get_context(self, target: str) -> str:
+        """Build full memory context for AI system prompt injection.
+
+        Returns formatted text that gets injected into the system prompt.
+        """
+        recall = self.pre_hunt(target)
+        parts: List[str] = []
+
+        # Past sessions
+        if recall["memories"]:
+            lines = ["## PAST SESSION MEMORIES"]
+            for mem in recall["memories"][:8]:
+                content = mem.get("content", "")[:250]
+                sim = mem.get("similarity", 0)
+                meta = mem.get("metadata", {})
+                cat = meta.get("category", "general")
+                tgt = meta.get("target", "")
+                tag = f"[{cat}]" if cat != "general" else ""
+                lines.append(f"  - [{tgt}] {content}... {tag} (rel: {sim:.0%})")
+            parts.append("\n".join(lines))
+
+        # Learned skills
+        skills = self.recall_skills(target)
+        if skills:
+            parts.append(skills)
+
+        if not parts:
+            return "**No past memories for this or similar targets.**"
+
+        return "\n\n".join(parts)
+
+    # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
+
+    def _add_memory(
+        self,
+        content: str,
+        target: str,
+        category: str = "general",
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> Optional[str]:
+        """Internal: store a memory via VectorMemory."""
+        if not self._vector:
+            return None
+        try:
+            return self._vector.add_memory(
+                content=content,
+                target=target,
+                category=category,
+                metadata=metadata,
+            )
+        except Exception as e:
+            logger.debug(f"Add memory failed: {e}")
+            return None
+
+    @staticmethod
+    def _format_context(recall: Dict[str, Any]) -> str:
+        """Format recall results into concise text."""
+        parts = []
+        if recall["memories"]:
+            parts.append(f"Found {len(recall['memories'])} past relevant memories.")
+        if recall["learned_skills"]:
+            parts.append(f"Past effective tools: {len(recall['learned_skills'])} patterns.")
+        return " | ".join(parts) if parts else "No relevant memories."

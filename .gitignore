@@ -136,3 +136,4 @@ _missing_requirements.txt
 
 # ChromaDB vector memory (generated runtime data)
 data/memory/
+data/chroma_learning/
