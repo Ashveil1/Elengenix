@@ -492,10 +492,11 @@ def main():
     if args.command == "auto" and not args.target:
         args.command = "tui"
 
-    # Bare target (elengenix example.com) → auto-route to vuln-hunt
-    if args.command and args.command not in valid_commands and args.target is None and re.match(
-        r"^[a-zA-Z0-9]([a-zA-Z0-9.-]*[a-zA-Z0-9])?\.[a-zA-Z]{2,}(:\d+)?(/.*)?$|^\d{1,3}(\.\d{1,3}){3}(:\d+)?$|^https?://",
-        args.command,
+    # Bare target (elengenix <anything>) → auto-route to vuln-hunt (TRUE AI agent)
+    if (
+        args.command
+        and args.command not in valid_commands
+        and args.target is None
     ):
         args.target = args.command
         args.command = "vuln-hunt"
@@ -937,7 +938,10 @@ def main():
                 print_error("Target is required")
                 return
 
-            if not require_authorized_scan_target(target):
+            # Safety: block shell metacharacters only (target is AI context, not a real URL/domain)
+            forbidden = ["|", "&", ";", "`", "$(", "${", ">", "<", "\\", "'", '"', "!", "\n", "\r"]
+            if any(c in target for c in forbidden):
+                print_error("Invalid target: contains shell metacharacters")
                 return
 
             from elengenix.agent import VulnAgent

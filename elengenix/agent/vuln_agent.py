@@ -110,6 +110,42 @@ class VulnReport:
             "recommendations": self.recommendations,
         }
 
+    def render(self) -> str:
+        """Render the report as a human-readable markdown string."""
+        lines = [
+            f"# Vulnerability Report: {self.target}",
+            f"",
+            f"**Duration:** {self.scan_duration:.1f}s  |  **Steps:** {self.total_steps}  |  **Findings:** {len(self.findings)}",
+            f"",
+        ]
+        if self.summary:
+            lines.append(f"## Summary\n{self.summary}\n")
+        if self.findings:
+            lines.append(f"## Findings ({len(self.findings)})")
+            for i, f in enumerate(self.findings, 1):
+                lines.append(f"")
+                lines.append(f"### {i}. [{f.severity.upper()}] {f.title}")
+                lines.append(f"**Target:** {f.target}  |  **Confidence:** {f.confidence:.0%}")
+                lines.append(f"**Source:** {f.source_tool or 'AI analysis'}")
+                if f.description:
+                    lines.append(f"\n{f.description}")
+                if f.evidence:
+                    lines.append(f"\n**Evidence:**\n```\n{f.evidence[:500]}\n```")
+                if f.remediation:
+                    lines.append(f"\n**Remediation:** {f.remediation}")
+            lines.append("")
+        if self.open_ports:
+            lines.append(f"**Open ports:** {', '.join(str(p) for p in self.open_ports)}")
+        if self.services:
+            lines.append(f"**Services detected:**")
+            for svc, ver in self.services.items():
+                lines.append(f"  - {svc} ({ver})")
+        if self.recommendations:
+            lines.append(f"\n## Recommendations")
+            for r in self.recommendations:
+                lines.append(f"- {r}")
+        return "\n".join(lines)
+
 
 # ---------------------------------------------------------------------------
 # Tool definitions (self-contained for this agent)
@@ -290,13 +326,20 @@ SYSTEM_PROMPT_TEMPLATE = """You are Elengenix — an autonomous AI security rese
 Your mission: thoroughly investigate the target and find security vulnerabilities.
 You have complete autonomy over HOW you do this. There are no forced phases or sequences.
 
+## MISSION
+- You are given a target: "{target}"
+- HUNT AGGRESSIVELY. Think like a real penetration tester.
+- Use every tool at your disposal. Combine information from different sources.
+- If one approach hits a dead end, pivot. Try another angle.
+
 ## CONTRACT
 
 1. **Think before you act.** Explain your reasoning for each step.
 2. **Call ONE tool per turn.** When you have results, analyze them.
 3. **Build hypotheses.** "Port 80 open → likely Apache → try known CVEs"
 4. **Pivot on evidence.** A finding changes direction. Follow it.
-5. **Conclude when ready.** When you have enough evidence to report findings, summarize.
+5. **Be thorough.** Check network, web, services, known vulnerabilities, misconfigurations.
+6. **Conclude when ready.** When you have enough evidence to report findings, summarize.
 
 ## Current state
 
@@ -384,14 +427,23 @@ class VulnAgent:
     # Public entry point
     # ------------------------------------------------------------------
 
-    def hunt(self) -> VulnReport:
+    def hunt(self, verbose: bool = True) -> VulnReport:
         """Execute the autonomous hunting loop.
+
+        Args:
+            verbose: If True, prints AI reasoning and actions to console in real-time.
 
         Returns a VulnReport with all findings.
         """
+        import sys
         logger.info("Hunt started: target=%s", self.target)
         self.start_time = time.time()
         self.step = 0
+
+        if verbose:
+            sys.stdout.write(f"\n🎯 Hunting: {self.target}\n")
+            sys.stdout.write(f"{'─' * 50}\n")
+            sys.stdout.flush()
 
         while self.step < self.max_steps:
             self.step += 1
@@ -407,13 +459,36 @@ class VulnAgent:
             if action.get("conclude"):
                 logger.info("AI concluded hunt")
                 self._record_conclusion(action)
+                if verbose:
+                    sys.stdout.write(f"\n💡 AI concluded: {action.get('summary', '')[:200]}\n")
+                    sys.stdout.flush()
                 break
 
             # 3. ACT — execute the chosen tool
+            if verbose:
+                reasoning = action.get("reasoning", "")
+                tool_name = action.get("tool", "?")
+                args_str = action.get("arguments", {})
+                if reasoning:
+                    sys.stdout.write(f"\n🤔 {reasoning[:300]}\n")
+                sys.stdout.write(f"⚡ {tool_name}({args_str})\n")
+                sys.stdout.flush()
+
             result = self._execute_step(action)
 
             # 4. ANALYZE — record and feed back next iteration
             self._record_step(action, result)
+
+            if verbose:
+                status = "✅" if result.get("success") else "❌"
+                output = result.get("output", result.get("error", ""))[:200]
+                sys.stdout.write(f"{status} {output}\n")
+                sys.stdout.flush()
+
+        if verbose:
+            sys.stdout.write(f"{'─' * 50}\n")
+            sys.stdout.write(f"📋 Generating report...\n")
+            sys.stdout.flush()
 
         return self._generate_report()
 
@@ -592,7 +667,7 @@ class VulnAgent:
         hypotheses_text = self._format_hypotheses()
         findings_text = self._format_findings()
         history_text = self._format_history()
-        target_type = "IP" if self.target.replace(".", "").isdigit() else "domain"
+        target_type = "domain" if "." in self.target and not self.target.replace(".", "").isdigit() else "IP" if self.target.replace(".", "").isdigit() else "identifier"
 
         return SYSTEM_PROMPT_TEMPLATE.format(
             target=self.target,
