@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from tools.cvss_calculator import CVSSCalculator
-from tools.tool_registry import ToolResult
+from tools.tool_registry import ToolCategory, ToolResult
 
 logger = logging.getLogger(__name__)
 
@@ -256,8 +256,8 @@ def execute_tool_registry(tool_name: str, target: str,
     tool = registry.get(tool_name)
     if tool:
         return tool.handler(target)
-    return ToolResult(success=False, output="",
-                      error=f"Tool '{tool_name}' not found")
+    return ToolResult(success=False, tool_name=tool_name, category=ToolCategory.SCANNER,
+                      output="", error_message=f"Tool '{tool_name}' not found")
 
 
 def execute_tool_subprocess(tool_name: str, target: str) -> Any:
@@ -268,9 +268,9 @@ def execute_tool_subprocess(tool_name: str, target: str) -> Any:
         out = sp.check_output(
             [tool_name, target], stderr=sp.STDOUT, timeout=30
         )
-        return ToolResult(success=True, output=out.decode())
+        return ToolResult(success=True, tool_name=tool_name, category=ToolCategory.SCANNER, output=out.decode())
     except Exception as exc:
-        return ToolResult(success=False, output="", error=str(exc))
+        return ToolResult(success=False, tool_name="subprocess", category=ToolCategory.SCANNER, output="", error_message=str(exc))
 
 
 # ---------------------------------------------------------------------------
@@ -1080,7 +1080,7 @@ class ElengenixAgent:
                     "output": "",
                     "error": f"Blocked by governance: {gate.get('rationale', 'denied')}",
                 }
-        return self._execute_tool(tool_name, target)
+        return execute_tool({"tool": tool_name, "command": tool_name, "target": target})
 
     def resume_mission(self, mission_id: str) -> str:
         return f"[Resumed mission {mission_id}]"
