@@ -492,6 +492,14 @@ def main():
     if args.command == "auto" and not args.target:
         args.command = "tui"
 
+    # Bare target (elengenix example.com) → auto-route to vuln-hunt
+    if args.command and args.command not in valid_commands and args.target is None and re.match(
+        r"^[a-zA-Z0-9]([a-zA-Z0-9.-]*[a-zA-Z0-9])?\.[a-zA-Z]{2,}(:\d+)?(/.*)?$|^\d{1,3}(\.\d{1,3}){3}(:\d+)?$|^https?://",
+        args.command,
+    ):
+        args.target = args.command
+        args.command = "vuln-hunt"
+
     # ── D-handlers: short-circuit before auto-detect (D1+D2) ──
     if args.command == "list-tools":
         _cmd_list_tools()
