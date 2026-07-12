@@ -77,7 +77,7 @@ class PostExecutionProcessor:
         self.vuln_finder = vuln_finder
         self.callback = callback
 
-    async def _verify_finding_new(
+    def _verify_finding_new(
         self,
         ctx: "ScanContext",
         finding: Dict[str, Any],
@@ -98,7 +98,7 @@ class PostExecutionProcessor:
             return True
 
         try:
-            result = await engine.verify_with_consensus(finding)
+            result = engine.verify_with_consensus(finding)
             finding["verification"] = {
                 "verified": result.verified,
                 "consensus_verdict": result.consensus_verdict,
@@ -193,7 +193,7 @@ class PostExecutionProcessor:
         ctx.add_result(result)
 
         # Group 1: Coverage tracking & verification
-        verified_findings = await self._process_coverage_and_verification(
+        verified_findings = self._process_coverage_and_verification(
             ctx, result, tool_name, action_data
         )
 
@@ -209,7 +209,7 @@ class PostExecutionProcessor:
         # Group 5: Attack tree & adaptive strategy
         self._process_strategy(ctx, result, tool_name, step)
 
-    async def _process_coverage_and_verification(
+    def _process_coverage_and_verification(
         self,
         ctx: "ScanContext",
         result: Any,
@@ -247,7 +247,7 @@ class PostExecutionProcessor:
                     ctx.coverage_map.record_test(f_endpoint, f_class)
 
                 # Run verification pipeline
-                verified = await self._verify_finding(ctx, finding, f_endpoint, f_class, tool_name)
+                verified = self._verify_finding(ctx, finding, f_endpoint, f_class, tool_name)
                 if verified:
                     verified_findings.append(finding)
                 # If not verified, it's already recorded as negative in _verify_finding_new
@@ -282,7 +282,7 @@ class PostExecutionProcessor:
 
         return verified_findings
 
-    async def _verify_finding(
+    def _verify_finding(
         self,
         ctx: "ScanContext",
         finding: Dict[str, Any],
@@ -299,7 +299,7 @@ class PostExecutionProcessor:
             # No dedicated verification pipeline — use the built-in
             # multi-model verification engine (global singleton) instead
             # of silently accepting all findings.
-            return await self._verify_finding_new(ctx, finding, endpoint, vuln_class, tool_name)
+            return self._verify_finding_new(ctx, finding, endpoint, vuln_class, tool_name)
 
         try:
             verdict = ctx.verification_pipeline.verify_finding(

@@ -422,8 +422,7 @@ class VulnFinder:
         Returns:
             VerificationResult.
         """
-        import asyncio
-        return asyncio.run(self.verification.verify_with_consensus(finding))
+        return self.verification.verify_with_consensus(finding)
 
     def add_finding(self, finding: Dict[str, Any]) -> None:
         """Add a finding to the mission state and persist to memory.

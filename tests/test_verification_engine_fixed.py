@@ -1,9 +1,12 @@
-"""Tests for VerificationEngine - Fixed version with proper mocking"""
+"""Tests for VerificationEngine (sync API).
+
+Tests use MagicMock to isolate consensus logic from actual AI calls.
+"""
 
 from __future__ import annotations
 
 import pytest
-from unittest.mock import MagicMock, AsyncMock, patch, AsyncMock
+from unittest.mock import MagicMock, patch
 from tools.verification_engine import VerificationEngine, ModelVote, VerificationResult
 
 
@@ -14,11 +17,11 @@ class TestVerificationEngineFixed:
     def engine(self):
         engine = VerificationEngine()
         engine.models = [
-            {"name": "opus", "provider": None, "weight": 3.0, "role": "primary"},
-            {"name": "sonnet", "provider": None, "weight": 2.0, "role": "secondary"},
+            {"name": "default", "weight": 3.0, "role": "primary", "temperature": 0.1},
+            {"name": "default", "weight": 2.0, "role": "conservative", "temperature": 0.05},
         ]
         engine.ai_client = MagicMock()
-        engine.ai_client.chat = AsyncMock()
+        engine.ai_client.chat.return_value = MagicMock(content="confirmed - real vulnerability")
         return engine
 
     @pytest.fixture
@@ -33,430 +36,125 @@ class TestVerificationEngineFixed:
             "description": "SQL injection in login form"
         }
 
-    @pytest.fixture
-    def mock_votes_confirm(self):
-        """Model votes that confirm the finding"""
-        from tools.verification_engine import ModelVote
-        return [
-            ModelVote(
-                model_name="claude-opus-4-8",
-                model_weight=3.0,
-                verdict="confirmed",
-                confidence=0.9,
-                reasoning="Clear SQL error",
-                severity_adjustment=None
-            ),
-            ModelVote(
-                model_name="claude-sonnet-5",
-                model_weight=2.0,
-                verdict="confirmed",
-                confidence=0.85,
-                reasoning="Clear SQL error",
-                severity_adjustment=None
-            )
-        ]
+    # ── _compute_consensus tests (unit-level, no AI calls) ────────────────
 
-    @pytest.fixture
-    def mock_votes_disagree(self):
-        """One confirms, one denies"""
-        from tools.verification_engine import ModelVote
-        return [
-            ModelVote(
-                model_name="claude-opus-4-8",
-                model_weight=3.0,
-                verdict="confirmed",
-                confidence=0.9,
-                reasoning="Clear SQL error",
-                severity_adjustment=None
-            ),
-            ModelVote(
-                model_name="claude-sonnet-5",
-                model_weight=2.0,
-                verdict="false_positive",
-                confidence=0.8,
-                reasoning="WAF blocked",
-                severity_adjustment=None
-            )
-        ]
-
-    @pytest.fixture
-    def mock_votes_deny(self):
-        """Both models deny"""
-        from tools.verification_engine import ModelVote
-        return [
-            ModelVote(
-                model_name="claude-opus-4-8",
-                model_weight=3.0,
-                verdict="false_positive",
-                confidence=0.8,
-                reasoning="WAF blocked",
-                severity_adjustment=None
-            ),
-            ModelVote(
-                model_name="claude-sonnet-5",
-                model_weight=2.0,
-                verdict="false_positive",
-                confidence=0.8,
-                reasoning="WAF blocked",
-                severity_adjustment=None
-            )
-        ]
-
-    @pytest.fixture
-    def mock_votes_severity_adjust(self):
-        """Votes with severity adjustment"""
-        from tools.verification_engine import ModelVote
-        return [
-            ModelVote(
-                model_name="claude-opus-4-8",
-                model_weight=3.0,
-                verdict="confirmed",
-                confidence=0.9,
-                reasoning="Script reflected",
-                severity_adjustment=None
-            ),
-            ModelVote(
-                model_name="claude-sonnet-5",
-                model_weight=2.0,
-                verdict="severity_adjustment",
-                confidence=0.8,
-                reasoning="Only self-XSS",
-                severity_adjustment="MEDIUM"
-            )
-        ]
-
-    @pytest.fixture
-    def engine(self):
+    def test_verify_both_confirm(self):
+        """All perspectives confirm → finding is verified"""
         engine = VerificationEngine()
-        engine.models = [
-            {"name": "opus", "provider": None, "weight": 3.0, "role": "primary"},
-            {"name": "sonnet", "provider": None, "weight": 2.0, "role": "secondary"},
+        finding = {"type": "XSS", "severity": "HIGH", "url": "http://test.com"}
+        votes = [
+            _vote("confirmed", confidence=0.9),
+            _vote("confirmed", confidence=0.95),
         ]
-        engine.ai_client = MagicMock()
-        engine.ai_client.chat = AsyncMock()
-        return engine
+        result = engine._compute_consensus(finding, votes)
+        assert result.verified is True
+        assert result.confidence > 0.5
+        assert result.severity == "HIGH"
 
-    @pytest.fixture
-    def mock_finding(self):
-        return {
-            "type": "sqli",
-            "severity": "high",
-            "url": "http://example.com/login",
-            "parameter": "username",
-            "payload": "' OR '1'='1",
-            "evidence": "SQL error in response",
-            "description": "SQL injection in login form"
-        }
-
-    @pytest.fixture
-    def mock_votes_confirm(self):
-        from tools.verification_engine import ModelVote
-        return [
-            ModelVote(
-                model_name="claude-opus-4-8",
-                model_weight=3.0,
-                verdict="confirmed",
-                confidence=0.9,
-                reasoning="Clear SQL error",
-                severity_adjustment=None
-            ),
-            ModelVote(
-                model_name="claude-sonnet-5",
-                model_weight=2.0,
-                verdict="confirmed",
-                confidence=0.85,
-                reasoning="Clear SQL error",
-                severity_adjustment=None
-            )
-        ]
-
-    @pytest.fixture
-    def mock_votes_disagree(self):
-        """One confirms, one denies"""
-        from tools.verification_engine import ModelVote
-        return [
-            ModelVote(
-                model_name="claude-opus-4-8",
-                model_weight=3.0,
-                verdict="confirmed",
-                confidence=0.9,
-                reasoning="Clear SQL error",
-                severity_adjustment=None
-            ),
-            ModelVote(
-                model_name="claude-sonnet-5",
-                model_weight=2.0,
-                verdict="false_positive",
-                confidence=0.8,
-                reasoning="WAF blocked",
-                severity_adjustment=None
-            )
-        ]
-
-    @pytest.fixture
-    def mock_votes_deny(self):
-        """Both models deny"""
-        from tools.verification_engine import ModelVote
-        return [
-            ModelVote(
-                model_name="claude-opus-4-8",
-                model_weight=3.0,
-                verdict="false_positive",
-                confidence=0.8,
-                reasoning="WAF blocked",
-                severity_adjustment=None
-            ),
-            ModelVote(
-                model_name="claude-sonnet-5",
-                model_weight=2.0,
-                verdict="false_positive",
-                confidence=0.8,
-                reasoning="WAF blocked",
-                severity_adjustment=None
-            )
-        ]
-
-    @pytest.fixture
-    def mock_votes_severity_adjust(self):
-        """Votes with severity adjustment"""
-        from tools.verification_engine import ModelVote
-        return [
-            ModelVote(
-                model_name="claude-opus-4-8",
-                model_weight=3.0,
-                verdict="confirmed",
-                confidence=0.9,
-                reasoning="Script reflected",
-                severity_adjustment=None
-            ),
-            ModelVote(
-                model_name="claude-sonnet-5",
-                model_weight=2.0,
-                verdict="severity_adjustment",
-                confidence=0.8,
-                reasoning="Only self-XSS",
-                severity_adjustment="MEDIUM"
-            )
-        ]
-
-    @pytest.fixture
-    def engine(self):
+    def test_verify_one_confirm_one_deny(self):
+        """Split perspectives → inconclusive → human review"""
         engine = VerificationEngine()
-        engine.models = [
-            {"name": "opus", "provider": None, "weight": 3.0, "role": "primary"},
-            {"name": "sonnet", "provider": None, "weight": 2.0, "role": "secondary"},
+        finding = {"type": "SQLi", "severity": "MEDIUM", "url": "http://test.com"}
+        votes = [
+            _vote("confirmed", confidence=0.8),
+            _vote("false_positive", confidence=0.7),
         ]
-        engine.ai_client = MagicMock()
-        engine.ai_client.chat = AsyncMock()
-        return engine
+        result = engine._compute_consensus(finding, votes)
+        assert result.verified is False
+        assert result.consensus_verdict == "inconclusive"
+        assert result.requires_human_review is True
 
-    @pytest.fixture
-    def mock_finding(self):
-        return {
-            "type": "sqli",
-            "severity": "high",
-            "url": "http://example.com/login",
-            "parameter": "username",
-            "payload": "' OR '1'='1",
-            "evidence": "SQL error in response",
-            "description": "SQL injection in login form"
-        }
-
-    @pytest.fixture
-    def mock_votes_confirm(self):
-        from tools.verification_engine import ModelVote
-        return [
-            ModelVote(
-                model_name="claude-opus-4-8",
-                model_weight=3.0,
-                verdict="confirmed",
-                confidence=0.9,
-                reasoning="Clear SQL error",
-                severity_adjustment=None
-            ),
-            ModelVote(
-                model_name="claude-sonnet-5",
-                model_weight=2.0,
-                verdict="confirmed",
-                confidence=0.85,
-                reasoning="Clear SQL error",
-                severity_adjustment=None
-            )
-        ]
-
-    @pytest.fixture
-    def mock_votes_disagree(self):
-        """One confirms, one denies"""
-        from tools.verification_engine import ModelVote
-        return [
-            ModelVote(
-                model_name="claude-opus-4-8",
-                model_weight=3.0,
-                verdict="confirmed",
-                confidence=0.9,
-                reasoning="Clear SQL error",
-                severity_adjustment=None
-            ),
-            ModelVote(
-                model_name="claude-sonnet-5",
-                model_weight=2.0,
-                verdict="false_positive",
-                confidence=0.8,
-                reasoning="WAF blocked",
-                severity_adjustment=None
-            )
-        ]
-
-    @pytest.fixture
-    def mock_votes_deny(self):
-        """Both models deny"""
-        from tools.verification_engine import ModelVote
-        return [
-            ModelVote(
-                model_name="claude-opus-4-8",
-                model_weight=3.0,
-                verdict="false_positive",
-                confidence=0.8,
-                reasoning="WAF blocked",
-                severity_adjustment=None
-            ),
-            ModelVote(
-                model_name="claude-sonnet-5",
-                model_weight=2.0,
-                verdict="false_positive",
-                confidence=0.8,
-                reasoning="WAF blocked",
-                severity_adjustment=None
-            )
-        ]
-
-    @pytest.fixture
-    def mock_votes_severity_adjust(self):
-        """Votes with severity adjustment"""
-        from tools.verification_engine import ModelVote
-        return [
-            ModelVote(
-                model_name="claude-opus-4-8",
-                model_weight=3.0,
-                verdict="confirmed",
-                confidence=0.9,
-                reasoning="Script reflected",
-                severity_adjustment=None
-            ),
-            ModelVote(
-                model_name="claude-sonnet-5",
-                model_weight=2.0,
-                verdict="severity_adjustment",
-                confidence=0.8,
-                reasoning="Only self-XSS",
-                severity_adjustment="MEDIUM"
-            )
-        ]
-
-    @pytest.fixture
-    def engine(self):
+    def test_verify_both_deny(self):
+        """All perspectives deny → false positive"""
         engine = VerificationEngine()
-        engine.models = [
-            {"name": "opus", "provider": None, "weight": 3.0, "role": "primary"},
-            {"name": "sonnet", "provider": None, "weight": 2.0, "role": "secondary"},
+        finding = {"type": "SSRF", "severity": "HIGH", "url": "http://test.com"}
+        votes = [
+            _vote("false_positive", confidence=0.8),
+            _vote("false_positive", confidence=0.9),
         ]
-        engine.ai_client = MagicMock()
-        engine.ai_client.chat = AsyncMock()
-        return engine
+        result = engine._compute_consensus(finding, votes)
+        assert result.verified is False
+        assert result.consensus_verdict == "false_positive"
+        assert result.requires_human_review is False
+        assert result.severity == "INFO"
+        assert result.confidence > 0.5
 
-    @pytest.fixture
-    def mock_finding(self):
-        return {
-            "type": "sqli",
-            "severity": "high",
-            "url": "http://example.com/login",
-            "parameter": "username",
-            "payload": "' OR '1'='1",
-            "evidence": "SQL error in response",
-            "description": "SQL injection in login form"
-        }
+    def test_verify_default_severity(self):
+        """Missing severity in finding defaults to MEDIUM"""
+        engine = VerificationEngine()
+        finding = {"type": "IDOR"}
+        votes = [
+            _vote("confirmed", confidence=0.9),
+            _vote("confirmed", confidence=0.95),
+        ]
+        result = engine._compute_consensus(finding, votes)
+        assert result.verified is True
+        assert result.severity == "MEDIUM"
 
-    @pytest.mark.asyncio
-    async def test_verify_both_confirm(self, engine, mock_finding):
-        """Test verification when both models confirm"""
-        with patch.object(engine, '_query_model', new_callable=AsyncMock) as mock_query:
+    def test_consensus_weighted_majority(self):
+        """Weighted votes: heavy confirm outweighs light deny"""
+        engine = VerificationEngine()
+        finding = {"type": "XSS", "severity": "LOW"}
+        votes = [
+            _vote("confirmed", confidence=0.9, weight=3.0),
+            _vote("false_positive", confidence=0.9, weight=1.0),
+        ]
+        result = engine._compute_consensus(finding, votes)
+        assert result.verified is True
+        assert result.consensus_verdict == "confirmed"
+
+    def test_fallback_verification_empty(self):
+        """No votes → fallback returns VerificationResult (no crash)"""
+        engine = VerificationEngine()
+        finding = {"type": "XSS", "url": "http://test.com"}
+        result = engine._compute_consensus(finding, [])
+        assert isinstance(result, VerificationResult)
+
+    # ── verify_with_consensus integration tests (mocked AI) ───────────────
+
+    def test_verify_integration_both_confirm(self, engine, mock_finding):
+        """verify_with_consensus returns confirmed when both perspectives confirm"""
+        with patch.object(engine, '_query_perspective') as mock_query:
             mock_query.side_effect = [
-                ModelVote(
-                    model_name="claude-opus-4-8",
-                    model_weight=3.0,
-                    verdict="confirmed",
-                    confidence=0.9,
-                    reasoning="Clear SQL error",
-                    severity_adjustment=None
-                ),
-                ModelVote(
-                    model_name="claude-sonnet-5",
-                    model_weight=2.0,
-                    verdict="confirmed",
-                    confidence=0.85,
-                    reasoning="Clear SQL error",
-                    severity_adjustment=None
-                )
+                _vote("confirmed", confidence=0.9, weight=3.0),
+                _vote("confirmed", confidence=0.85, weight=2.0),
             ]
-            result = await engine.verify_with_consensus(mock_finding)
+
+            result = engine.verify_with_consensus(mock_finding)
 
             assert result.verified is True
             assert result.consensus_verdict == "confirmed"
             assert result.confidence > 0.8
             assert len(result.model_votes) == 2
 
-    @pytest.mark.asyncio
-    async def test_verify_one_confirms_one_denies(self, engine, mock_finding):
-        """Test when models disagree"""
-        with patch.object(engine, '_query_model', new_callable=AsyncMock) as mock_query:
+    def test_verify_one_confirms_one_denies(self, engine, mock_finding):
+        """When perspectives disagree, weighted majority determines outcome"""
+        with patch.object(engine, '_query_perspective') as mock_query:
             mock_query.side_effect = [
-                ModelVote(
-                    model_name="claude-opus-4-8",
-                    model_weight=3.0,
-                    verdict="confirmed",
-                    confidence=0.9,
-                    reasoning="Clear SQL error",
-                    severity_adjustment=None
-                ),
-                ModelVote(
-                    model_name="claude-sonnet-5",
-                    model_weight=2.0,
-                    verdict="false_positive",
-                    confidence=0.8,
-                    reasoning="WAF blocked",
-                    severity_adjustment=None
-                )
+                _vote("confirmed", confidence=0.9, weight=3.0),
+                _vote("false_positive", confidence=0.8, weight=2.0),
             ]
 
-            result = await engine.verify_with_consensus(mock_finding)
+            result = engine.verify_with_consensus(mock_finding)
 
             # With weights 3.0 (confirmed) vs 2.0 (false_positive), confirmed wins
             assert result.verified is True
             assert result.consensus_verdict == "confirmed"
             assert result.requires_human_review is False
 
-    @pytest.mark.asyncio
-    async def test_verify_both_deny(self, engine, mock_finding):
-        """Test when both models deny"""
-        with patch.object(engine, '_query_model', new_callable=AsyncMock) as mock_query:
-            mock_query.return_value = ModelVote(
-                model_name="claude-opus-4-8",
-                model_weight=3.0,
-                verdict="false_positive",
-                confidence=0.8,
-                reasoning="WAF blocked",
-                severity_adjustment=None
-            )
+    def test_integration_both_deny(self, engine, mock_finding):
+        """When both perspectives deny, finding is false positive"""
+        with patch.object(engine, '_query_perspective') as mock_query:
+            mock_query.return_value = _vote("false_positive", confidence=0.8, weight=3.0)
 
-            result = await engine.verify_with_consensus(mock_finding)
+            result = engine.verify_with_consensus(mock_finding)
 
             assert result.verified is False
             assert result.consensus_verdict == "false_positive"
             assert result.confidence > 0.5
 
-    @pytest.mark.asyncio
-    async def test_verify_severity_adjustment(self, engine):
-        """Test severity adjustment by models"""
+    def test_verify_severity_adjustment(self, engine):
+        """Severity adjustment via weighted majority"""
         finding = {
             "type": "xss",
             "severity": "HIGH",
@@ -467,58 +165,41 @@ class TestVerificationEngineFixed:
             "description": "Reflected XSS in search"
         }
 
-        with patch.object(engine, '_query_model', new_callable=AsyncMock) as mock_query:
+        with patch.object(engine, '_query_perspective') as mock_query:
             mock_query.side_effect = [
-                ModelVote(
-                    model_name="claude-opus-4-8",
-                    model_weight=3.0,
-                    verdict="confirmed",
-                    confidence=0.9,
-                    reasoning="Script reflected",
-                    severity_adjustment=None
-                ),
-                ModelVote(
-                    model_name="claude-sonnet-5",
-                    model_weight=2.0,
-                    verdict="severity_adjustment",
-                    confidence=0.8,
-                    reasoning="Only self-XSS",
-                    severity_adjustment="MEDIUM"
-                )
+                _vote("confirmed", confidence=0.9, weight=3.0),
+                _vote("severity_adjustment", confidence=0.8, weight=2.0, severity_adj="MEDIUM"),
             ]
 
-            result = await engine.verify_with_consensus(finding)
+            result = engine.verify_with_consensus(finding)
 
             assert result.verified is True
             assert result.severity == "MEDIUM"
             assert result.confidence > 0.7
 
-    @pytest.mark.asyncio
-    async def test_fallback_verification(self, engine):
-        """Test fallback when no AI client"""
+    def test_fallback_no_ai_client(self, engine):
+        """No AI client → fallback → requires_human_review=True"""
         engine.ai_client = None
         finding = {"type": "xss", "severity": "HIGH", "url": "http://test.com"}
 
-        result = await engine.verify_with_consensus(finding)
+        result = engine.verify_with_consensus(finding)
 
         assert result.verified is False
         assert result.consensus_verdict == "insufficient_evidence"
         assert result.requires_human_review is True
 
-    @pytest.mark.asyncio
-    async def test_all_models_fail(self, engine):
-        """Test when all models fail"""
-        with patch.object(engine, '_query_model', new_callable=AsyncMock) as mock_query:
-            mock_query.side_effect = Exception("Model failed")
+    def test_all_perspectives_fail(self, engine):
+        """All queries fail → fallback → requires_human_review=True"""
+        with patch.object(engine, '_query_perspective') as mock_query:
+            mock_query.side_effect = Exception("AI call failed")
 
-            result = await engine.verify_with_consensus({"type": "xss"})
+            result = engine.verify_with_consensus({"type": "xss"})
 
             assert result.verified is False
             assert result.consensus_verdict == "insufficient_evidence"
 
-    @pytest.mark.asyncio
-    async def test_severity_adjustment_consensus(self, engine):
-        """Test severity adjustment via weighted majority"""
+    def test_severity_adjustment_weighted(self, engine):
+        """Severity adjustment via weighted majority with multiple opinions"""
         finding = {
             "type": "xss",
             "severity": "HIGH",
@@ -527,28 +208,29 @@ class TestVerificationEngineFixed:
             "payload": "<script>alert(1)</script>"
         }
 
-        with patch.object(engine, '_query_model', new_callable=AsyncMock) as mock_query:
+        with patch.object(engine, '_query_perspective') as mock_query:
             mock_query.side_effect = [
-                ModelVote(
-                    model_name="claude-opus-4-8",
-                    model_weight=3.0,
-                    verdict="confirmed",
-                    confidence=0.9,
-                    reasoning="Script reflected",
-                    severity_adjustment=None
-                ),
-                ModelVote(
-                    model_name="claude-sonnet-5",
-                    model_weight=2.0,
-                    verdict="severity_adjustment",
-                    confidence=0.8,
-                    reasoning="Only self-XSS",
-                    severity_adjustment="MEDIUM"
-                )
+                _vote("confirmed", confidence=0.9, weight=3.0),
+                _vote("severity_adjustment", confidence=0.8, weight=2.0, severity_adj="MEDIUM"),
             ]
 
-            result = await engine.verify_with_consensus(finding)
+            result = engine.verify_with_consensus(finding)
 
             assert result.verified is True
             assert result.severity == "MEDIUM"
             assert result.confidence > 0.7
+
+
+# ── Helper ──────────────────────────────────────────────────────────────────
+
+
+def _vote(verdict, confidence=0.9, weight=1.0, severity_adj=None):
+    """Helper to create a ModelVote."""
+    return ModelVote(
+        model_name="test",
+        model_weight=weight,
+        verdict=verdict,
+        confidence=confidence,
+        reasoning="test reasoning",
+        severity_adjustment=severity_adj,
+    )

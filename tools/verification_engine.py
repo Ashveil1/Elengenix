@@ -1,17 +1,20 @@
-"""tools/verification_engine.py — Multi-model verification engine.
+"""tools/verification_engine.py — Multi-perspective verification engine.
 
-Validates findings using multiple independent AI models to reduce false positives.
-Based on Mythos research: "verification agent confirms if bugs are real."
+Validates findings by querying the configured AI provider from multiple
+angles (different temperatures, system prompts, role framing) to reduce
+false positives without depending on multiple separate model endpoints.
 
-Public API:
-    VerificationEngine - Main verification engine
-    VerificationResult - Data class for verification results
+Design:
+- Single AI provider (whatever is configured — OpenRouter, Ollama, etc.)
+- Multiple "perspective" passes with different temperatures & role frames
+- Weighted consensus on the set of perspectives
+- Low-consensus results always flagged for human review
 """
 
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
 from tools.universal_ai_client import AIClientManager, AIMessage
@@ -22,6 +25,7 @@ logger = logging.getLogger("elengenix.verification_engine")
 @dataclass
 class ModelVote:
     """Single model's vote on a finding."""
+
     model_name: str
     model_weight: float
     verdict: str  # "confirmed", "false_positive", "severity_adjustment"
@@ -32,14 +36,14 @@ class ModelVote:
 
 @dataclass
 class VerificationResult:
-    """Result of multi-model verification.
+    """Result of verification.
 
     Attributes:
         finding: The original finding.
         verified: Whether consensus confirms the finding.
         consensus_verdict: The agreed verdict.
         severity: Final severity after consensus.
-        model_votes: List of individual model votes.
+        model_votes: List of individual perspective votes.
         requires_human_review: Whether human review is needed.
         confidence: Aggregate confidence score (0.0 to 1.0).
         consensus_strength: How strong the consensus is (0.0-1.0).
@@ -55,22 +59,26 @@ class VerificationResult:
     consensus_strength: float
 
 
-# Default model configurations for verification
-# Uses the system's own AI client default — not hardcoded Anthropic models
-# that would silently fail on other providers.
+# Default perspective configurations
+# Queries the AI provider from multiple angles to simulate multi-model consensus
+# without requiring multiple separate model endpoints.
 DEFAULT_VERIFICATION_MODELS = [
-    {"name": "default", "provider": None, "weight": 1.0, "role": "primary"},
+    {"name": "default", "provider": None, "weight": 1.0, "role": "primary", "temperature": 0.1},
+    {"name": "default", "provider": None, "weight": 0.8, "role": "conservative", "temperature": 0.05},
+    {"name": "default", "provider": None, "weight": 0.6, "role": "strict", "temperature": 0.2},
 ]
 
 
 class VerificationEngine:
-    """Multi-model verification engine for validating findings.
+    """Multi-perspective verification engine for validating findings.
 
-    This engine uses 3 independent AI models (Opus, Sonnet, Haiku) to verify findings,
-    reducing false positives and improving confidence through weighted consensus.
+    Queries the configured AI provider from multiple angles (different role
+    frames and temperatures) to build a weighted consensus on whether a
+    finding is a real vulnerability, a false positive, or needs a severity
+    adjustment.
 
     Based on Mythos research:
-    - Multiple models vote with different weights
+    - Multiple perspectives vote with different weights
     - Consensus determines if finding is real
     - Severity adjustments via weighted majority
     - Low consensus flagged for human review
@@ -78,7 +86,7 @@ class VerificationEngine:
     Example:
         engine = VerificationEngine(ai_client=client)
         finding = {"type": "XSS", "severity": "HIGH", "url": "http://test.com"}
-        result = await engine.verify_with_consensus(finding)
+        result = engine.verify_with_consensus(finding)
         if result.verified:
             print("Finding is real!")
     """
@@ -91,51 +99,68 @@ class VerificationEngine:
         """Initialize verification engine.
 
         Args:
-            models: List of model configs with name, provider, weight, role.
+            models: List of perspective configs with name, provider, weight, role, temperature.
             ai_client: Optional AIClientManager for making verification calls.
         """
         self.models = models or DEFAULT_VERIFICATION_MODELS
         self.ai_client = ai_client
         self.severity_levels = ["INFO", "LOW", "MEDIUM", "HIGH", "CRITICAL"]
 
-    async def verify_with_consensus(
+    def verify_with_consensus(
         self,
         finding: Dict[str, Any],
-        max_models: int = 3,
+        max_perspectives: int = 3,
     ) -> VerificationResult:
-        """Verify a finding using multi-model consensus.
+        """Verify a finding using multi-perspective consensus.
+
+        Queries the AI provider from multiple angles (different temperatures,
+        role frames). If the AI client is unavailable, falls back to a
+        clearly-marked manual-review result (not silent rejection).
 
         Args:
             finding: The finding to verify.
-            max_models: Maximum number of models to use (default 3).
+            max_perspectives: Maximum number of perspectives to use (default 3).
 
         Returns:
             VerificationResult with consensus verdict, severity, and confidence.
         """
         if not self.ai_client:
-            logger.warning("No AI client available, using fallback verification")
+            logger.warning(
+                "No AI client configured — returning requires_human_review=True "
+                "(not silently rejecting)"
+            )
             return self._fallback_verification(finding)
 
         votes = []
         prompt = self.get_verification_prompt(finding)
 
-        # Query each model
-        for model_config in self.models[:max_models]:
+        # Query each perspective
+        for model_config in self.models[:max_perspectives]:
             try:
-                vote = await self._query_model(model_config, prompt, finding)
+                vote = self._query_perspective(model_config, prompt, finding)
                 votes.append(vote)
             except Exception as e:
-                logger.warning(f"Model {model_config['name']} failed: {e}")
+                logger.warning(f"Perspective '{model_config.get('role', '?')}' failed: {e}")
 
         if not votes:
-            logger.warning("All models failed, using fallback")
+            logger.warning(
+                "All AI queries failed — returning requires_human_review=True "
+                "(not silently rejecting)"
+            )
             return self._fallback_verification(finding)
 
         # Compute consensus
         return self._compute_consensus(finding, votes)
 
+    # ── Fallback ──────────────────────────────────────────────────────────
+
     def _fallback_verification(self, finding: Dict[str, Any]) -> VerificationResult:
-        """Fallback verification when no AI client available."""
+        """Fallback when no AI client is available or all queries fail.
+
+        This result is *always* marked requires_human_review=True so the caller
+        knows the finding was NOT automatically verified.  The engine never
+        silently rejects findings — it escalates them.
+        """
         return VerificationResult(
             finding=finding,
             verified=False,
@@ -147,41 +172,53 @@ class VerificationEngine:
             consensus_strength=0.0,
         )
 
-    async def _query_model(
+    # ── Single perspective query ──────────────────────────────────────────
+
+    def _query_perspective(
         self,
-        model_config: Dict[str, Any],
+        config: Dict[str, Any],
         prompt: str,
         finding: Dict[str, Any],
     ) -> ModelVote:
-        """Query a single model for verification."""
-        model_name = model_config["name"]
-        provider = model_config["provider"]
-        weight = model_config["weight"]
+        """Query the AI provider from one perspective and return the vote.
+
+        Each config specifies a role frame and temperature so the same
+        underlying provider gives differently-weighted opinions, simulating
+        multi-model consensus without multiple endpoints.
+        """
+        role = config.get("role", "primary")
+        weight = config.get("weight", 1.0)
+        temperature = config.get("temperature", 0.1)
+
+        # Role-appropriate system prompt
+        role_prompts = {
+            "primary": "You are a security verification expert. Be thorough but balanced.",
+            "conservative": "You are a skeptical security auditor. You must see strong evidence before confirming any finding.",
+            "strict": "You are a strict severity reviewer. Focus on whether the severity rating is accurate and whether this finding warrants action.",
+        }
+        system_prompt = role_prompts.get(role, role_prompts["primary"])
 
         messages = [
-            AIMessage(role="system", content="You are a security verification expert. Respond concisely."),
+            AIMessage(role="system", content=system_prompt),
             AIMessage(role="user", content=prompt),
         ]
 
         try:
-            # Use "default" to let AIClientManager pick the right model
-            kwargs = {"temperature": 0.1, "max_tokens": 500}
-            if model_name != "default":
-                kwargs["model"] = model_name
-            response = await self.ai_client.chat(
+            response = self.ai_client.chat(
                 messages=messages,
-                **kwargs,
+                temperature=temperature,
+                max_tokens=500,
             )
             content = response.content if hasattr(response, "content") else str(response)
         except Exception as e:
-            logger.error(f"Model {model_name} query failed: {e}")
+            logger.error(f"Perspective '{role}' query failed: {e}")
             raise
 
         # Parse response
         verdict, confidence, reasoning, severity_adj = self._parse_verification_response(content)
 
         return ModelVote(
-            model_name=model_name,
+            model_name=role,
             model_weight=weight,
             verdict=verdict,
             confidence=confidence,

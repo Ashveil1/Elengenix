@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, AsyncMock, patch, AsyncMock
 from elengenix.constitution_engine import ConstitutionalCourt, ConstitutionalAIEngine
 from elengenix.constitution import Constitution, ConstitutionalArticle, ConstitutionalPrinciple
 from elengenix.types import AIAction, ActionType, RiskLevel
-from tools.verification_engine import VerificationEngine
+from tools.verification_engine import VerificationEngine, ModelVote
 
 
 class TestConstitutionEngine:
@@ -264,24 +264,16 @@ class TestConstitutionEngine:
             assert result.verified is True
             assert result.consensus_verdict == "confirmed"
 
-    @pytest.mark.asyncio
-    async def test_verify_false_positive(self, engine):
-        finding = {
-            "type": "xss",
-            "evidence": "test",
-            "severity": "low"
-        }
-
-        with patch.object(VerificationEngine, '_query_model', new_callable=AsyncMock) as mock_query:
-            mock_query.return_value = {
-                "verdict": "false_positive",
-                "confidence": 0.9,
-                "reasoning": "WAF blocked request"
-            }
-
+    def test_verify_false_positive(self, engine):
+        """Trivial: verify mock works on new _query_perspective name"""
+        with patch.object(VerificationEngine, '_query_perspective') as mock_query:
+            mock_query.return_value = ModelVote(
+                model_name="test", model_weight=1.0,
+                verdict="false_positive", confidence=0.9,
+                reasoning="WAF blocked request",
+            )
             result = mock_query.return_value
-
-            assert result.get("verdict") == "false_positive"
+            assert result.verdict == "false_positive"
 
     @pytest.mark.asyncio
     async def test_verify_split_decision(self, engine):
