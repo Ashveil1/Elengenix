@@ -292,6 +292,7 @@ def main():
         "cli-textual",
         "cli-legacy",
         "clitest",
+        "vuln-hunt",
         # New unified commands
         "sast",
         "cloud",
@@ -915,6 +916,49 @@ def main():
                 print_info("Hybrid hunt interrupted by user")
             except Exception as e:
                 print_error(f"Hybrid hunt error: {e}")
+            return
+
+        elif args.command == "vuln-hunt":
+            """Autonomous vulnerability hunting agent — AI plans, executes, analyzes."""
+            from cli.ui_components import print_error, print_info, print_success, show_section
+
+            show_section("ELENGENIX VULN-HUNT — Autonomous Vulnerability Hunter")
+
+            target = args.target or console.input("[red]Enter target[/red]: ").strip()
+            if not target:
+                print_error("Target is required")
+                return
+
+            if not require_authorized_scan_target(target):
+                return
+
+            from elengenix.agent import VulnAgent
+            from tools.universal_ai_client import create_default_client
+
+            client = create_default_client()
+            agent = VulnAgent(target=target, client=client)
+
+            print_info("Starting autonomous vulnerability hunt...")
+            print_info(f"Target: {target}")
+            print_info("AI will THINK → ACT → ANALYZE independently")
+            console.print("")
+
+            try:
+                report = agent.hunt()
+                report_text = report.render()
+                print_success("Hunt finished!")
+                console.print(report_text)
+
+                # Save report
+                safe_name = re.sub(r"[^a-zA-Z0-9.-]", "_", target)[:40]
+                report_path = Path("reports") / f"vuln-hunt_{safe_name}.md"
+                report_path.parent.mkdir(parents=True, exist_ok=True)
+                report_path.write_text(report_text)
+                print_info(f"Full report: {report_path}")
+            except KeyboardInterrupt:
+                print_info("Hunt interrupted by user")
+            except Exception as e:
+                print_error(f"Hunt error: {e}")
             return
 
         elif args.command == "arsenal":
