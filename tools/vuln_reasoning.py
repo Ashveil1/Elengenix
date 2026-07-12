@@ -464,7 +464,7 @@ class VulnReasoningEngine:
     def _extract_json(text: str) -> Optional[Dict]:
         """Extract JSON from LLM response (handles markdown fences)."""
         try:
-            from agents.agent_helpers import extract_json
+            from elengenix.scanning.helpers import extract_json
 
             result = extract_json(text, expect="object")
             return result if isinstance(result, dict) else None

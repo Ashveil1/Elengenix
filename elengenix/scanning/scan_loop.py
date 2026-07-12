@@ -166,7 +166,8 @@ class ScanLoop:
                 )
 
             # Phase 7: Update context counters
-            ctx.update_after_step(ctx.all_findings if result and result.findings else [])
+            has_findings = bool(result is not None and hasattr(result, "findings") and result.findings)
+            ctx.update_after_step(ctx.all_findings if has_findings else [])
 
             # Phase 8: Update history
             self._update_history(ctx, decision, observation)

@@ -871,7 +871,7 @@ Return JSON:
             logger.debug(f"Verification stage LLM call failed: {e}")
             return StageResult(success=False, detail=f"LLM error: {e}")
 
-        from agents.agent_helpers import extract_json
+        from elengenix.scanning.helpers import extract_json
 
         plan = extract_json(content, expect="object")
         if not plan:

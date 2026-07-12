@@ -28,7 +28,7 @@ class ElengenixAgent:
         self.client = AIClientManager()
 
         # ── Conversation history ───────────────────────────────────────
-        from agents.agent_conversation import ConversationManager
+        from elengenix.scanning.conversation import ConversationManager
         self._conversation_mgr = ConversationManager(client=self.client)
         self.conversation_history: List[Dict[str, str]] = (
             self._conversation_mgr.conversation_history
@@ -93,7 +93,7 @@ class ElengenixAgent:
         Signature matches the old ElengenixAgent so the TUI doesn't
         need any changes.
         """
-        from agents.agent_universal import process_universal as _run
+        from elengenix.scanning.universal import process_universal as _run
         return _run(
             user_input=user_input,
             client=self.client,

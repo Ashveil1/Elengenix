@@ -12,8 +12,8 @@ from __future__ import annotations
 
 import re
 
-from agents import hybrid_prompts as hp
-from agents.scan_loop import ScanLoop
+from elengenix.scanning import hybrid_prompts as hp
+from elengenix.scanning.scan_loop import ScanLoop
 
 
 def test_strategist_prompt_grants_full_autonomy():
