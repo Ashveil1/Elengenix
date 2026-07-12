@@ -46,7 +46,7 @@ sentence-transformers   # Embeddings for semantic recall/search
 # ── Recon & Web Intelligence ───────────────────────────
 trafilatura             # High-precision web content extraction
 googlesearch-python     # Basic search discovery (Keep for now)
-duckduckgo-search       # DuckDuckGo search for real-time web results
+ddgs                    # DuckDuckGo search for real-time web results
 
 
 # -- Recommended Security Tools (Optional) ---

@@ -110,23 +110,33 @@ def _search_duckduckgo(query: str, num_results: int) -> List[Dict]:
         List of dicts with url, title, content.
     """
     try:
-        from duckduckgo_search import DDGS
+        from duckduckgo_search import DDGS as _DDGS
 
+        _HAS_DDG = True
+    except ImportError:
+        try:
+            from ddgs import DDGS as _DDGS  # type: ignore[no-redef]
+            _HAS_DDG = True
+        except ImportError:
+            _HAS_DDG = False
+
+    if not _HAS_DDG:
+        logger.warning("[WARN] DuckDuckGo not installed. Run: pip install ddgs")
+        return []
+
+    try:
         logger.info(f"Searching DuckDuckGo for: {query}")
         results = []
-        with DDGS() as ddgs:
+        with _DDGS() as ddgs:  # type: ignore[possibly-undefined]
             for r in ddgs.text(query, max_results=num_results):
                 results.append(
                     {
-                        "url": r.get("hre", ""),
+                        "url": r.get("href") or r.get("hre", ""),
                         "title": r.get("title", "Web Result"),
                         "content": r.get("body", ""),
                     }
                 )
         return results
-    except ImportError:
-        logger.warning("[WARN] duckduckgo-search not installed. Run: pip install duckduckgo-search")
-        return []
     except Exception as e:
         logger.error(f"DuckDuckGo search error: {e}")
         return []

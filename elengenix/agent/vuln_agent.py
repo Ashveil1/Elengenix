@@ -222,6 +222,57 @@ def _tool_analyze_target(target: str) -> Dict[str, Any]:
         return {"success": False, "error": str(exc)}
 
 
+def _tool_web_search(query: str, num_results: int = 5) -> Dict[str, Any]:
+    """Search the web using DuckDuckGo (free, no API key needed).
+    
+    Returns real search results with titles, URLs, and content snippets.
+    Use this to research CVEs, bug bounty disclosures, tech stack info,
+    known vulnerabilities, or any target-specific intelligence.
+    Falls back to Tavily if TAVILY_API_KEY is set.
+    """
+    try:
+        from tools.research_tool import search_web
+
+        results = search_web(query, num_results=num_results)
+        if not results:
+            return {"success": True, "output": "No results found.", "results": []}
+
+        # Format for AI consumption
+        lines = [f"Web search results for: {query}\n"]
+        for i, r in enumerate(results, 1):
+            title = r.get("title", "Untitled")
+            url = r.get("url", "")
+            content = r.get("content", "")[:300]
+            lines.append(f"{i}. {title}\n   URL: {url}\n   {content}\n")
+
+        return {"success": True, "output": "\n".join(lines), "results": results[:num_results]}
+    except Exception as exc:
+        return {"success": False, "error": str(exc)}
+
+
+def _tool_web_extract(url: str) -> Dict[str, Any]:
+    """Fetch and extract readable text content from a URL.
+    
+    Use this after web_search to read full article/blog/advisory content.
+    Returns clean text without HTML/ads/navigation.
+    """
+    try:
+        from tools.research_tool import extract_and_summarize
+
+        data = extract_and_summarize(url)
+        if data.get("error"):
+            return {"success": False, "error": data["error"]}
+
+        return {
+            "success": True,
+            "url": url,
+            "output": data.get("text", "")[:4000],
+            "chars": data.get("chars", 0),
+        }
+    except Exception as exc:
+        return {"success": False, "error": str(exc)}
+
+
 # Registered tool list for the agent
 # NOTE: handler_name is a string (not a function reference) so that
 # unittest.mock.patch works correctly at runtime.
@@ -305,6 +356,40 @@ AVAILABLE_TOOLS: List[Dict[str, Any]] = [
             "required": ["target"],
         },
         "handler_name": "_tool_analyze_target",
+    },
+    {
+        "name": "web_search",
+        "description": "Search the web for real-time information using DuckDuckGo. Returns titles, URLs and content snippets. Use to research CVEs, recent advisories, bug bounty reports, known attack patterns, or any target-specific intelligence.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "The search query (e.g., 'nginx 1.18 CVE', 'Spring Boot RCE 2026', 'bug bounty SQL injection')"
+                },
+                "num_results": {
+                    "type": "integer",
+                    "description": "Number of results to return (1-10, default 5)",
+                    "default": 5,
+                    "minimum": 1,
+                    "maximum": 10,
+                },
+            },
+            "required": ["query"],
+        },
+        "handler_name": "_tool_web_search",
+    },
+    {
+        "name": "web_extract",
+        "description": "Fetch and extract readable text content from a URL. Use after web_search to read the full content of an article, CVE advisory, or blog post. Returns clean text without HTML/ads/navigation.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "url": {"type": "string", "description": "The full URL to extract content from"}
+            },
+            "required": ["url"],
+        },
+        "handler_name": "_tool_web_extract",
     },
 ]
 
