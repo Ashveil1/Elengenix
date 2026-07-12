@@ -165,21 +165,16 @@ class TestScopeValidation:
         assert "SCOPE VIOLATION" in output.summary
 
     @pytest.mark.asyncio
-    async def test_empty_scope_allows_all(self):
+    async def test_empty_scope_denies_all(self):
         pipeline = UnifiedPipeline()
-        # Override scope to be empty (allow all)
+        # Override scope to be empty (deny all — fail-closed)
         pipeline.scope_manager._domains = set()
 
-        # Mock the phases to avoid actual execution
-        pipeline.phase_registry = PhaseRegistry()
-        pipeline.phase_registry.register(
-            Phase(name="noop", func=AsyncMock(return_value=PhaseResult(success=True)))
-        )
-
-        config = ScanConfig(target="example.com", phases=["noop"])
+        config = ScanConfig(target="example.com")
         output = await pipeline.run(config)
 
-        assert output.success is True
+        assert output.success is False
+        assert "SCOPE VIOLATION" in output.summary
 
 
 # ── Pipeline Execution Tests ──────────────────────────────────
@@ -189,7 +184,7 @@ class TestPipelineExecution:
     @pytest.mark.asyncio
     async def test_run_with_noop_phases(self):
         pipeline = UnifiedPipeline()
-        pipeline.scope_manager._domains = set()  # Allow all
+        pipeline.scope_manager._domains = {"example.com"}  # Configure scope
 
         # Replace with simple phases
         pipeline.phase_registry = PhaseRegistry()
@@ -210,7 +205,7 @@ class TestPipelineExecution:
     @pytest.mark.asyncio
     async def test_run_saves_findings(self, tmp_path):
         pipeline = UnifiedPipeline()
-        pipeline.scope_manager._domains = set()
+        pipeline.scope_manager._domains = {"example.com"}
 
         pipeline.phase_registry = PhaseRegistry()
         pipeline.phase_registry.register(
@@ -230,7 +225,7 @@ class TestPipelineExecution:
     @pytest.mark.asyncio
     async def test_run_collects_errors(self):
         pipeline = UnifiedPipeline()
-        pipeline.scope_manager._domains = set()
+        pipeline.scope_manager._domains = {"example.com"}
 
         async def failing_phase(ctx):
             return PhaseResult(success=False, error="Intentional failure")

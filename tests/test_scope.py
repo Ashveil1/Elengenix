@@ -188,9 +188,10 @@ class TestIsInScope:
         sm = ScopeManager()
         assert sm.is_in_scope("") is False
 
-    def test_empty_scope_allows_all(self):
+    def test_empty_scope_denies_all(self):
         sm = ScopeManager(scope_file="nonexistent.txt")
-        assert sm.is_in_scope("example.com") is True
+        # Empty scope = fail-closed
+        assert sm.is_in_scope("example.com") is False
 
     def test_exact_match(self, tmp_path):
         scope_file = tmp_path / "scope.txt"
@@ -235,8 +236,8 @@ class TestModuleLevelFunctions:
         assert is_valid_target("192.168.1.1") is False
 
     def test_is_in_scope(self):
-        # Default scope (empty) allows everything
-        assert is_in_scope("example.com") is True
+        # Default scope (empty) denies everything (fail-closed)
+        assert is_in_scope("example.com") is False
 
     def test_load_allowed_domains(self):
         domains = load_allowed_domains("nonexistent.txt")

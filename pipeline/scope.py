@@ -179,9 +179,9 @@ class ScopeManager:
         if not self.is_valid_target(validation_target):
             return False
 
-        # If scope is empty, allow everything
+        # If scope is empty, deny everything (fail-closed)
         if not self.allowed_domains:
-            return True
+            return False
 
         # Check exact match or subdomain
         return normalized in self.allowed_domains or any(

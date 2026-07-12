@@ -1,0 +1,15 @@
+"""core — DEPRECATED: Legacy core modules.
+
+This package is no longer maintained. All functionality has been
+consolidated into elengix/ (cognitive loop) and elengix/scanning/.
+Kept only to prevent import errors for any remaining references.
+"""
+
+import warnings
+
+warnings.warn(
+    "core is deprecated and will be removed in a future release. "
+    "Use elengix/ instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
