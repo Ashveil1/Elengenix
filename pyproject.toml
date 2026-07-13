@@ -89,7 +89,7 @@ Repository = "https://github.com/Ashveil1/Elengenix"
 Issues = "https://github.com/Ashveil1/Elengenix/issues"
 
 [tool.setuptools.packages.find]
-exclude = ["tests*", "venv*", "scripts*"]
+exclude = ["tests*", "venv*", "scripts*", "data*", "reports*", "examples*", "htmlcov*", "docs*", ".config*", ".cache*", "build*", "dist*", ".mimocode*", ".remember*"]
 
 [tool.setuptools]
 py-modules = ["main"]

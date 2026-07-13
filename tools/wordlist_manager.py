@@ -113,8 +113,11 @@ class WordlistManager:
         r"/api/.*download.*",
     ]
 
-    def __init__(self, wordlist_dir: str = "data/wordlists"):
-        self.wordlist_dir = Path(wordlist_dir)
+    def __init__(self, wordlist_dir: str | None = None):
+        from elengenix.paths import get_data_dir
+
+        resolved = get_data_dir("wordlists") if wordlist_dir is None else Path(wordlist_dir)
+        self.wordlist_dir = resolved
         self.wordlist_dir.mkdir(parents=True, exist_ok=True)
         self.ai_calls_made = 0
         self.generated_paths_cache: Set[str] = set()
