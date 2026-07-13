@@ -22,20 +22,19 @@ from elengenix.paths import get_data_dir
 
 
 def _ensure_config_files():
-    """Copy example config files if they don't exist."""
-    project_root = Path(__file__).parent
+    """Copy example config files to ~/.elengenix/ if they don't exist."""
+    from elengenix.paths import ELENGENIX_HOME
 
-    # Copy mcp.json.example -> mcp.json
-    mcp_example = project_root / "mcp.json.example"
-    mcp_config = project_root / "mcp.json"
-    if mcp_example.exists() and not mcp_config.exists():
-        shutil.copy2(mcp_example, mcp_config)
+    package_dir = Path(__file__).parent
+    user_dir = ELENGENIX_HOME
+    user_dir.mkdir(parents=True, exist_ok=True)
 
-    # Copy .env.example -> .env
-    env_example = project_root / ".env.example"
-    env_config = project_root / ".env"
-    if env_example.exists() and not env_config.exists():
-        shutil.copy2(env_example, env_config)
+    # Copy mcp.json.example -> ~/.elengenix/mcp.json
+    for name in ("mcp.json", ".env", "config.yaml"):
+        example = package_dir / f"{name}.example"
+        dest = user_dir / name
+        if example.exists() and not dest.exists():
+            shutil.copy2(example, dest)
 
 
 # Run on import

@@ -206,7 +206,7 @@ def func(param: Type) -> ReturnType:
 1. **This is a security tool** — all targets must pass `validate_target()` and `is_in_scope()` before scanning
 2. **Governance is non-negotiable** — every shell command goes through the governance layer
 3. **MCP servers require npm/node** — sequential-thinking, memory, filesystem servers are external
-4. **Cross-session memory** uses ChromaDB + SQLite FTS5 (in `data/`)
+4. **Cross-session memory** uses ChromaDB + SQLite FTS5 (in `~/.elengenix/data/`)
 5. **AGENTS.md is the source of truth** for working protocols — read it first
 6. **379+ tests exist** — they're comprehensive; run them
 7. **CLI uses `rich` + `textual`** for TUI; `questionary` for prompts

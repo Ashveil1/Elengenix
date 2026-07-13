@@ -87,7 +87,7 @@ elengenix scan example.com
 │  [FOUND] Critical: SQL Injection at /api/users?id=          │
 │  [FOUND] High: Reflected XSS at /search?q=                 │
 │                                                             │
-│  [Report] reports/example_com_2024/                         │
+│  [Report] ~/.elengenix/reports/example_com_2024/              │
 │  - elengenix_findings.json (5 findings)                     │
 │  - cvss_scores.json (2 Critical, 1 High)                   │
 └─────────────────────────────────────────────────────────────┘
