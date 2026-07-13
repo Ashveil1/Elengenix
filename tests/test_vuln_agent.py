@@ -424,11 +424,15 @@ class TestToolDefinitions:
 
     def test_handler_names_resolve(self):
         import sys
+        from elengenix.agent.vuln_agent import _dynamic_tools
 
         module = sys.modules["elengenix.agent.vuln_agent"]
         for t in AVAILABLE_TOOLS:
             handler = getattr(module, t["handler_name"], None)
-            assert callable(handler), f"handler {t['handler_name']} not callable"
+            if handler is None:
+                # Dynamic tools store handler in _dynamic_tools by name
+                handler = _dynamic_tools.get(t["name"])
+            assert callable(handler), f"handler {t['handler_name']} ({t['name']}) not callable"
 
     def test_tools_have_required_fields(self):
         for t in AVAILABLE_TOOLS:

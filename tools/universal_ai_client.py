@@ -434,9 +434,11 @@ class UniversalAIClient:
         elif os.getenv("OLLAMA_URL") or self._check_ollama():
             return "ollama"
         else:
-            # Default to Ollama (local) if nothing else available
-            logger.warning("No API key found, defaulting to Ollama (local)")
-            return "ollama"
+            # No API key and Ollama not reachable — raise clear error
+            raise ValueError(
+                "No API key configured and Ollama (local) is not available. "
+                "Set a provider API key in ~/.elengenix/.env or start Ollama."
+            )
 
     def _check_ollama(self) -> bool:
         """Check if Ollama is running locally."""

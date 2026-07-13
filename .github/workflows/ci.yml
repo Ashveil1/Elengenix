@@ -32,15 +32,10 @@ jobs:
       - name: Run test suite
         run: |
           python -m pytest -q --timeout=300 \
-            tests/test_agent_autonomy.py \
-            tests/test_vuln_reasoning_phase.py \
-            tests/test_finding_provenance.py \
-            tests/test_hypothesis_boost.py \
-            tests/test_core_modules.py \
-            tests/test_scope.py \
-            tests/test_security.py \
-            tests/test_new_scanners.py \
-            tests/test_critical_modules.py
+            tests/ -m "not integration" \
+            --ignore=tests/test_brain_coverage.py \
+            --ignore=tests/test_brain_coverage_gap.py \
+            --tb=short
 
       - name: Boot smoke test
         run: |

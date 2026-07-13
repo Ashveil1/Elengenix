@@ -19,6 +19,9 @@ from elengenix.agent.vuln_agent import (
     _tool_run_python,
     _tool_analyze_security,
     _tool_delegate,
+    _tool_create_tool,
+    _tool_edit_own_tool,
+    _dynamic_tools,
     AVAILABLE_TOOLS,
 )
 
@@ -187,9 +190,9 @@ class TestAnalyzeSecurity:
 
 
 class TestToolRegistry:
-    def test_all_15_tools_registered(self):
+    def test_all_17_tools_registered(self):
         names = [t["name"] for t in AVAILABLE_TOOLS]
-        assert len(names) == 16
+        assert len(names) == 17
 
     def test_file_tools_present(self):
         names = [t["name"] for t in AVAILABLE_TOOLS]
@@ -260,3 +263,77 @@ class TestDelegate:
     def test_registered_in_tools(self):
         names = [t["name"] for t in AVAILABLE_TOOLS]
         assert "delegate" in names
+
+
+class TestEditOwnTool:
+    """Tests for edit_own_tool dynamic tool editing."""
+
+    def setup_method(self):
+        if "test_edit_target" in _dynamic_tools:
+            del _dynamic_tools["test_edit_target"]
+        AVAILABLE_TOOLS[:] = [t for t in AVAILABLE_TOOLS if t["name"] != "test_edit_target"]
+        for f in Path("~/.elengenix/tools/test_edit_target.py").expanduser().parent.glob("test_edit_target*"):
+            f.unlink(missing_ok=True)
+
+    def test_edit_nonexistent_tool(self):
+        r = _tool_edit_own_tool("test_nonexistent", "def handler(args): return {'success': True}")
+        assert not r["success"]
+        assert "not found" in r["error"]
+
+    def test_edit_syntax_error_on_existing(self):
+        create = _tool_create_tool(
+            name="test_edit_target",
+            description="test tool",
+            parameters={"type": "object", "properties": {}, "required": []},
+            handler_code='def handler(args): return {"success": True, "output": "original"}',
+        )
+        assert create["success"]
+
+        r = _tool_edit_own_tool("test_edit_target", "def handler(args): return {")
+        assert not r["success"]
+        assert "Syntax error" in r["error"]
+
+        # Cleanup
+        _dynamic_tools.pop("test_edit_target", None)
+        AVAILABLE_TOOLS[:] = [t for t in AVAILABLE_TOOLS if t["name"] != "test_edit_target"]
+        for f in Path("~/.elengenix/tools/test_edit_target.py").expanduser().parent.glob("test_edit_target*"):
+            f.unlink(missing_ok=True)
+
+    def test_edit_and_verify(self):
+        create = _tool_create_tool(
+            name="test_edit_target",
+            description="test tool",
+            parameters={"type": "object", "properties": {}, "required": []},
+            handler_code='def handler(args): return {"success": True, "output": "original"}',
+        )
+        assert create["success"]
+
+        r = _tool_edit_own_tool(
+            "test_edit_target",
+            'def handler(args): return {"success": True, "output": "edited!"}',
+        )
+        assert r["success"], f"edit failed: {r}"
+        assert "test_edit_target" in r["output"]
+        assert r["edits_remaining"] >= 0
+
+        handler = _dynamic_tools["test_edit_target"]
+        result = handler({})
+        assert result["output"] == "edited!", f"expected 'edited!', got {result}"
+
+        # Cleanup
+        del _dynamic_tools["test_edit_target"]
+        AVAILABLE_TOOLS[:] = [t for t in AVAILABLE_TOOLS if t["name"] != "test_edit_target"]
+        for f in Path("~/.elengenix/tools/test_edit_target.py").expanduser().parent.glob("test_edit_target*"):
+            f.unlink(missing_ok=True)
+
+    def test_edit_limit_respected(self):
+        import elengenix.agent.vuln_agent as va
+
+        saved = va._edit_count
+        try:
+            va._edit_count = va._MAX_EDITS
+            r = _tool_edit_own_tool("test_edit_target", "def handler(args): return {'success': True}")
+            assert not r["success"]
+            assert "Edit limit" in r["error"]
+        finally:
+            va._edit_count = saved

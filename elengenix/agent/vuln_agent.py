@@ -809,6 +809,10 @@ def _tool_delegate(
 _dynamic_tools: Dict[str, Callable] = {}
 """Runtime registry for AI-generated tools. Maps name → handler function."""
 
+# Safety cage: max edits per session to prevent catastrophic self-modification
+_edit_count = 0
+_MAX_EDITS = 5
+
 
 def _register_dynamic_tool(
     name: str,
@@ -921,7 +925,134 @@ def _tool_create_tool(
     return _register_dynamic_tool(name, description, parameters, handler_code)
 
 
-# Registered tool list for the agent
+def _tool_edit_own_tool(name: str, handler_code: str) -> Dict[str, Any]:
+    """Edit an existing dynamic tool's handler code at runtime.
+
+    Args:
+        name: Tool name to edit (must be an AI-created dynamic tool)
+        handler_code: New Python code defining 'handler(args: dict) -> dict'
+
+    Use this to fix bugs, improve performance, or add new capabilities
+    to a tool you created earlier with create_tool.
+    The tool's name, description, and parameter schema stay the same —
+    only the implementation changes.
+
+    Safety: max 5 edits per session. Built-in tools cannot be edited.
+    """
+    global _edit_count
+
+    # Safety cage: enforce session edit limit
+    if _edit_count >= _MAX_EDITS:
+        return {
+            "success": False,
+            "error": f"Edit limit ({_MAX_EDITS}) reached this session. "
+                     f"Restart the agent to edit more tools.",
+        }
+
+    # Only allow editing dynamic (AI-created) tools
+    if name not in _dynamic_tools:
+        return {
+            "success": False,
+            "error": f"Tool '{name}' not found or is a built-in tool. "
+                     f"Only AI-created dynamic tools can be edited. "
+                     f"Available: {list(_dynamic_tools.keys())}",
+        }
+
+    # Find the existing tool entry to preserve metadata
+    existing = None
+    for t in AVAILABLE_TOOLS:
+        if t["name"] == name:
+            existing = t
+            break
+    if existing is None:
+        return {"success": False, "error": f"Tool '{name}' not found in registry (race condition)"}
+
+    # Validate syntax
+    try:
+        compile(handler_code, f"<{name}>", "exec")
+    except SyntaxError as exc:
+        return {"success": False, "error": f"Syntax error in handler code: {exc}"}
+
+    # Write new handler to disk
+    gen_dir = Path("~/.elengenix/tools").expanduser()
+    gen_path = gen_dir / f"{name}.py"
+    backup: Path | None = None
+    try:
+        # Backup first
+        if gen_path.exists():
+            backup = gen_path.with_suffix(".py.bak")
+            gen_path.rename(backup)
+        gen_path.write_text(handler_code)
+    except OSError as exc:
+        return {"success": False, "error": f"Failed to write handler file: {exc}"}
+
+    # Re-import the module to get the new handler
+    import sys as _sys
+
+    _sys.path.insert(0, str(gen_dir))
+    import importlib as _il
+    try:
+        mod = _il.import_module(name)
+        _il.reload(mod)
+        handler_fn = getattr(mod, "handler", None)
+        if handler_fn is None:
+            if backup is not None:
+                backup.rename(gen_path)
+            return {
+                "success": False,
+                "error": "Edited code must define a function named 'handler' that takes a dict and returns a dict",
+            }
+        # Quick test with empty args
+        try:
+            test_result = handler_fn({})
+            if not isinstance(test_result, dict):
+                if backup is not None:
+                    backup.rename(gen_path)
+                    # Re-import original
+                    mod = _il.import_module(name)
+                    _il.reload(mod)
+                    handler_fn = getattr(mod, "handler", None)
+                    if handler_fn is not None:
+                        _dynamic_tools[name] = handler_fn
+                return {"success": False, "error": "handler() must return a dict"}
+        except Exception:
+            pass  # may legitimately require arguments
+    except Exception as exc:
+        # Restore backup on import failure
+        if backup is not None:
+            backup.rename(gen_path)
+            try:
+                mod = _il.import_module(name)
+                _il.reload(mod)
+                orig_fn = getattr(mod, "handler", None)
+                if orig_fn is not None:
+                    _dynamic_tools[name] = orig_fn
+            except Exception:
+                pass
+        return {"success": False, "error": f"Failed to load edited tool module: {exc}"}
+    finally:
+        if str(gen_dir) in _sys.path:
+            _sys.path.remove(str(gen_dir))
+
+    # Register updated handler
+    _dynamic_tools[name] = handler_fn
+
+    # Clean up backup on success
+    if backup is not None and backup.exists():
+        backup.unlink(missing_ok=True)
+
+    _edit_count += 1
+    remaining = _MAX_EDITS - _edit_count
+
+    logger.info("Tool edited: %s (%d/%d edits used)", name, _edit_count, _MAX_EDITS)
+    return {
+        "success": True,
+        "output": f"Tool '{name}' updated successfully. "
+                  f"{remaining} edit(s) remaining this session. "
+                  f"The new handler is active immediately.",
+        "tool_path": str(gen_path),
+        "edits_remaining": remaining,
+    }
 # NOTE: handler_name is a string (not a function reference) so that
 # unittest.mock.patch works correctly at runtime.
 AVAILABLE_TOOLS: List[Dict[str, Any]] = [
@@ -1181,6 +1312,29 @@ AVAILABLE_TOOLS: List[Dict[str, Any]] = [
         },
         "handler_name": "_tool_create_tool",
     },
+    {
+        "name": "edit_own_tool",
+        "description": "Modify a tool you previously created with create_tool. "
+                       "You provide the tool name and new handler code; the tool's "
+                       "name, description, and parameter schema remain unchanged. "
+                       "Use this to fix bugs, improve reliability, or add "
+                       "capabilities to your own tools. "
+                       "Limited to 5 edits per session for safety.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string", "description": "Name of the dynamic tool to edit (must have been created with create_tool)"},
+                "handler_code": {
+                    "type": "string",
+                    "description": "New Python code defining 'def handler(args: dict) -> dict:'. "
+                                   "Write complete, working code with proper error handling. "
+                                   "The handler receives args dict and must return a dict with at least 'success' and 'output' keys."
+                },
+            },
+            "required": ["name", "handler_code"]
+        },
+        "handler_name": "_tool_edit_own_tool",
+    },
 ]
 
 def _get_tool_defs() -> str:
@@ -1215,18 +1369,22 @@ You have complete autonomy over HOW you do this. There are no forced phases or s
 2. **Call ONE tool per turn.** When you have results, analyze them.
 3. **Build hypotheses.** "Port 80 open → likely Apache → try known CVEs"
 4. **Pivot on evidence.** A finding changes direction. Follow it.
-5. **Be thorough.** Check network, web, services, known vulnerabilities, misconfigurations.
-6. **Extend yourself.** If existing tools are insufficient, create new ones with `create_tool`.
-7. **Conclude when ready.** When you have enough evidence to report findings, summarize.
+3. **Be thorough.** Check network, web, services, known vulnerabilities, misconfigurations.
+4. **Extend yourself.** If existing tools are insufficient, create new ones with `create_tool`.
+   If a tool behaves wrong, fix it with `edit_own_tool`.
+5. **Conclude when ready.** When you have enough evidence to report findings, summarize.
 
-## Self-Improvement
+## SELF-IMPROVEMENT
 
 You can evolve your own capabilities at runtime:
 
 - **`create_tool`** — when existing tools don't cover what you need, write a Python function
   and register it as a new tool. It's immediately available in future turns.
+- **`edit_own_tool`** — when a tool you created has a bug or needs improvements,
+  rewrite its handler code. Name, description, and params stay the same.
+  Limited to 5 edits per session for safety.
 - **Reflection** — if a tool fails, the system will ask you to analyze why.
-  Use `create_tool` to fix recurring failures by writing a better tool.
+  Use `create_tool` to fill a gap or `edit_own_tool` to fix a broken tool.
 - Your created tools persist to disk and can be reused in future sessions.
 
 **When to create a tool:**
@@ -1519,12 +1677,16 @@ class VulnAgent:
             f"Consecutive failures: {self._consecutive_failures}\n\n"
             f"Analyze the failure. Can you fix this by:\n"
             f"1. Creating a NEW tool with create_tool that handles this case properly?\n"
-            f"2. Pivoting to a different existing tool that might work?\n"
-            f"3. Both — create a better tool now, then use it next turn?\n\n"
+            f"2. Editing an existing tool with edit_own_tool to fix the bug?\n"
+            f"3. Pivoting to a different existing tool that might work?\n"
+            f"4. Both — create a better tool now, then use it next turn?\n\n"
             f"Available tools: {_get_tool_defs()[:1000]}\n\n"
             f"If you want to create a tool, respond with:\n"
             f'{{"create_tool": true, "tool_name": "...", "description": "...", '
-            f'"reasoning": "why this will fix the failure"}}\n\n'
+            f'"reasoning": "why this will fix the failure"}}\n'
+            f"If you want to edit an existing tool, respond with:\n"
+            f'{{"edit_tool": true, "tool_name": "...", '
+            f'"handler_code": "...", "reasoning": "what this changes"}}\n'
             f"If no tool is needed, just respond with: {{\"skip\": true}}\n"
         )
 
@@ -1551,9 +1713,6 @@ class VulnAgent:
             description = action.get("description", "")
             reasoning = action.get("reasoning", "")
 
-            # The AI must provide full tool definition — ask the AI to generate
-            # the actual tool code by re-entering the loop
-            # Return a structured suggestion for the main loop
             return {
                 "action": {
                     "reasoning": reasoning,
@@ -1566,6 +1725,22 @@ class VulnAgent:
                     },
                 },
                 "summary": f"🪞 Self-improvement: creating '{tool_name}' — {reasoning[:200]}",
+            }
+
+        if action.get("edit_tool"):
+            tool_name = action.get("tool_name", "")
+            reasoning = action.get("reasoning", "")
+
+            return {
+                "action": {
+                    "reasoning": reasoning,
+                    "tool": "edit_own_tool",
+                    "arguments": {
+                        "name": tool_name,
+                        "handler_code": action.get("handler_code", ""),
+                    },
+                },
+                "summary": f"🪞 Self-improvement: editing '{tool_name}' — {reasoning[:200]}",
             }
 
         return None
