@@ -21,6 +21,7 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+from elengenix.paths import get_reports_path
 
 logger = logging.getLogger("elengenix.scan_context")
 
@@ -63,7 +64,7 @@ class ScanContext:
     # ── Immutable config (set once at creation) ──
     target: str = ""
     base_url: str = ""
-    report_dir: Path = field(default_factory=lambda: Path("reports"))
+    report_dir: Path = field(default_factory=lambda: get_reports_path())
     objective: str = ""
     mission_key: str = ""
     max_steps: int = 25
@@ -134,7 +135,7 @@ class ScanContext:
 
         safe_name = normalized.replace(".", "_").replace(":", "_")
         if report_dir is None:
-            report_dir = Path("reports") / f"agent_{safe_name}_{int(time.time())}"
+            report_dir = get_reports_path(f"agent_{safe_name}_{int(time.time())}")
 
         base_url = target if target.startswith(("http://", "https://")) else f"http://{target}"
 

@@ -13,7 +13,8 @@ import re
 import time
 import traceback
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
+from elengenix.paths import get_reports_path
 
 from tools.cvss_calculator import CVSSCalculator
 from tools.governance import Governance
@@ -183,7 +184,7 @@ class ModeProcessor:
         # Save report
         if result and target:
             safe_name = re.sub(r"[^a-zA-Z0-9.-]", "_", target)[:40]
-            report_path = Path("reports") / f"hybrid_{safe_name}_{int(time.time())}.md"
+            report_path = get_reports_path(f"hybrid_{safe_name}_{int(time.time())}.md")
             report_path.parent.mkdir(parents=True, exist_ok=True)
             report_path.write_text(result, encoding="utf-8")
 

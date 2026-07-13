@@ -12,10 +12,10 @@ import sqlite3
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from pathlib import Path
-from typing import List
+from typing import List, Optional
+from elengenix.paths import get_data_path
 
-DB_PATH = Path(__file__).parent.parent / "data" / "user_preferences.db"
+DB_PATH = get_data_path("user_preferences.db")
 
 
 @dataclass

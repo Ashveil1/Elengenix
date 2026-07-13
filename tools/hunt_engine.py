@@ -22,7 +22,8 @@ from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from elengenix.paths import get_reports_path
+from typing import (
 
 logger = logging.getLogger("elengenix.hunt")
 
@@ -879,7 +880,7 @@ def save_report(report: HuntReport, out_dir: Optional[Path] = None) -> Path:
     if out_dir is None:
         ts = int(time.time())
         safe_target = report.target.replace("/", "_").replace(":", "_")
-        out_dir = Path("reports") / f"hunt_{safe_target}_{ts}"
+        out_dir = get_reports_path(f"hunt_{safe_target}_{ts}")
     out_dir.mkdir(parents=True, exist_ok=True)
 
     json_path = out_dir / "report.json"

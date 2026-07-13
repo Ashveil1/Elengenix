@@ -212,7 +212,7 @@ class DependencyManager:
 class AIToolCreator:
     """AI Tool Creator - Dynamic tool creation and management."""
 
-    AI_TOOLS_DIR = Path("tools/ai_generated")
+    AI_TOOLS_DIR = Path("~/.elengenix/tools").expanduser()
 
     def __init__(self, governance_mode: str = "ask", ai_client=None):
         self.governance = AIGovernance(mode=governance_mode)

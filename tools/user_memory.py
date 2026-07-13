@@ -17,9 +17,11 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Dict, Generator, List, Tuple
 
+from elengenix.paths import get_data_path
+
 logger = logging.getLogger("elengenix.user_memory")
 
-_DB_PATH = Path(__file__).parent.parent / "data" / "elengenix.db"
+_DB_PATH = get_data_path("elengenix.db")
 
 
 def _db_path() -> Path:

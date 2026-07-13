@@ -16,7 +16,8 @@ import logging
 import os
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from elengenix.paths import get_reports_path
+from prompt_toolkit
 
 from rich.align import Align
 from rich.box import HEAVY, ROUNDED, SIMPLE
@@ -84,7 +85,7 @@ def get_system_status() -> Dict[str, Any]:
         )  # Exclude __init__.py and tool_registry.py
 
     # Check last scan
-    reports_dir = Path("reports")
+    reports_dir = get_reports_path()
     if reports_dir.exists():
         scan_files = sorted(reports_dir.glob("*.html"), key=os.path.getmtime, reverse=True)
         if scan_files:

@@ -22,7 +22,8 @@ import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from elengenix.paths import get_reports_path
+from typing import (
 
 logger = logging.getLogger("elengenix.bounty_reporter")
 
@@ -49,7 +50,7 @@ class BountyReporter:
         self.timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
         if output_dir is None:
             safe_target = re.sub(r"[^a-zA-Z0-9._-]", "_", target)[:80]
-            self.base_dir = Path("reports") / "bounty" / f"{safe_target}_{self.timestamp}"
+            self.base_dir = get_reports_path(f"bounty/{safe_target}_{self.timestamp}")
         else:
             self.base_dir = output_dir
         self.base_dir.mkdir(parents=True, exist_ok=True)

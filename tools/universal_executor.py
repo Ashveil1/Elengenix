@@ -500,7 +500,7 @@ class UniversalExecutor:
         if agent_id >= 0 and not cwd:
             from pathlib import Path
 
-            agent_dir = Path("data") / "team_workspaces" / f"agent_{agent_id}"
+            agent_dir = get_data_dir(f"team_workspaces/agent_{agent_id}")
             agent_dir.mkdir(parents=True, exist_ok=True)
             work_dir = str(agent_dir)
 
@@ -622,7 +622,7 @@ class UniversalExecutor:
                         t = registry.get_tool(name)
                         if not t or not t.is_available:
                             return ToolResult(False, name, error_message=f"{name} not available")
-                        rd = Path("reports") / f"run_{name}_{int(time.time())}"
+                        rd = get_reports_path(f"run_{name}_{int(time.time())}")
                         rd.mkdir(parents=True, exist_ok=True)
                         return await t.execute(tgt, rd, sem)
 
@@ -653,7 +653,7 @@ class UniversalExecutor:
                 return ExecutionResult(
                     False, "", f"Tool '{tool_name}' not available", "run_tool", params
                 )
-            report_dir = Path("reports") / f"run_{tool_name}_{int(time.time())}"
+            report_dir = get_reports_path(f"run_{tool_name}_{int(time.time())}")
             report_dir.mkdir(parents=True, exist_ok=True)
             try:
 

@@ -16,6 +16,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from elengenix.paths import ELENGENIX_DIRS
+
 logger = logging.getLogger("elengenix.vector_memory")
 
 # Try to import ChromaDB, fallback to SQLite FTS5 if not available
@@ -54,7 +56,7 @@ class VectorMemory:
         self.persist_dir = (
             Path(persist_directory)
             if persist_directory
-            else Path(__file__).parent.parent / "data" / "vector_memory"
+            else ELENGENIX_DIRS["data"] / "vector_memory"
         )
         self.persist_dir.mkdir(parents=True, exist_ok=True)
 

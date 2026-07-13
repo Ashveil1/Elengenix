@@ -15,9 +15,11 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Generator, List, Tuple
 
+from elengenix.paths import get_data_path
+
 logger = logging.getLogger("elengenix.memory")
 
-_DB_PATH = Path(__file__).parent.parent / "data" / "elengenix.db"
+_DB_PATH = get_data_path("elengenix.db")
 _MAX_LEARNING_LEN = 500  # chars per learning
 _SUMMARY_SNIPPET = 400  # chars per category in summary
 _MAX_AGE_DAYS = 90  # auto-prune learnings older than this

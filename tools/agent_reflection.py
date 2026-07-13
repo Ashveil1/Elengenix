@@ -23,9 +23,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from elengenix.paths import get_data_path
+
 logger = logging.getLogger("elengenix.reflection")
 
-_DB_PATH = Path(__file__).parent.parent / "data" / "agent_reflection.db"
+_DB_PATH = get_data_path("agent_reflection.db")
 
 # Keywords that indicate user is giving negative feedback
 NEGATIVE_KEYWORDS = {

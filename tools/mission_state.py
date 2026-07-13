@@ -21,9 +21,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Generator, List, Optional
 
-logger = logging.getLogger("elengenix.mission_state")
+from elengenix.paths import get_data_path
 
-_DB_PATH = Path(__file__).parent.parent / "data" / "mission_state.db"
+logger = logging.getLogger("elengenix.mission")
+
+_DB_PATH = get_data_path("mission_state.db")
 
 
 def _db_path() -> Path:

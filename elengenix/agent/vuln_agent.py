@@ -25,6 +25,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
+from elengenix.paths import get_reports_path
 
 logger = logging.getLogger("elengenix.agent.vuln")
 
@@ -406,6 +407,520 @@ def _tool_run_command(command: str, timeout: int = 30) -> Dict[str, Any]:
         return {"success": False, "error": str(exc)}
 
 
+def _tool_run_python(code: str, timeout: int = 30) -> Dict[str, Any]:
+    """Execute arbitrary Python code and return its output.
+
+    Use this when you need to:
+    - Parse or transform complex scan results
+    - Create custom HTTP requests with libraries
+    - Write and test exploit PoCs
+    - Analyze data programmatically beyond simple grep
+    - Generate reports or visualizations
+    """
+    import subprocess as _sp
+    import tempfile as _tf
+
+    _tmp = None
+    try:
+        _tmp = _tf.NamedTemporaryFile(mode="w", suffix=".py", delete=False)
+        _tmp.write(code)
+        _tmp.close()
+
+        result = _sp.run(
+            ["python3", _tmp.name],
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+        )
+        output = result.stdout.strip()
+        if result.stderr:
+            output += "\n[stderr]\n" + result.stderr.strip()[:2000]
+
+        truncated = len(output) > 5000
+        return {
+            "success": result.returncode == 0,
+            "output": output[:5000] + ("\n...[truncated]" if truncated else ""),
+            "exit_code": result.returncode,
+        }
+    except _sp.TimeoutExpired:
+        return {"success": False, "error": f"Python timed out ({timeout}s)"}
+    except Exception as exc:
+        return {"success": False, "error": str(exc)}
+    finally:
+        if _tmp:
+            import os as _os
+
+            _os.unlink(_tmp.name)
+
+
+def _tool_analyze_security(source: str, context: str = "") -> Dict[str, Any]:
+    """Deep security analysis using AI reasoning.
+
+    Feed source code, config files, logs, or scan output here for focused
+    vulnerability analysis. The AI will examine the content with its full
+    security expertise, separate from the main hunting loop.
+
+    Use this when you need the AI to THINK deeply about security rather
+    than just run a tool. Examples:
+    - Analyze nginx.conf for misconfigurations
+    - Review source code for SQL injection / XSS patterns
+    - Examine log files for signs of exploitation
+    - Evaluate a PoC or exploit script
+    """
+    try:
+        from tools.universal_ai_client import UniversalAIClient, AIMessage
+
+        prompt = f"""You are a senior application security engineer. Analyze the following for security vulnerabilities.
+
+CONTEXT: {context}
+
+SOURCE:
+```
+{source[:8000]}
+```
+
+Focus on:
+1. **Vulnerabilities** — specific CVEs, misconfigs, weak patterns
+2. **Exploitability** — how easy is it to exploit?
+3. **Impact** — what's the worst case?
+4. **Fix** — concrete remediation steps
+
+Be specific. Reference line numbers, exact patterns, or CVE IDs when possible."""
+
+        client = UniversalAIClient()
+        messages = [AIMessage(role="user", content=prompt)]
+        response = client.chat(messages)
+        analysis = response.content.strip() if response else "No analysis returned."
+
+        return {"success": True, "output": analysis[:6000]}
+    except ImportError:
+        return {"success": False, "error": "UniversalAIClient not available"}
+    except Exception as exc:
+        return {"success": False, "error": str(exc)}
+
+
+
+CHILD_AGENT_CODE = r"""True multi-AI child: runs as subprocess, has full VulnAgent reasoning loop."""
+
+import sys as _sys
+import json as _json
+from pathlib import Path as _Path
+
+
+def _run_child_agent(target: str, output_path: str) -> None:
+    """Entry point called by delegate subprocess."""
+    try:
+        from elengenix.agent.vuln_agent import VulnAgent
+        from tools.universal_ai_client import UniversalAIClient
+
+        client = UniversalAIClient()
+        agent = VulnAgent(
+            client=client,
+            target=target,
+            max_steps=8,
+            report_dir=_Path("/tmp/elengenix_delegate"),
+        )
+        report = agent.hunt(verbose=False)
+
+        result = {
+            "target": target,
+            "success": True,
+            "findings": [
+                {
+                    "title": f.title,
+                    "severity": f.severity,
+                    "description": f.description[:300],
+                    "evidence": f.evidence[:500],
+                    "remediation": f.remediation[:300],
+                }
+                for f in report.findings
+            ],
+            "open_ports": report.open_ports,
+            "services": report.services,
+            "summary": report.summary[:600],
+            "steps_used": report.total_steps,
+        }
+    except Exception as e:
+        result = {"target": target, "success": False, "error": str(e)[:600]}
+
+    _Path(output_path).write_text(_json.dumps(result, indent=2, ensure_ascii=False))
+
+
+if __name__ == "__main__":
+    _run_child_agent(_sys.argv[1], _sys.argv[2])
+
+
+
+
+CHILD_AGENT_CODE = r"""True multi-AI child: runs as subprocess, has full VulnAgent reasoning loop."""
+
+import sys as _sys
+import json as _json
+from pathlib import Path as _Path
+
+
+def _run_child_agent(target: str, output_path: str) -> None:
+    """Entry point called by delegate subprocess."""
+    try:
+        from elengenix.agent.vuln_agent import VulnAgent
+        from tools.universal_ai_client import UniversalAIClient
+
+        client = UniversalAIClient()
+        agent = VulnAgent(
+            client=client,
+            target=target,
+            max_steps=8,
+            report_dir=_Path("/tmp/elengenix_delegate"),
+        )
+        report = agent.hunt(verbose=False)
+
+        result = {
+            "target": target,
+            "success": True,
+            "findings": [
+                {
+                    "title": f.title,
+                    "severity": f.severity,
+                    "description": f.description[:300],
+                    "evidence": f.evidence[:500],
+                    "remediation": f.remediation[:300],
+                }
+                for f in report.findings
+            ],
+            "open_ports": report.open_ports,
+            "services": report.services,
+            "summary": report.summary[:600],
+            "steps_used": report.total_steps,
+        }
+    except Exception as e:
+        result = {"target": target, "success": False, "error": str(e)[:600]}
+
+    _Path(output_path).write_text(_json.dumps(result, indent=2, ensure_ascii=False))
+
+
+if __name__ == "__main__":
+    _run_child_agent(_sys.argv[1], _sys.argv[2])
+
+
+
+
+CHILD_AGENT_CODE = r"""import sys, json, os
+from pathlib import Path
+
+# Add project root to path for 'tools' package
+sys.path.insert(0, os.environ.get("__ELENGENIX_CWD", os.getcwd()))
+
+def _make_client():
+    # Create UniversalAIClient from parent-passed config or auto-detect
+    from tools.universal_ai_client import UniversalAIClient
+
+    config_json = os.environ.get("__ELENGENIX_AI_CONFIG")
+    if config_json:
+        try:
+            cfg = json.loads(config_json)
+            return UniversalAIClient(
+                provider=cfg.get("provider", "auto"),
+                api_key=cfg.get("api_key"),
+                base_url=cfg.get("base_url"),
+                model=cfg.get("model"),
+            )
+        except Exception:
+            pass
+    return UniversalAIClient()
+
+def _run_child(target: str, output_path: str) -> None:
+    try:
+        from elengenix.agent.vuln_agent import VulnAgent
+        client = _make_client()
+        agent = VulnAgent(client=client, target=target, max_steps=8, report_dir=Path("/tmp/elengenix_delegate"))
+        report = agent.hunt(verbose=False)
+        result = {
+            "target": target,
+            "success": True,
+            "findings": [
+                {"title": f.title, "severity": f.severity,
+                 "description": f.description[:300],
+                 "evidence": f.evidence[:500], "remediation": f.remediation[:300]}
+                for f in report.findings
+            ],
+            "open_ports": report.open_ports,
+            "services": report.services,
+            "summary": report.summary[:600],
+            "steps_used": report.total_steps,
+        }
+    except Exception as e:
+        result = {"target": target, "success": False, "error": str(e)[:600]}
+    Path(output_path).write_text(json.dumps(result, indent=2, ensure_ascii=False))
+
+if __name__ == "__main__":
+    _run_child(sys.argv[1], sys.argv[2])
+"""
+
+
+def _tool_delegate(
+    task: str, targets: list, max_steps: int = 5, timeout: int = 120
+) -> Dict[str, Any]:
+    """Spawn TRUE VulnAgent instances per target — each child is an independent AI agent
+    with its own THINK -> ACT -> ANALYZE loop, full tool access, and freedom to pivot.
+
+    Unlike the old parallel-function approach, each child:
+      - Reasons about its target autonomously
+      - Chooses which tools to call and in what order
+      - Pivots based on findings
+      - Concludes independently when it has enough evidence
+
+    Returns aggregated results with per-target findings, ports, and summary.
+    The parent AI can then merge insights across targets.
+    """
+    import concurrent.futures
+    import json
+    import os
+    import shutil
+    import subprocess as sp
+    import sys
+    import tempfile
+    from pathlib import Path as _Path
+
+    workdir = _Path(tempfile.mkdtemp(prefix="elengenix_delegate_"))
+
+    # Write child script once — self-contained VulnAgent
+    child_script = workdir / "_child.py"
+    child_script.write_text(CHILD_AGENT_CODE)
+
+    results = {}
+    errors = []
+
+    # Detect and pack AI config for children
+    env = dict(os.environ)
+    env["__ELENGENIX_CWD"] = os.getcwd()
+    env["PYTHONUNBUFFERED"] = "1"
+
+    # Try to find a real API key from .env for child agents
+    from elengenix.paths import find_env as _find_env
+
+    _env_path = _find_env()
+    if _env_path and _env_path.exists():
+        try:
+            with open(_env_path) as _ef:
+                for _line in _ef:
+                    _line = _line.strip()
+                    if not _line or _line.startswith("#") or "=" not in _line:
+                        continue
+                    _k, _v = _line.split("=", 1)
+                    if _k.endswith("_API_KEY") and _v and "placeholder" not in _v:
+                        _provider = _k.replace("_API_KEY", "").lower()
+                        for _pname, _pcfg in __import__("tools.universal_ai_client", fromlist=["UniversalAIClient"]).UniversalAIClient.PROVIDER_CONFIGS.items():
+                            if _pname == _provider:
+                                env["__ELENGENIX_AI_CONFIG"] = json.dumps({
+                                    "provider": _provider,
+                                    "api_key": _v,
+                                    "base_url": _pcfg.get("base_url", ""),
+                                    "model": _pcfg.get("default_model", ""),
+                                })
+                                break
+                        if "__ELENGENIX_AI_CONFIG" in env:
+                            break
+        except Exception:
+            pass
+
+    def _spawn_one(target: str) -> None:
+        """Launch a VulnAgent subprocess for one target."""
+        safe_name = target.replace(".", "_").replace(":", "_").replace("/", "_")
+        out_file = workdir / f"result_{safe_name}.json"
+        try:
+            r = sp.run(
+                [sys.executable, str(child_script), target, str(out_file)],
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+                env=env,
+            )
+        except sp.TimeoutExpired:
+            results[target] = {"target": target, "success": False, "error": f"Timed out after {timeout}s"}
+            return
+        except Exception as e:
+            results[target] = {"target": target, "success": False, "error": str(e)[:300]}
+            return
+
+        if out_file.exists():
+            try:
+                results[target] = json.loads(out_file.read_text())
+            except json.JSONDecodeError:
+                results[target] = {"target": target, "success": False, "error": "Bad child result JSON"}
+        else:
+            results[target] = {"target": target, "success": False, "error": (r.stderr or "No output file")[:500]}
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=min(len(targets), 5)) as pool:
+        pool.map(_spawn_one, targets)
+
+    try:
+        shutil.rmtree(workdir, ignore_errors=True)
+    except Exception:
+        pass
+
+    summary_lines = [
+        f"Delegate: {task}",
+        f"Targets: {len(targets)}  |  Max steps per child: {max_steps}",
+        "",
+    ]
+    success_count = 0
+    total_findings = 0
+
+    for t in targets:
+        info = results.get(t, {"success": False, "error": "No result returned"})
+        if info.get("success"):
+            success_count += 1
+            findings = info.get("findings", [])
+            total_findings += len(findings)
+            ports = info.get("open_ports", [])
+            services = info.get("services", {})
+            steps = info.get("steps_used", "?")
+            summary_lines.append(
+                f"  [{steps} steps] {t}  "
+                + (f"ports={ports}" if ports else "")
+                + (f" services={list(services.keys())}" if services else "")
+            )
+            for f in findings[:3]:
+                summary_lines.append(f"    - [{f['severity'].upper()}] {f['title'][:80]}")
+            if len(findings) > 3:
+                summary_lines.append(f"    ... (+{len(findings)-3} more)")
+            if info.get("summary"):
+                summary_lines.append(f"    summary: {info['summary'][:120]}")
+        else:
+            errors.append(t)
+            summary_lines.append(f"  FAIL {t}: {info.get('error', 'unknown error')[:100]}")
+
+    summary_lines.append(f"\nResults: {success_count}/{len(targets)} agents completed  |  {total_findings} total findings")
+    if errors:
+        summary_lines.append(f"Failed: {', '.join(errors)}")
+
+    return {
+        "success": len(errors) < len(targets),
+        "output": "\n".join(summary_lines),
+        "aggregated": results,
+        "total_findings": total_findings,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Dynamic tool creation — AI can extend its own toolbox at runtime
+# ---------------------------------------------------------------------------
+
+_dynamic_tools: Dict[str, Callable] = {}
+"""Runtime registry for AI-generated tools. Maps name → handler function."""
+
+
+def _register_dynamic_tool(
+    name: str,
+    description: str,
+    parameters: Dict[str, Any],
+    handler_code: str,
+) -> Dict[str, Any]:
+    """Register a dynamically generated tool.
+
+    Writes the handler code to ~/.elengenix/tools/{name}.py for persistence,
+    creates a wrapper function, and registers it so the agent can call it.
+
+    Returns success/error dict.
+    """
+    import sys as _sys
+    import subprocess as _sp
+    import tempfile as _tf
+
+    # 1. Validate the handler code compiles
+    try:
+        compile(handler_code, f"<{name}>", "exec")
+    except SyntaxError as exc:
+        return {"success": False, "error": f"Syntax error in handler code: {exc}"}
+
+    # 2. Write to ~/.elengenix/tools/ for persistence
+    gen_dir = Path("~/.elengenix/tools").expanduser()
+    gen_dir.mkdir(parents=True, exist_ok=True)
+    gen_path = gen_dir / f"{name}.py"
+    try:
+        gen_path.write_text(handler_code)
+    except OSError as exc:
+        return {"success": False, "error": f"Failed to write handler file: {exc}"}
+
+    # 3. Import the module to get the handler function
+    #    Expects a function named `handler(args: dict) -> dict` in the generated code
+    _sys.path.insert(0, str(gen_dir))
+    try:
+        import importlib as _il
+
+        mod = _il.import_module(name)
+        _il.reload(mod)
+        handler_fn = getattr(mod, "handler", None)
+        if handler_fn is None:
+            return {
+                "success": False,
+                "error": "Generated code must define a function named 'handler' that takes a dict and returns a dict",
+            }
+        # Test it compiles by running with empty args
+        try:
+            test_result = handler_fn({})
+            if not isinstance(test_result, dict):
+                return {"success": False, "error": "handler() must return a dict"}
+        except Exception:
+            pass  # may legitimately require arguments
+    except Exception as exc:
+        return {"success": False, "error": f"Failed to load generated tool module: {exc}"}
+    finally:
+        if str(gen_dir) in _sys.path:
+            _sys.path.remove(str(gen_dir))
+
+    # 4. Register in dynamic tools dict
+    _dynamic_tools[name] = handler_fn
+
+    # 5. Register in AVAILABLE_TOOLS
+    tool_entry = {
+        "name": name,
+        "description": description,
+        "parameters": {
+            "type": "object",
+            "properties": parameters.get("properties", {}),
+            "required": parameters.get("required", []),
+        },
+        "handler_name": None,  # dynamic — resolved via _dynamic_tools
+        "_is_dynamic": True,
+    }
+    # Remove if already present (refresh)
+    AVAILABLE_TOOLS[:] = [t for t in AVAILABLE_TOOLS if t["name"] != name]
+    AVAILABLE_TOOLS.append(tool_entry)
+
+    logger.info("Dynamic tool registered: %s from %s", name, gen_path)
+    return {
+        "success": True,
+        "output": f"Tool '{name}' created and registered. You can now call it like any other tool.",
+        "tool_path": str(gen_path),
+    }
+
+
+def _tool_create_tool(
+    name: str,
+    description: str,
+    parameters: Dict[str, Any],
+    handler_code: str,
+) -> Dict[str, Any]:
+    """Create a new tool at runtime.
+
+    Args:
+        name: Short unique name (snake_case, e.g. 'custom_port_scanner')
+        description: What this tool does — will be shown to the AI
+        parameters: JSON Schema object defining required/properties
+        handler_code: Python code defining a 'handler(args: dict) -> dict' function
+
+    The handler_code must define:
+        def handler(args: dict) -> dict:
+            # ... your logic ...
+            return {"success": True, "output": "..."}
+
+    Use this when you need a specialized capability not covered by existing tools.
+    The new tool is immediately available for future turns.
+    """
+    return _register_dynamic_tool(name, description, parameters, handler_code)
+
+
 # Registered tool list for the agent
 # NOTE: handler_name is a string (not a function reference) so that
 # unittest.mock.patch works correctly at runtime.
@@ -593,15 +1108,90 @@ AVAILABLE_TOOLS: List[Dict[str, Any]] = [
         },
         "handler_name": "_tool_run_command",
     },
+    {
+        "name": "run_python",
+        "description": "Execute arbitrary Python code and return its output. Use this to parse complex scan results, create custom HTTP requests, write exploit PoCs, analyze data programmatically, or generate reports. The code runs in a temporary file with full access to installed packages (requests, BeautifulSoup, etc.).",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "code": {"type": "string", "description": "Python code to execute (multi-line, full access to stdlib + pip-installed packages)"},
+                "timeout": {"type": "integer", "description": "Max execution time in seconds (default: 30, max: 120)", "default": 30, "maximum": 120},
+            },
+            "required": ["code"],
+        },
+        "handler_name": "_tool_run_python",
+    },
+    {
+        "name": "analyze_security",
+        "description": "Deep security analysis using AI reasoning. Feed source code, config files, logs, or scan output here for focused vulnerability analysis. The AI will examine the content with its full security expertise — identifying CVEs, misconfigs, exploit paths, and fixes. Use this when you need to THINK deeply about security rather than just run a tool.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "source": {"type": "string", "description": "Source code, config file, log, or scan output to analyze (up to 8000 chars)"},
+                "context": {"type": "string", "description": "Optional context about what to focus on (e.g., 'nginx config for auth bypass', 'log analysis for exploitation signs')", "default": ""},
+            },
+            "required": ["source"],
+        },
+        "handler_name": "_tool_analyze_security",
+    },
+    {
+        "name": "delegate",
+        "description": "Spawn TRUE AI agents per target — each is an independent VulnAgent with its own reasoning loop, full tool access, and freedom to pivot. Instead of running fixed functions, each child THINKS, ACTS, and CONCLUDES on its own. Use this for multi-target campaigns where each target deserves intelligent analysis.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "task": {"type": "string", "description": "Mission description (e.g., 'Scan nginx targets for known CVEs and misconfigs')"},
+                "targets": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "List of target IPs or domains — each gets its own AI agent"
+                },
+                "max_steps": {"type": "integer", "description": "Max reasoning steps per child agent (default: 5, max: 20). More steps = deeper analysis but slower.", "default": 5, "maximum": 20},
+                "timeout": {"type": "integer", "description": "Max wall-clock seconds per child (default: 120, max: 600)", "default": 120, "maximum": 600}
+            },
+            "required": ["task", "targets"]
+        },
+        "handler_name": "_tool_delegate",
+    },
+    {
+        "name": "create_tool",
+        "description": "Create a brand-new tool at runtime that you can call in future turns. "
+                       "Use this when existing tools don't cover what you need — e.g. "
+                       "a specialized API scanner, custom exploit PoC runner, or data parser. "
+                       "You provide: a unique name, description, JSON parameter schema, and "
+                       "Python code for a 'handler(args: dict) -> dict' function. "
+                       "The tool is saved to disk and registered immediately.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string", "description": "Unique tool name in snake_case, e.g. 'custom_api_scanner'"},
+                "description": {"type": "string", "description": "Natural language description of what the tool does"},
+                "parameters": {
+                    "type": "object",
+                    "description": "JSON Schema for tool parameters: {type: 'object', properties: {...}, required: [...]}"
+                },
+                "handler_code": {
+                    "type": "string",
+                    "description": "Python code defining 'def handler(args: dict) -> dict:'. "
+                                   "Write complete, working code with proper error handling. "
+                                   "The handler receives args dict and must return a dict with at least 'success' and 'output' keys."
+                },
+            },
+            "required": ["name", "description", "parameters", "handler_code"]
+        },
+        "handler_name": "_tool_create_tool",
+    },
 ]
 
-TOOL_DEFS_TEXT: str = json.dumps(
-    [
-        {"name": t["name"], "description": t["description"], "parameters": t["parameters"]}
-        for t in AVAILABLE_TOOLS
-    ],
-    indent=2,
-)
+def _get_tool_defs() -> str:
+    """Build tool definitions JSON including dynamically created tools."""
+    return json.dumps(
+        [
+            {"name": t["name"], "description": t["description"], "parameters": t["parameters"]}
+            for t in AVAILABLE_TOOLS
+        ],
+        indent=2,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -626,7 +1216,24 @@ You have complete autonomy over HOW you do this. There are no forced phases or s
 3. **Build hypotheses.** "Port 80 open → likely Apache → try known CVEs"
 4. **Pivot on evidence.** A finding changes direction. Follow it.
 5. **Be thorough.** Check network, web, services, known vulnerabilities, misconfigurations.
-6. **Conclude when ready.** When you have enough evidence to report findings, summarize.
+6. **Extend yourself.** If existing tools are insufficient, create new ones with `create_tool`.
+7. **Conclude when ready.** When you have enough evidence to report findings, summarize.
+
+## Self-Improvement
+
+You can evolve your own capabilities at runtime:
+
+- **`create_tool`** — when existing tools don't cover what you need, write a Python function
+  and register it as a new tool. It's immediately available in future turns.
+- **Reflection** — if a tool fails, the system will ask you to analyze why.
+  Use `create_tool` to fix recurring failures by writing a better tool.
+- Your created tools persist to disk and can be reused in future sessions.
+
+**When to create a tool:**
+- You need a specialized scanner (e.g. custom API fuzzer)
+- You need to parse a specific format or service response
+- Your tool failed because it didn't handle a case you can code for
+- You want to automate a multi-step process into a single call
 
 ## Current state
 
@@ -702,8 +1309,13 @@ class VulnAgent:
         self.target = target
         self.max_steps = max_steps
         self.governance = governance
-        self.report_dir = report_dir or Path("reports")
+        self.report_dir = report_dir or get_reports_path()
         self.memory = memory  # AgentMemory instance (optional)
+
+        # Initialize ~/.elengenix/ user-space directories (pip-safe)
+        _elengenix_home = Path("~/.elengenix").expanduser()
+        for subdir in ("tools", "scripts", "data", "reports"):
+            (_elengenix_home / subdir).mkdir(parents=True, exist_ok=True)
 
         # Runtime state
         self.step = 0
@@ -714,6 +1326,8 @@ class VulnAgent:
         self.scan_history: List[ScanStep] = []
         self.conversation: List[Dict[str, str]] = []
         self._conclusion: str = ""
+        self._consecutive_failures: int = 0
+        self._reflections: List[Dict[str, Any]] = []
 
     # ------------------------------------------------------------------
     # Public entry point
@@ -803,6 +1417,27 @@ class VulnAgent:
                 except Exception as e:
                     logger.debug(f"Memory store failed: {e}")
 
+            # 6. REFLECT — on consecutive failures, analyze and self-improve
+            if not result.get("success"):
+                self._consecutive_failures += 1
+            else:
+                self._consecutive_failures = 0
+
+            if self._consecutive_failures > 0 and self._consecutive_failures % 2 == 0:
+                reflection = self._reflect_step(action, result)
+                if reflection:
+                    self._reflections.append(reflection)
+                    if verbose and reflection.get("action"):
+                        tool_name = reflection["action"].get("tool", "?")
+                        sys.stdout.write(f"🪞 {reflection.get('summary', 'Reflecting...')[:200]}\n")
+                        sys.stdout.flush()
+                    # If reflection suggests creating a tool, execute it
+                    if reflection.get("action"):
+                        fix_result = self._execute_step(reflection["action"])
+                        if fix_result.get("success"):
+                            sys.stdout.write(f"🛠 Self-improvement: {fix_result.get('output', '')[:200]}\n")
+                            sys.stdout.flush()
+
             if verbose:
                 status = "✅" if result.get("success") else "❌"
                 output = result.get("output", result.get("error", ""))[:200]
@@ -863,17 +1498,94 @@ class VulnAgent:
         action = self._extract_action(content)
         return action
 
+    def _reflect_step(self, failed_action: Dict[str, Any], result: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Reflect on a step failure and decide if a tool should be created to fix the gap.
+
+        When the AI hits N consecutive failures, this method sends the
+        failure context back to the AI for analysis. The AI can suggest
+        creating a new tool via a structured action dict.
+
+        Returns an action dict (for create_tool) or None.
+        """
+        tool_name = failed_action.get("tool", "?")
+        args = failed_action.get("arguments", {})
+        error = result.get("error", result.get("output", "unknown error"))
+
+        prompt = (
+            f"You are the Elengenix self-improvement module. A tool call just failed.\n\n"
+            f"Failed tool: {tool_name}\n"
+            f"Arguments: {args}\n"
+            f"Error: {error[:500]}\n\n"
+            f"Consecutive failures: {self._consecutive_failures}\n\n"
+            f"Analyze the failure. Can you fix this by:\n"
+            f"1. Creating a NEW tool with create_tool that handles this case properly?\n"
+            f"2. Pivoting to a different existing tool that might work?\n"
+            f"3. Both — create a better tool now, then use it next turn?\n\n"
+            f"Available tools: {_get_tool_defs()[:1000]}\n\n"
+            f"If you want to create a tool, respond with:\n"
+            f'{{"create_tool": true, "tool_name": "...", "description": "...", '
+            f'"reasoning": "why this will fix the failure"}}\n\n'
+            f"If no tool is needed, just respond with: {{\"skip\": true}}\n"
+        )
+
+        self.conversation.append({"role": "user", "content": prompt})
+        try:
+            messages = self._convert_messages(self.conversation)
+            response = self.client.chat(messages)
+            content = response.content.strip() if response else ""
+        except Exception as exc:
+            logger.error("Reflection AI call failed: %s", exc)
+            return None
+
+        self.conversation.append({"role": "assistant", "content": content})
+
+        # Parse the reflection response
+        action = self._extract_action(content)
+        if not action:
+            return None
+        if action.get("skip"):
+            return {"action": None, "summary": "No fix needed, pivoting."}
+
+        if action.get("create_tool"):
+            tool_name = action.get("tool_name", "")
+            description = action.get("description", "")
+            reasoning = action.get("reasoning", "")
+
+            # The AI must provide full tool definition — ask the AI to generate
+            # the actual tool code by re-entering the loop
+            # Return a structured suggestion for the main loop
+            return {
+                "action": {
+                    "reasoning": reasoning,
+                    "tool": "create_tool",
+                    "arguments": {
+                        "name": tool_name,
+                        "description": description,
+                        "parameters": action.get("parameters", {"type": "object", "properties": {}, "required": []}),
+                        "handler_code": action.get("handler_code", ""),
+                    },
+                },
+                "summary": f"🪞 Self-improvement: creating '{tool_name}' — {reasoning[:200]}",
+            }
+
+        return None
+
     def _resolve_handler(self, tool_name: str) -> Optional[Callable]:
         """Resolve a tool handler by name at call time.
 
-        Uses getattr on the current module so unittest.mock.patch
-        works correctly — handler_name is a string, not a cached ref.
+        Checks:
+        1. Static tools via getattr on module (supports mock.patch)
+        2. Dynamic tools created with create_tool (from _dynamic_tools dict)
         """
         import sys
 
         module = sys.modules[__name__]
         for t in AVAILABLE_TOOLS:
             if t["name"] == tool_name:
+                # Dynamic tool — resolved from runtime dict
+                if t.get("_is_dynamic"):
+                    return _dynamic_tools.get(tool_name)
+                # Static tool — resolved via module attribute
                 handler_name = t.get("handler_name", "")
                 return getattr(module, handler_name, None)
         return None
@@ -1013,7 +1725,7 @@ class VulnAgent:
             hypotheses=hypotheses_text,
             findings=findings_text,
             scan_history=history_text,
-            TOOL_DEFS_TEXT=TOOL_DEFS_TEXT,
+            TOOL_DEFS_TEXT=_get_tool_defs(),
             MEMORY_CONTEXT=memory_text,
         )
 

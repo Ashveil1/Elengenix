@@ -7,7 +7,10 @@ import json
 import logging
 import time
 from pathlib import Path
-from typing import List, Optional
+from elengenix.paths import get_data_dir
+from typing import (
+    Any, Dict, List, Optional
+)
 
 from agents.agent_dataclasses import AgentThought
 
@@ -26,7 +29,7 @@ class ChainOfThoughtLogger:
     """
 
     def __init__(self, log_dir: Optional[Path] = None):
-        self.log_dir = log_dir or Path("data/cot_logs")
+        self.log_dir = log_dir or get_data_dir("cot_logs")
         self.log_dir.mkdir(parents=True, exist_ok=True)
         self.current_session: List[AgentThought] = []
         self._pending_target: Optional[str] = None

@@ -18,7 +18,8 @@ import subprocess
 import logging
 import os
 from pathlib import Path
-
+from elengenix.paths import get_reports_path
+from typing import (
 from rich.box import ROUNDED, SIMPLE
 from rich.panel import Panel
 from rich.table import Table
@@ -574,7 +575,7 @@ def run_reports_menu() -> None:
         print("questionary not installed")
         return
 
-    reports_dir = Path("reports")
+    reports_dir = get_reports_path()
     if not reports_dir.exists():
         print("No reports found.")
         return

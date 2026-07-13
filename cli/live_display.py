@@ -11,7 +11,8 @@ from collections import deque
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import List, Optional
+from elengenix.paths import get_data_dir
+from typing import (
 
 from rich.console import Group
 from rich.layout import Layout
@@ -22,7 +23,7 @@ from rich.text import Text
 from cli.ui_components import console as _ui_console
 
 # Setup logging to capture agent activity
-LOG_DIR = Path("data")
+LOG_DIR = get_data_dir()
 LOG_DIR.mkdir(exist_ok=True)
 ACTIVITY_LOG = LOG_DIR / "activity.log"
 

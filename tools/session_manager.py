@@ -24,11 +24,12 @@ import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Optional
+from elengenix.paths import get_data_dir
 
 logger = logging.getLogger("elengenix.session")
 
-SESSIONS_DIR = Path("data/sessions")
+SESSIONS_DIR = get_data_dir("sessions")
 
 
 def generate_session_id() -> str:

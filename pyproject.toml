@@ -88,35 +88,11 @@ Homepage = "https://github.com/Ashveil1/Elengenix"
 Repository = "https://github.com/Ashveil1/Elengenix"
 Issues = "https://github.com/Ashveil1/Elengenix/issues"
 
+[tool.setuptools.packages.find]
+exclude = ["tests*", "venv*", "scripts*"]
+
 [tool.setuptools]
-py-modules = [
-    "main",
-    "agent",
-    "agent_brain",
-    "cli",
-    "cli_textual",
-    "orchestrator",
-    "ui_components",
-    "live_display",
-    "wizard",
-    "scan_engine_upgrade",
-    "tools_menu",
-    "bot",
-    "bot_utils",
-    "file_relationship_mapper",
-    "dependency_manager",
-    "tui_design",
-    "elengenix_launcher",
-]
-packages = [
-    "agents",
-    "commands",
-    "tui",
-    "tools",
-    "redteam_agent",
-    "prompts",
-    "knowledge",
-]
+py-modules = ["main"]
 include-package-data = true
 
 [tool.setuptools.package-data]

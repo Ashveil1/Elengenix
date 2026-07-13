@@ -22,7 +22,8 @@ warnings.filterwarnings("ignore", category=FutureWarning)
 warnings.filterwarnings("ignore", message=".*google.generativeai.*")
 from collections import deque
 from pathlib import Path
-from typing import Any, Callable, List, Optional
+from elengenix.paths import get_data_dir
+from typing import (
 
 from rich.align import Align
 from rich.box import ASCII
@@ -34,7 +35,7 @@ from tools.overlay_menu import SettingsOverlay
 from cli.ui_components import console, render_sidebar
 
 # Logging Setup
-LOG_FILE = Path("data/elengenix_cli.log")
+LOG_FILE = get_data_dir("elengenix_cli.log")
 LOG_FILE.parent.mkdir(exist_ok=True)
 
 # Use a stream handler for module-level logging to avoid unclosed file warnings.
@@ -53,7 +54,7 @@ _file_handler.setFormatter(logging.Formatter("%(asctime)s - %(levelname)s - %(me
 logger.addHandler(_file_handler)
 
 # ── AI Disclaimer & Consent Management ─────────────────────────
-CONSENT_FILE = Path("data/.ai_consent_accepted")
+CONSENT_FILE = get_data_dir(".ai_consent_accepted")
 
 AI_DISCLAIMER_TEXT = """
 [WARNING] AI SYSTEM DISCLAIMER

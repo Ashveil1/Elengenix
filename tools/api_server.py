@@ -31,6 +31,7 @@ import time
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
+from elengenix.paths import get_reports_path
 from typing import Any, Dict, List, Optional, Set
 
 logger = logging.getLogger("elengenix.api_server")
@@ -186,7 +187,7 @@ if _HAS_FASTAPI:
         logger.info("Elengenix Enterprise API server started")
         # Ensure data directories exist
         Path("data/webhooks").mkdir(parents=True, exist_ok=True)
-        Path("reports").mkdir(parents=True, exist_ok=True)
+        get_reports_path()
 
     pass  # app assigned below
 

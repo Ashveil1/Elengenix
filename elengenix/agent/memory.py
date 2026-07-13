@@ -15,6 +15,7 @@ import logging
 import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
+from elengenix.paths import get_data_path
 
 if TYPE_CHECKING:
     from tools.learning_engine import ExploitRecord
@@ -80,7 +81,7 @@ class AgentMemory:
         if learning_cls:
             try:
                 self._learning = learning_cls(
-                    db_path=learning_db or Path("data/learning.db"),
+                    db_path=learning_db or get_data_path("learning.db"),
                 )
                 logger.info("AgentMemory: LearningEngine initialized")
             except Exception as e:

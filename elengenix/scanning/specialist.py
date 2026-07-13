@@ -17,6 +17,7 @@ import re
 import subprocess
 import time
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from elengenix.paths import get_reports_path
 
 from elengenix.scanning.worker import BaseWorker, WorkerResult
 from tools.universal_ai_client import AIMessage
@@ -398,7 +399,7 @@ Respond ONLY with valid JSON. No extra text."""
                 description=f"Fallback shell for {tool_name}",
             )
 
-        report_dir = Path("reports") / f"specialist_{tool_name}_{int(time.time())}"
+        report_dir = get_reports_path(f"specialist_{tool_name}_{int(time.time())}")
         report_dir.mkdir(parents=True, exist_ok=True)
 
         try:

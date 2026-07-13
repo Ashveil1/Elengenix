@@ -28,13 +28,15 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Generator, List, Optional
 
+from elengenix.paths import find_env
+
 # Auto-load .env so API keys are available without manual setup
 try:
     from dotenv import load_dotenv
 
-    _ENV_PATH = Path(__file__).resolve().parent.parent / ".env"
-    if _ENV_PATH.exists():
-        load_dotenv(_ENV_PATH, override=False)
+    _env = find_env()
+    if _env:
+        load_dotenv(_env, override=False)
 except ImportError:
     pass
 

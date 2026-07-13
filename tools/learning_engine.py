@@ -34,7 +34,8 @@ import sqlite3
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from elengenix.paths import get_data_path, get_data_dir
+from typing import (
 
 logger = logging.getLogger("elengenix.learning_engine")
 
@@ -74,7 +75,7 @@ class LearningEngine:
         chroma_path: Optional[Path] = None,
         use_chroma: bool = True,
     ):
-        self.db_path = db_path or Path("data/learning.db")
+        self.db_path = db_path or get_data_path("learning.db")
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._conn = sqlite3.connect(str(self.db_path), check_same_thread=False)
         self._conn.row_factory = sqlite3.Row
@@ -94,7 +95,7 @@ class LearningEngine:
                 # Use bypass embedding to avoid downloading 79MB ONNX model
                 # We rely on SQL ranking for the heavy lifting; ChromaDB
                 # is only used for keyword fallback on the SQL store.
-                chroma_path = chroma_path or Path("data/chroma_learning")
+                chroma_path = chroma_path or get_data_dir("chroma_learning")
                 chroma_path.mkdir(parents=True, exist_ok=True)
                 settings = chromadb.Settings(anonymized_telemetry=False)
                 client = chromadb.PersistentClient(path=str(chroma_path), settings=settings)

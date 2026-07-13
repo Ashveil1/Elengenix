@@ -34,7 +34,8 @@ import sqlite3
 import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from elengenix.paths import get_data_path
+from typing import (
 from urllib.parse import parse_qsl, urlparse
 
 logger = logging.getLogger("elengenix.coverage_analyzer")
@@ -112,7 +113,7 @@ class CoverageAnalyzer:
     """
 
     def __init__(self, db_path: Optional[Path] = None):
-        self.db_path = db_path or Path("data/coverage.db")
+        self.db_path = db_path or get_data_path("coverage.db")
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._conn = sqlite3.connect(str(self.db_path), check_same_thread=False)
         self._conn.row_factory = sqlite3.Row

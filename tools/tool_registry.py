@@ -193,7 +193,7 @@ class ToolRegistry:
             tool = self._tools.pop(name)
             self._categories[tool.metadata.category].remove(name)
 
-    def load_dynamic_tools(self, ai_tools_dir: Union[str, Path] = "tools/ai_generated") -> None:
+    def load_dynamic_tools(self, ai_tools_dir: Union[str, Path] = "~/.elengenix/tools") -> None:
         """Dynamically load and register AI-generated tools from the specified directory."""
         import importlib.util
         import sys

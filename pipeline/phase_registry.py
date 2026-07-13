@@ -48,7 +48,7 @@ class PhaseContext:
 
     target: str = ""
     base_url: str = ""
-    report_dir: Path = field(default_factory=lambda: Path("reports"))
+    report_dir: Path = field(default_factory=lambda: get_reports_path())
     findings: List[Dict[str, Any]] = field(default_factory=list)
     timeout: int = 300
     extra: Dict[str, Any] = field(default_factory=dict)

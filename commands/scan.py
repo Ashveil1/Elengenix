@@ -19,7 +19,8 @@ import logging
 import os
 import time
 from pathlib import Path
-
+from elengenix.paths import get_reports_path
+from typing import (
 from cli.ui_components import console, prompt_target
 
 # Available phases for --phase flag
@@ -297,7 +298,7 @@ def _handle_phase_scan(args, phase: str) -> int:
         # Create context
         normalized = sm.normalize_target(target)
         base_url = target if target.startswith(("http://", "https://")) else f"http://{target}"
-        report_dir = Path("reports").resolve() / normalized.replace(".", "_")
+        report_dir = get_reports_path(normalized.replace(".", "_"))
         report_dir.mkdir(parents=True, exist_ok=True)
 
         ctx = PhaseContext(

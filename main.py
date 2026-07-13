@@ -18,6 +18,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
+from elengenix.paths import get_data_dir
 
 
 def _ensure_config_files():
@@ -93,7 +94,7 @@ except ImportError:
 
 
 # ── Logging Setup ─────────────────────────────────────────────────────────────
-LOG_DIR = Path("data")
+LOG_DIR = get_data_dir()
 LOG_DIR.mkdir(exist_ok=True)
 
 logging.basicConfig(
@@ -917,7 +918,7 @@ def main():
 
                     # Save final report
                     safe_name = re.sub(r"[^a-zA-Z0-9.-]", "_", target)[:40]
-                    report_path = Path("reports") / f"hunt_{safe_name}.md"
+                    report_path = get_reports_path(f"hunt_{safe_name}.md")
                     report_path.parent.mkdir(parents=True, exist_ok=True)
                     report_path.write_text(response)
                     print_info(f"Full report: {report_path}")
@@ -967,7 +968,7 @@ def main():
 
                 # Save report
                 safe_name = re.sub(r"[^a-zA-Z0-9.-]", "_", target)[:40]
-                report_path = Path("reports") / f"vuln-hunt_{safe_name}.md"
+                report_path = get_reports_path(f"vuln-hunt_{safe_name}.md")
                 report_path.parent.mkdir(parents=True, exist_ok=True)
                 report_path.write_text(report_text)
                 print_info(f"Full report: {report_path}")

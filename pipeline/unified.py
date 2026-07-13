@@ -19,6 +19,7 @@ import json
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
+from elengenix.paths import get_reports_path
 from typing import Any, Dict, List, Optional
 
 from pipeline.phase_registry import (
@@ -457,7 +458,7 @@ class UnifiedPipeline:
         # 2. Normalize target and create report dir
         normalized = self.scope_manager.normalize_target(config.target)
         safe_name = sanitize_path(normalized)
-        report_dir = Path("reports").resolve() / safe_name
+        report_dir = get_reports_path(safe_name)
         report_dir.mkdir(parents=True, exist_ok=True)
 
         base_url = (

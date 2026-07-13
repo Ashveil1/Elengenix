@@ -12,7 +12,8 @@ import sqlite3
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from elengenix.paths import get_data_dir
+from typing import (
 from urllib.parse import urlencode
 
 import requests
@@ -20,7 +21,7 @@ import requests
 logger = logging.getLogger("elengenix.cve")
 
 # CVE Database paths
-DATA_DIR = Path("data")
+DATA_DIR = get_data_dir()
 CVE_DB_PATH = DATA_DIR / "cve_database.db"
 CVE_CACHE_DIR = DATA_DIR / "cve_cache"
 CVE_CACHE_DIR.mkdir(parents=True, exist_ok=True)

@@ -10,6 +10,7 @@ import sys
 import time
 import warnings
 from pathlib import Path
+from elengenix.paths import get_data_dir
 
 warnings.filterwarnings("ignore", category=FutureWarning)
 
@@ -38,7 +39,7 @@ try:
 except ImportError:
     _TUI_WIDGETS_AVAILABLE = False
 
-LOG_FILE = Path("data/elengenix_cli.log")
+LOG_FILE = get_data_dir("elengenix_cli.log")
 LOG_FILE.parent.mkdir(exist_ok=True)
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger("elengenix.cli_textual")
@@ -122,9 +123,9 @@ HELP_TEXT = """\
 
 [white]━━━ SHORTCUTS ━━━[/]
   [dim]Ctrl+R[/] Research  [dim]Ctrl+M[/] CHILL/HUNT
-  [dim]Ctrl+T[/] Thinking  [dim]Ctrl+P[/] Model
-  [dim]Ctrl+G[/] Help      [dim]Ctrl+,[/] Settings
-  [dim]Ctrl+D[/] Dashboard [dim]/theme[/] Theme
+  [dim]Ctrl+T[/] Think     [dim]Ctrl+P[/] Model
+  [dim]Ctrl+A[/] Team      [dim]Ctrl+G[/] Help
+  [dim]Ctrl+,[/] Settings  [dim]Ctrl+D[/] Dashboard
   [dim]↑↓[/] History       [dim]/[/] Slash commands"""
 
 
@@ -194,6 +195,14 @@ class Sidebar(Container):
                 name = AGENT_NAMES.get(talk_to, f"#{talk_to}")
                 talk_tag = f"\n  [dim]▶ {name}[/]"
 
+            # Team/Single mode badge
+            if team > 1:
+                mode_badge = "[white]TEAM[/]"
+                team_model_names = models
+            else:
+                mode_badge = "[white]SINGLE[/]"
+                team_model_names = models[:1]
+
             pct = min(100, int((tokens / limit) * 100)) if limit > 0 else 0
             bar_w = 24
             filled = int((pct / 100) * bar_w)
@@ -202,8 +211,8 @@ class Sidebar(Container):
             target_line = f"\n  [white]{target[:28]}[/]" if target else "\n  [dim]none[/]"
 
             model_lines = []
-            if models:
-                for i, m in enumerate(models):
+            if team_model_names:
+                for i, m in enumerate(team_model_names):
                     name = AGENT_NAMES.get(i + 1, f"#{i + 1}")
                     short = m.split("/")[-1] if "/" in m else m
                     color = AGENT_COLORS.get(i + 1, TEXT)
@@ -221,6 +230,8 @@ class Sidebar(Container):
                 f"  [dim]{session[:20]}[/]\n"
                 f"  Mode: [white]{mode}[/] [dim]Turns: {turns}[/]\n"
                 "[dim]─" + "─" * 28 + "[/]\n"
+                f"[white]  {mode_badge}[/]\n"
+                "[dim]─" + "─" * 28 + "[/]\n"
                 "[white]SCAN[/]\n"
                 f"  [dim]Tools:[/] {tools_run}  [dim]Findings:[/] {findings}\n"
                 "[dim]─" + "─" * 28 + "[/]\n"
@@ -233,8 +244,8 @@ class Sidebar(Container):
                 "[white]SHORTCUTS[/]\n"
                 "  [dim]Ctrl+R[/] Research [dim]Ctrl+M[/] CHILL/HUNT\n"
                 "  [dim]Ctrl+T[/] Think   [dim]Ctrl+P[/] Model\n"
-                "  [dim]Ctrl+G[/] Help    [dim]Ctrl+,[/] Settings\n"
-                "  [dim]Ctrl+D[/] Dashboard\n"
+                "  [dim]Ctrl+A[/] Team   [dim]Ctrl+G[/] Help\n"
+                "  [dim]Ctrl+,[/] Settings   [dim]Ctrl+D[/] Dashboard\n"
             )
         try:
             self.query_one("#sidebar_content", Static).update(sidebar_text)
@@ -589,6 +600,7 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
         Binding("ctrl+r", "toggle_research", "Research", priority=True),
         Binding("ctrl+m", "toggle_mode", "CHILL/HUNT", priority=True),
         Binding("ctrl+t", "toggle_think", "Think", priority=True),
+        Binding("ctrl+a", "toggle_team", "Team/Single", priority=True),
         Binding("ctrl+p", "show_model", "Model", priority=True),
         Binding("ctrl+g", "show_help", "Help", priority=True),
         Binding("ctrl+d", "toggle_dashboard", "Dashboard", priority=True),
@@ -1360,6 +1372,10 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
             event.stop()
             self.action_toggle_research()
             return
+        if key == "ctrl+a":
+            event.stop()
+            self.action_toggle_team()
+            return
         if self._game_active:
             if key == "space":
                 if self.game.game_over:
@@ -1735,6 +1751,37 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
         os.environ["NVIDIA_PARAM_MODE"] = "enable" if self.thinking else "disable"
         self._update_sidebar()
         self._chat_write_system(f"[dim]Thinking: {'ON' if self.thinking else 'OFF'}[/]")
+
+    def action_toggle_team(self) -> None:
+        """Toggle between single model and TeamAegis (Ctrl+A)."""
+        self._team_active = not self._team_active
+        if self._team_active:
+            # Read team config from config.yaml
+            models = []
+            try:
+                import yaml
+                cfg_path = Path(__file__).resolve().parent.parent / "config.yaml"
+                if cfg_path.exists():
+                    cfg = yaml.safe_load(cfg_path.read_text()) or {}
+                    team = cfg.get("team_aegis", {})
+                    for role in ("strategist", "specialist", "critic"):
+                        rc = team.get(role, {})
+                        m = rc.get("model", "") or ""
+                        p = rc.get("provider", "") or ""
+                        models.append(f"{p}/{m}" if p and m else m or "default")
+            except Exception:
+                models = ["gemini", "anthropic", "openai"]
+            if not models or all(not m for m in models):
+                models = ["gemini", "anthropic", "openai"]
+            os.environ["ACTIVE_MODELS"] = ",".join(models)
+            self._chat_write_system(
+                "[green]TeamAegis ACTIVE[/] — Strategist / Specialist / Critic\n"
+                f"[dim]{', '.join(m[:25] for m in models)}[/]"
+            )
+        else:
+            os.environ.pop("ACTIVE_MODELS", None)
+            self._chat_write_system("[green]Single model mode[/]")
+        self._update_sidebar(force=True)
 
     def action_show_model(self) -> None:
         models = os.environ.get("ACTIVE_MODELS", "default")

@@ -309,8 +309,9 @@ class VulnFinder:
         # Execute the tool via the registry (async under the hood)
         import asyncio
         from pathlib import Path
-
-        report_dir = Path("data/reports")
+        from elengenix.paths import get_reports_path
+        from typing import (
+        report_dir = get_data_dir("reports")
         report_dir.mkdir(parents=True, exist_ok=True)
         semaphore = asyncio.Semaphore(1)
 

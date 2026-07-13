@@ -384,7 +384,8 @@ Respond ONLY with valid JSON. No extra text."""
         """
         import asyncio
         from pathlib import Path
-
+        from elengenix.paths import get_reports_path
+        from typing import (
         from tools.tool_registry import registry
 
         tool_name = decision.get("tool", "")
@@ -398,7 +399,7 @@ Respond ONLY with valid JSON. No extra text."""
                 description=f"Fallback shell for {tool_name}",
             )
 
-        report_dir = Path("reports") / f"specialist_{tool_name}_{int(time.time())}"
+        report_dir = get_reports_path(f"specialist_{tool_name}_{int(time.time())}")
         report_dir.mkdir(parents=True, exist_ok=True)
 
         try:

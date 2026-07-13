@@ -22,7 +22,8 @@ import logging
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from elengenix.paths import get_reports_path
+from typing import (
 
 logger = logging.getLogger("elengenix.pdf_report")
 
@@ -71,8 +72,8 @@ class PDFReportGenerator:
     heavy dependencies like ReportLab.
     """
 
-    def __init__(self, output_dir: Path = Path("reports")):
-        self.output_dir = output_dir
+    def __init__(self, output_dir: Optional[Path] = None):
+        self.output_dir = output_dir or get_reports_path()
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
     def generate_from_findings(

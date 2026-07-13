@@ -31,7 +31,8 @@ import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from elengenix.paths import get_data_dir
+from typing import (
 from urllib.parse import urlparse
 
 try:
@@ -1918,7 +1919,7 @@ class AutonomousAgent:
     def _export_json(self, target: str, state: AgentState, predictions: List[Dict], duration: int):
         """Auto-save scan results to data/scans/ as JSON."""
         try:
-            scans_dir = Path("data/scans")
+            scans_dir = get_data_dir("scans")
             scans_dir.mkdir(parents=True, exist_ok=True)
             domain = _to_domain(target)
             ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")

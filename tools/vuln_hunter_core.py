@@ -27,9 +27,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-logger = logging.getLogger("elengenix.vuln_hunter_core")
+from elengenix.paths import get_data_path
 
-_DB_PATH = Path(__file__).parent.parent / "data" / "vuln_hunter.db"
+logger = logging.getLogger("elengenix.exploit_hunter")
+
+_DB_PATH = get_data_path("vuln_hunter.db")
 
 
 # ---------------------------------------------------------------------------

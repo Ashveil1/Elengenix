@@ -22,9 +22,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+from elengenix.paths import get_data_path
+
 logger = logging.getLogger("elengenix.governance")
 
-_DB_PATH = Path(__file__).parent.parent / "data" / "governance_audit.db"
+_DB_PATH = get_data_path("governance_audit.db")
 
 
 def _now() -> str:

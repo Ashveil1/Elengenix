@@ -24,7 +24,8 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional
+from elengenix.paths import get_reports_path
+from typing import (
 from uuid import uuid4
 
 from tools.mission_state import MissionState
@@ -71,7 +72,7 @@ class SwarmConfig:
     enable_governance: bool = True
     abort_on_critical: bool = False  # Stop all if one finds critical?
     save_partial: bool = True
-    output_dir: Path = field(default_factory=lambda: Path("reports/swarm"))
+    output_dir: Path = field(default_factory=lambda: get_reports_path("swarm"))
 
 
 class SwarmMissionTracker:

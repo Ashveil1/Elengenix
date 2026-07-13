@@ -23,15 +23,17 @@ import threading
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
+from elengenix.paths import find_env, find_config
+
 logger = logging.getLogger("elengenix.ai_config")
 
 # Load .env once at import (best-effort, safe if missing)
 try:
     from dotenv import load_dotenv
 
-    _ENV_PATH = Path(__file__).resolve().parent.parent / ".env"
-    if _ENV_PATH.exists():
-        load_dotenv(_ENV_PATH, override=False)
+    _env = find_env()
+    if _env:
+        load_dotenv(_env, override=False)
 except ImportError:
     pass
 
@@ -52,8 +54,8 @@ def load_config(config_path: Optional[Path] = None) -> Dict[str, Any]:
     with _CONFIG_LOCK:
         if _CONFIG_CACHE:  # double-check
             return _CONFIG_CACHE
-        path = config_path or (Path(__file__).resolve().parent.parent / "config.yaml")
-        if not path.exists():
+        path = config_path or find_config()
+        if not path or not path.exists():
             logger.debug(f"config.yaml not found at {path}")
             _CONFIG_CACHE = {}
             return _CONFIG_CACHE
