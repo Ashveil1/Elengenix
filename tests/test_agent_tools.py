@@ -21,6 +21,14 @@ from elengenix.agent.vuln_agent import (
     _tool_delegate,
     _tool_create_tool,
     _tool_edit_own_tool,
+    _tool_save_memory,
+    _tool_recall_memory,
+    _tool_list_memories,
+    _tool_forget_memory,
+    _tool_create_skill,
+    _tool_view_skill,
+    _tool_list_skills,
+    _tool_delete_skill,
     _dynamic_tools,
     AVAILABLE_TOOLS,
 )
@@ -190,9 +198,9 @@ class TestAnalyzeSecurity:
 
 
 class TestToolRegistry:
-    def test_all_17_tools_registered(self):
+    def test_all_25_tools_registered(self):
         names = [t["name"] for t in AVAILABLE_TOOLS]
-        assert len(names) == 17
+        assert len(names) == 25, f"Expected 25, got {len(names)}"
 
     def test_file_tools_present(self):
         names = [t["name"] for t in AVAILABLE_TOOLS]
@@ -207,6 +215,16 @@ class TestToolRegistry:
     def test_analyze_present(self):
         names = [t["name"] for t in AVAILABLE_TOOLS]
         assert "analyze_security" in names
+
+    def test_memory_tools_present(self):
+        names = [t["name"] for t in AVAILABLE_TOOLS]
+        for tool in ("save_memory", "recall_memory", "list_memories", "forget_memory"):
+            assert tool in names, f"{tool} missing"
+
+    def test_skill_tools_present(self):
+        names = [t["name"] for t in AVAILABLE_TOOLS]
+        for tool in ("create_skill", "view_skill", "list_skills", "delete_skill"):
+            assert tool in names, f"{tool} missing"
 
     def test_all_have_handler(self):
         for t in AVAILABLE_TOOLS:

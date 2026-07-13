@@ -26,6 +26,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
 from elengenix.paths import get_reports_path
+from elengenix.agent.agent_memory import MemoryStore
+from elengenix.agent.agent_skills import SkillStore
 
 logger = logging.getLogger("elengenix.agent.vuln")
 
@@ -1053,6 +1055,106 @@ def _tool_edit_own_tool(name: str, handler_code: str) -> Dict[str, Any]:
         "tool_path": str(gen_path),
         "edits_remaining": remaining,
     }
+
+
+# ---------------------------------------------------------------------------
+# Memory tools
+# ---------------------------------------------------------------------------
+
+_MEMORY_STORE = MemoryStore()
+_SKILL_STORE = SkillStore()
+
+
+def _tool_save_memory(content: str, tags: str = "") -> Dict[str, Any]:
+    """Save a fact or note to persistent cross-session memory."""
+    entry = _MEMORY_STORE.save(content=content, tags=tags)
+    total = _MEMORY_STORE.count()
+    return {
+        "success": True,
+        "output": f"Saved memory [{entry['id']}]. You now have {total} memory entries. "
+                  f"Use `recall_memory` to search later.",
+        "memory_id": entry["id"],
+    }
+
+
+def _tool_recall_memory(query: str, limit: int = 5) -> Dict[str, Any]:
+    """Search cross-session memory by keywords. Returns matching entries."""
+    results = _MEMORY_STORE.search(query=query, limit=limit)
+    if not results:
+        return {"success": True, "output": f"No memories matching '{query}'. Save some with `save_memory`."}
+    lines = [f"Found {len(results)} memory entries matching '{query}':"]
+    for entry in results:
+        lines.append(f"\n  [{entry['id']}] ({entry.get('tags','')})")
+        lines.append(f"    {entry['content'][:300]}")
+    return {"success": True, "output": "\n".join(lines), "entries": results}
+
+
+def _tool_list_memories(limit: int = 10) -> Dict[str, Any]:
+    """List recent memory entries."""
+    entries = _MEMORY_STORE.list_all(limit=limit)
+    if not entries:
+        return {"success": True, "output": "No memories yet. Save some with `save_memory`."}
+    lines = [f"Recent memories ({len(entries)} shown, {_MEMORY_STORE.count()} total):"]
+    for entry in entries:
+        lines.append(f"\n  [{entry['id']}] ({entry.get('tags','')})")
+        lines.append(f"    {entry['content'][:300]}")
+    return {"success": True, "output": "\n".join(lines), "entries": entries}
+
+
+def _tool_forget_memory(memory_id: str) -> Dict[str, Any]:
+    """Remove a specific memory entry by id."""
+    if _MEMORY_STORE.forget(memory_id):
+        return {"success": True, "output": f"Memory [{memory_id}] forgotten."}
+    return {"success": False, "error": f"Memory [{memory_id}] not found. Use `list_memories` to see valid ids."}
+
+
+# ---------------------------------------------------------------------------
+# Skill tools
+# ---------------------------------------------------------------------------
+
+
+def _tool_create_skill(name: str, description: str, content: str) -> Dict[str, Any]:
+    """Save a reusable technique/procedure as a named skill."""
+    _SKILL_STORE.save(name=name, description=description, content=content)
+    total = _SKILL_STORE.count()
+    return {
+        "success": True,
+        "output": f"Skill '{name}' created ({total} skills total). "
+                  f"Use `view_skill` to read it or `list_skills` to see all.",
+    }
+
+
+def _tool_view_skill(name: str) -> Dict[str, Any]:
+    """Read a saved skill by name."""
+    skill = _SKILL_STORE.get(name=name)
+    if not skill:
+        return {"success": False, "error": f"Skill '{name}' not found. Use `list_skills` to see available."}
+    return {
+        "success": True,
+        "output": f"# {skill['name']}\n{skill['description']}\n\n{skill['content']}\n",
+        "skill": skill,
+    }
+
+
+def _tool_list_skills() -> Dict[str, Any]:
+    """List all saved skills."""
+    skills = _SKILL_STORE.list_all()
+    if not skills:
+        return {"success": True, "output": "No skills yet. Create one with `create_skill`."}
+    lines = [f"Skills ({len(skills)}):"]
+    for s in skills:
+        desc = s.get("description", "")[:100]
+        lines.append(f"  - {s['name']}: {desc}")
+    return {"success": True, "output": "\n".join(lines), "skills": skills}
+
+
+def _tool_delete_skill(name: str) -> Dict[str, Any]:
+    """Remove a skill by name."""
+    if _SKILL_STORE.delete(name=name):
+        return {"success": True, "output": f"Skill '{name}' deleted."}
+    return {"success": False, "error": f"Skill '{name}' not found."}
+
+
 # NOTE: handler_name is a string (not a function reference) so that
 # unittest.mock.patch works correctly at runtime.
 AVAILABLE_TOOLS: List[Dict[str, Any]] = [
@@ -1335,6 +1437,116 @@ AVAILABLE_TOOLS: List[Dict[str, Any]] = [
         },
         "handler_name": "_tool_edit_own_tool",
     },
+    # ------------------------------------------------------------------
+    # Memory tools
+    # ------------------------------------------------------------------
+    {
+        "name": "save_memory",
+        "description": "Save a fact or note to persistent cross-session memory. "
+                       "Use this to remember findings, target traits, tool preferences, "
+                       "or anything you want to recall in future sessions.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "content": {"type": "string", "description": "The fact or note to remember"},
+                "tags": {"type": "string", "description": "Optional space-separated keywords for search (e.g. 'target nginx recon')"},
+            },
+            "required": ["content"]
+        },
+        "handler_name": "_tool_save_memory",
+    },
+    {
+        "name": "recall_memory",
+        "description": "Search cross-session memory by keywords. "
+                       "Returns matching entries with their content and tags.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string", "description": "Keywords to search for in memory content and tags"},
+                "limit": {"type": "integer", "description": "Max results to return (default 5)"},
+            },
+            "required": ["query"]
+        },
+        "handler_name": "_tool_recall_memory",
+    },
+    {
+        "name": "list_memories",
+        "description": "List recent memory entries with their IDs and content.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "limit": {"type": "integer", "description": "Number of recent entries to show (default 10)"},
+            },
+            "required": []
+        },
+        "handler_name": "_tool_list_memories",
+    },
+    {
+        "name": "forget_memory",
+        "description": "Remove a specific memory entry by ID. "
+                       "Use `list_memories` to find the ID first.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "memory_id": {"type": "string", "description": "Memory entry ID to remove (e.g. 'mem_1712345678000_3')"},
+            },
+            "required": ["memory_id"]
+        },
+        "handler_name": "_tool_forget_memory",
+    },
+    # ------------------------------------------------------------------
+    # Skill tools
+    # ------------------------------------------------------------------
+    {
+        "name": "create_skill",
+        "description": "Save a reusable technique or procedure as a named skill. "
+                       "Use this when you discover an effective workflow, scan technique, "
+                       "or exploit method that you want to reuse in future sessions.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string", "description": "Unique skill name (e.g. 'nginx_cve_scan')"},
+                "description": {"type": "string", "description": "Short description of what the skill does"},
+                "content": {"type": "string", "description": "Step-by-step procedure, code, or notes for the skill"},
+            },
+            "required": ["name", "description", "content"]
+        },
+        "handler_name": "_tool_create_skill",
+    },
+    {
+        "name": "view_skill",
+        "description": "Read a saved skill by name. Returns its description and full content.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string", "description": "Name of the skill to view"},
+            },
+            "required": ["name"]
+        },
+        "handler_name": "_tool_view_skill",
+    },
+    {
+        "name": "list_skills",
+        "description": "List all saved skills with their names and descriptions.",
+        "parameters": {
+            "type": "object",
+            "properties": {},
+            "required": []
+        },
+        "handler_name": "_tool_list_skills",
+    },
+    {
+        "name": "delete_skill",
+        "description": "Remove a skill by name. Use `list_skills` to see available skills.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string", "description": "Name of the skill to delete"},
+            },
+            "required": ["name"]
+        },
+        "handler_name": "_tool_delete_skill",
+    },
 ]
 
 def _get_tool_defs() -> str:
@@ -1386,6 +1598,25 @@ You can evolve your own capabilities at runtime:
 - **Reflection** — if a tool fails, the system will ask you to analyze why.
   Use `create_tool` to fill a gap or `edit_own_tool` to fix a broken tool.
 - Your created tools persist to disk and can be reused in future sessions.
+
+## MEMORY & SKILLS
+
+You have persistent cross-session memory and skill storage:
+
+- **`save_memory(content, tags)`** — Remember facts, findings, or target traits
+  across sessions. Tag your memories for easier search later.
+- **`recall_memory(query)`** — Recall what you learned in past sessions.
+- **`list_memories()`** — See your recent memory entries.
+- **`forget_memory(id)`** — Remove outdated or incorrect memories.
+- **`create_skill(name, description, content)`** — Save an effective technique
+  or workflow as a reusable skill (e.g. an nginx CVE scan procedure).
+- **`view_skill(name)`** — Read a saved skill's full procedure.
+- **`list_skills()`** — See all saved skills.
+- **`delete_skill(name)`** — Remove a skill you no longer need.
+
+All memories and skills persist in `~/.elengenix/data/` and survive agent restarts.
+Use them to compound knowledge across hunts — remember what worked, what didn't,
+and how targets were configured.
 
 **When to create a tool:**
 - You need a specialized scanner (e.g. custom API fuzzer)

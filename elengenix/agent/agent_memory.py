@@ -1,0 +1,132 @@
+"""elengenix/agent/agent_memory.py — Persistent key-value memory for the AI.
+
+Stores flat facts/notes in a JSON file under ~/.elengenix/data/memory.json.
+No ChromaDB, no embeddings — simple tag-based keyword search.
+Every VulnAgent gets its own MemoryStore instance.
+"""
+
+from __future__ import annotations
+
+import json
+import logging
+import time
+from pathlib import Path
+from typing import Any, Dict, List, Optional
+from elengenix.paths import ELENGENIX_HOME
+
+logger = logging.getLogger("elengenix.agent.agent_memory")
+
+
+class MemoryStore:
+    """Lightweight persistent memory store backed by JSON.
+
+    Fields per entry:
+      id: str          — unique identifier ("mem_<timestamp>")
+      content: str     — the fact/note text
+      tags: str        — space-separated tags for search
+      timestamp: float — unix epoch
+
+    Usage (via tools.py):
+      store = MemoryStore()
+      store.save("vuln x in nginx 1.24", tags="nginx cve")
+      results = store.search("nginx", limit=5)
+      store.forget("mem_12345")
+    """
+
+    _MEMORY_DIR = ELENGENIX_HOME / "data"
+    _MEMORY_FILE = _MEMORY_DIR / "memory.json"
+
+    def __init__(self) -> None:
+        self._entries: List[Dict[str, Any]] = []
+        self._loaded = False
+
+    # ------------------------------------------------------------------
+    # Persistence
+    # ------------------------------------------------------------------
+
+    def _load(self) -> None:
+        if self._loaded:
+            return
+        self._MEMORY_DIR.mkdir(parents=True, exist_ok=True)
+        if self._MEMORY_FILE.exists():
+            try:
+                raw = self._MEMORY_FILE.read_text(encoding="utf-8")
+                data = json.loads(raw)
+                self._entries = data if isinstance(data, list) else data.get("entries", [])
+            except (json.JSONDecodeError, OSError) as exc:
+                logger.warning("Failed to load memory.json: %s", exc)
+                self._entries = []
+        else:
+            self._entries = []
+        self._loaded = True
+
+    def _save(self) -> bool:
+        self._MEMORY_DIR.mkdir(parents=True, exist_ok=True)
+        try:
+            self._MEMORY_FILE.write_text(
+                json.dumps({"entries": self._entries}, indent=2, ensure_ascii=False),
+                encoding="utf-8",
+            )
+            return True
+        except OSError as exc:
+            logger.error("Failed to save memory.json: %s", exc)
+            return False
+
+    # ------------------------------------------------------------------
+    # CRUD
+    # ------------------------------------------------------------------
+
+    def save(self, content: str, tags: str = "") -> Dict[str, Any]:
+        """Append a new memory entry. Returns the created entry."""
+        self._load()
+        entry: Dict[str, Any] = {
+            "id": f"mem_{int(time.time() * 1000)}_{len(self._entries)}",
+            "content": content,
+            "tags": tags,
+            "created": time.time(),
+        }
+        self._entries.append(entry)
+        self._save()
+        return dict(entry)
+
+    def search(self, query: str, limit: int = 5) -> List[Dict[str, Any]]:
+        """Keyword search over content + tags. Case-insensitive."""
+        self._load()
+        q = query.lower()
+        scored: List[tuple[float, Dict[str, Any]]] = []
+        q_words = q.split()
+        for entry in self._entries:
+            content = entry.get("content", "").lower()
+            tags = entry.get("tags", "").lower()
+            score = 0.0
+            for w in q_words:
+                if w in content:
+                    score += 1.0
+                if tags and w in tags:
+                    score += 0.5
+                # full phrase match bonus
+                if q in content:
+                    score += 2.0
+            if score > 0:
+                scored.append((-score, entry))  # negate for desc sort
+        scored.sort(key=lambda x: x[0])
+        return [entry for _, entry in scored[:limit]]
+
+    def list_all(self, limit: int = 10) -> List[Dict[str, Any]]:
+        """Return most recent entries."""
+        self._load()
+        return list(reversed(self._entries))[:limit]
+
+    def forget(self, entry_id: str) -> bool:
+        """Remove a specific entry by id. Returns True if found and removed."""
+        self._load()
+        before = len(self._entries)
+        self._entries = [e for e in self._entries if e.get("id") != entry_id]
+        removed = len(self._entries) < before
+        if removed:
+            self._save()
+        return removed
+
+    def count(self) -> int:
+        self._load()
+        return len(self._entries)

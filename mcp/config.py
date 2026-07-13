@@ -15,11 +15,13 @@ import logging
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+from elengenix.paths import ELENGENIX_HOME
 
 logger = logging.getLogger("elengenix.mcp.config")
 
-# Default config paths
-DEFAULT_MCP_JSON = Path("mcp.json")  # User config (gitignored)
+# Config search order: ~/.elengenix/mcp.json > project/mcp.json > ~/.elengenix/config.yaml
+DEFAULT_MCP_JSON = Path("mcp.json")  # Project-level fallback
+USER_MCP_JSON = ELENGENIX_HOME / "mcp.json"  # User config (gitignored)
 DEFAULT_MCP_EXAMPLE = Path("mcp.json.example")  # Template (committed)
 DEFAULT_CONFIG_YAML = Path("config.yaml")
 
@@ -66,50 +68,54 @@ class MCPConfigManager:
     def load(self) -> MCPConfig:
         """Load configuration from all sources.
 
-        Priority: mcp.json > config.yaml > defaults
+        Priority: ~/.elengenix/mcp.json > project/mcp.json > config.yaml > defaults
         """
         config = MCPConfig()
 
-        # Load from mcp.json (user config)
+        # Load from ~/.elengenix/mcp.json (user config, highest priority)
+        if USER_MCP_JSON.exists():
+            self._merge_mcp_json(USER_MCP_JSON, config)
+
+        # Load from project mcp.json (second priority)
         mcp_json = self.project_root / DEFAULT_MCP_JSON
-        if mcp_json.exists():
-            try:
-                with open(mcp_json, "r", encoding="utf-8") as f:
-                    data = json.load(f)
+        if mcp_json.exists() and mcp_json != USER_MCP_JSON:
+            self._merge_mcp_json(mcp_json, config)
 
-                for name, server_data in data.get("mcpServers", {}).items():
-                    # Handle both formats:
-                    # Format 1: {"command": "npx", "args": ["-y", "package"]}
-                    # Format 2: {"type": "local", "command": ["npx", "-y", "package"]}
-                    command = server_data.get("command", "")
-                    args = server_data.get("args", [])
-
-                    # If command is a list, extract command and args
-                    if isinstance(command, list) and len(command) > 0:
-                        command = command[0]
-                        args = command[1:]
-
-                    config.servers[name] = MCPServerConfig(
-                        name=name,
-                        command=command,
-                        args=args,
-                        env=server_data.get("env", {}),
-                        enabled=server_data.get("enabled", True),
-                    )
-                logger.debug(f"Loaded MCP config from {mcp_json}")
-            except Exception as e:
-                logger.warning(f"Failed to load {mcp_json}: {e}")
-
-        # Load from config.yaml (if exists)
+        # Load from config.yaml (lowest priority)
         yaml_config = self._load_from_yaml()
         if yaml_config:
-            # Merge with existing (yaml has lower priority)
             for name, server in yaml_config.servers.items():
                 if name not in config.servers:
                     config.servers[name] = server
 
         self._config = config
         return config
+
+    def _merge_mcp_json(self, path: Path, config: MCPConfig) -> None:
+        """Merge server entries from an mcp.json file into config."""
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+
+            for name, server_data in data.get("mcpServers", {}).items():
+                command = server_data.get("command", "")
+                args = server_data.get("args", [])
+
+                # If command is a list, extract command and args
+                if isinstance(command, list) and len(command) > 0:
+                    command = command[0]
+                    args = command[1:]
+
+                config.servers[name] = MCPServerConfig(
+                    name=name,
+                    command=command,
+                    args=args,
+                    env=server_data.get("env", {}),
+                    enabled=server_data.get("enabled", True),
+                )
+            logger.debug(f"Loaded MCP config from {path}")
+        except Exception as e:
+            logger.warning(f"Failed to load {path}: {e}")
 
     def _load_from_yaml(self) -> Optional[MCPConfig]:
         """Load MCP config from config.yaml."""

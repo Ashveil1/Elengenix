@@ -10,7 +10,7 @@
 
 [![Python](https://img.shields.io/badge/Python-3.10+-white?style=for-the-badge&logo=python&logoColor=red)](https://python.org)
 [![License](https://img.shields.io/badge/License-GPL_3.0-red?style=for-the-badge)](LICENSE)
-[![Tests](https://img.shields.io/badge/Tests-379%20passing-white?style=for-the-badge)](https://github.com/Ashveil1/Elengenix/actions)
+[![Tests](https://img.shields.io/badge/Tests-334%20passing-white?style=for-the-badge)](https://github.com/Ashveil1/Elengenix/actions)
 [![MCP](https://img.shields.io/badge/MCP-Supported-red?style=for-the-badge)](https://modelcontextprotocol.io)
 [![Security](https://img.shields.io/badge/Security-Governance-red?style=for-the-badge)](https://github.com/Ashveil1/Elengenix)
 
@@ -20,31 +20,34 @@
 
 ## What is Elengenix?
 
-Elengenix is an **autonomous AI agent** that performs security research by *thinking* through problems — not by following checklists. It reads a target, builds an attack tree, selects tools, interprets findings, and adapts its strategy in real-time, just like a skilled penetration tester.
+Elengenix is a **true autonomous AI agent** for security research. It doesn't follow checklists or script chains — it **reasons** about targets, **chooses** its own tools, **pivots** when stuck, and **writes new tools** when existing ones aren't enough.
 
-```
+```text
 User: "Find vulnerabilities in example.com"
     │
     ▼
-┌─────────────────────────────────────────────────────────┐
-│  AI Reasoning Engine                                     │
-│  ├── Strategic Planning (Attack Tree Generation)        │
-│  ├── Tool Selection (120+ security tools)               │
-│  ├── Finding Analysis (CVSS, CVE matching)              │
-│  └── Strategy Adaptation (real-time re-planning)        │
-└─────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────┐
+│  VulnAgent — True AI Agent (free will, 25 tools)             │
+│  ├── Reasons about target and builds strategy                │
+│  ├── Selects tools from AVAILABLE_TOOLS (freedom to skip)    │
+│  ├── Creates new tools on the fly (edit_own_tool)            │
+│  ├── Learns from cross-session memory (ChromaDB + Skills)    │
+│  └── Pivots freely — no locked phases or forced ordering     │
+└──────────────────────────────────────────────────────────────┘
     │
     ▼
-┌─────────────────────────────────────────────────────────┐
-│  Governance Layer                                       │
-│  ├── SAFE → Execute immediately                         │
-│  ├── PRIVILEGED → Ask user approval                     │
-│  └── DESTRUCTIVE → Block with popup                     │
-└─────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────┐
+│  Governance Layer                                            │
+│  ├── SAFE → Execute immediately                              │
+│  ├── PRIVILEGED → Ask user approval                          │
+│  └── DESTRUCTIVE → Block with popup                          │
+└──────────────────────────────────────────────────────────────┘
     │
     ▼
-Reports: findings.json, CVSS scores, CVE references
+Reports: findings, CVSS scores, AI analysis
 ```
+
+Unlike "script chaining with an AI on top", Elengenix gives the AI **genuine autonomy** — it decides what to do, in what order, and how to adapt when a path fails.
 
 <img src="assets/red-divider.svg" width="100%">
 
@@ -65,31 +68,34 @@ elengenix doctor
 # Configure AI providers
 elengenix configure
 
-# Start scanning
-elengenix scan example.com
+# Start an autonomous vulnerability hunt
+elengenix hunt example.com
 ```
 
 ### Terminal Demo
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────┐
-│  $ elengenix scan example.com                               │
-│                                                             │
-│  [Phase 0] Pre-flight Scan                                 │
-│  [OK] Recon: 42 endpoints, 3 ports, 12 subdomains          │
-│  [OK] WAF: Cloudflare (conf=0.95)                          │
-│  [OK] Fuzz: 128 tests, 3 interesting                       │
-│                                                             │
-│  [Phase 1] AI-Driven Analysis                              │
-│  [AI] Detected: PHP 8.2, MySQL 8.0, WordPress 6.4         │
-│  [AI] Attack tree: SQLi → XSS → SSRF → LFI                 │
-│  [AI] Testing SQL injection on /api/users...                │
-│  [FOUND] Critical: SQL Injection at /api/users?id=          │
-│  [FOUND] High: Reflected XSS at /search?q=                 │
-│                                                             │
-│  [Report] ~/.elengenix/reports/example_com_2024/              │
-│  - elengenix_findings.json (5 findings)                     │
-│  - cvss_scores.json (2 Critical, 1 High)                   │
+│  $ elengenix hunt example.com                                │
+│                                                              │
+│  ╔═══════════════════════════════════════════════════════╗   │
+│  ║  ELENGENIX HUNT — Autonomous AI Vulnerability Hunter   ║   │
+│  ╚═══════════════════════════════════════════════════════╝   │
+│                                                              │
+│  [INFO] Starting autonomous AI hunt...                       │
+│  [INFO] Target: example.com                                  │
+│  [INFO] Cross-session memory: ACTIVE                         │
+│                                                              │
+│  VulnAgent uses 25 available tools...                        │
+│  ├── Reasoning: Reconnaissance needed first                  │
+│  ├── Scanning subdomains...                                  │
+│  ├── Testing endpoints for common vulnerabilities...         │
+│  ├── [FOUND] SQL injection at /api/users?id=                 │
+│  ├── Creating custom exploit script...                       │
+│  └── Report generated with findings                          │
+│                                                              │
+│  [OK] Hunt complete!                                         │
+│  [OK] Report: ~/.elengenix/reports/hunt_example_com.md         │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -97,27 +103,38 @@ elengenix scan example.com
 
 ## Features
 
-### AI-Powered Reasoning
+### True AI Agent Architecture
 
-Elengenix doesn't just run tools — it **thinks** about what to do next:
+Elengenix uses **VulnAgent** — a genuine autonomous AI agent with **free will** over tool selection and execution flow:
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    AI REASONING CYCLE                        │
-│                                                             │
-│   [PLAN] ──► [EXECUTE] ──► [ANALYZE] ──► [ADAPT]          │
-│      │                                         │            │
-│      └─────────────────────────────────────────┘            │
-│                    (continuous loop)                         │
-└─────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────┐
+│                    AI REASONING CYCLE                         │
+│                                                              │
+│   [REASON] ──► [TOOL SELECT] ──► [EXECUTE] ──► [ADAPT]     │
+│      │                                          │            │
+│      └──────────────────────────────────────────┘            │
+│                    (continuous loop)                          │
+└──────────────────────────────────────────────────────────────┘
 ```
 
-- **Attack Tree Planning** — Generates strategic attack plans based on detected tech stack
-- **Dynamic Re-planning** — Adapts strategy based on findings and coverage gaps
-- **Cross-session Memory** — Remembers what worked on past targets (ChromaDB + SQLite FTS5)
-- **Multi-model Team** — Up to 3 AI models collaborate (Strategist, Recon Lead, Exploit Analyst)
+- **No script chains** — AI decides every step, no locked phase ordering
+- **25 built-in tools** — from port scanning to fuzzing, all described for AI consumption
+- **`edit_own_tool`** — AI can create and modify its own tools at runtime
+- **`create_tool`** — AI can author arbitrary Python tools on the fly
+- **Cross-session Memory** — Remembers what worked (ChromaDB + Skills JSON store)
+- **MCP Auto-start** — MCP server boots in background with every command
 
-<img src="assets/red-divider.svg" width="100%">
+### Memory & Skills
+
+Elengenix maintains two persistent stores:
+
+| Store | Format | What it does |
+|:-----:|:------:|--------------|
+| **Memory** | `~/.elengenix/data/memory.json` | Saves findings, strategies, target patterns across sessions |
+| **Skills** | `~/.elengenix/data/skills.json` | Stores reusable tool scripts, exploits, and techniques |
+
+The AI can `memorize()`, `recall()`, `forget()`, `save_skill()`, `recall_skill()`, and `list_skills()` — building up a personal knowledge base over time.
 
 ### Safety by Design
 
@@ -129,28 +146,25 @@ Every command passes through a **Governance Layer** before execution:
 | **PRIVILEGED** | Ask user approval | `sudo apt install`, `pip install` |
 | **DESTRUCTIVE** | Show popup (Allow/Allow Always/Deny) | `rm -rf /`, `dd`, `mkfs` |
 
-### Pre-flight Scanner (No AI Required)
-
-Even without AI providers, Elengenix produces actionable findings:
-
-| Phase | Module | What it does |
-|:-----:|--------|--------------|
-| 1 | `PythonRecon` | HTTP probe, directory discovery, port scan, subdomain enum |
-| 2 | `SmartWAFDetector` | WAF detection + evasion suggestions |
-| 3 | `ActiveFuzzer` | XSS / SQLi / SSTI payload testing |
-| 4 | `BOLATester` | Differential IDOR testing |
-| 5 | `LearningEngine` | Records findings to SQLite |
-| 6 | `CoverageAnalyzer` | Tracks endpoint coverage |
-
 ### MCP Integration
 
-Full support for Model Context Protocol — configure MCP servers via:
+Full support for Model Context Protocol — auto-starts in the background on every command:
 
+```
+elengenix scan example.com
+    │
+    ▼
+main() ──► show_banner() ──► start_mcp_if_enabled() ──► MCPServer (2 transports)
+                                                                │
+                                                     ┌──────────┴──────────┐
+                                                     ▼                     ▼
+                                              stdio (Claude Desktop)   HTTP (port 8080)
+                                              25 dynamic tools         REST API
+```
+
+Configure MCP servers via:
 ```bash
 # Via TUI (Ctrl+, → MCP Servers)
-# Via configure wizard
-elengenix configure  # → option 6
-
 # Or edit mcp.json directly
 ```
 
@@ -167,65 +181,63 @@ Default MCP servers included:
 ### Core
 
 ```bash
-elengenix scan <target>                    # Full automated scan
-elengenix scan <target> --phase recon      # Run specific phase only
-elengenix scan <target> --interactive bola # Interactive mode (advanced)
-elengenix tui                              # Textual TUI
-elengenix configure                        # Setup wizard
-elengenix doctor                           # System health check
+elengenix hunt <target>       # Autonomous AI vulnerability hunt (VulnAgent)
+elengenix scan <target>        # AI-driven scan (equivalent to hunt)
+elengenix vuln-hunt <target>   # Full autonomous vulnerability hunting
+elengenix tui                  # Textual TUI (chat interface)
+elengenix configure            # Setup wizard
+elengenix doctor               # System health check
 ```
+
+**All scan/hunt commands now use VulnAgent** — the same true AI agent with 25 tools, memory, and free will. No script chains, no forced phases.
 
 ### Multi-target
 
 ```bash
-elengenix scan "example.com, api.example.com, admin.example.com"
+elengenix hunt "example.com, api.example.com"
 ```
 
 ### Shortcuts
 
 | Shortcut | Expands to | Description |
 |:--------:|------------|-------------|
-| `bb` | `scan --phase bola` | BOLA testing |
-| `check` | `scan --phase recon` | Quick recon |
-| `test` | `scan --phase waf` | WAF detection |
-| `hack` | `ai` | AI chat mode |
+| `bb` | `scan --phase bola` | BOLA testing *(deprecated — redirects to VulnAgent)* |
+| `check` | `scan --phase recon` | Quick recon *(deprecated — redirects to VulnAgent)* |
+| `test` | `scan --phase waf` | WAF detection *(deprecated — redirects to VulnAgent)* |
 
 <img src="assets/red-divider.svg" width="100%">
 
 ## Architecture
 
-```
+```text
 ┌──────────────────────────────────────────────────────────────┐
 │                        main.py                               │
 │                    (CLI Entry Point)                          │
+│  ┌─ MCP auto-start (every boot)                              │
 └──────────────────────────┬───────────────────────────────────┘
                            │
           ┌────────────────┴────────────────┐
           ▼                                 ▼
-┌─────────────────────┐          ┌─────────────────────┐
-│   core/brain.py     │          │  core/orchestrator.py│
-│   (AI Reasoning)    │          │  (Pipeline Engine)   │
-└─────────┬───────────┘          └──────────┬──────────┘
-          │                                  │
-          ▼                                  ▼
-┌─────────────────────┐          ┌─────────────────────┐
-│  DecisionEngine     │          │  PhaseRegistry       │
-│  (AI chooses next)  │          │  (6-phase pipeline)  │
-└─────────┬───────────┘          └──────────┬──────────┘
-          │                                  │
-          ▼                                  ▼
-┌─────────────────────┐          ┌─────────────────────┐
-│  PostProcessor      │          │  ScopeManager        │
-│  (Analyze results)  │          │  (Target validation) │
-└─────────┬───────────┘          └──────────┬──────────┘
-          │                                  │
-          └────────────────┬─────────────────┘
-                           ▼
-                  ┌─────────────────┐
-                  │  Tool Registry  │
-                  │  (120+ tools)   │
-                  └─────────────────┘
+┌─────────────────────┐          ┌─────────────────────────┐
+│  VulnAgent           │          │  MCP Server              │
+│  (True AI Agent)     │          │  (Background daemon)     │
+│                      │          │                          │
+│   AVAILABLE_TOOLS    │          │  stdio transport         │
+│   ├─ 17 builtin     │          │  HTTP transport          │
+│   ├─ 4 memory/skill │          │  25 dynamic tools        │
+│   ├─ create_tool    │          └──────────────────────────┘
+│   └─ edit_own_tool  │
+└──────────┬───────────┘
+           │
+           ▼
+┌─────────────────────┐
+│  AgentMemory         │
+│  ├─ ChromaDB (FTS5) │
+│  └─ JSON stores     │
+└─────────────────────┘
 ```
+
+The old script-driven pipeline (`pipeline/phase_registry`, `pipeline/unified`, `core/brain.py`) has been **fully removed**. Elengenix now runs on a pure AI agent architecture.
 
 <img src="assets/red-divider.svg" width="100%">
 
@@ -248,11 +260,11 @@ elengenix scan "example.com, api.example.com, admin.example.com"
 }
 ```
 
-Auto-copied from `mcp.json.example` on first run.
+Auto-copied from `mcp.json.example` on first run. User config overrides project config.
 
 ### AI Providers
 
-Supported: OpenAI, Anthropic, Google Gemini, NVIDIA NIM, Groq, DeepSeek, Ollama (local)
+Supported: OpenAI, Anthropic, Google Gemini, Groq, DeepSeek, Ollama (local), and more.
 
 ```bash
 elengenix configure  # Interactive setup wizard
@@ -270,40 +282,43 @@ python3 -m pytest tests/ -v
 python3 -m pytest tests/test_tui.py tests/test_security.py tests/test_core_modules.py -v
 ```
 
-**379+ tests** covering: governance, shell execution, target validation, MCP protocol, scan pipeline, and more.
+**334 tests** covering: governance, shell execution, target validation, MCP protocol, VulnAgent tools, agent memory, agent skills, and more.
 
 <img src="assets/red-divider.svg" width="100%">
 
 ## Project Structure
 
-```
+```text
 Elengenix/
 ├── main.py                 # CLI entry point
-├── core/                   # Core engine
-│   ├── brain.py            # AI reasoning engine
-│   ├── orchestrator.py     # Pipeline orchestrator
-│   ├── agent.py            # Agent singleton
-│   └── scan_engine.py      # Smart scan engine
-├── agents/                 # Agent subsystem
-│   ├── scan_context.py     # Central state object
-│   ├── prompt_builder.py   # AI prompt assembly
-│   ├── decision_engine.py  # AI decision making
-│   ├── post_processor.py   # Result processing
-│   └── scan_loop.py        # Main execution loop
-├── pipeline/               # Pipeline modules
-│   ├── scope.py            # Target validation
-│   ├── phase_registry.py   # Configurable phases
-│   └── unified.py          # Unified pipeline entry
+├── commands/               # CLI command handlers
+│   ├── scan.py             # AI-driven scan (VulnAgent)
+│   └── mcp_runner.py       # MCP auto-start helper
+├── elengenix/              # Canonical module location
+│   ├── agent/              # True AI agent (VulnAgent)
+│   │   ├── __init__.py     # Exports VulnAgent
+│   │   ├── vuln_agent.py   # Main agent + 25 tools
+│   │   ├── agent_memory.py # JSON-backed memory store
+│   │   ├── agent_skills.py # JSON-backed skill store
+│   │   ├── memory.py       # ChromaDB + FTS5 memory
+│   │   └── report.py       # Report generation
+│   ├── scope.py            # Target validation & scope
+│   ├── paths.py            # Path resolution
+│   ├── governance.py       # Governance layer
+│   ├── scanning/           # Scanning subsystems
+│   ├── brain.py            # Hybrid brain (deprecated)
+│   └── loop.py             # Main agent loop
 ├── mcp/                    # MCP integration
-│   ├── server.py           # MCP server
+│   ├── server.py           # MCP server (25 dynamic tools)
 │   ├── client.py           # MCP client
 │   ├── config.py           # MCP configuration
 │   └── manager.py          # MCP lifecycle
-├── tools/                  # 120+ security tools
-├── cli/                    # UI components
-├── tui/                    # Textual TUI
-├── commands/               # CLI commands
-└── tests/                  # 379+ tests
+├── tools/                  # 100+ tool modules
+├── cli/                    # UI components + TUI (textual.py)
+├── core/                   # Legacy (deprecated stubs)
+├── pipeline/               # LEGACY: only scope.py remains
+├── tests/                  # 334 tests
+└── dist/                   # Built wheel
 ```
 
 <img src="assets/red-divider.svg" width="100%">
@@ -317,7 +332,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 - Type hints everywhere
 - Shell commands only behind Governance
 - API keys in `.env` only
-- Use MCP thinking tools before coding
+- AI agents get genuine autonomy — no forced tool ordering
 
 <img src="assets/red-divider.svg" width="100%">
 

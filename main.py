@@ -245,6 +245,13 @@ def main():
     ensure_path_priorities()
     show_banner()
 
+    # ── Auto-start MCP server in background (if enabled in config) ──
+    try:
+        from commands.mcp_runner import start_mcp_if_enabled
+        start_mcp_if_enabled()
+    except Exception:
+        pass  # MCP is optional — don't block startup
+
     command_choices = [
         "universal",
         "scan",
@@ -873,58 +880,58 @@ def main():
             return
 
         elif args.command == "hunt":
-            """Hybrid mode: AI Strategist + Specialist with full analysis pipeline."""
+            """Autonomous hunt mode — TRUE AI agent with full tool access."""
             from cli.ui_components import print_error, print_info, print_success, show_section
 
-            show_section("ELENGENIX HYBRID HUNT MODE")
+            show_section("ELENGENIX HUNT — Autonomous AI Vulnerability Hunter")
 
             target = args.target or console.input("[red]Enter target[/red]: ").strip()
             if not target:
                 return
 
-            console.print(
-                Panel.fit(
-                    "[bold red]HYBRID MODE[/bold red]\n"
-                    "[white]Strategist plans / Specialist executes / Full analysis pipeline[/white]\n"
-                    "[dim]Combines flexible shell execution with structured analysis[/dim]",
-                    border_style="red",
-                )
-            )
+            # Safety: block shell metacharacters
+            forbidden = ["|", "&", ";", "`", "$(", "${", ">", "<", "\\", "'", '"', "!", "\n", "\r"]
+            if any(c in target for c in forbidden):
+                print_error("Invalid target: contains shell metacharacters")
+                return
 
             if not require_authorized_scan_target(target):
                 return
 
-            from core.agent import get_agent
+            # Auto-start MCP
+            try:
+                from commands.mcp_runner import start_mcp_if_enabled
+                start_mcp_if_enabled()
+            except Exception:
+                pass
 
-            agent = get_agent()
+            from elengenix.agent import VulnAgent
+            from elengenix.agent.memory import AgentMemory
+            from tools.universal_ai_client import create_default_client
 
-            def _hunt_callback(msg: str):
-                safe = re.sub(r"\[/?[^\]]+\]", "", str(msg))
-                console.print(f"  [dim]{safe[:250]}[/dim]")
+            memory = AgentMemory()
+            client = create_default_client()
+            agent = VulnAgent(target=target, client=client, memory=memory)
+
+            print_info("Starting autonomous AI hunt...")
+            print_info(f"Target: {target}")
+            console.print("")
 
             try:
-                response = agent.process_hybrid(
-                    f"Perform comprehensive security assessment on {target}. "
-                    "Use all available tools and techniques to find vulnerabilities.",
-                    target=target,
-                    callback=_hunt_callback,
-                    mode="bug_bounty",
-                )
-                if response:
-                    safe_resp = re.sub(r"\[/?[^\]]+\]", "", response[:3000])
-                    print_success("Hybrid Mission Complete")
-                    console.print(f"\n{safe_resp}\n")
+                report = agent.hunt()
+                report_text = report.render()
+                print_success("Hunt complete!")
+                console.print(report_text)
 
-                    # Save final report
-                    safe_name = re.sub(r"[^a-zA-Z0-9.-]", "_", target)[:40]
-                    report_path = get_reports_path(f"hunt_{safe_name}.md")
-                    report_path.parent.mkdir(parents=True, exist_ok=True)
-                    report_path.write_text(response)
-                    print_info(f"Full report: {report_path}")
+                safe_name = re.sub(r"[^a-zA-Z0-9.-]", "_", target)[:40]
+                report_path = get_reports_path(f"hunt_{safe_name}.md")
+                report_path.parent.mkdir(parents=True, exist_ok=True)
+                report_path.write_text(report_text)
+                print_info(f"Full report: {report_path}")
             except KeyboardInterrupt:
-                print_info("Hybrid hunt interrupted by user")
+                print_info("Hunt interrupted by user")
             except Exception as e:
-                print_error(f"Hybrid hunt error: {e}")
+                print_error(f"Hunt error: {e}")
             return
 
         elif args.command == "vuln-hunt":
@@ -943,6 +950,13 @@ def main():
             if any(c in target for c in forbidden):
                 print_error("Invalid target: contains shell metacharacters")
                 return
+
+            # Auto-start MCP server in background
+            try:
+                from commands.mcp_runner import start_mcp_if_enabled
+                start_mcp_if_enabled()
+            except Exception:
+                pass
 
             from elengenix.agent import VulnAgent
             from elengenix.agent.memory import AgentMemory

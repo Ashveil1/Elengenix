@@ -1,15 +1,11 @@
-"""
-mcp/server.py — MCP Server for Elengenix
+"""mcp/server.py — MCP Server for Elengenix
 
-Exposes Elengenix tools via MCP protocol so external AI agents
-can discover and use them.
+Exposes all Elengenix agent tools via MCP protocol so external AI agents
+can discover and use them. Supports stdio and HTTP transports.
 
 Usage:
-    python3 -m mcp.server
-    # or
-    from mcp.server import MCPServer
-    server = MCPServer()
-    server.start_stdio()
+    python3 -m mcp.server --stdio        # stdio mode (for Claude Desktop etc.)
+    python3 -m mcp.server --http --port 8080  # HTTP mode
 """
 
 from __future__ import annotations
@@ -18,7 +14,7 @@ import asyncio
 import json
 import logging
 import sys
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Dict
 
 from mcp.config import get_config_manager, get_mcp_config
 from mcp.protocol import MCPProtocol, MCPRequest, MCPResponse, MCPTool
@@ -27,14 +23,19 @@ logger = logging.getLogger("elengenix.mcp.server")
 
 
 class MCPServer:
-    """MCP Server that exposes Elengenix tools.
+    """MCP Server that exposes all Elengenix agent tools.
+
+    Dynamically loads tool definitions from vuln_agent.AVAILABLE_TOOLS
+    and registers each as an MCP tool. Handles resolve at call time
+    so dynamic tools (create_tool) are also reachable.
 
     Supports stdio transport for integration with AI agents.
-    Loads configuration from .mcp.json and config.yaml.
+    Loads configuration from ~/.elengenix/mcp.json and config.yaml.
     """
 
     def __init__(self, load_config: bool = True):
         self.protocol = MCPProtocol()
+        self._loop: asyncio.AbstractEventLoop | None = None
         self._register_elengenix_tools()
 
         if load_config:
@@ -50,96 +51,64 @@ class MCPServer:
         except Exception as e:
             logger.debug(f"Could not load MCP config: {e}")
 
+    # ------------------------------------------------------------------
+    # Dynamic tool registration from AVAILABLE_TOOLS
+    # ------------------------------------------------------------------
+
     def _register_elengenix_tools(self) -> None:
-        """Register Elengenix tools with MCP."""
-        # Register scan tool
-        self.protocol.register_tool(
-            MCPTool(
-                name="elengenix_scan",
-                description="Scan a target for vulnerabilities using Elengenix",
-                input_schema={
-                    "type": "object",
-                    "properties": {
-                        "target": {"type": "string", "description": "Target to scan"},
-                        "phase": {
-                            "type": "string",
-                            "description": "Specific phase (recon, waf, fuzz, bola)",
-                        },
-                    },
-                    "required": ["target"],
-                },
-                handler=self._handle_scan,
+        """Register ALL Elengenix tools as MCP tools dynamically."""
+        from elengenix.agent import vuln_agent as va
+
+        for tool_def in va.AVAILABLE_TOOLS:
+            name = tool_def["name"]
+            description = tool_def["description"]
+            params = tool_def.get("parameters", {})
+            handler_name = tool_def.get("handler_name", "")
+
+            mcp_tool = MCPTool(
+                name=f"elengenix_{name}",
+                description=description,
+                input_schema=params,
+                handler=self._make_handler(name, handler_name),
             )
+            self.protocol.register_tool(mcp_tool)
+
+        logger.info(
+            "Registered %d Elengenix MCP tools",
+            len(self.protocol.tools),
         )
 
-        # Register recon tool
-        self.protocol.register_tool(
-            MCPTool(
-                name="elengenix_recon",
-                description="Reconnaissance on a target",
-                input_schema={
-                    "type": "object",
-                    "properties": {
-                        "target": {"type": "string", "description": "Target to recon"},
-                    },
-                    "required": ["target"],
-                },
-                handler=self._handle_recon,
-            )
-        )
+    def _make_handler(self, name: str, handler_name: str) -> Callable:
+        """Create a handler wrapper that resolves the tool function at call time.
 
-    def _handle_scan(self, args: Dict[str, Any]) -> Dict[str, Any]:
-        """Handle scan tool call."""
-        target = args.get("target", "")
-        phase = args.get("phase")
+        Resolves from:
+          1. Module-level function by handler_name (static tools)
+          2. _dynamic_tools dict (tools created via create_tool)
+        """
 
-        if not target:
-            return {"error": "Target is required"}
+        def handler(args: Dict[str, Any]) -> Dict[str, Any]:
+            mod = sys.modules.get("elengenix.agent.vuln_agent")
+            if mod is None:
+                from elengenix.agent import vuln_agent as mod
 
-        try:
-            from pipeline.unified import UnifiedPipeline, ScanConfig
+            # Static tool: module-level function
+            fn = getattr(mod, handler_name, None)
+            if fn is not None and callable(fn):
+                return _call_tool_fn(fn, args)
 
-            pipeline = UnifiedPipeline()
-            config = ScanConfig(target=target, phases=[phase] if phase else None)
+            # Dynamic tool: check _dynamic_tools
+            dyn = getattr(mod, "_dynamic_tools", {})
+            dynamic_fn = dyn.get(name)
+            if dynamic_fn is not None:
+                return dynamic_fn(args)
 
-            # Run scan in sync context
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            try:
-                result = loop.run_until_complete(pipeline.run(config))
-            finally:
-                loop.close()
+            return {"success": False, "error": f"Handler not found: {handler_name}"}
 
-            return {
-                "success": result.success,
-                "findings_count": len(result.findings),
-                "summary": result.summary,
-                "report_dir": result.report_dir,
-            }
-        except Exception as e:
-            return {"error": str(e)}
+        return handler
 
-    def _handle_recon(self, args: Dict[str, Any]) -> Dict[str, Any]:
-        """Handle recon tool call."""
-        target = args.get("target", "")
-
-        if not target:
-            return {"error": "Target is required"}
-
-        try:
-            from tools.python_recon import PythonRecon
-
-            recon = PythonRecon(timeout=1.0, max_concurrent=40)
-            result = recon.full_recon(target, quick=True)
-
-            return {
-                "directories": len(result.get("directories", [])),
-                "ports": len(result.get("ports", [])),
-                "subdomains": len(result.get("subdomains", [])),
-                "parameters": len(result.get("parameters", [])),
-            }
-        except Exception as e:
-            return {"error": str(e)}
+    # ------------------------------------------------------------------
+    # Transports
+    # ------------------------------------------------------------------
 
     def start_stdio(self) -> None:
         """Start MCP server using stdio transport."""
@@ -194,6 +163,35 @@ class MCPServer:
         httpd = HTTPServer((host, port), MCPHandler)
         logger.info(f"MCP server started on {host}:{port}")
         httpd.serve_forever()
+
+
+# ------------------------------------------------------------------
+# Handler helper
+# ------------------------------------------------------------------
+
+
+def _call_tool_fn(fn: Callable, args: Dict[str, Any]) -> Dict[str, Any]:
+    """Call a tool function safely, passing only params it accepts."""
+    import inspect
+
+    sig = inspect.signature(fn)
+    kwargs = {}
+    for pname in sig.parameters:
+        if pname == "kwargs" and sig.parameters[pname].kind == inspect.Parameter.VAR_KEYWORD:
+            kwargs.update(args)
+            break
+        if pname in args:
+            kwargs[pname] = args[pname]
+    try:
+        result = fn(**kwargs)
+        return result if isinstance(result, dict) else {"success": True, "output": str(result)}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+# ------------------------------------------------------------------
+# Entry point
+# ------------------------------------------------------------------
 
 
 def main():
