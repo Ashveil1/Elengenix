@@ -65,6 +65,52 @@ async def run_elengenix_modules(
     return []
 
 
+class Orchestrator:
+    """DEPRECATED compat shim — delegates to VulnAgent.
+
+    Old Orchestrator was a script-driven pipeline runner.
+    Now it wraps VulnAgent for backward compatibility.
+    """
+
+    def __init__(self, target: str) -> None:
+        self.target = target
+        self._agent = None
+
+    def _get_agent(self):
+        if self._agent is None:
+            from elengenix.agent import VulnAgent
+            from elengenix.agent.memory import AgentMemory
+            from tools.universal_ai_client import create_default_client
+
+            self._agent = VulnAgent(
+                target=self.target,
+                client=create_default_client(),
+                memory=AgentMemory(),
+            )
+        return self._agent
+
+    async def run_quick_scan(self) -> list[dict]:
+        agent = self._get_agent()
+        report = agent.hunt()
+        raw = getattr(report, "findings", None) or []
+        return [dict(f) if not isinstance(f, dict) else f for f in raw]
+
+    async def run_deep_scan(self) -> list[dict]:
+        return await self.run_quick_scan()
+
+    async def run_stealth_scan(self) -> list[dict]:
+        return await self.run_quick_scan()
+
+    async def run_scan_web(self) -> list[dict]:
+        return await self.run_quick_scan()
+
+    async def run_full_scan(self) -> list[dict]:
+        return await self.run_quick_scan()
+
+    async def run_auto_scan(self) -> list[dict]:
+        return await self.run_quick_scan()
+
+
 # ── Stubs for functions not yet ported ──────────────────────────────
 
 
