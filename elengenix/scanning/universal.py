@@ -231,7 +231,7 @@ def _run_brain_mode(
                     try:
                         from tools.cvss_calculator import CVSSCalculator
                         calc = CVSSCalculator(use_ai=False)
-                        score = calc.from_finding(tool_name, result_text[:200], result_text[:500], {})
+                        score = calc.from_finding(tool_name, result_text[:200], result_text[:500], "")
                         all_findings.append({
                             "type": tool_name,
                             "severity": score.severity.value,
@@ -591,6 +591,7 @@ Keep it short and conversational. No tools. No emojis."""
     all_findings: List[Dict] = []
     consecutive_ai_failures = 0  # P2.4: track consecutive AI failures for early exit
     ai_unavailable_marker = "[ELENGENIX_AI_UNAVAILABLE]"  # marker for main.py to detect
+    step = -1  # initialize for summary reference
 
     for step in range(max_steps):
         # Build conversation context
@@ -724,7 +725,7 @@ Respond with JSON:
             calc = CVSSCalculator(use_ai=False)
             finding_type = params.get("tool", action_type)
             try:
-                score = calc.from_finding(finding_type, result[:200], result[:500], {})
+                score = calc.from_finding(finding_type, result[:200], result[:500], "")
                 all_findings.append(
                     {
                         "type": finding_type,
