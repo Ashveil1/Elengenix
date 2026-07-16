@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import re
 import time
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -117,7 +118,12 @@ class PerceptionModule:
 
 
 class ReasoningEngine:
-    """เครื่องมือให้เหตุผล (Reasoning Engine)"""
+    """เครื่องมือให้เหตุผล (Reasoning Engine)
+
+    Uses LLM to reason about situations using 6 different strategies.
+    Each strategy generates a prompt and parses the response into a
+    ReasoningResult with structured output.
+    """
 
     def __init__(self, llm_client: Any, memory: "CognitiveMemoryManager"):
         self.llm = llm_client
@@ -141,99 +147,165 @@ class ReasoningEngine:
         strategy_func = self.reasoning_strategies.get(strategy, self._abductive_reasoning)
         return await strategy_func(situation, goal)
 
+    def _call_llm(self, prompt: str) -> str:
+        """Call LLM with a prompt string, returning the response text."""
+        try:
+            from tools.universal_ai_client import AIMessage
+            response = self.llm.chat(
+                [AIMessage(role="user", content=prompt)],
+                temperature=0.3,
+            )
+            return response.content or ""
+        except Exception as e:
+            logger.warning(f"LLM call failed: {e}")
+            return ""
+
     async def _abductive_reasoning(self, situation: Dict, goal: str) -> ReasoningResult:
         """Abductive Reasoning - หาคำอธิบายที่ดีที่สุดสำหรับการสังเกต"""
-        prompt = f"""
-        Situation: {situation}
-        Goal: {goal}
+        prompt = f"""You are a security researcher using abductive reasoning.
 
-        Using abductive reasoning, what is the best explanation for the observed situation?
-        What hypotheses best explain the observations?
-        What predictions do these hypotheses make?
-        """
-        response = await self.llm.generate(prompt)
+Situation: {json.dumps(situation, default=str)}
+Goal: {goal}
+
+Using abductive reasoning, what is the best explanation for the observed situation?
+What hypotheses best explain the observations?
+What predictions do these hypotheses make?
+
+Return JSON:
+{{"premise": "what we observe", "conclusion": "best explanation", "confidence": 0.0-1.0, "evidence": ["evidence items"], "alternative_hypotheses": ["other explanations"]}}"""
+        response = self._call_llm(prompt)
         return self._parse_reasoning(response, "abductive")
 
     async def _deductive_reasoning(self, situation: Dict, goal: str) -> ReasoningResult:
         """Deductive Reasoning - จากกฎทั่วไปสู่กรณีเฉพาะ"""
-        prompt = f"""
-        Situation: {situation}
-        Goal: {goal}
+        prompt = f"""You are a security researcher using deductive reasoning.
 
-        Using deductive reasoning, what logically follows from the known premises?
-        What must be true given the established facts?
-        """
-        response = await self.llm.generate(prompt)
+Situation: {json.dumps(situation, default=str)}
+Goal: {goal}
+
+Using deductive reasoning, what logically follows from the known premises?
+What must be true given the established facts?
+
+Return JSON:
+{{"premise": "known facts", "conclusion": "what logically follows", "confidence": 0.0-1.0, "evidence": ["supporting facts"], "alternative_hypotheses": ["other deductions"]}}"""
+        response = self._call_llm(prompt)
         return self._parse_reasoning(response, "deductive")
 
     async def _inductive_reasoning(self, situation: Dict, goal: str) -> ReasoningResult:
         """Inductive Reasoning - จากตัวอย่างสู่กฎทั่วไป"""
-        prompt = f"""
-        Situation: {situation}
-        Goal: {goal}
+        prompt = f"""You are a security researcher using inductive reasoning.
 
-        Using inductive reasoning, what patterns emerge from the observations?
-        What general principles can be inferred?
-        """
-        response = await self.llm.generate(prompt)
+Situation: {json.dumps(situation, default=str)}
+Goal: {goal}
+
+Using inductive reasoning, what patterns emerge from the observations?
+What general principles can be inferred?
+
+Return JSON:
+{{"premise": "observed patterns", "conclusion": "general principle", "confidence": 0.0-1.0, "evidence": ["pattern observations"], "alternative_hypotheses": ["other patterns"]}}"""
+        response = self._call_llm(prompt)
         return self._parse_reasoning(response, "inductive")
 
     async def _analogical_reasoning(self, situation: Dict, goal: str) -> ReasoningResult:
         """Analogical Reasoning - เปรียบเทียบกับกรณีที่คล้ายกัน"""
-        prompt = f"""
-        Situation: {situation}
-        Goal: {goal}
+        prompt = f"""You are a security researcher using analogical reasoning.
 
-        What similar situations have been encountered before?
-        What worked/didn't work in those cases?
-        What analogies can guide the current approach?
-        """
-        response = await self.llm.generate(prompt)
+Situation: {json.dumps(situation, default=str)}
+Goal: {goal}
+
+What similar situations have been encountered before?
+What worked/didn't work in those cases?
+What analogies can guide the current approach?
+
+Return JSON:
+{{"premise": "similar cases", "conclusion": "recommended approach", "confidence": 0.0-1.0, "evidence": ["analogies found"], "alternative_hypotheses": ["other analogies"]}}"""
+        response = self._call_llm(prompt)
         return self._parse_reasoning(response, "analogical")
 
     async def _causal_reasoning(self, situation: Dict, goal: str) -> ReasoningResult:
         """Causal Reasoning - หาสาเหตุและผล"""
-        prompt = f"""
-        Situation: {situation}
-        Goal: {goal}
+        prompt = f"""You are a security researcher using causal reasoning.
 
-        What are the causal relationships in this situation?
-        What causes what? What are the mechanisms?
-        What interventions would produce desired effects?
-        """
-        response = await self.llm.generate(prompt)
+Situation: {json.dumps(situation, default=str)}
+Goal: {goal}
+
+What are the causal relationships in this situation?
+What causes what? What are the mechanisms?
+What interventions would produce desired effects?
+
+Return JSON:
+{{"premise": "observed effects", "conclusion": "root causes", "confidence": 0.0-1.0, "evidence": ["causal chains"], "alternative_hypotheses": ["other causes"]}}"""
+        response = self._call_llm(prompt)
         return self._parse_reasoning(response, "causal")
 
     async def _counterfactual_reasoning(self, situation: Dict, goal: str) -> ReasoningResult:
         """Counterfactual Reasoning - ถ้า...แล้วจะเกิดอะไร"""
-        prompt = f"""
-        Situation: {situation}
-        Goal: {goal}
+        prompt = f"""You are a security researcher using counterfactual reasoning.
 
-        What if we took a different approach?
-        What would happen if we didn't take the obvious action?
-        What are the alternative scenarios?
-        """
-        response = await self.llm.generate(prompt)
+Situation: {json.dumps(situation, default=str)}
+Goal: {goal}
+
+What if we took a different approach?
+What would happen if we didn't take the obvious action?
+What are the alternative scenarios?
+
+Return JSON:
+{{"premise": "current plan", "conclusion": "alternative scenario", "confidence": 0.0-1.0, "evidence": ["counterfactual analysis"], "alternative_hypotheses": ["other scenarios"]}}"""
+        response = self._call_llm(prompt)
         return self._parse_reasoning(response, "counterfactual")
 
     def _parse_reasoning(self, response: str, rtype: str) -> ReasoningResult:
+        """Parse LLM response into structured ReasoningResult."""
+        # Try to extract JSON from response
+        try:
+            # Try direct JSON parse
+            data = json.loads(response)
+        except (json.JSONDecodeError, TypeError):
+            # Try to find JSON in markdown code block
+            m = re.search(r"```(?:json)?\s*([\s\S]*?)\s*```", response)
+            if m:
+                try:
+                    data = json.loads(m.group(1))
+                except (json.JSONDecodeError, TypeError):
+                    data = {}
+            else:
+                data = {}
+
         return ReasoningResult(
             reasoning_type=rtype,
-            premise="",
-            conclusion=response[:500],
-            confidence=0.7,
-            reasoning_trace=[response[:200]]
+            premise=data.get("premise", response[:200] if response else ""),
+            conclusion=data.get("conclusion", response[:500] if response else ""),
+            confidence=float(data.get("confidence", 0.7)),
+            evidence=data.get("evidence", []),
+            alternative_hypotheses=data.get("alternative_hypotheses", []),
+            reasoning_trace=[response[:200]] if response else [],
         )
 
 
 class PlanningEngine:
-    """เครื่องมือวางแผน (Planning Engine)"""
+    """เครื่องมือวางแผน (Planning Engine)
+
+    Generates AttackPlan from a high-level goal using LLM reasoning.
+    Produces structured phases with actions, tools, and risk assessment.
+    """
 
     def __init__(self, llm_client: Any, reasoning: "ReasoningEngine", memory: "CognitiveMemoryManager"):
         self.llm = llm_client
         self.reasoning = reasoning
         self.memory = memory
+
+    def _call_llm(self, prompt: str) -> str:
+        """Call LLM with a prompt, returning response text."""
+        try:
+            from tools.universal_ai_client import AIMessage
+            response = self.llm.chat(
+                [AIMessage(role="user", content=prompt)],
+                temperature=0.3,
+            )
+            return response.content or ""
+        except Exception as e:
+            logger.warning(f"LLM call failed in planning: {e}")
+            return ""
 
     async def plan(
         self,
@@ -246,39 +318,45 @@ class PlanningEngine:
         # 1. Understand goal deeply
         goal_analysis = await self._analyze_goal(goal, context)
 
-        # 2. Assess current state
-        current_state = await self._assess_current_state(context)
+        # 2. Generate strategic plan via LLM
+        plan = await self._generate_strategic_plan(goal_analysis, {}, context)
 
-        # 3. Identify attack surface
-        attack_surface = await self._map_attack_surface(context)
-
-        # 4. Generate strategic plan
-        plan = await self._generate_strategic_plan(goal_analysis, attack_surface, context)
-
-        # 5. Break into tactical phases
-        plan.phases = await self._decompose_into_phases(plan, context)
-
-        # 6. Risk assessment
-        plan.risk_assessment = await self._assess_plan_risk(plan)
+        # 3. Risk assessment
+        plan.risk_assessment = {"overall": "medium", "by_phase": {}}
 
         return plan
 
     async def _analyze_goal(self, goal: str, context: "MissionContext") -> Dict:
-        prompt = f"""
-        Analyze this security testing goal deeply:
-        Goal: {goal}
-        Target: {context.target}
-        Scope: {context.scope}
-        Constraints: {context.constraints}
+        target = getattr(context, "target", "unknown")
+        objectives = getattr(context, "objectives", [])
+        objective_str = objectives[0] if objectives else "discover vulnerabilities"
 
-        Provide:
-        1. Primary objective
-        2. Success criteria
-        3. Implicit assumptions
-        4. Potential challenges
-        5. Required capabilities
-        """
-        return {"analysis": await self.llm.generate(prompt)}
+        prompt = f"""Analyze this security testing goal for an AI-driven penetration test.
+
+Goal: {goal}
+Target: {target}
+Objective: {objective_str}
+
+Provide a brief analysis covering:
+1. Primary attack vectors to investigate
+2. Key tools needed (nmap, curl, ffuf, sqlmap, etc.)
+3. Risk level and expected duration
+
+Return JSON:
+{{"attack_vectors": ["vector1", "vector2"], "tools_needed": ["tool1"], "risk": "low/medium/high", "duration_minutes": 30}}"""
+
+        response = self._call_llm(prompt)
+        try:
+            return json.loads(response)
+        except (json.JSONDecodeError, TypeError):
+            # Fallback: parse JSON from text
+            m = re.search(r"\{[\s\S]*\}", response)
+            if m:
+                try:
+                    return json.loads(m.group(0))
+                except json.JSONDecodeError:
+                    pass
+            return {"analysis": response, "attack_vectors": [], "tools_needed": [], "risk": "medium", "duration_minutes": 30}
 
     async def _assess_current_state(self, context: "MissionContext") -> Dict:
         return {"recon_complete": False, "scan_complete": False}
@@ -292,41 +370,108 @@ class PlanningEngine:
         attack_surface: Dict,
         context: "MissionContext"
     ) -> "AttackPlan":
-        tree = AttackTree(
-            target=context.target,
-            objective=context.objectives[0] if context.objectives else "discover vulnerabilities",
-            tech_stack=context.metadata.get("tech_stack", []),
-        )
-        tree.steps = await self._generate_attack_steps(tree)
-        return tree
+        target = getattr(context, "target", "unknown")
+        objective = getattr(context, "objectives", ["discover vulnerabilities"])[0]
 
-    async def _generate_attack_steps(self, tree: "AttackTree") -> List["AttackStep"]:
-        """Generate attack steps from tree"""
+        prompt = f"""You are a security planning AI. Create an attack plan for a penetration test.
+
+Target: {target}
+Objective: {objective}
+Goal Analysis: {json.dumps(goal_analysis, default=str)}
+
+Generate a prioritized attack plan as JSON:
+{{
+  "phases": [
+    {{"name": "Reconnaissance", "objective": "...", "tools": ["nmap", "dig"], "risk_level": "low", "actions": [{{"tool": "nmap", "params": {{}}}}]}},
+    {{"name": "Scanning", "objective": "...", "tools": ["curl", "ffuf"], "risk_level": "medium", "actions": [{{"tool": "ffuf", "params": {{}}}}]}},
+    {{"name": "Vulnerability Analysis", "objective": "...", "tools": ["python_scanner"], "risk_level": "medium", "actions": [{{"tool": "scanner", "params": {{}}}}]}}
+  ],
+  "risk_assessment": {{"overall": "medium"}},
+  "success_criteria": ["Find at least one confirmed vulnerability"]
+}}"""
+
+        response = self._call_llm(prompt)
+
+        # Parse the plan
+        plan = AttackPlan(goal=objective, target=target)
+        try:
+            data = json.loads(response)
+        except (json.JSONDecodeError, TypeError):
+            m = re.search(r"\{[\s\S]*\}", response)
+            if m:
+                try:
+                    data = json.loads(m.group(0))
+                except json.JSONDecodeError:
+                    data = {}
+            else:
+                data = {}
+
+        plan.risk_assessment = data.get("risk_assessment", {"overall": "medium"})
+        plan.success_criteria = data.get("success_criteria", ["Find vulnerabilities"])
+
+        # Convert phases
+        for phase_data in data.get("phases", []):
+            phase = PlanPhase(
+                name=phase_data.get("name", ""),
+                objective=phase_data.get("objective", ""),
+                tools=phase_data.get("tools", []),
+                risk_level=phase_data.get("risk_level", "medium"),
+                actions=phase_data.get("actions", []),
+            )
+            plan.phases.append(phase)
+
+        return plan
+
+    async def _generate_attack_steps(self, plan: "AttackPlan") -> List:
+        """Generate attack steps from plan phases."""
         return []
 
     async def _decompose_into_phases(self, plan: "AttackPlan", context: "MissionContext") -> List:
-        """แยกแผนเป็นขั้นตอนย่อย"""
-        return []
+        """Phases are already set in _generate_strategic_plan."""
+        return plan.phases
 
     async def _assess_plan_risk(self, plan: "AttackPlan") -> Dict:
-        return {"overall": "medium", "by_phase": {}}
+        return plan.risk_assessment or {"overall": "medium", "by_phase": {}}
 
     async def replan(self, failure: Dict, context: "MissionContext") -> "AttackPlan":
         """Replan after failure"""
-        prompt = f"""
-        Previous plan failed: {failure}
-        Current context: {context}
+        target = getattr(context, "target", "unknown")
+        prompt = f"""The previous attack plan failed. Generate a recovery plan.
 
-        Generate a new plan that addresses the failure.
-        Consider:
-        1. What went wrong?
-        2. What alternative approaches exist?
-        3. What new information do we have?
-        4. How to mitigate the failure cause?
-        """
-        new_approach = await self.llm.generate(prompt)
-        # Parse and return new plan
-        return AttackPlan(goal="recovery", target="")
+Failure details: {json.dumps(failure, default=str)[:500]}
+Target: {target}
+
+What went wrong? What alternative approaches exist?
+Generate a new plan as JSON:
+{{"phases": [{{"name": "...", "objective": "...", "tools": [...], "risk_level": "medium", "actions": []}}], "success_criteria": [...]}}"""
+
+        response = self._call_llm(prompt)
+
+        plan = AttackPlan(goal="recovery", target=target)
+        try:
+            data = json.loads(response)
+        except (json.JSONDecodeError, TypeError):
+            m = re.search(r"\{[\s\S]*\}", response)
+            if m:
+                try:
+                    data = json.loads(m.group(0))
+                except json.JSONDecodeError:
+                    data = {}
+            else:
+                data = {}
+
+        plan.success_criteria = data.get("success_criteria", ["Recover from failure"])
+        for phase_data in data.get("phases", []):
+            phase = PlanPhase(
+                name=phase_data.get("name", "Recovery"),
+                objective=phase_data.get("objective", ""),
+                tools=phase_data.get("tools", []),
+                risk_level=phase_data.get("risk_level", "medium"),
+                actions=phase_data.get("actions", []),
+            )
+            plan.phases.append(phase)
+
+        return plan
 
 
 class DecisionEngine:
@@ -365,7 +510,8 @@ class DecisionEngine:
         votes = []
         for action in allowed_actions:
             try:
-                vote = await self.constitutional.review_action(action)
+                vote = self.constitutional.review_action(action)
+                action["constitutional_guidance"] = vote
                 votes.append((action, vote))
             except Exception as e:
                 logger.warning(f"Constitutional review failed for {action}: {e}")
@@ -373,7 +519,7 @@ class DecisionEngine:
 
         # 3. AI decides with full context
         decision = await self._make_sovereign_decision(
-            allowed_actions, reasoning, context
+            allowed_actions, context
         )
 
         return decision
@@ -390,7 +536,6 @@ class DecisionEngine:
     async def _make_sovereign_decision(
         self,
         actions: List[Dict],
-        reasoning: "ReasoningResult",
         context: "MissionContext"
     ) -> "AIAction":
         """AI เป็น Sovereign - ตัดสินใจเอง"""
@@ -424,7 +569,7 @@ class DecisionEngine:
         return self._create_action(top_choice)
 
     async def _score_action(self, action: Dict, context: "MissionContext") -> float:
-        """ให้คะแนนการกระทำ"""
+        """Score an action based on multiple factors."""
         score = 0.0
 
         # Constitutional alignment (0-0.3)
@@ -432,31 +577,97 @@ class DecisionEngine:
         if guidance and guidance.is_constitutional:
             score += 0.3 * guidance.confidence
 
-        # Mission alignment (0-0.25)
+        # Mission alignment (0-0.25) - how relevant is this action to the goal
         score += 0.25 * self._mission_alignment(action, context)
 
-        # Expected value (0-0.2)
+        # Expected value (0-0.2) - potential impact
         score += 0.2 * self._expected_value(action, context)
 
-        # Risk adjusted (0-0.15)
+        # Risk adjusted (0-0.15) - prefer lower risk
         score += 0.15 * (1.0 - self._risk_score(action))
 
-        # Learning value (0-0.1)
+        # Learning value (0-0.1) - novel exploration value
         score += 0.1 * self._learning_value(action)
 
         return score
 
     def _mission_alignment(self, action: Dict, context: "MissionContext") -> float:
-        return 0.5
+        """Score how well action aligns with mission goal (0-1)."""
+        target = getattr(context, "target", "")
+        tool = action.get("tool", "")
+        params = action.get("params", {})
+
+        score = 0.5  # base
+
+        # Higher score if tool targets the mission target
+        if target and target in str(params):
+            score += 0.2
+
+        # Security tools get higher alignment for pentest missions
+        security_tools = {"nmap", "ffuf", "sqlmap", "nikto", "curl", "dig", "subfinder",
+                          "httpx", "nuclei", "ffuf", "gobuster", "dirsearch"}
+        if tool.lower() in security_tools:
+            score += 0.2
+
+        return min(1.0, score)
 
     def _expected_value(self, action: Dict, context: "MissionContext") -> float:
-        return 0.5
+        """Score expected value of action (0-1)."""
+        tool = action.get("tool", "")
+        params = action.get("params", {})
+
+        score = 0.3  # base value
+
+        # Higher value for tools that typically find vulnerabilities
+        high_value_tools = {"sqlmap", "nuclei", "nikto", "ffuf", "gobuster"}
+        if tool.lower() in high_value_tools:
+            score += 0.3
+
+        # Higher value for actions with specific targets/endpoints
+        if params.get("endpoint") or params.get("url"):
+            score += 0.2
+
+        # Higher value for actions with payloads/techniques
+        if params.get("payload") or params.get("technique"):
+            score += 0.2
+
+        return min(1.0, score)
 
     def _risk_score(self, action: Dict) -> float:
-        return 0.5
+        """Score risk level of action (0-1, higher = riskier)."""
+        tool = action.get("tool", "")
+        params = action.get("params", {})
+        risk_level = action.get("risk_level", "safe")
+
+        score = 0.3  # base
+
+        if risk_level == "high":
+            score += 0.4
+        elif risk_level == "medium":
+            score += 0.2
+
+        # Destructive tools
+        destructive = {"rm", "mkfs", "dd", "shred"}
+        if tool.lower() in destructive:
+            score += 0.3
+
+        return min(1.0, score)
 
     def _learning_value(self, action: Dict) -> float:
-        return 0.5
+        """Score how much we can learn from this action (0-1)."""
+        tool = action.get("tool", "")
+
+        # Recon tools provide high learning value
+        high_learning = {"nmap", "dig", "curl", "httpx", "whatweb", "wappalyzer"}
+        if tool.lower() in high_learning:
+            return 0.8
+
+        # Scanning tools provide medium learning value
+        medium_learning = {"ffuf", "gobuster", "nuclei", "nikto"}
+        if tool.lower() in medium_learning:
+            return 0.6
+
+        return 0.4  # default
 
     def _create_action(self, action_dict: Dict) -> AIAction:
         return AIAction(

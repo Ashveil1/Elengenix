@@ -236,23 +236,18 @@ class TestReasoningEngine:
         """reason() should dispatch to the correct strategy."""
         engine = ReasoningEngine(llm_client=Mock(), memory=Mock())
         engine.llm = MagicMock()
-
-        async def mock_generate(prompt):
-            return "deductive result"
-        engine.llm.generate = mock_generate
+        engine.llm.chat.return_value = Mock(content='{"conclusion": "deductive result", "confidence": 0.8}')
 
         result = await engine.reason({"situation": "test"}, "goal", strategy="deductive")
         assert result.reasoning_type == "deductive"
+        assert result.conclusion == "deductive result"
 
     @pytest.mark.asyncio
     async def test_reason_unknown_strategy_defaults_to_abductive(self):
         """Unknown strategy should default to abductive."""
         engine = ReasoningEngine(llm_client=Mock(), memory=Mock())
         engine.llm = MagicMock()
-
-        async def mock_generate(prompt):
-            return "abductive result"
-        engine.llm.generate = mock_generate
+        engine.llm.chat.return_value = Mock(content='{"conclusion": "abductive result", "confidence": 0.7}')
 
         result = await engine.reason({"situation": "test"}, "goal", strategy="unknown")
         assert result.reasoning_type == "abductive"
@@ -261,10 +256,8 @@ class TestReasoningEngine:
     async def test_all_reasoning_strategies(self):
         """All 6 reasoning strategies should work."""
         engine = ReasoningEngine(llm_client=Mock(), memory=Mock())
-
-        async def mock_generate(prompt):
-            return "strategy result"
-        engine.llm.generate = mock_generate
+        engine.llm = MagicMock()
+        engine.llm.chat.return_value = Mock(content='{"conclusion": "strategy result", "confidence": 0.7}')
 
         for strategy in ["deductive", "inductive", "abductive", "analogical", "causal", "counterfactual"]:
             result = await engine.reason({"situation": "test"}, "goal", strategy=strategy)
@@ -289,36 +282,58 @@ class TestDecisionEngine:
         assert engine.governance is not None
 
     def test_mission_alignment(self):
-        """_mission_alignment returns 0.5."""
+        """_mission_alignment should score based on tool relevance."""
         engine = DecisionEngine(Mock(), Mock(), Mock(), Mock())
-        result = engine._mission_alignment({}, Mock())
-        assert result == 0.5
+        ctx = MagicMock()
+        ctx.target = "example.com"
+        # Security tool targeting the mission target
+        result = engine._mission_alignment({"tool": "nmap", "params": {"target": "example.com"}}, ctx)
+        assert result > 0.5
+        # Non-security tool
+        result = engine._mission_alignment({"tool": "ls", "params": {}}, ctx)
+        assert result <= 0.5
 
     def test_expected_value(self):
-        """_expected_value returns 0.5."""
+        """_expected_value should score based on tool impact."""
         engine = DecisionEngine(Mock(), Mock(), Mock(), Mock())
-        result = engine._expected_value({}, Mock())
-        assert result == 0.5
+        ctx = MagicMock()
+        # High-value tool with endpoint
+        result = engine._expected_value({"tool": "nuclei", "params": {"endpoint": "/api"}}, ctx)
+        assert result > 0.3
+        # Low-value tool
+        result = engine._expected_value({"tool": "ls", "params": {}}, ctx)
+        assert result <= 0.5
 
     def test_risk_score(self):
-        """_risk_score returns 0.5."""
+        """_risk_score should score based on tool risk."""
         engine = DecisionEngine(Mock(), Mock(), Mock(), Mock())
-        result = engine._risk_score({})
-        assert result == 0.5
+        # High risk
+        result = engine._risk_score({"tool": "rm", "risk_level": "high"})
+        assert result > 0.5
+        # Low risk
+        result = engine._risk_score({"tool": "ls", "risk_level": "safe"})
+        assert result < 0.5
 
     def test_learning_value(self):
-        """_learning_value returns 0.5."""
+        """_learning_value should score based on exploration value."""
         engine = DecisionEngine(Mock(), Mock(), Mock(), Mock())
-        result = engine._learning_value({})
-        assert result == 0.5
+        # High learning value
+        result = engine._learning_value({"tool": "nmap"})
+        assert result > 0.5
+        # Medium learning value
+        result = engine._learning_value({"tool": "ffuf"})
+        assert result >= 0.5
+        # Default
+        result = engine._learning_value({"tool": "unknown"})
+        assert result <= 0.5
 
     @pytest.mark.asyncio
     async def test_score_action(self):
         """_score_action should compute a numeric score."""
         engine = DecisionEngine(Mock(), Mock(), Mock(), Mock())
-        from elengenix.types import MissionContext
         ctx = MagicMock()
-        score = await engine._score_action({"tool": "test"}, ctx)
+        ctx.target = "example.com"
+        score = await engine._score_action({"tool": "nmap", "risk_level": "safe"}, ctx)
         assert isinstance(score, float)
         assert 0.0 <= score <= 1.0
 
@@ -353,17 +368,14 @@ class TestDecisionEngine:
         """Should pick the highest-scoring action."""
         engine = DecisionEngine(Mock(), Mock(), Mock(), Mock())
         context = MagicMock()
-        context.target = "example.com"
+        context.target = "nmap.example.com"
 
-        action1 = {"tool": "nmap"}
-        action2 = {"tool": "ffuf"}
+        # nmap should score higher because target matches
+        action1 = {"tool": "nmap", "risk_level": "safe"}
+        action2 = {"tool": "ls", "risk_level": "safe"}
         actions = [action1, action2]
 
-        reasoning = MagicMock()
-        reasoning.conclusion = "test"
-
-        # _score_action returns 0.5 always (default), so the first action is picked
-        decision = await engine._make_sovereign_decision(actions, reasoning, context)
+        decision = await engine._make_sovereign_decision(actions, context)
         assert decision.tool == "nmap"
 
     def test_create_action(self):
