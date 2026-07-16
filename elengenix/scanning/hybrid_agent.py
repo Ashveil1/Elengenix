@@ -574,6 +574,8 @@ class HybridAgent:
         from pathlib import Path
         from elengenix.paths import get_reports_path
         from typing import (
+            Any,
+        )
         console.print(f"  [cyan][RUN] [{tool_name}] via ToolRegistry[/cyan]")
 
         report_dir = get_reports_path(f"hybrid_{tool_name}_{int(time.time())}")

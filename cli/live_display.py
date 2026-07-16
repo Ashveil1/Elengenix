@@ -13,8 +13,12 @@ from datetime import datetime
 from pathlib import Path
 from elengenix.paths import get_data_dir
 from typing import (
-
-from rich.console import Group
+    Any,
+    Dict,
+    List,
+    Optional,
+    Callable,
+)
 from rich.layout import Layout
 from rich.live import Live
 from rich.panel import Panel

@@ -188,12 +188,13 @@ class ModeProcessor:
             report_path.parent.mkdir(parents=True, exist_ok=True)
             report_path.write_text(result, encoding="utf-8")
 
-            remember(
-                f"Hybrid completed for {target}. Findings: {len(hybrid.all_findings)}",
-                target,
-                "mission_complete",
-                session_type="hybrid",
-            )
+            if self.enable_memory:
+                remember(
+                    f"Hybrid completed for {target}. Findings: {len(hybrid.all_findings)}",
+                    target,
+                    "mission_complete",
+                    session_type="hybrid",
+                )
 
             if callback:
                 callback(f"Report saved: {report_path}")
