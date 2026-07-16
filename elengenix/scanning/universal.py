@@ -91,6 +91,155 @@ def _format_preflight_context(findings: List[Dict[str, Any]]) -> str:
     return "\n".join(lines)
 
 
+def _run_brain_mode(
+    user_input: str,
+    client: Any,
+    target: str,
+    governance: Governance,
+    executor: Any,
+    callback: Optional[Callable] = None,
+    max_steps: int = 50,
+) -> Optional[str]:
+    """Run the cognitive brain mode: perceive → reason → decide → execute → reflect.
+
+    Uses TrueAIBrain for autonomous security testing with:
+    - PlanningEngine generates an attack plan
+    - DecisionEngine scores and picks actions
+    - ReasoningEngine analyzes results
+    - PerceptionModule tracks situation awareness
+
+    Returns:
+        Summary string or None if brain mode is unavailable.
+    """
+    try:
+        from elengenix.brain import TrueAIBrain
+        from elengenix.memory import CognitiveMemoryManager
+        from elengenix.constitution_engine import ConstitutionalAIEngine
+        from elengenix.types import MissionContext
+    except ImportError as e:
+        logger.warning(f"Brain components not available: {e}")
+        return None
+
+    if not client:
+        return None
+
+    logger.info("Brain mode: initializing cognitive architecture...")
+
+    # Create brain components
+    try:
+        memory = CognitiveMemoryManager(backends=[])
+
+        brain = TrueAIBrain(
+            llm_client=client,
+            memory=memory,
+            tools=None,
+            governance=governance,
+            constitutional_engine=ConstitutionalAIEngine(),
+        )
+
+        context = MissionContext(
+            target=target or "unknown",
+            objectives=[user_input],
+            scope="full",
+            constraints={},
+            metadata={},
+        )
+
+        if callback:
+            callback("[Brain] Planning attack strategy...")
+
+        # Step 1: Plan the attack
+        import asyncio
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                import concurrent.futures
+                with concurrent.futures.ThreadPoolExecutor() as pool:
+                    plan = pool.submit(
+                        asyncio.run,
+                        brain.planner.plan(user_input, context)
+                    ).result(timeout=30)
+            else:
+                plan = loop.run_until_complete(brain.planner.plan(user_input, context))
+        except Exception as e:
+            logger.warning(f"Brain planning failed: {e}")
+            return None
+
+        if callback:
+            phases = len(plan.phases) if plan.phases else 0
+            callback(f"[Brain] Attack plan: {phases} phases, {len(plan.success_criteria)} success criteria")
+
+        # Step 2: Execute plan phases
+        exec = get_universal_executor()
+        all_findings = []
+
+        for phase_idx, phase in enumerate(plan.phases if plan.phases else []):
+            if callback:
+                callback(f"[Brain] Phase {phase_idx + 1}: {phase.name}")
+
+            for action_data in phase.actions:
+                tool_name = action_data.get("tool", "")
+                if not tool_name:
+                    continue
+
+                try:
+                    exec_result = exec.execute_action({
+                        "type": "run_tool",
+                        "params": {"tool": tool_name, "target": target},
+                    })
+                    result_text = exec_result.output if exec_result.success else exec_result.error
+
+                    if callback:
+                        callback(f"[Brain] [{tool_name}] → {result_text[:100]}...")
+
+                    try:
+                        from tools.cvss_calculator import CVSSCalculator
+                        calc = CVSSCalculator(use_ai=False)
+                        score = calc.from_finding(tool_name, result_text[:200], result_text[:500], {})
+                        all_findings.append({
+                            "type": tool_name,
+                            "severity": score.severity.value,
+                            "cvss": score.base_score,
+                            "source": "brain_reasoning",
+                            "phase": phase.name,
+                        })
+                    except Exception:
+                        pass
+
+                except Exception as e:
+                    logger.debug(f"Brain tool execution failed for {tool_name}: {e}")
+
+        # Step 3: Generate summary
+        lines = ["## Brain Mode — Cognitive Security Assessment", ""]
+        if target:
+            lines.append(f"**Target**: {target}")
+        lines.append(f"**Objective**: {user_input}")
+        lines.append(f"**Plan Phases**: {len(plan.phases)}")
+        lines.append(f"**Success Criteria**: {', '.join(plan.success_criteria)}")
+        lines.append("")
+
+        if all_findings:
+            sev_order = {"Critical": 0, "High": 1, "Medium": 2, "Low": 3, "Info": 4}
+            all_findings.sort(key=lambda s: sev_order.get(s["severity"], 5))
+            lines.append("| Severity | Type | CVSS |")
+            lines.append("|----------|------|------|")
+            for f in all_findings:
+                lines.append(f"| {f['severity']} | {f['type']} | {f['cvss']:.1f} |")
+        else:
+            lines.append("No confirmed vulnerabilities found in this assessment.")
+
+        if callback:
+            callback(f"[Brain] Assessment complete: {len(all_findings)} findings")
+
+        return "\n".join(lines)
+
+    except Exception as e:
+        logger.error(f"Brain mode failed: {e}", exc_info=True)
+        if callback:
+            callback(f"[Brain] Error: {e}")
+        return None
+
+
 def process_universal(
     user_input: str,
     client: Any,
@@ -104,6 +253,7 @@ def process_universal(
     callback: Optional[Callable] = None,
     check_context_overflow: Optional[Callable] = None,
     preflight_findings: Optional[List[Dict]] = None,
+    use_brain: bool = False,
 ) -> str:
     """Universal Agent Mode—Flexible AI-driven security assistant.
 
@@ -332,6 +482,22 @@ Keep it short and conversational. No tools. No emojis."""
     if preflight_findings:
         preflight_context = _format_preflight_context(preflight_findings)
         base_prompt_text = base_prompt_text + "\n\n" + preflight_context
+
+    # ── Brain Mode: TrueAIBrain integration ────────────────────────────
+    # When use_brain=True and it's a security task, use the cognitive brain
+    # architecture (perceive → reason → decide → execute → reflect).
+    if use_brain and is_security_task:
+        brain_result = _run_brain_mode(
+            user_input=user_input,
+            client=client,
+            target=target,
+            governance=governance,
+            executor=executor,
+            callback=callback,
+        )
+        if brain_result:
+            return brain_result
+        # Fall through to legacy loop if brain mode fails
 
     # ── Main execution loop ────────────────────────────────────────────
     max_steps = 5 if intent == "research" else 50
