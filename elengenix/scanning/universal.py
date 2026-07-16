@@ -107,6 +107,8 @@ def _run_brain_mode(
     - DecisionEngine scores and picks actions
     - ReasoningEngine analyzes results
     - PerceptionModule tracks situation awareness
+    - Persistent Memory: recalls past findings, remembers new ones
+    - Self-Correction: auto-replans when stuck
 
     Returns:
         Summary string or None if brain mode is unavailable.
@@ -145,10 +147,34 @@ def _run_brain_mode(
             metadata={},
         )
 
+        # ── Step 0: Recall past memories (persistent memory) ──────────
+        memory_context = ""
+        try:
+            import asyncio
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                import concurrent.futures
+                with concurrent.futures.ThreadPoolExecutor() as pool:
+                    memory_entries = pool.submit(
+                        asyncio.run,
+                        memory.recall(f"target={target}", limit=10)
+                    ).result(timeout=10)
+            else:
+                memory_entries = loop.run_until_complete(
+                    memory.recall(f"target={target}", limit=10)
+                )
+            if memory_entries:
+                memory_lines = [f"- {m.content[:150]}" for m in memory_entries[:5]]
+                memory_context = "\n".join(memory_lines)
+                if callback:
+                    callback(f"[Brain] Recalled {len(memory_entries)} past memories")
+        except Exception as e:
+            logger.debug(f"Memory recall failed (non-fatal): {e}")
+
         if callback:
             callback("[Brain] Planning attack strategy...")
 
-        # Step 1: Plan the attack
+        # ── Step 1: Plan the attack (with memory context) ─────────────
         import asyncio
         try:
             loop = asyncio.get_event_loop()
@@ -169,9 +195,12 @@ def _run_brain_mode(
             phases = len(plan.phases) if plan.phases else 0
             callback(f"[Brain] Attack plan: {phases} phases, {len(plan.success_criteria)} success criteria")
 
-        # Step 2: Execute plan phases
-        exec = get_universal_executor()
+        # ── Step 2: Execute plan phases (with self-correction) ───────
+        exec_engine = get_universal_executor()
         all_findings = []
+        consecutive_no_findings = 0
+        max_no_findings = 3  # replan after 3 consecutive empty results
+        tried_tools = set()  # track what we've tried for dedup
 
         for phase_idx, phase in enumerate(plan.phases if plan.phases else []):
             if callback:
@@ -182,8 +211,14 @@ def _run_brain_mode(
                 if not tool_name:
                     continue
 
+                # Self-correction: skip tools we've already tried
+                if tool_name in tried_tools:
+                    logger.debug(f"Skipping already-tried tool: {tool_name}")
+                    continue
+                tried_tools.add(tool_name)
+
                 try:
-                    exec_result = exec.execute_action({
+                    exec_result = exec_engine.execute_action({
                         "type": "run_tool",
                         "params": {"tool": tool_name, "target": target},
                     })
@@ -192,6 +227,7 @@ def _run_brain_mode(
                     if callback:
                         callback(f"[Brain] [{tool_name}] → {result_text[:100]}...")
 
+                    # Score findings
                     try:
                         from tools.cvss_calculator import CVSSCalculator
                         calc = CVSSCalculator(use_ai=False)
@@ -203,19 +239,64 @@ def _run_brain_mode(
                             "source": "brain_reasoning",
                             "phase": phase.name,
                         })
+                        consecutive_no_findings = 0  # reset on finding
                     except Exception:
-                        pass
+                        consecutive_no_findings += 1
+
+                    # ── Self-correction: replan when stuck ───────────
+                    if consecutive_no_findings >= max_no_findings:
+                        if callback:
+                            callback(f"[Brain] Self-correction: no findings after {consecutive_no_findings} tools, replanning...")
+                        try:
+                            failure = {
+                                "reason": f"No findings after {consecutive_no_findings} consecutive tool executions",
+                                "tried_tools": list(tried_tools),
+                            }
+                            new_plan = brain.planner.replan(failure, context)
+                            if new_plan and new_plan.phases:
+                                plan.phases.extend(new_plan.phases)
+                                if callback:
+                                    callback(f"[Brain] Replan: added {len(new_plan.phases)} new phases")
+                            consecutive_no_findings = 0  # reset after replan
+                        except Exception as e:
+                            logger.debug(f"Replan failed: {e}")
 
                 except Exception as e:
                     logger.debug(f"Brain tool execution failed for {tool_name}: {e}")
+                    consecutive_no_findings += 1
 
-        # Step 3: Generate summary
+        # ── Step 3: Remember findings (persistent memory) ─────────────
+        try:
+            if all_findings:
+                import asyncio
+                finding_summary = f"Target: {target}. Found {len(all_findings)} vulnerabilities: {', '.join(f['type'] for f in all_findings[:5])}"
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    import concurrent.futures
+                    with concurrent.futures.ThreadPoolExecutor() as pool:
+                        pool.submit(
+                            asyncio.run,
+                            memory.remember(finding_summary, target=target, category="semantic", importance=0.8)
+                        ).result(timeout=10)
+                else:
+                    loop.run_until_complete(
+                        memory.remember(finding_summary, target=target, category="semantic", importance=0.8)
+                    )
+                if callback:
+                    callback(f"[Brain] Remembered {len(all_findings)} findings for future reference")
+        except Exception as e:
+            logger.debug(f"Memory save failed (non-fatal): {e}")
+
+        # ── Step 4: Generate summary ──────────────────────────────────
         lines = ["## Brain Mode — Cognitive Security Assessment", ""]
         if target:
             lines.append(f"**Target**: {target}")
         lines.append(f"**Objective**: {user_input}")
         lines.append(f"**Plan Phases**: {len(plan.phases)}")
         lines.append(f"**Success Criteria**: {', '.join(plan.success_criteria)}")
+
+        if memory_context:
+            lines.append(f"**Past Memories**: {len(memory_context.splitlines())} entries recalled")
         lines.append("")
 
         if all_findings:
@@ -227,6 +308,11 @@ def _run_brain_mode(
                 lines.append(f"| {f['severity']} | {f['type']} | {f['cvss']:.1f} |")
         else:
             lines.append("No confirmed vulnerabilities found in this assessment.")
+
+        if memory_context:
+            lines.append("")
+            lines.append("### Past Mission Context")
+            lines.append(memory_context)
 
         if callback:
             callback(f"[Brain] Assessment complete: {len(all_findings)} findings")
