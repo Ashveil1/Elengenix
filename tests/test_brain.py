@@ -408,7 +408,7 @@ class TestDecisionEngine:
         engine.governance.gate.return_value = gate
 
         result = await engine.decide({}, [{"tool": "nmap"}], context)
-        assert result.action_type.value == "reporting"
+        assert result.action_type == "reporting"
 
 
 class TestTrueAIBrain:

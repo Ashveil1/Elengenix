@@ -81,7 +81,7 @@ class PlanPhase:
 class PerceptionModule:
     """โมดูลรับรู้ (Perception) - รับรู้สถานการณ์"""
 
-    def __init__(self, memory: "CognitiveMemoryManager", tools: "ToolRegistry"):
+    def __init__(self, memory: "CognitiveMemoryManager", tools: Optional["ToolRegistry"] = None):
         self.memory = memory
         self.tools = tools
 
@@ -482,7 +482,7 @@ class DecisionEngine:
         llm_client: Any,
         reasoning: "ReasoningEngine",
         constitutional_engine: "ConstitutionalAIEngine",
-        governance: "GovernanceGate"
+        governance: Any
     ):
         self.llm = llm_client
         self.reasoning = reasoning
@@ -502,7 +502,7 @@ class DecisionEngine:
 
         if not allowed_actions:
             return AIAction(
-                action_type=ActionType.REPORTING,
+                action_type=ActionType.REPORTING.value,
                 description="No allowed actions available"
             )
 
@@ -510,7 +510,13 @@ class DecisionEngine:
         votes = []
         for action in allowed_actions:
             try:
-                vote = self.constitutional.review_action(action)
+                ai_action = AIAction(
+                    action_type="recon",
+                    tool=action.get("tool", ""),
+                    target=context.target if hasattr(context, 'target') else "",
+                    description=action.get("description", ""),
+                )
+                vote = self.constitutional.review_action(ai_action)
                 action["constitutional_guidance"] = vote
                 votes.append((action, vote))
             except Exception as e:
@@ -562,7 +568,7 @@ class DecisionEngine:
                     return self._create_action(action)
             # If all require human review, escalate
             return AIAction(
-                action_type=ActionType.REPORTING,
+                action_type=ActionType.REPORTING.value,
                 description="All options require human review"
             )
 
@@ -670,14 +676,24 @@ class DecisionEngine:
         return 0.4  # default
 
     def _create_action(self, action_dict: Dict) -> AIAction:
+        action_type_str = action_dict.get("action_type", "recon")
+        try:
+            action_type_str = ActionType(action_type_str).value
+        except ValueError:
+            pass  # keep as string if not a valid ActionType
+        risk_level_str = action_dict.get("risk_level", "safe")
+        try:
+            risk_level_str = RiskLevel(risk_level_str).value
+        except ValueError:
+            pass  # keep as string if not a valid RiskLevel
         return AIAction(
-            action_type=ActionType(action_dict.get("action_type", "recon")),
+            action_type=action_type_str,
             tool=action_dict.get("tool", ""),
             target=action_dict.get("target", ""),
             parameters=action_dict.get("parameters", {}),
             description=action_dict.get("description", ""),
             purpose=action_dict.get("purpose", ""),
-            risk_level=RiskLevel(action_dict.get("risk_level", "safe"))
+            risk_level=risk_level_str
         )
 
 
@@ -688,9 +704,9 @@ class TrueAIBrain:
         self,
         llm_client: Any,
         memory: "CognitiveMemoryManager",
-        tools: "ToolRegistry",
-        governance: "GovernanceGate",
-        constitutional_engine: "ConstitutionalAIEngine",
+        tools: Optional["ToolRegistry"] = None,
+        governance: Any = None,
+        constitutional_engine: Optional["ConstitutionalAIEngine"] = None,
         config: Optional[Dict] = None
     ):
         self.llm = llm_client
@@ -707,7 +723,7 @@ class TrueAIBrain:
         self.decision_engine = DecisionEngine(
             llm_client,
             self.reasoning,
-            self.constitutional_engine,
+            self.constitutional_engine or ConstitutionalAIEngine(),
             governance
         )
 
@@ -733,7 +749,7 @@ class TrueAIBrain:
     ) -> AIAction:
         """Decide on next action"""
         return await self.decision_engine.decide(
-            self, context, available_actions, reflection
+            situation={}, context=context, available_actions=available_actions
         )
 
     async def plan(self, goal: str, context: MissionContext) -> AttackPlan:
@@ -746,4 +762,4 @@ class TrueAIBrain:
 
     async def verify_finding(self, finding: Finding) -> ConstitutionalGuidance:
         """Verify a finding using constitutional engine"""
-        return await self.constitutional_engine.verify_action(finding)
+        return self.constitutional_engine.review_action(finding)

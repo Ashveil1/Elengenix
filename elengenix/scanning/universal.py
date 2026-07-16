@@ -142,7 +142,7 @@ def _run_brain_mode(
         context = MissionContext(
             target=target or "unknown",
             objectives=[user_input],
-            scope="full",
+            scope=["full"],
             constraints={},
             metadata={},
         )
