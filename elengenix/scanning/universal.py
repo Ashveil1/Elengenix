@@ -817,7 +817,7 @@ Respond with JSON:
 
             # Parse JSON
             decision = extract_json(response_text)
-            if not decision:
+            if not decision or not isinstance(decision, dict):
                 action_data = {"type": "finish"}
             else:
                 thought = decision.get("thought", "")
