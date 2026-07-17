@@ -252,7 +252,17 @@ def _run_brain_mode(
                                 "reason": f"No findings after {consecutive_no_findings} consecutive tool executions",
                                 "tried_tools": list(tried_tools),
                             }
-                            new_plan = brain.planner.replan(failure, context)
+                            import asyncio as _ai
+                            _loop = _ai.get_event_loop()
+                            if _loop.is_running():
+                                import concurrent.futures
+                                with concurrent.futures.ThreadPoolExecutor() as _pool:
+                                    new_plan = _pool.submit(
+                                        _ai.run,
+                                        brain.planner.replan(failure, context)
+                                    ).result(timeout=30)
+                            else:
+                                new_plan = _loop.run_until_complete(brain.planner.replan(failure, context))
                             if new_plan and new_plan.phases:
                                 plan.phases.extend(new_plan.phases)
                                 if callback:
@@ -327,18 +337,18 @@ def _run_brain_mode(
 
 
 def _create_mission_context(target: str, objective: str):
-    """Create a MissionContext for the brain components."""
-    try:
-        from elengenix.types import MissionContext
-        return MissionContext(
-            target=target or "unknown",
-            objectives=[objective],
-            scope=["full"],
-            constraints={},
-            metadata={},
-        )
-    except Exception:
-        return None
+    """Create a MissionContext for the brain components.
+    
+    Always returns a valid MissionContext — never None.
+    """
+    from elengenix.types import MissionContext
+    return MissionContext(
+        target=target or "unknown",
+        objectives=[objective],
+        scope=["full"],
+        constraints={},
+        metadata={},
+    )
 
 
 def process_universal(
@@ -722,7 +732,7 @@ Respond with JSON:
 
         # ── Brain-enhanced decision path ──────────────────────────────
         thought = ""
-        action_data = None
+        action_data: Dict[str, Any] = {"type": "finish"}
 
         if _brain_loop and _brain_decision:
             # Use DecisionEngine to score and pick action
