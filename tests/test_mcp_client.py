@@ -1,6 +1,7 @@
 """Tests for mcp/client.py — MCP client."""
 from __future__ import annotations
 
+import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -114,19 +115,17 @@ class TestMCPClient:
         assert client.url == "http://localhost:8080"
         assert client.connected is False
 
-    @pytest.mark.asyncio
-    async def test_disconnect_when_not_connected(self):
+    def test_disconnect_when_not_connected(self):
         client = MCPClient(transport="stdio", command=["echo", "test"])
-        await client.disconnect()  # Should not crash
+        asyncio.run(client.disconnect())  # Should not crash
 
-    @pytest.mark.asyncio
-    async def test_disconnect_http(self):
+    def test_disconnect_http(self):
         """Disconnecting from http mode should clean up."""
         client = MCPClient(transport="http", url="http://localhost:8080")
         client.connected = True
         mock_proc = MagicMock()
         mock_proc.wait = AsyncMock()
         client.process = mock_proc
-        await client.disconnect()
+        asyncio.run(client.disconnect())
         assert client.connected is False
         assert client.process is None

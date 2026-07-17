@@ -1,6 +1,7 @@
 """Tests for elengenix/scanning/scan_loop.py — ScanLoop + ScanResult."""
 from __future__ import annotations
 
+import asyncio
 import pytest
 from types import SimpleNamespace
 from unittest.mock import MagicMock, AsyncMock, patch
@@ -96,38 +97,33 @@ class TestScanLoop:
 
     # -- run() tests --
 
-    @pytest.mark.asyncio
-    async def test_finish_action_ends(self, loop, ctx, decision_engine):
+    def test_finish_action_ends(self, loop, ctx, decision_engine):
         decision_engine.decide.return_value = _decision({"action": "finish"})
-        result = await loop.run(ctx, "test")
+        result = asyncio.run(loop.run(ctx, "test"))
         assert result.success is True
         assert isinstance(result, ScanResult)
 
-    @pytest.mark.asyncio
-    async def test_max_steps_respected(self, loop, ctx, decision_engine):
+    def test_max_steps_respected(self, loop, ctx, decision_engine):
         decision_engine.decide.return_value = _decision({"action": "run_shell", "command": "echo hi"})
-        result = await loop.run(ctx, "loop test")
+        result = asyncio.run(loop.run(ctx, "loop test"))
         assert result.steps_taken <= ctx.max_steps
 
-    @pytest.mark.asyncio
-    async def test_no_executor(self, decision_engine, pp, ctx):
+    def test_no_executor(self, decision_engine, pp, ctx):
         decision_engine.decide.return_value = _decision({"action": "finish"})
         loop = ScanLoop(decision_engine=decision_engine, post_processor=pp)
-        result = await loop.run(ctx, "test")
+        result = asyncio.run(loop.run(ctx, "test"))
         assert isinstance(result, ScanResult)
 
-    @pytest.mark.asyncio
-    async def test_submit_findings(self, loop, ctx, decision_engine, pp):
+    def test_submit_findings(self, loop, ctx, decision_engine, pp):
         findings_data = [{"vuln": "xss", "severity": "high"}]
         decision_engine.decide.side_effect = [
             _decision({"action": "submit_findings", "findings": findings_data, "reasoning": "found"}),
             _decision({"action": "finish", "reasoning": "done"}),
         ]
-        result = await loop.run(ctx, "test")
+        result = asyncio.run(loop.run(ctx, "test"))
         assert isinstance(result, ScanResult)
 
-    @pytest.mark.asyncio
-    async def test_submit_findings_with_findings_calls_callback(self, ctx, decision_engine, pp, executor):
+    def test_submit_findings_with_findings_calls_callback(self, ctx, decision_engine, pp, executor):
         cb = MagicMock()
         findings_data = [{"vuln": "xss", "severity": "high"}]
         decision_engine.decide.side_effect = [
@@ -137,35 +133,31 @@ class TestScanLoop:
         loop = ScanLoop(decision_engine=decision_engine, post_processor=pp,
                          executor=executor, callback=cb)
         loop._run_reasoning_phase = MagicMock(return_value=[])
-        await loop.run(ctx, "test")
+        asyncio.run(loop.run(ctx, "test"))
         cb.assert_called_once()
 
-    @pytest.mark.asyncio
-    async def test_save_memory(self, loop, ctx, decision_engine):
+    def test_save_memory(self, loop, ctx, decision_engine):
         decision_engine.decide.side_effect = [
             _decision({"action": "save_memory", "content": "test"}),
             _decision({"action": "finish"}),
         ]
-        result = await loop.run(ctx, "test")
+        result = asyncio.run(loop.run(ctx, "test"))
         assert isinstance(result, ScanResult)
 
-    @pytest.mark.asyncio
-    async def test_web_search(self, loop, ctx, decision_engine):
+    def test_web_search(self, loop, ctx, decision_engine):
         decision_engine.decide.side_effect = [
             _decision({"action": "web_search", "query": "test"}),
             _decision({"action": "finish"}),
         ]
-        result = await loop.run(ctx, "test")
+        result = asyncio.run(loop.run(ctx, "test"))
         assert isinstance(result, ScanResult)
 
-    @pytest.mark.asyncio
-    async def test_deadlock_detected(self, loop, ctx, decision_engine):
+    def test_deadlock_detected(self, loop, ctx, decision_engine):
         decision_engine.decide.return_value = _decision({"action": "web_search", "query": "x"})
-        result = await loop.run(ctx, "test")
+        result = asyncio.run(loop.run(ctx, "test"))
         assert isinstance(result, ScanResult)
 
-    @pytest.mark.asyncio
-    async def test_callback_invoked(self, ctx, decision_engine, pp, executor):
+    def test_callback_invoked(self, ctx, decision_engine, pp, executor):
         cb = MagicMock()
         decision_engine.decide.side_effect = [
             _decision({"action": "submit_findings", "findings": [{"vuln": "xss"}]}),
@@ -173,7 +165,7 @@ class TestScanLoop:
         ]
         loop = ScanLoop(decision_engine=decision_engine, post_processor=pp,
                          executor=executor, callback=cb)
-        await loop.run(ctx, "test")
+        asyncio.run(loop.run(ctx, "test"))
         cb.assert_called()
 
     # -- internal methods --

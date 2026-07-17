@@ -1,6 +1,7 @@
 """Tests for elengenix/scanning/post_processor.py — PostExecutionProcessor."""
 from __future__ import annotations
 
+import asyncio
 import json
 import sys
 import pytest
@@ -1205,13 +1206,11 @@ class TestProcessStrategy:
 
 
 class TestProcess:
-    @pytest.mark.asyncio
-    async def test_none_result_returns_early(self, mock_ctx, processor):
-        await processor.process(mock_ctx, None, "nmap", {}, 0)
+    def test_none_result_returns_early(self, mock_ctx, processor):
+        asyncio.run(processor.process(mock_ctx, None, "nmap", {}, 0))
         mock_ctx.add_result.assert_not_called()
 
-    @pytest.mark.asyncio
-    async def test_orchestrates_all_steps(self):
+    def test_orchestrates_all_steps(self):
         """process() should call all sub-processors in order."""
         p = PostExecutionProcessor(callback=MagicMock())
         ctx = MagicMock()
@@ -1229,7 +1228,7 @@ class TestProcess:
             patch.object(p, "_process_analysis") as mock_an,
             patch.object(p, "_process_strategy") as mock_strat,
         ):
-            await p.process(ctx, result, "nmap", {"command": "cmd"}, 1)
+            asyncio.run(p.process(ctx, result, "nmap", {"command": "cmd"}, 1))
 
         ctx.add_result.assert_called_once_with(result)
         mock_cov.assert_called_once_with(ctx, result, "nmap", {"command": "cmd"})
@@ -1238,8 +1237,7 @@ class TestProcess:
         mock_an.assert_called_once_with(ctx, result, "nmap", 1)
         mock_strat.assert_called_once_with(ctx, result, "nmap", 1)
 
-    @pytest.mark.asyncio
-    async def test_orchestration_order(self, mock_ctx, mock_result, processor):
+    def test_orchestration_order(self, mock_ctx, mock_result, processor):
         """Verify the call order is preserved."""
         call_tracker = []
 
@@ -1265,9 +1263,9 @@ class TestProcess:
                 side_effect=lambda *a, **kw: call_tracker.append("strategy"),
             ),
         ):
-            await processor.process(
+            asyncio.run(processor.process(
                 mock_ctx, mock_result, "nmap", {"command": "cmd"}, 1
-            )
+            ))
 
         assert call_tracker == [
             "coverage",
