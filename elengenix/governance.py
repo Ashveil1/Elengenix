@@ -159,9 +159,10 @@ class GovernanceGate:
         # 4. Check Policy
         policy_decision = self._check_policy(action, risk_assessment)
         if policy_decision != GovernanceDecision.ALLOW:
+            action_type_str = action.action_type.value if hasattr(action.action_type, 'value') else str(action.action_type)
             return GateResult(
                 decision=policy_decision,
-                rationale=f"Policy violation: {action.action_type.value}",
+                rationale=f"Policy violation: {action_type_str}",
                 risk_level=risk_assessment.level,
                 requires_human=(policy_decision == GovernanceDecision.DENY)
             )
@@ -268,7 +269,7 @@ class GovernanceGate:
     def _check_condition(self, condition: str, action: AIAction) -> bool:
         """ตรวจสอบเงื่อนไข Auto-approve"""
         conditions = {
-            "passive_only": lambda a: a.action_type.value in ["recon", "reconnaissance"],
+            "passive_only": lambda a: (a.action_type.value if hasattr(a.action_type, 'value') else str(a.action_type)) in ["recon", "reconnaissance"],
             "safe_scan": lambda a: a.risk_level == RiskLevel.SAFE,
             "rate_limited": lambda a: True,  # Checked separately
             "poc_only": lambda a: "poc" in (a.parameters.get("mode", "") if isinstance(a.parameters, dict) else ""),
@@ -286,10 +287,11 @@ class GovernanceGate:
 
     def audit(self, action: AIAction, decision: GovernanceGate):
         """บันทึก Audit Log"""
+        action_type_str = action.action_type.value if hasattr(action.action_type, 'value') else str(action.action_type)
         entry = {
             "timestamp": datetime.now().isoformat(),
+            "action_type": action_type_str,
             "action_id": action.action_id,
-            "action_type": action.action_type.value,
             "tool": action.tool,
             "target": action.target,
             "decision": decision.decision.value,

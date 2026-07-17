@@ -46,7 +46,7 @@ class SkillStore:
             try:
                 raw = self._SKILLS_FILE.read_text(encoding="utf-8")
                 data = json.loads(raw)
-                self._skills = data if isinstance(data, dict) else data.get("skills", {})
+                self._skills = data.get("skills", {}) if isinstance(data, dict) else {}
             except (json.JSONDecodeError, OSError) as exc:
                 logger.warning("Failed to load skills.json: %s", exc)
                 self._skills = {}

@@ -72,15 +72,6 @@ class MCPConfigManager:
         """
         config = MCPConfig()
 
-        # Load from ~/.elengenix/mcp.json (user config, highest priority)
-        if USER_MCP_JSON.exists():
-            self._merge_mcp_json(USER_MCP_JSON, config)
-
-        # Load from project mcp.json (second priority)
-        mcp_json = self.project_root / DEFAULT_MCP_JSON
-        if mcp_json.exists() and mcp_json != USER_MCP_JSON:
-            self._merge_mcp_json(mcp_json, config)
-
         # Load from config.yaml (lowest priority)
         yaml_config = self._load_from_yaml()
         if yaml_config:
@@ -88,16 +79,27 @@ class MCPConfigManager:
                 if name not in config.servers:
                     config.servers[name] = server
 
+        # Load from project mcp.json (second priority)
+        mcp_json = self.project_root / DEFAULT_MCP_JSON
+        if mcp_json.exists():
+            self._merge_mcp_json(mcp_json, config)
+
+        # Load from ~/.elengenix/mcp.json (user config, highest priority)
+        if USER_MCP_JSON.exists():
+            self._merge_mcp_json(USER_MCP_JSON, config, override=True)
+
         self._config = config
         return config
 
-    def _merge_mcp_json(self, path: Path, config: MCPConfig) -> None:
+    def _merge_mcp_json(self, path: Path, config: MCPConfig, override: bool = False) -> None:
         """Merge server entries from an mcp.json file into config."""
         try:
             with open(path, "r", encoding="utf-8") as f:
                 data = json.load(f)
 
             for name, server_data in data.get("mcpServers", {}).items():
+                if not override and name in config.servers:
+                    continue
                 command = server_data.get("command", "")
                 args = server_data.get("args", [])
 

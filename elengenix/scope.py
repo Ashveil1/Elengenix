@@ -159,14 +159,17 @@ class ScopeManager:
         Returns:
             Sanitized path string.
         """
-        # Remove any parent directory traversal
+        # Normalize path separators
         sanitized = os.path.normpath(path)
+        # Remove all parent directory traversal components
+        while sanitized.startswith("..") or sanitized.startswith("/"):
+            if sanitized.startswith("/"):
+                sanitized = sanitized.lstrip("/")
+            if sanitized.startswith(".."):
+                sanitized = sanitized.replace("..", "", 1).lstrip("/")
         # Prevent absolute paths
         if sanitized.startswith("/"):
             sanitized = sanitized.lstrip("/")
-        # Prevent relative traversal beyond cwd
-        if sanitized.startswith(".."):
-            sanitized = sanitized.replace("..", "", 1).lstrip("/")
         return sanitized
 
 

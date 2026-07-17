@@ -1,0 +1,538 @@
+> """elengenix/brain.py - True AI Brain (Cognitive Core)"""
+  
+> from __future__ import annotations
+  
+> import asyncio
+> import json
+> import logging
+> import time
+> from dataclasses import dataclass, field
+> from datetime import datetime
+> from typing import Any, Dict, List, Optional, Callable, Awaitable
+> from uuid import uuid4
+  
+> from elengenix.types import (
+>     AIAction, ActionType, RiskLevel, MissionContext,
+>     Finding, ConstitutionalGuidance
+> )
+> from elengenix.constitution_engine import ConstitutionalAIEngine
+> from elengenix.memory import CognitiveMemoryManager
+> from elengenix.governance import GovernanceGate
+> from elengenix.tools import ToolRegistry
+  
+> logger = logging.getLogger("elengenix.brain")
+  
+  
+> @dataclass
+> class CognitiveState:
+>     """สถานะทางการรู้ (Cognitive State)"""
+>     current_goal: str = ""
+>     active_plan: Optional["AttackPlan"] = None
+>     current_step: int = 0
+>     situation_awareness: Dict[str, Any] = field(default_factory=dict)
+>     working_memory: Dict[str, Any] = field(default_factory=dict)
+>     confidence: float = 0.5
+>     stress_level: float = 0.0  # 0-1
+>     focus_area: str = ""
+>     last_reflection: float = 0
+  
+  
+> @dataclass
+> class ReasoningResult:
+>     """ผลลัพธ์การให้เหตุผล"""
+>     reasoning_type: str  # deductive, inductive, abductive, analogical
+>     premise: str
+>     conclusion: str
+>     confidence: float
+>     evidence: List[Dict] = field(default_factory=list)
+>     alternative_hypotheses: List[str] = field(default_factory=list)
+>     reasoning_trace: List[str] = field(default_factory=list)
+  
+  
+> @dataclass
+> class AttackPlan:
+>     """แผนการโจมตี (Attack Plan)"""
+>     plan_id: str = field(default_factory=lambda: str(uuid4()))
+>     goal: str = ""
+>     target: str = ""
+>     phases: List["PlanPhase"] = field(default_factory=list)
+>     risk_assessment: Dict = field(default_factory=dict)
+>     resource_requirements: Dict = field(default_factory=dict)
+>     success_criteria: List[str] = field(default_factory=list)
+>     contingencies: List[str] = field(default_factory=list)
+>     created_at: float = field(default_factory=time.time)
+  
+  
+> @dataclass
+> class PlanPhase:
+>     """ขั้นตอนในแผน"""
+>     phase_id: str = field(default_factory=lambda: str(uuid4()))
+>     name: str = ""
+>     objective: str = ""
+>     actions: List[Dict] = field(default_factory=list)
+>     dependencies: List[str] = field(default_factory=list)  # phase_ids
+>     tools: List[str] = field(default_factory=list)
+>     estimated_duration: int = 0  # seconds
+>     risk_level: str = "medium"
+>     success_criteria: List[str] = field(default_factory=list)
+  
+  
+> class PerceptionModule:
+>     """โมดูลรับรู้ (Perception) - รับรู้สถานการณ์"""
+  
+>     def __init__(self, memory: "CognitiveMemoryManager", tools: "ToolRegistry"):
+!         self.memory = memory
+!         self.tools = tools
+  
+>     async def perceive(self, context: "MissionContext") -> Dict[str, Any]:
+>         """รับรู้สถานการณ์ปัจจุบัน"""
+!         perception = {
+!             "timestamp": datetime.now().timestamp(),
+!             "target_status": await self._assess_target(context.target),
+!             "findings_summary": self._summarize_findings(),
+!             "coverage_gaps": self._identify_coverage_gaps(),
+!             "threat_landscape": await self._assess_threat_landscape(),
+!             "resource_status": self._assess_resources(),
+!             "threat_level": self._assess_threat_level(),
+!         }
+!         return perception
+  
+>     async def _assess_target(self, target: str) -> Dict:
+!         return {"target": target, "status": "active", "last_seen": "now"}
+  
+>     def _summarize_findings(self) -> Dict:
+!         return {"total": 0, "by_severity": {}, "by_type": {}}
+  
+>     def _identify_coverage_gaps(self) -> List[str]:
+!         return []
+  
+>     async def _assess_threat_landscape(self) -> Dict:
+!         return {"waf_detected": False, "rate_limits": []}
+  
+>     def _assess_resources(self) -> Dict:
+!         return {"api_calls_remaining": 1000, "time_remaining": 3600}
+  
+>     def _assess_threat_level(self) -> str:
+!         return "low"
+  
+  
+> class ReasoningEngine:
+>     """เครื่องมือให้เหตุผล (Reasoning Engine)"""
+  
+>     def __init__(self, llm_client: Any, memory: "CognitiveMemoryManager"):
+!         self.llm = llm_client
+!         self.memory = memory
+!         self.reasoning_strategies = {
+!             "deductive": self._deductive_reasoning,
+!             "inductive": self._inductive_reasoning,
+!             "abductive": self._abductive_reasoning,
+!             "analogical": self._analogical_reasoning,
+!             "causal": self._causal_reasoning,
+!             "counterfactual": self._counterfactual_reasoning,
+!         }
+  
+>     async def reason(
+>         self,
+>         situation: Dict[str, Any],
+>         goal: str,
+>         strategy: str = "abductive"
+>     ) -> ReasoningResult:
+>         """ให้เหตุผลเกี่ยวกับสถานการณ์"""
+!         strategy_func = self.reasoning_strategies.get(strategy, self._abductive_reasoning)
+!         return await strategy_func(situation, goal)
+  
+>     async def _abductive_reasoning(self, situation: Dict, goal: str) -> ReasoningResult:
+>         """Abductive Reasoning - หาคำอธิบายที่ดีที่สุดสำหรับการสังเกต"""
+!         prompt = f"""
+!         Situation: {situation}
+!         Goal: {goal}
+  
+!         Using abductive reasoning, what is the best explanation for the observed situation?
+!         What hypotheses best explain the observations?
+!         What predictions do these hypotheses make?
+!         """
+!         response = await self.llm.generate(prompt)
+!         return self._parse_reasoning(response, "abductive")
+  
+>     async def _deductive_reasoning(self, situation: Dict, goal: str) -> ReasoningResult:
+>         """Deductive Reasoning - จากกฎทั่วไปสู่กรณีเฉพาะ"""
+!         prompt = f"""
+!         Situation: {situation}
+!         Goal: {goal}
+  
+!         Using deductive reasoning, what logically follows from the known premises?
+!         What must be true given the established facts?
+!         """
+!         response = await self.llm.generate(prompt)
+!         return self._parse_reasoning(response, "deductive")
+  
+>     async def _inductive_reasoning(self, situation: Dict, goal: str) -> ReasoningResult:
+>         """Inductive Reasoning - จากตัวอย่างสู่กฎทั่วไป"""
+!         prompt = f"""
+!         Situation: {situation}
+!         Goal: {goal}
+  
+!         Using inductive reasoning, what patterns emerge from the observations?
+!         What general principles can be inferred?
+!         """
+!         response = await self.llm.generate(prompt)
+!         return self._parse_reasoning(response, "inductive")
+  
+>     async def _analogical_reasoning(self, situation: Dict, goal: str) -> ReasoningResult:
+>         """Analogical Reasoning - เปรียบเทียบกับกรณีที่คล้ายกัน"""
+!         prompt = f"""
+!         Situation: {situation}
+!         Goal: {goal}
+  
+!         What similar situations have been encountered before?
+!         What worked/didn't work in those cases?
+!         What analogies can guide the current approach?
+!         """
+!         response = await self.llm.generate(prompt)
+!         return self._parse_reasoning(response, "analogical")
+  
+>     async def _causal_reasoning(self, situation: Dict, goal: str) -> ReasoningResult:
+>         """Causal Reasoning - หาสาเหตุและผล"""
+!         prompt = f"""
+!         Situation: {situation}
+!         Goal: {goal}
+  
+!         What are the causal relationships in this situation?
+!         What causes what? What are the mechanisms?
+!         What interventions would produce desired effects?
+!         """
+!         response = await self.llm.generate(prompt)
+!         return self._parse_reasoning(response, "causal")
+  
+>     async def _counterfactual_reasoning(self, situation: Dict, goal: str) -> ReasoningResult:
+>         """Counterfactual Reasoning - ถ้า...แล้วจะเกิดอะไร"""
+!         prompt = f"""
+!         Situation: {situation}
+!         Goal: {goal}
+  
+!         What if we took a different approach?
+!         What would happen if we didn't take the obvious action?
+!         What are the alternative scenarios?
+!         """
+!         response = await self.llm.generate(prompt)
+!         return self._parse_reasoning(response, "counterfactual")
+  
+>     def _parse_reasoning(self, response: str, rtype: str) -> ReasoningResult:
+!         return ReasoningResult(
+!             reasoning_type=rtype,
+!             premise="",
+!             conclusion=response[:500],
+!             confidence=0.7,
+!             reasoning_trace=[response[:200]]
+!         )
+  
+  
+> class PlanningEngine:
+>     """เครื่องมือวางแผน (Planning Engine)"""
+  
+>     def __init__(self, llm_client: Any, reasoning: "ReasoningEngine", memory: "CognitiveMemoryManager"):
+!         self.llm = llm_client
+!         self.reasoning = reasoning
+!         self.memory = memory
+  
+>     async def plan(
+>         self,
+>         goal: str,
+>         context: "MissionContext",
+>         constraints: Optional[Dict] = None
+>     ) -> "AttackPlan":
+>         """สร้างแผนการโจมตีจากเป้าหมายระดับสูง"""
+  
+          # 1. Understand goal deeply
+!         goal_analysis = await self._analyze_goal(goal, context)
+  
+          # 2. Assess current state
+!         current_state = await self._assess_current_state(context)
+  
+          # 3. Identify attack surface
+!         attack_surface = await self._map_attack_surface(context)
+  
+          # 4. Generate strategic plan
+!         plan = await self._generate_strategic_plan(goal_analysis, attack_surface, context)
+  
+          # 5. Break into tactical phases
+!         plan.phases = await self._decompose_into_phases(plan, context)
+  
+          # 6. Risk assessment
+!         plan.risk_assessment = await self._assess_plan_risk(plan)
+  
+!         return plan
+  
+>     async def _analyze_goal(self, goal: str, context: "MissionContext") -> Dict:
+!         prompt = f"""
+!         Analyze this security testing goal deeply:
+!         Goal: {goal}
+!         Target: {context.target}
+!         Scope: {context.scope}
+!         Constraints: {context.constraints}
+  
+!         Provide:
+!         1. Primary objective
+!         2. Success criteria
+!         3. Implicit assumptions
+!         4. Potential challenges
+!         5. Required capabilities
+!         """
+!         return {"analysis": await self.llm.generate(prompt)}
+  
+>     async def _assess_current_state(self, context: "MissionContext") -> Dict:
+!         return {"recon_complete": False, "scan_complete": False}
+  
+>     async def _map_attack_surface(self, context: "MissionContext") -> Dict:
+!         return {"endpoints": [], "parameters": [], "auth_mechanisms": []}
+  
+>     async def _generate_strategic_plan(
+>         self,
+>         goal_analysis: Dict,
+>         attack_surface: Dict,
+>         context: "MissionContext"
+>     ) -> "AttackPlan":
+!         tree = AttackTree(
+!             target=context.target,
+!             objective=context.objectives[0] if context.objectives else "discover vulnerabilities",
+!             tech_stack=context.metadata.get("tech_stack", []),
+!         )
+!         tree.steps = await self._generate_attack_steps(tree)
+!         return tree
+  
+>     async def _generate_attack_steps(self, tree: "AttackTree") -> List["AttackStep"]:
+>         """Generate attack steps from tree"""
+!         return []
+  
+>     async def _decompose_into_phases(self, plan: "AttackPlan", context: "MissionContext") -> List:
+>         """แยกแผนเป็นขั้นตอนย่อย"""
+!         return []
+  
+>     async def _assess_plan_risk(self, plan: "AttackPlan") -> Dict:
+!         return {"overall": "medium", "by_phase": {}}
+  
+>     async def replan(self, failure: Dict, context: "MissionContext") -> "AttackPlan":
+>         """Replan after failure"""
+!         prompt = f"""
+!         Previous plan failed: {failure}
+!         Current context: {context}
+  
+!         Generate a new plan that addresses the failure.
+!         Consider:
+!         1. What went wrong?
+!         2. What alternative approaches exist?
+!         3. What new information do we have?
+!         4. How to mitigate the failure cause?
+!         """
+!         new_approach = await self.llm.generate(prompt)
+          # Parse and return new plan
+!         return AttackPlan(goal="recovery", target="")
+  
+  
+> class DecisionEngine:
+>     """เครื่องตัดสินใจ (Decision Engine)"""
+  
+>     def __init__(
+>         self,
+>         llm_client: Any,
+>         reasoning: "ReasoningEngine",
+>         constitutional_engine: "ConstitutionalAIEngine",
+>         governance: "GovernanceGate"
+>     ):
+!         self.llm = llm_client
+!         self.reasoning = reasoning
+!         self.constitutional = constitutional_engine
+!         self.governance = governance
+  
+>     async def decide(
+>         self,
+>         situation: Dict[str, Any],
+>         available_actions: List[Dict],
+>         context: "MissionContext"
+>     ) -> "AIAction":
+>         """ตัดสินใจเลือกการกระทำ"""
+  
+          # 1. Filter by governance
+!         allowed_actions = await self._filter_by_governance(available_actions, context)
+  
+!         if not allowed_actions:
+!             return AIAction(
+!                 action_type=ActionType.REPORTING,
+!                 description="No allowed actions available"
+!             )
+  
+          # 2. Constitutional Review
+!         votes = []
+!         for action in allowed_actions:
+!             try:
+!                 vote = await self.constitutional.review_action(action)
+!                 votes.append((action, vote))
+!             except Exception as e:
+!                 logger.warning(f"Constitutional review failed for {action}: {e}")
+!                 votes.append((action, None))
+  
+          # 3. AI decides with full context
+!         decision = await self._make_sovereign_decision(
+!             allowed_actions, reasoning, context
+!         )
+  
+!         return decision
+  
+>     async def _filter_by_governance(self, actions: List[Dict], context) -> List[Dict]:
+!         allowed = []
+!         for action in actions:
+!             gate = self.governance.gate("mission", context.target, action)
+!             if gate.decision != "deny":
+!                 action["governance_gate"] = gate
+!                 allowed.append(action)
+!         return allowed
+  
+>     async def _make_sovereign_decision(
+>         self,
+>         actions: List[Dict],
+>         reasoning: "ReasoningResult",
+>         context: "MissionContext"
+>     ) -> "AIAction":
+>         """AI เป็น Sovereign - ตัดสินใจเอง"""
+  
+          # Score each action
+!         scored_actions = []
+!         for action in actions:
+!             score = await self._score_action(action, context)
+!             action["score"] = score
+!             scored_actions.append(action)
+  
+          # Sort by score
+!         scored_actions.sort(key=lambda a: a["score"], reverse=True)
+  
+          # Check constitutional alignment for top choice
+!         top_choice = scored_actions[0]
+!         guidance = top_choice.get("constitutional_guidance")
+  
+!         if guidance and not guidance.is_constitutional and guidance.requires_human_review:
+              # Try next best
+!             for action in scored_actions[1:]:
+!                 g = action.get("constitutional_guidance")
+!                 if g and g.is_constitutional:
+!                     return self._create_action(action)
+              # If all require human review, escalate
+!             return AIAction(
+!                 action_type=ActionType.REPORTING,
+!                 description="All options require human review"
+!             )
+  
+!         return self._create_action(top_choice)
+  
+>     async def _score_action(self, action: Dict, context: "MissionContext") -> float:
+>         """ให้คะแนนการกระทำ"""
+!         score = 0.0
+  
+          # Constitutional alignment (0-0.3)
+!         guidance = action.get("constitutional_guidance")
+!         if guidance and guidance.is_constitutional:
+!             score += 0.3 * guidance.confidence
+  
+          # Mission alignment (0-0.25)
+!         score += 0.25 * self._mission_alignment(action, context)
+  
+          # Expected value (0-0.2)
+!         score += 0.2 * self._expected_value(action, context)
+  
+          # Risk adjusted (0-0.15)
+!         score += 0.15 * (1.0 - self._risk_score(action))
+  
+          # Learning value (0-0.1)
+!         score += 0.1 * self._learning_value(action)
+  
+!         return score
+  
+>     def _mission_alignment(self, action: Dict, context: "MissionContext") -> float:
+!         return 0.5
+  
+>     def _expected_value(self, action: Dict, context: "MissionContext") -> float:
+!         return 0.5
+  
+>     def _risk_score(self, action: Dict) -> float:
+!         return 0.5
+  
+>     def _learning_value(self, action: Dict) -> float:
+!         return 0.5
+  
+>     def _create_action(self, action_dict: Dict) -> AIAction:
+!         return AIAction(
+!             action_type=ActionType(action_dict.get("action_type", "recon")),
+!             tool=action_dict.get("tool", ""),
+!             target=action_dict.get("target", ""),
+!             parameters=action_dict.get("parameters", {}),
+!             description=action_dict.get("description", ""),
+!             purpose=action_dict.get("purpose", ""),
+!             risk_level=RiskLevel(action_dict.get("risk_level", "safe"))
+!         )
+  
+  
+> class TrueAIBrain:
+>     """True AI Brain - Cognitive Core for Autonomous Agents"""
+  
+>     def __init__(
+>         self,
+>         llm_client: Any,
+>         memory: "CognitiveMemoryManager",
+>         tools: "ToolRegistry",
+>         governance: "GovernanceGate",
+>         constitutional_engine: "ConstitutionalAIEngine",
+>         config: Optional[Dict] = None
+>     ):
+!         self.llm = llm_client
+!         self.memory = memory
+!         self.tools = tools
+!         self.governance = governance
+!         self.constitutional_engine = constitutional_engine
+!         self.config = config or {}
+  
+          # Initialize sub-modules
+!         self.perception = PerceptionModule(memory, tools)
+!         self.reasoning = ReasoningEngine(llm_client, memory)
+!         self.planner = PlanningEngine(llm_client, self.reasoning, memory)
+!         self.decision_engine = DecisionEngine(
+!             llm_client,
+!             self.reasoning,
+!             self.constitutional_engine,
+!             governance
+!         )
+  
+!         self.logger = logging.getLogger("elengenix.brain.TrueAIBrain")
+  
+>     async def understand_goal(self, goal: str, context: MissionContext) -> Dict:
+>         """Understand and analyze the mission goal"""
+!         return await self.planner._analyze_goal(goal, context)
+  
+>     async def perceive(self, context: MissionContext) -> Dict:
+>         """Perceive the current situation"""
+!         return await self.perception.perceive(context)
+  
+>     async def reason(self, situation: Dict, goal: str, strategy: str = "abductive") -> ReasoningResult:
+>         """Reason about the situation"""
+!         return await self.reasoning.reason(situation, goal, strategy)
+  
+>     async def decide(
+>         self,
+>         context: MissionContext,
+>         available_actions: List[Dict],
+>         reflection: Optional[ReasoningResult] = None
+>     ) -> AIAction:
+>         """Decide on next action"""
+!         return await self.decision_engine.decide(
+!             self, context, available_actions, reflection
+!         )
+  
+>     async def plan(self, goal: str, context: MissionContext) -> AttackPlan:
+>         """Generate attack plan"""
+!         return await self.planner.plan(goal, context)
+  
+>     async def replan(self, failure: Dict, context: MissionContext) -> AttackPlan:
+>         """Replan after failure"""
+!         return await self.planner.replan(failure, context)
+  
+>     async def verify_finding(self, finding: Finding) -> ConstitutionalGuidance:
+>         """Verify a finding using constitutional engine"""
+!         return await self.constitutional_engine.verify_action(finding)

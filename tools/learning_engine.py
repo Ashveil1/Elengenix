@@ -35,7 +35,7 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 from elengenix.paths import get_data_path, get_data_dir
-from typing import (
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger("elengenix.learning_engine")
 

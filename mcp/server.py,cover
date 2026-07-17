@@ -1,0 +1,217 @@
+> """mcp/server.py — MCP Server for Elengenix
+  
+> Exposes all Elengenix agent tools via MCP protocol so external AI agents
+> can discover and use them. Supports stdio and HTTP transports.
+  
+> Usage:
+>     python3 -m mcp.server --stdio        # stdio mode (for Claude Desktop etc.)
+>     python3 -m mcp.server --http --port 8080  # HTTP mode
+> """
+  
+> from __future__ import annotations
+  
+> import asyncio
+> import json
+> import logging
+> import sys
+> from typing import Any, Callable, Dict
+  
+> from mcp.config import get_config_manager, get_mcp_config
+> from mcp.protocol import MCPProtocol, MCPRequest, MCPResponse, MCPTool
+  
+> logger = logging.getLogger("elengenix.mcp.server")
+  
+  
+> class MCPServer:
+>     """MCP Server that exposes all Elengenix agent tools.
+  
+>     Dynamically loads tool definitions from vuln_agent.AVAILABLE_TOOLS
+>     and registers each as an MCP tool. Handles resolve at call time
+>     so dynamic tools (create_tool) are also reachable.
+  
+>     Supports stdio transport for integration with AI agents.
+>     Loads configuration from ~/.elengenix/mcp.json and config.yaml.
+>     """
+  
+>     def __init__(self, load_config: bool = True):
+>         self.protocol = MCPProtocol()
+>         self._loop: asyncio.AbstractEventLoop | None = None
+>         self._register_elengenix_tools()
+  
+>         if load_config:
+>             self._load_external_servers()
+  
+>     def _load_external_servers(self) -> None:
+>         """Load external MCP servers from configuration."""
+>         try:
+>             config = get_mcp_config()
+>             for name, server_config in config.get_enabled_servers().items():
+>                 if server_config.command:
+>                     logger.info(f"Loaded MCP server: {name} ({server_config.command})")
+>         except Exception as e:
+>             logger.debug(f"Could not load MCP config: {e}")
+  
+      # ------------------------------------------------------------------
+      # Dynamic tool registration from AVAILABLE_TOOLS
+      # ------------------------------------------------------------------
+  
+>     def _register_elengenix_tools(self) -> None:
+>         """Register ALL Elengenix tools as MCP tools dynamically."""
+>         from elengenix.agent import vuln_agent as va
+  
+>         for tool_def in va.AVAILABLE_TOOLS:
+>             name = tool_def["name"]
+>             description = tool_def["description"]
+>             params = tool_def.get("parameters", {})
+>             handler_name = tool_def.get("handler_name", "")
+  
+>             mcp_tool = MCPTool(
+>                 name=f"elengenix_{name}",
+>                 description=description,
+>                 input_schema=params,
+>                 handler=self._make_handler(name, handler_name),
+>             )
+>             self.protocol.register_tool(mcp_tool)
+  
+>         logger.info(
+>             "Registered %d Elengenix MCP tools",
+>             len(self.protocol.tools),
+>         )
+  
+>     def _make_handler(self, name: str, handler_name: str) -> Callable:
+>         """Create a handler wrapper that resolves the tool function at call time.
+  
+>         Resolves from:
+>           1. Module-level function by handler_name (static tools)
+>           2. _dynamic_tools dict (tools created via create_tool)
+>         """
+  
+>         def handler(args: Dict[str, Any]) -> Dict[str, Any]:
+!             mod = sys.modules.get("elengenix.agent.vuln_agent")
+!             if mod is None:
+!                 from elengenix.agent import vuln_agent as mod
+  
+              # Static tool: module-level function
+!             fn = getattr(mod, handler_name, None)
+!             if fn is not None and callable(fn):
+!                 return _call_tool_fn(fn, args)
+  
+              # Dynamic tool: check _dynamic_tools
+!             dyn = getattr(mod, "_dynamic_tools", {})
+!             dynamic_fn = dyn.get(name)
+!             if dynamic_fn is not None:
+!                 return dynamic_fn(args)
+  
+!             return {"success": False, "error": f"Handler not found: {handler_name}"}
+  
+>         return handler
+  
+      # ------------------------------------------------------------------
+      # Transports
+      # ------------------------------------------------------------------
+  
+>     def start_stdio(self) -> None:
+>         """Start MCP server using stdio transport."""
+!         logger.info("Starting MCP server (stdio mode)")
+  
+!         try:
+!             for line in sys.stdin:
+!                 line = line.strip()
+!                 if not line:
+!                     continue
+  
+!                 try:
+!                     request = self.protocol.from_json(line)
+!                     response = self.protocol.handle_request(request)
+!                     print(self.protocol.to_json(response), flush=True)
+!                 except json.JSONDecodeError as e:
+!                     logger.error(f"Invalid JSON: {e}")
+!                     error_response = MCPResponse(error={"code": -32700, "message": "Parse error"})
+!                     print(self.protocol.to_json(error_response), flush=True)
+!         except KeyboardInterrupt:
+!             logger.info("MCP server stopped")
+  
+>     def start_http(self, host: str = "localhost", port: int = 8080) -> None:
+>         """Start MCP server using HTTP transport."""
+!         from http.server import HTTPServer, BaseHTTPRequestHandler
+  
+!         server = self
+  
+!         class MCPHandler(BaseHTTPRequestHandler):
+!             def do_POST(self):
+!                 content_length = int(self.headers.get("Content-Length", 0))
+!                 body = self.rfile.read(content_length)
+  
+!                 try:
+!                     request = server.protocol.from_json(body.decode())
+!                     response = server.protocol.handle_request(request)
+  
+!                     self.send_response(200)
+!                     self.send_header("Content-Type", "application/json")
+!                     self.end_headers()
+!                     self.wfile.write(server.protocol.to_json(response).encode())
+!                 except Exception as e:
+!                     self.send_response(500)
+!                     self.send_header("Content-Type", "application/json")
+!                     self.end_headers()
+!                     error = {"jsonrpc": "2.0", "error": {"code": -32603, "message": str(e)}}
+!                     self.wfile.write(json.dumps(error).encode())
+  
+!             def log_message(self, format, *args):
+!                 logger.debug(f"HTTP: {format % args}")
+  
+!         httpd = HTTPServer((host, port), MCPHandler)
+!         logger.info(f"MCP server started on {host}:{port}")
+!         httpd.serve_forever()
+  
+  
+  # ------------------------------------------------------------------
+  # Handler helper
+  # ------------------------------------------------------------------
+  
+  
+> def _call_tool_fn(fn: Callable, args: Dict[str, Any]) -> Dict[str, Any]:
+>     """Call a tool function safely, passing only params it accepts."""
+!     import inspect
+  
+!     sig = inspect.signature(fn)
+!     kwargs = {}
+!     for pname in sig.parameters:
+!         if pname == "kwargs" and sig.parameters[pname].kind == inspect.Parameter.VAR_KEYWORD:
+!             kwargs.update(args)
+!             break
+!         if pname in args:
+!             kwargs[pname] = args[pname]
+!     try:
+!         result = fn(**kwargs)
+!         return result if isinstance(result, dict) else {"success": True, "output": str(result)}
+!     except Exception as e:
+!         return {"success": False, "error": str(e)}
+  
+  
+  # ------------------------------------------------------------------
+  # Entry point
+  # ------------------------------------------------------------------
+  
+  
+> def main():
+>     """Main entry point for MCP server."""
+!     logging.basicConfig(level=logging.INFO)
+  
+!     server = MCPServer()
+  
+!     if "--stdio" in sys.argv:
+!         server.start_stdio()
+!     elif "--http" in sys.argv:
+!         port = 8080
+!         for i, arg in enumerate(sys.argv):
+!             if arg == "--port" and i + 1 < len(sys.argv):
+!                 port = int(sys.argv[i + 1])
+!         server.start_http(port=port)
+!     else:
+!         print("Usage: python3 -m mcp.server [--stdio|--http [--port PORT]]")
+!         sys.exit(1)
+  
+  
+> if __name__ == "__main__":
+!     main()

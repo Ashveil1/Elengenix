@@ -1,0 +1,76 @@
+> """
+> Elengenix Constants Module
+  
+> Centralized constants to avoid magic numbers throughout the codebase.
+> """
+  
+  # ── Default Configuration Values ────────────────────────────────
+> DEFAULT_MAX_STEPS = 25
+> DEFAULT_LOOP_THRESHOLD = 3
+> DEFAULT_HISTORY_LIMIT = 5
+> DEFAULT_MAX_OUTPUT_LEN = 2000
+> DEFAULT_MAX_HISTORY_TURNS = 20
+  
+  # ── Timing & Timeouts ──────────────────────────────────────────
+> DEFAULT_PROBE_TIMEOUT = 8.0  # seconds
+> DEFAULT_RECON_TIMEOUT = 1.0  # seconds
+> DEFAULT_WAF_TIMEOUT = 15.0  # seconds
+> DEFAULT_FUZZ_TIMEOUT = 10.0  # seconds
+> DEFAULT_BOLA_TIMEOUT = 10.0  # seconds
+> DEFAULT_SCAN_TIMEOUT = 300  # seconds (5 min per target)
+> DEFAULT_GLOBAL_TIMEOUT = 600  # seconds (10 min total)
+  
+  # ── Concurrency ────────────────────────────────────────────────
+> DEFAULT_RATE_LIMIT = 5  # concurrent operations
+> DEFAULT_MAX_CONCURRENT = 40  # for recon
+  
+  # ── Caching ────────────────────────────────────────────────────
+> CACHE_DEFAULT_TTL = 300.0  # 5 minutes
+> CACHE_MAX_SIZE = 256
+> CVE_CACHE_TTL = 3600.0  # 1 hour
+> CVE_CACHE_MAX_SIZE = 128
+> HTTP_CACHE_TTL = 300.0  # 5 minutes
+> HTTP_CACHE_MAX_SIZE = 512
+> AI_CACHE_TTL = 1800.0  # 30 minutes
+> AI_CACHE_MAX_SIZE = 128
+  
+  # ── Scoring ────────────────────────────────────────────────────
+> CVSS_CRITICAL_THRESHOLD = 9.0
+> CVSS_HIGH_THRESHOLD = 7.0
+> CVSS_MEDIUM_THRESHOLD = 4.0
+> CVSS_LOW_THRESHOLD = 0.1
+  
+  # ── File Paths ─────────────────────────────────────────────────
+> REPORTS_DIR = "reports"
+> DATA_DIR = "data"
+> SCOPE_FILE = "scope.txt"
+> CONFIG_FILE = "config.yaml"
+> MCP_CONFIG_FILE = "mcp.json"
+> ENV_FILE = ".env"
+  
+  # ── Telegram ───────────────────────────────────────────────────
+> TELEGRAM_API_URL = "https://api.telegram.org/bot"
+> TELEGRAM_DEFAULT_TIMEOUT = 10
+> TELEGRAM_MAX_RETRIES = 3
+  
+  # ── Governance ─────────────────────────────────────────────────
+> GOVERNANCE_DB = "data/governance_audit.db"
+  
+  # ── Scanning Phases ────────────────────────────────────────────
+> PHASE_NAMES = {
+>     1: "Python Reconnaissance",
+>     2: "Smart WAF Detection",
+>     3: "Active Fuzzing",
+>     4: "BOLA / IDOR Testing",
+>     5: "Learning Engine",
+>     6: "Coverage Tracking",
+> }
+  
+  # ── Tool Categories ────────────────────────────────────────────
+> TOOL_CATEGORIES = [
+>     "recon",
+>     "scanner",
+>     "fuzzer",
+>     "exploit",
+>     "utility",
+> ]

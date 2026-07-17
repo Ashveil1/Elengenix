@@ -134,15 +134,19 @@ class MCPProtocol:
         except Exception as e:
             return MCPResponse(id=request.id, error={"code": -32603, "message": str(e)})
 
-    def to_json(self, response: MCPResponse) -> str:
-        """Serialize MCP response to JSON."""
-        data = {"jsonrpc": response.jsonrpc}
-        if response.id is not None:
-            data["id"] = response.id
-        if response.result is not None:
-            data["result"] = response.result
-        if response.error is not None:
-            data["error"] = response.error
+    def to_json(self, obj) -> str:
+        """Serialize MCP request or response to JSON."""
+        data = {"jsonrpc": obj.jsonrpc}
+        if obj.id is not None:
+            data["id"] = obj.id
+        if hasattr(obj, "method") and obj.method:
+            data["method"] = obj.method
+        if hasattr(obj, "params") and obj.params:
+            data["params"] = obj.params
+        if hasattr(obj, "result") and obj.result is not None:
+            data["result"] = obj.result
+        if hasattr(obj, "error") and obj.error is not None:
+            data["error"] = obj.error
         return json.dumps(data)
 
     def from_json(self, json_str: str) -> MCPRequest:

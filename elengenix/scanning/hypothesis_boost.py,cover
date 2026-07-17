@@ -1,0 +1,83 @@
+> """agents/hypothesis_boost.py
+  
+> Hypothesis-driven boost for stuck scan states.
+  
+> Background (PentestPad, 2026): AI is good at recognising known vulnerability
+> patterns but much weaker at the *creative, hypothesis-driven thinking* that
+> discovers genuinely novel attack paths — the off-script instinct of an
+> experienced red teamer.
+  
+> When the DecisionEngine reflection reports the scan is "stuck", we surface a
+> set of hypothesis-generation prompts that push the agent off the recognised
+> pattern and onto a fresh, untested attack path. This is a pure prompt/meta
+> layer: it never executes an action, only shapes what the AI is asked to
+> consider next. Keeps the agent from looping on the same low-hanging fruit.
+> """
+  
+! from __future__ import annotations
+  
+! import logging
+! from dataclasses import dataclass, field
+! from typing import List
+  
+! logger = logging.getLogger("elengenix.hypothesis_boost")
+  
+  # Off-script hypothesis templates. Each is a nudge away from pattern matching
+  # toward logical/stateful exploration of the target.
+! _HYPOTHESIS_TEMPLATES = [
+!     "Form a novel hypothesis about an untested trust boundary (e.g. an "
+!     "implicit assumption the app makes about caller identity, ordering, or "
+!     "tenant isolation) and design one probe to test it.",
+  
+!     "Assume the obvious vulnerabilities are already patched. What business "
+!     "logic flaw (workflow bypass, price/quantity tampering, state machine "
+!     "abuse) would a human red-teamer hunt that no scanner would flag?",
+  
+!     "Pick one endpoint and reason about its REST/RPC contract from observed "
+!     "behaviour. Can you craft a request the client never sends (missing "
+!     "field, wrong verb, swapped content-type) that changes server state?",
+  
+!     "Identify a place where two subsystems interact (auth + data, async job "
+!     "+ API, cache + DB). Hypothesise a race or inconsistency between them and "
+!     "probe it once.",
+  
+!     "Treat a 'normal' response as suspicious. Hypothesise what hidden state "
+!     "(feature flag, internal param, debug mode) a specific input might toggle "
+!     "and verify with a single targeted request.",
+! ]
+  
+  
+! @dataclass
+! class HypothesisBoost:
+!     """Tracks and emits hypothesis prompts for stuck states."""
+  
+!     used: List[str] = field(default_factory=list)
+  
+!     def next_hypothesis(self, stuck_count: int = 0) -> str:
+!         """Return the next unused hypothesis nudge, cycling if exhausted.
+  
+!         Args:
+!             stuck_count: How many consecutive stuck reflections have occurred.
+!                 Used only for logging pressure; does not change selection.
+!         """
+!         pool = _HYPOTHESIS_TEMPLATES
+          # Pick deterministically by how many *distinct* hypotheses we've
+          # already handed out, so a given stuck run explores distinct
+          # hypotheses before repeating the cycle.
+!         idx = len(set(self.used)) % len(pool)
+!         pick = pool[idx]
+!         self.used.append(pick)
+!         logger.debug(f"hypothesis boost #{len(self.used)} (stuck={stuck_count})")
+!         return pick
+  
+!     def reset(self) -> None:
+!         self.used.clear()
+  
+  
+! def build_stuck_guidance(boost: HypothesisBoost, stuck_count: int = 0) -> str:
+!     """Build a guidance string to append to the AI decision prompt."""
+!     hyp = boost.next_hypothesis(stuck_count)
+!     return (
+!         "REFLECTION: scan is stuck on known patterns. Switch to "
+!         f"hypothesis-driven exploration. {hyp}"
+!     )

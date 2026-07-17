@@ -1,0 +1,105 @@
+> """
+> Elengenix — Autonomous AI Security Research Framework
+> """
+  
+> from .constants import (
+>     DEFAULT_MAX_STEPS,
+>     DEFAULT_LOOP_THRESHOLD,
+>     DEFAULT_HISTORY_LIMIT,
+>     DEFAULT_MAX_OUTPUT_LEN,
+>     DEFAULT_MAX_HISTORY_TURNS,
+>     DEFAULT_PROBE_TIMEOUT,
+>     DEFAULT_RECON_TIMEOUT,
+>     DEFAULT_WAF_TIMEOUT,
+>     DEFAULT_FUZZ_TIMEOUT,
+>     DEFAULT_BOLA_TIMEOUT,
+>     DEFAULT_SCAN_TIMEOUT,
+>     DEFAULT_GLOBAL_TIMEOUT,
+>     DEFAULT_RATE_LIMIT,
+>     DEFAULT_MAX_CONCURRENT,
+>     CACHE_DEFAULT_TTL,
+>     CACHE_MAX_SIZE,
+>     CVE_CACHE_TTL,
+>     CVE_CACHE_MAX_SIZE,
+>     HTTP_CACHE_TTL,
+>     HTTP_CACHE_MAX_SIZE,
+>     AI_CACHE_TTL,
+>     AI_CACHE_MAX_SIZE,
+>     CVSS_CRITICAL_THRESHOLD,
+>     CVSS_HIGH_THRESHOLD,
+>     CVSS_MEDIUM_THRESHOLD,
+>     CVSS_LOW_THRESHOLD,
+>     REPORTS_DIR,
+>     DATA_DIR,
+>     SCOPE_FILE,
+>     CONFIG_FILE,
+>     MCP_CONFIG_FILE,
+>     ENV_FILE,
+>     TELEGRAM_API_URL,
+>     TELEGRAM_DEFAULT_TIMEOUT,
+>     TELEGRAM_MAX_RETRIES,
+>     GOVERNANCE_DB,
+>     PHASE_NAMES,
+>     TOOL_CATEGORIES,
+> )
+  
+  # Re-export core types
+> from .types import (
+>     AIAction, ActionType, RiskLevel, MissionContext,
+>     Finding, ConstitutionalGuidance, AgentRole, MissionPhase,
+>     AttackTree, AttackStep, AttackPhase,
+>     GovernanceDecision, GovernanceGate, GovernancePolicy, RiskAssessment
+> )
+  
+  # Re-export core classes
+> from .brain import TrueAIBrain
+> from .loop import TrueAgenticLoop
+  
+> __all__ = [
+>     "DEFAULT_MAX_STEPS",
+>     "DEFAULT_LOOP_THRESHOLD",
+>     "DEFAULT_HISTORY_LIMIT",
+>     "DEFAULT_MAX_OUTPUT_LEN",
+>     "DEFAULT_MAX_HISTORY_TURNS",
+>     "DEFAULT_PROBE_TIMEOUT",
+>     "DEFAULT_RECON_TIMEOUT",
+>     "DEFAULT_WAF_TIMEOUT",
+>     "DEFAULT_FUZZ_TIMEOUT",
+>     "DEFAULT_BOLA_TIMEOUT",
+>     "DEFAULT_SCAN_TIMEOUT",
+>     "DEFAULT_GLOBAL_TIMEOUT",
+>     "DEFAULT_RATE_LIMIT",
+>     "DEFAULT_MAX_CONCURRENT",
+>     "CACHE_DEFAULT_TTL",
+>     "CACHE_MAX_SIZE",
+>     "CVE_CACHE_TTL",
+>     "CVE_CACHE_MAX_SIZE",
+>     "HTTP_CACHE_TTL",
+>     "HTTP_CACHE_MAX_SIZE",
+>     "AI_CACHE_TTL",
+>     "AI_CACHE_MAX_SIZE",
+>     "CVSS_CRITICAL_THRESHOLD",
+>     "CVSS_HIGH_THRESHOLD",
+>     "CVSS_MEDIUM_THRESHOLD",
+>     "CVSS_LOW_THRESHOLD",
+>     "REPORTS_DIR",
+>     "DATA_DIR",
+>     "SCOPE_FILE",
+>     "CONFIG_FILE",
+>     "MCP_CONFIG_FILE",
+>     "ENV_FILE",
+>     "TELEGRAM_API_URL",
+>     "TELEGRAM_DEFAULT_TIMEOUT",
+>     "TELEGRAM_MAX_RETRIES",
+>     "GOVERNANCE_DB",
+>     "PHASE_NAMES",
+>     "TOOL_CATEGORIES",
+      # Re-exported types
+>     "AIAction", "ActionType", "RiskLevel", "MissionContext",
+>     "Finding", "ConstitutionalGuidance", "AgentRole", "MissionPhase",
+>     "AttackTree", "AttackStep", "AttackPhase",
+>     "GovernanceDecision", "GovernanceGate", "GovernancePolicy", "RiskAssessment",
+>     "TrueAIBrain", "TrueAgenticLoop",
+> ]
+  
+> __version__ = "99999"

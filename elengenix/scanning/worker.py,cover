@@ -1,0 +1,135 @@
+> """agents/worker_base.py — Base class for TeamAegis sub-workers.
+  
+> Each Agent (Strategist, Specialist, Critic) can have multiple Workers.
+> Workers handle specific, narrow tasks and report results back to their parent Agent.
+> """
+  
+! from __future__ import annotations
+  
+! import logging
+! import time
+! from abc import ABC, abstractmethod
+! from dataclasses import dataclass, field
+! from typing import Any, Dict, List, Optional
+  
+! logger = logging.getLogger("elengenix.worker")
+  
+  
+! @dataclass
+! class WorkerResult:
+!     """Structured result returned by any BaseWorker.
+  
+!     Args:
+!         success: Whether the worker completed its task without errors.
+!         worker_name: Identifier of the worker that produced this result.
+!         output: Raw text output from the worker's action.
+!         findings: Structured list of security findings (dicts).
+!         error: Error message if success is False.
+!         metadata: Additional key-value pairs (tool used, duration, etc.).
+!         duration_seconds: How long the worker ran.
+!     """
+  
+!     success: bool
+!     worker_name: str
+!     output: str = ""
+!     findings: List[Dict[str, Any]] = field(default_factory=list)
+!     error: str = ""
+!     metadata: Dict[str, Any] = field(default_factory=dict)
+!     duration_seconds: float = 0.0
+  
+!     def to_dict(self) -> Dict[str, Any]:
+!         """Serialize to dict for inter-agent messaging."""
+!         return {
+!             "success": self.success,
+!             "worker": self.worker_name,
+!             "output": self.output[:3000],
+!             "findings": self.findings[:20],
+!             "error": self.error,
+!             "metadata": self.metadata,
+!             "duration_s": round(self.duration_seconds, 2),
+!         }
+  
+  
+! class BaseWorker(ABC):
+!     """Abstract base class for all TeamAegis sub-workers.
+  
+!     Each worker:
+!     - Has a single well-defined responsibility (e.g. subdomain recon, fuzzing).
+!     - Receives a target and optional parameters.
+!     - Returns a WorkerResult.
+!     - Is owned by a parent Agent but runs independently.
+  
+!     Args:
+!         name: Human-readable worker name.
+!         description: What this worker does.
+!         timeout_seconds: Maximum execution time before abort.
+!     """
+  
+!     def __init__(
+!         self,
+!         name: str,
+!         description: str = "",
+!         timeout_seconds: int = 300,
+!     ) -> None:
+!         self.name = name
+!         self.description = description
+!         self.timeout_seconds = timeout_seconds
+!         self.logger = logging.getLogger(f"elengenix.worker.{name.lower().replace(' ', '_')}")
+  
+!     @abstractmethod
+!     def run(self, target: str, params: Optional[Dict[str, Any]] = None) -> WorkerResult:
+!         """Execute the worker's task.
+  
+!         Args:
+!             target: Domain, IP, or URL to act on.
+!             params: Optional extra parameters for this run.
+  
+!         Returns:
+!             WorkerResult with findings and output.
+!         """
+  
+!     def _timed_run(self, target: str, params: Optional[Dict[str, Any]] = None) -> WorkerResult:
+!         """Wrapper that measures execution time and catches exceptions.
+  
+!         Args:
+!             target: Target to pass to run().
+!             params: Params to pass to run().
+  
+!         Returns:
+!             WorkerResult — error result if exception occurs.
+!         """
+!         start = time.monotonic()
+!         try:
+!             result = self.run(target, params or {})
+!             result.duration_seconds = time.monotonic() - start
+!             return result
+!         except Exception as exc:
+!             elapsed = time.monotonic() - start
+!             self.logger.error(f"[{self.name}] Worker failed: {exc}")
+!             return WorkerResult(
+!                 success=False,
+!                 worker_name=self.name,
+!                 error=str(exc),
+!                 duration_seconds=elapsed,
+!             )
+  
+!     def execute(self, target: str, params: Optional[Dict[str, Any]] = None) -> WorkerResult:
+!         """Public entry point — always use this instead of run() directly.
+  
+!         Args:
+!             target: Target domain/IP/URL.
+!             params: Optional parameters.
+  
+!         Returns:
+!             WorkerResult.
+!         """
+!         self.logger.info(f"[{self.name}] Starting on {target}")
+!         result = self._timed_run(target, params)
+!         status = "[OK]" if result.success else "[FAIL]"
+!         self.logger.info(
+!             f"[{self.name}] {status} {len(result.findings)} findings in {result.duration_seconds:.1f}s"
+!         )
+!         return result
+  
+!     def __repr__(self) -> str:
+!         return f"<Worker:{self.name}>"

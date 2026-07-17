@@ -1,0 +1,111 @@
+> """elengenix/agent/agent_skills.py — Reusable procedure/technique store.
+  
+> Skills are named procedures the AI can save and reuse across sessions.
+> Backed by JSON file under ~/.elengenix/data/skills.json.
+> """
+  
+> from __future__ import annotations
+  
+> import json
+> import logging
+> import time
+> from pathlib import Path
+> from typing import Any, Dict, List, Optional
+> from elengenix.paths import ELENGENIX_HOME
+  
+> logger = logging.getLogger("elengenix.agent.agent_skills")
+  
+  
+> class SkillStore:
+>     """Lightweight skill store backed by JSON.
+  
+>     Fields per skill:
+>       name: str        — unique skill name
+>       description: str — what the skill does
+>       content: str     — step-by-step procedure / code / notes
+>       created: float   — unix epoch
+>       updated: float   — unix epoch
+>     """
+  
+>     _SKILLS_DIR = ELENGENIX_HOME / "data"
+>     _SKILLS_FILE = _SKILLS_DIR / "skills.json"
+  
+>     def __init__(self) -> None:
+>         self._skills: Dict[str, Dict[str, Any]] = {}
+>         self._loaded = False
+  
+      # ------------------------------------------------------------------
+      # Persistence
+      # ------------------------------------------------------------------
+  
+>     def _load(self) -> None:
+!         if self._loaded:
+!             return
+!         self._SKILLS_DIR.mkdir(parents=True, exist_ok=True)
+!         if self._SKILLS_FILE.exists():
+!             try:
+!                 raw = self._SKILLS_FILE.read_text(encoding="utf-8")
+!                 data = json.loads(raw)
+!                 self._skills = data if isinstance(data, dict) else data.get("skills", {})
+!             except (json.JSONDecodeError, OSError) as exc:
+!                 logger.warning("Failed to load skills.json: %s", exc)
+!                 self._skills = {}
+!         else:
+!             self._skills = {}
+!         self._loaded = True
+  
+>     def _save(self) -> bool:
+!         self._SKILLS_DIR.mkdir(parents=True, exist_ok=True)
+!         try:
+!             self._SKILLS_FILE.write_text(
+!                 json.dumps({"skills": self._skills}, indent=2, ensure_ascii=False),
+!                 encoding="utf-8",
+!             )
+!             return True
+!         except OSError as exc:
+!             logger.error("Failed to save skills.json: %s", exc)
+!             return False
+  
+      # ------------------------------------------------------------------
+      # CRUD
+      # ------------------------------------------------------------------
+  
+>     def save(self, name: str, description: str, content: str) -> Dict[str, Any]:
+>         """Create or update a skill."""
+!         self._load()
+!         now = time.time()
+!         existing = self._skills.get(name)
+!         entry: Dict[str, Any] = {
+!             "name": name,
+!             "description": description,
+!             "content": content,
+!             "created": existing.get("created", now) if existing else now,
+!             "updated": now,
+!         }
+!         self._skills[name] = entry
+!         self._save()
+!         return dict(entry)
+  
+>     def get(self, name: str) -> Optional[Dict[str, Any]]:
+>         """Get a single skill by name."""
+!         self._load()
+!         entry = self._skills.get(name)
+!         return dict(entry) if entry else None
+  
+>     def list_all(self) -> List[Dict[str, Any]]:
+>         """Return all skills (sorted alphabetically)."""
+!         self._load()
+!         return sorted(self._skills.values(), key=lambda s: s.get("name", ""))
+  
+>     def delete(self, name: str) -> bool:
+>         """Remove a skill. Returns True if it existed."""
+!         self._load()
+!         if name in self._skills:
+!             del self._skills[name]
+!             self._save()
+!             return True
+!         return False
+  
+>     def count(self) -> int:
+!         self._load()
+!         return len(self._skills)
