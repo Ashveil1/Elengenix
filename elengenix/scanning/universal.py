@@ -326,6 +326,21 @@ def _run_brain_mode(
         return None
 
 
+def _create_mission_context(target: str, objective: str):
+    """Create a MissionContext for the brain components."""
+    try:
+        from elengenix.types import MissionContext
+        return MissionContext(
+            target=target or "unknown",
+            objectives=[objective],
+            scope=["full"],
+            constraints={},
+            metadata={},
+        )
+    except Exception:
+        return None
+
+
 def process_universal(
     user_input: str,
     client: Any,
@@ -593,6 +608,55 @@ Keep it short and conversational. No tools. No emojis."""
     ai_unavailable_marker = "[ELENGENIX_AI_UNAVAILABLE]"  # marker for main.py to detect
     step = -1  # initialize for summary reference
 
+    # ── Brain-enhanced loop (when use_brain=True) ─────────────────────
+    # Uses PlanningEngine → DecisionEngine → ReasoningEngine for real
+    # cognitive processing instead of simple JSON parse.
+    _brain_loop = False
+    _brain_planner = None
+    _brain_decision = None
+    _brain_plan = None
+
+    if use_brain and is_security_task and client:
+        try:
+            from elengenix.brain import PlanningEngine, DecisionEngine, ReasoningEngine
+            from elengenix.memory import CognitiveMemoryManager
+            from elengenix.constitution_engine import ConstitutionalAIEngine
+
+            _memory = CognitiveMemoryManager(backends=[])
+            _reasoning = ReasoningEngine(client, _memory)
+            _brain_decision = DecisionEngine(client, _reasoning, ConstitutionalAIEngine(), governance)
+            _brain_planner = PlanningEngine(client, _reasoning, _memory)
+            _brain_loop = True
+
+            if callback:
+                callback("[Brain Loop] Initializing planning engine...")
+
+            # Generate initial plan
+            try:
+                import asyncio as _ai
+                loop = _ai.get_event_loop()
+                if loop.is_running():
+                    import concurrent.futures
+                    with concurrent.futures.ThreadPoolExecutor() as pool:
+                        _plan = pool.submit(
+                            _ai.run,
+                            _brain_planner.plan(user_input, _create_mission_context(target, user_input))
+                        ).result(timeout=30)
+                else:
+                    _plan = loop.run_until_complete(
+                        _brain_planner.plan(user_input, _create_mission_context(target, user_input))
+                    )
+                _brain_plan = _plan
+                if callback and _brain_plan:
+                    callback(f"[Brain Loop] Plan: {len(_brain_plan.phases)} phases")
+            except Exception as e:
+                logger.debug(f"Brain planning failed, falling back to legacy: {e}")
+                _brain_loop = False
+
+        except Exception as e:
+            logger.debug(f"Brain components not available: {e}")
+            _brain_loop = False
+
     for step in range(max_steps):
         # Build conversation context
         recent = history[-10:]
@@ -656,19 +720,103 @@ Respond with JSON:
             # Single failure: break and fall through, but if 0 actions taken, signal AI unavailable
             break
 
-        # Parse JSON
+        # ── Brain-enhanced decision path ──────────────────────────────
         thought = ""
-        decision = extract_json(response_text)
-        if not decision:
-            action_data = {"type": "finish"}
-        else:
-            thought = decision.get("thought", "")
-            action_data = decision.get("action", decision)
-            if isinstance(action_data, dict) and "type" not in action_data:
-                action_data = {"type": "shell", "params": action_data}
+        action_data = None
 
-        if callback and thought:
-            callback(f"thought:{thought}")
+        if _brain_loop and _brain_decision:
+            # Use DecisionEngine to score and pick action
+            try:
+                import asyncio as _ai
+                situation = {
+                    "step": step,
+                    "max_steps": max_steps,
+                    "history": history[-5:],
+                    "findings": all_findings,
+                    "plan_phases": [p.name for p in (_brain_plan.phases if _brain_plan else [])],
+                }
+                available_actions = _brain_plan.phases[step].actions if (_brain_plan and step < len(_brain_plan.phases)) else [{"tool": "finish", "risk_level": "safe"}]
+
+                ctx = _create_mission_context(target, user_input)
+                loop = _ai.get_event_loop()
+                if loop.is_running():
+                    import concurrent.futures
+                    with concurrent.futures.ThreadPoolExecutor() as pool:
+                        ai_action = pool.submit(
+                            _ai.run,
+                            _brain_decision.decide(situation, available_actions, ctx)
+                        ).result(timeout=30)
+                else:
+                    ai_action = loop.run_until_complete(
+                        _brain_decision.decide(situation, available_actions, ctx)
+                    )
+
+                action_data = {
+                    "type": "run_tool" if ai_action.tool else "shell",
+                    "params": {"tool": ai_action.tool, "target": ai_action.target or target, "command": f"{ai_action.tool} {ai_action.target or target}"}
+                }
+                thought = ai_action.description
+
+                if callback and thought:
+                    callback(f"thought:{thought}")
+            except Exception as e:
+                logger.debug(f"Brain decision failed: {e}")
+                _brain_loop = False  # fall through to legacy
+
+        # ── Legacy decision path (JSON parse) ─────────────────────────
+        decision = None
+        if not _brain_loop:
+            # Get AI decision
+            try:
+                from tools.universal_ai_client import ACTION_TOOLS
+
+                _resp = client.chat(
+                    [
+                        AIMessage(role="system", content=step_prompt),
+                        AIMessage(role="user", content="What is the next action?"),
+                    ],
+                    temperature=0.2,
+                    tools=ACTION_TOOLS,
+                )
+                # Prefer native tool-calling; fall back to text-JSON extraction
+                if _resp.tool_calls:
+                    _tc = _resp.tool_calls[0]
+                    response_text = json.dumps(
+                        {
+                            "thought": _tc.arguments.pop("thought", "execute action"),
+                            "action": {"type": _tc.name, "params": _tc.arguments},
+                        }
+                    )
+                else:
+                    response_text = _resp.content or ""
+                consecutive_ai_failures = 0  # reset on success
+            except Exception as e:
+                consecutive_ai_failures += 1
+                logger.error(f"AI decision failed (consecutive={consecutive_ai_failures}): {e}")
+                if consecutive_ai_failures >= 2:
+                    logger.warning("All AI providers failed twice in a row. Exiting early.")
+                    if callback:
+                        callback(ai_unavailable_marker)
+                    return (
+                        f"{ai_unavailable_marker} All AI providers failed after "
+                        f"{consecutive_ai_failures} consecutive errors. "
+                        f"Check API keys in .env or visit "
+                        f"https://aistudio.google.com/apikey to fix Gemini quota."
+                    )
+                break
+
+            # Parse JSON
+            decision = extract_json(response_text)
+            if not decision:
+                action_data = {"type": "finish"}
+            else:
+                thought = decision.get("thought", "")
+                action_data = decision.get("action", decision)
+                if isinstance(action_data, dict) and "type" not in action_data:
+                    action_data = {"type": "shell", "params": action_data}
+
+            if callback and thought:
+                callback(f"thought:{thought}")
 
         action_type = action_data.get("type", "shell") if isinstance(action_data, dict) else "shell"
         params = action_data.get("params", {}) if isinstance(action_data, dict) else {}
