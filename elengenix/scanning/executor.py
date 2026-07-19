@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict, Optional
 
 from tools.governance import Governance
-from tools.safe_exec import execute_safely
+from tools.safe_exec import execute_safely, execute_safely_streaming, execute_safely_interactive
 from tools.tool_registry import ToolCategory, ToolResult, registry
 from tools.vector_memory import remember
 
@@ -24,7 +24,7 @@ logger = logging.getLogger("elengenix.agent")
 def execute_tool(
     action_data: Dict[str, Any],
     governance: Governance,
-    max_output_len: int = 5000,
+    max_output_len: int = 100000,
     callback: Optional[Callable] = None,
 ) -> str:
     """Execute a command with Governance-based security.
@@ -168,7 +168,7 @@ def execute_tool(
 def execute_shell_command(
     cmd_raw: str,
     governance: Governance,
-    max_output_len: int = 5000,
+    max_output_len: int = 100000,
     callback: Optional[Callable] = None,
     purpose: str = "",
     thought: str = "",
@@ -214,21 +214,45 @@ def execute_shell_command(
         import time as _time
 
         _t0 = _time.perf_counter()
-        safe_result = execute_safely(cmd_raw, timeout=300)
-        elapsed = _time.perf_counter() - _t0
-
-        success = safe_result["success"]
-        output = safe_result["stdout"]
-        if safe_result["stderr"]:
-            output += "\n" + safe_result["stderr"]
-        output = output[:max_output_len]
-
-        # Route display through callback when available (TUI mode) so it
-        # renders inside the chat window instead of printing to raw stdout.
-        # The TUI agent_callback intercepts "exec:" prefixed messages.
+        
+        # Use streaming execution when callback is available (interactive mode)
         if callback:
             import json as _json
+            
+            # Collect all output lines
+            all_lines = []
+            
+            def stream_callback(line):
+                all_lines.append(line)
+                # Stream each line to callback in real-time
+                callback(
+                    "exec_stream:"
+                    + _json.dumps(
+                        {
+                            "cmd": cmd_raw,
+                            "line": line,
+                            "purpose": purpose,
+                            "thought": thought,
+                        }
+                    )
+                )
+            
+            # Execute with streaming
+            safe_result = execute_safely_interactive(
+                cmd_raw, timeout=300, line_callback=stream_callback
+            )
+            elapsed = _time.perf_counter() - _t0
 
+            success = safe_result["success"]
+            output = safe_result["stdout"]
+            if safe_result.get("stderr"):
+                output += "\n" + safe_result["stderr"]
+            output = output[:max_output_len]
+
+            # Final summary callback (backward-compatible with TUI consumers
+            # that expect a single "exec:" message with the full output).
+            # TUI implementations can opt-in to per-line streaming by also
+            # handling the "exec_stream:" prefix.
             callback(
                 "exec:"
                 + _json.dumps(
@@ -243,9 +267,17 @@ def execute_shell_command(
                 )
             )
         else:
-            # Fallback for non-TUI (CLI / terminal) mode
-            from cli.ui_components import show_command_execution
+            # Non-streaming execution for non-interactive mode
+            safe_result = execute_safely(cmd_raw, timeout=300)
+            elapsed = _time.perf_counter() - _t0
 
+            success = safe_result["success"]
+            output = safe_result["stdout"]
+            if safe_result["stderr"]:
+                output += "\n" + safe_result["stderr"]
+            
+            # Display in terminal mode
+            from cli.ui_components import show_command_execution
             show_command_execution(
                 cmd=cmd_raw,
                 result=output,
@@ -355,7 +387,7 @@ def _prompt_approval(
 def execute_write_script(
     action_data: Dict[str, Any],
     governance: Governance,
-    max_output_len: int = 5000,
+    max_output_len: int = 100000,
     callback: Optional[Callable] = None,
 ) -> str:
     """Write a script file and execute it immediately.
@@ -472,7 +504,7 @@ def execute_write_script(
 def execute_install_tool(
     action_data: Dict[str, Any],
     governance: Governance,
-    max_output_len: int = 5000,
+    max_output_len: int = 100000,
     callback: Optional[Callable] = None,
 ) -> str:
     """Install a tool/package with a clear user approval prompt.
@@ -620,7 +652,7 @@ def detect_and_install_missing_tool(
 
     # Execute installation
     try:
-        from tools.safe_exec import execute_safely
+        from tools.safe_exec import execute_safely, execute_safely_streaming, execute_safely_interactive
 
         result = execute_safely(install_cmd, timeout=120)
         if result.get("success"):

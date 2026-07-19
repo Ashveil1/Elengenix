@@ -154,7 +154,7 @@ class TestExecuteTool:
             callback=callback,
         )
         mock_exec_shell.assert_called_once_with(
-            "ls", governance, 5000, callback, purpose="list", thought="need to list"
+            "ls", governance, 100000, callback, purpose="list", thought="need to list"
         )
         assert result == "output"
 
@@ -359,7 +359,7 @@ class TestExecuteTool:
 class TestExecuteShellCommand:
     """Test governance-gated shell execution."""
 
-    @patch("elengenix.scanning.executor.execute_safely")
+    @patch("elengenix.scanning.executor.execute_safely_interactive")
     def test_safe_allow(self, mock_safe, governance, callback):
         """SAFE commands execute immediately."""
         mock_safe.return_value = {"success": True, "stdout": "hello", "stderr": "", "exit_code": 0}
@@ -373,7 +373,7 @@ class TestExecuteShellCommand:
         assert "blocked" in result.lower()
 
     @patch("elengenix.scanning.executor._prompt_approval")
-    @patch("elengenix.scanning.executor.execute_safely")
+    @patch("elengenix.scanning.executor.execute_safely_interactive")
     def test_needs_approval_approved(self, mock_safe, mock_approval, governance_needs_approval, callback):
         """needs_approval + approved = executes."""
         mock_approval.return_value = (True, False)
@@ -400,7 +400,7 @@ class TestExecuteShellCommand:
         assert "rejected" in result.lower()
 
     @patch("elengenix.scanning.executor._prompt_approval")
-    @patch("elengenix.scanning.executor.execute_safely")
+    @patch("elengenix.scanning.executor.execute_safely_interactive")
     def test_needs_approval_enable_auto(
         self, mock_safe, mock_approval, governance_needs_approval, callback
     ):
@@ -415,18 +415,28 @@ class TestExecuteShellCommand:
         assert result == "auto cmd"
         assert governance_needs_approval.auto_approve_privileged is True
 
-    @patch("elengenix.scanning.executor.execute_safely")
+    @patch("elengenix.scanning.executor.execute_safely_interactive")
     def test_with_callback(self, mock_safe, governance, callback):
-        """Callback receives exec: prefixed JSON."""
+        """Streaming execution emits per-line 'exec_stream:' messages and a
+        final 'exec:' summary so legacy TUI consumers keep rendering full output."""
         mock_safe.return_value = {"success": True, "stdout": "output text", "stderr": "", "exit_code": 0}
+        # execute_safely_interactive accepts line_callback; simulate one streamed line
+        def _fake_interactive(cmd, timeout=300, line_callback=None):
+            if line_callback:
+                line_callback("output text\n")
+            return mock_safe.return_value
+        mock_safe.side_effect = _fake_interactive
+
         execute_shell_command("echo hi", governance, callback=callback, purpose="greet", thought="say hi")
-        callback.assert_called_once()
-        call_arg = callback.call_args[0][0]
-        assert call_arg.startswith("exec:")
-        data = json.loads(call_arg[5:])
+
+        # callback receives at least the final 'exec:' summary call
+        exec_calls = [c.args[0] for c in callback.call_args_list if c.args and isinstance(c.args[0], str) and c.args[0].startswith("exec:")]
+        assert exec_calls, "expected a final 'exec:' summary callback"
+        data = json.loads(exec_calls[-1][len("exec:"):])
         assert data["cmd"] == "echo hi"
         assert data["success"] is True
         assert data["purpose"] == "greet"
+        assert data["output"] == "output text"
 
     @patch("elengenix.scanning.executor.execute_safely")
     @patch("cli.ui_components.show_command_execution")
@@ -439,7 +449,7 @@ class TestExecuteShellCommand:
         mock_show.assert_called_once()
         assert result == "out"
 
-    @patch("elengenix.scanning.executor.execute_safely")
+    @patch("elengenix.scanning.executor.execute_safely_interactive")
     def test_command_failure(self, mock_safe, governance, callback):
         """Failed command returns [FAIL] message."""
         mock_safe.return_value = {
@@ -454,19 +464,28 @@ class TestExecuteShellCommand:
         assert "permission denied" in result
 
     @patch("elengenix.scanning.executor.execute_safely")
+    @patch("elengenix.scanning.executor.execute_safely_interactive")
     @patch("elengenix.scanning.executor.detect_and_install_missing_tool")
     def test_command_failure_missing_tool_installed_and_retry(
-        self, mock_detect, mock_safe, governance, callback
+        self, mock_detect, mock_safe_interactive, mock_safe_retry, governance, callback
     ):
-        """Missing tool detected, installed, then command retried successfully."""
-        mock_safe.side_effect = [
-            {"success": False, "stdout": "", "stderr": "command not found", "exit_code": 127, "error": "command not found"},
-            {"success": True, "stdout": "retry ok", "stderr": "", "exit_code": 0},
-        ]
+        """Missing tool detected, installed, then command retried successfully.
+
+        Initial execution goes through the streaming path (execute_safely_interactive)
+        when a callback is present; the retry uses the plain execute_safely path.
+        """
+        mock_safe_interactive.return_value = {
+            "success": False, "stdout": "", "stderr": "command not found",
+            "exit_code": 127, "error": "command not found",
+        }
+        mock_safe_retry.return_value = {
+            "success": True, "stdout": "retry ok", "stderr": "", "exit_code": 0,
+        }
         mock_detect.return_value = "installation output"
         result = execute_shell_command("nmap -h", governance, callback=callback)
         assert result == "retry ok"
-        assert mock_safe.call_count == 2
+        assert mock_safe_interactive.call_count == 1
+        assert mock_safe_retry.call_count == 1
 
     @patch("elengenix.scanning.executor.execute_safely")
     @patch("elengenix.scanning.executor.detect_and_install_missing_tool")
@@ -482,7 +501,7 @@ class TestExecuteShellCommand:
         result = execute_shell_command("nmap -h", governance, callback=callback)
         assert result.startswith("[FAIL]")
 
-    @patch("elengenix.scanning.executor.execute_safely")
+    @patch("elengenix.scanning.executor.execute_safely_interactive")
     @patch("elengenix.scanning.executor.detect_and_install_missing_tool")
     def test_command_failure_missing_tool_not_installed(
         self, mock_detect, mock_safe, governance, callback
@@ -496,7 +515,7 @@ class TestExecuteShellCommand:
         assert result.startswith("[FAIL]")
         mock_safe.assert_called_once()
 
-    @patch("elengenix.scanning.executor.execute_safely")
+    @patch("elengenix.scanning.executor.execute_safely_interactive")
     def test_timeout_error(self, mock_safe, governance, callback):
         """TimeoutExpired returns appropriate error."""
         import subprocess
@@ -504,21 +523,21 @@ class TestExecuteShellCommand:
         result = execute_shell_command("sleep 400", governance, callback=callback)
         assert "timed out" in result.lower()
 
-    @patch("elengenix.scanning.executor.execute_safely")
+    @patch("elengenix.scanning.executor.execute_safely_interactive")
     def test_value_error(self, mock_safe, governance, callback):
         """ValueError from execute_safely is caught."""
         mock_safe.side_effect = ValueError("invalid syntax")
         result = execute_shell_command("|", governance, callback=callback)
         assert "Invalid command" in result
 
-    @patch("elengenix.scanning.executor.execute_safely")
+    @patch("elengenix.scanning.executor.execute_safely_interactive")
     def test_generic_exception(self, mock_safe, governance, callback):
         """Generic exception is caught."""
         mock_safe.side_effect = RuntimeError("unexpected")
         result = execute_shell_command("something", governance, callback=callback)
         assert "Error executing tool" in result
 
-    @patch("elengenix.scanning.executor.execute_safely")
+    @patch("elengenix.scanning.executor.execute_safely_interactive")
     def test_output_truncated(self, mock_safe, governance, callback):
         """Output longer than max_output_len is truncated."""
         long_output = "x" * 10000
@@ -526,7 +545,7 @@ class TestExecuteShellCommand:
         result = execute_shell_command("big output", governance, max_output_len=10, callback=callback)
         assert len(result) == 10
 
-    @patch("elengenix.scanning.executor.execute_safely")
+    @patch("elengenix.scanning.executor.execute_safely_interactive")
     def test_stderr_appended(self, mock_safe, governance, callback):
         """stderr is appended to stdout in output."""
         mock_safe.return_value = {"success": True, "stdout": "stdout msg", "stderr": "stderr msg", "exit_code": 0}
@@ -1384,13 +1403,13 @@ class TestExecuteToolEdgeCases:
 
     @patch("elengenix.scanning.executor.execute_shell_command")
     def test_default_max_output_len(self, mock_shell, governance, callback):
-        """Default max_output_len is 5000 (passed as positional arg)."""
+        """Default max_output_len is 100000 (passed as positional arg)."""
         mock_shell.return_value = "ok"
         execute_tool({"action": "run_shell", "command": "ls"}, governance, callback=callback)
         # execute_shell_command is called as positional args:
         # execute_shell_command(cmd_raw, governance, max_output_len, callback, purpose=..., thought=...)
         args = mock_shell.call_args[0]
-        assert args[2] == 5000  # third positional arg is max_output_len
+        assert args[2] == 100000  # third positional arg is max_output_len
 
     def test_web_search_empty_query(self, governance, callback):
         """Empty query returns error message (no patching needed — early return)."""
@@ -1415,7 +1434,7 @@ class TestExecuteShellCommandEdgeCases:
             execute_shell_command("cmd", governance, callback=callback)
             assert mock_time.call_count == 2
 
-    @patch("elengenix.scanning.executor.execute_safely")
+    @patch("elengenix.scanning.executor.execute_safely_interactive")
     @patch("elengenix.scanning.executor.detect_and_install_missing_tool")
     def test_non_not_found_error_no_install_detect(
         self, mock_detect, mock_safe, governance, callback
