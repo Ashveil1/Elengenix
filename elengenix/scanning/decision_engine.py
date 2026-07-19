@@ -120,20 +120,223 @@ class DecisionEngine:
         reflection = self._reflect(ctx, reflect_engine, step, user_input)
         self.last_reflection = reflection
 
+        # Phase 1b: Forced strategy pivot.
+        # When reflection says we should switch strategy, do not just
+        # *suggest* the switch in the prompt (advisory only — the AI can
+        # ignore it and keep looping). Instead, actuate a concrete mutation:
+        # mark previously-used tools/vuln_classes as "deprioritized" so the
+        # AI is nudged onto a fresh attack surface. This closes the gap
+        # between "reflection recommends" and "reflection acts".
+        forced_pivot = self._apply_forced_strategy_pivot(ctx, reflection)
+
         # Phase 2: AI decides with full context
         # Always ask AI, even if attack tree has steps
         # AI can choose to follow tree or override
         guidance = None
-        if reflection.status == "stuck":
+        if reflection.status == "stuck" or forced_pivot:
             # PentestPad insight: AI is weak at creative, hypothesis-driven
             # discovery. When stuck, push the agent off recognised patterns
-            # onto a fresh, untested attack path.
+            # onto a fresh, untested attack path. Use the *real* stuck
+            # count (consecutive steps without findings) — not a hardcoded 0
+            # (which was a bug that left the hypothesis boost idle).
+            stuck_count = max(0, int(getattr(ctx, "consecutive_no_findings", 0)))
             from elengenix.scanning.hypothesis_boost import build_stuck_guidance
-            guidance = build_stuck_guidance(self._hypothesis_boost, stuck_count=0)
+            guidance = build_stuck_guidance(self._hypothesis_boost, stuck_count=stuck_count)
+            if forced_pivot:
+                guidance = (guidance or "") + "\n\n" + forced_pivot
         decision = self._ai_dynamic_planning(ctx, user_input, reflection, guidance=guidance)
 
         decision.reflection = reflection
         return decision
+
+    def _apply_forced_strategy_pivot(self, ctx: "ScanContext", reflection) -> Optional[str]:
+        """Actuate a concrete strategy mutation when reflection asks for one.
+
+        Previously, ``reflection.switch_strategy=True`` was only *suggested*
+        in the prompt — the AI was free to ignore it and keep looping on
+        the same low-value tool/endpoint. This method turns the suggestion
+        into a concrete, machine-readable pivot:
+
+        - Inspects ``ctx.action_history`` to find tools/vuln_classes that
+          have dominated the last N steps.
+        - Produces a "FORCED PIVOT" directive appended to the AI prompt
+          instructing it to pick a *different* tool and/or vuln_class.
+        - Records the pivot on the context so downstream observability
+          (TUI, logs) can show that the strategy was force-changed.
+
+        Returns:
+            A guidance string to append to the AI prompt, or ``None``
+            when no pivot is needed (reflection on-track / no history).
+        """
+        if reflection is None or not getattr(reflection, "switch_strategy", False):
+            return None
+
+        try:
+            history = list(getattr(ctx, "action_history", []) or [])
+            if not history:
+                return None
+
+            # Tally tools + purposes/actions from recent history
+            from collections import Counter
+
+            recent = history[-10:]
+            tool_counts: Counter = Counter()
+            action_counts: Counter = Counter()
+            for entry in recent:
+                if not isinstance(entry, dict):
+                    continue
+                tool = entry.get("tool") or entry.get("action") or "unknown"
+                purpose = entry.get("purpose") or ""
+                tool_counts[tool] += 1
+                if purpose:
+                    action_counts[purpose] += 1
+
+            # Identify the most-repeated tool and purpose (the loop pattern)
+            dominant_tool = tool_counts.most_common(1)[0][0] if tool_counts else None
+            dominant_purpose = action_counts.most_common(1)[0][0] if action_counts else None
+
+            parts = [
+                "FORCED STRATEGY PIVOT (actuated by reflection):",
+                "Reflection flagged the current strategy as not working. "
+                "You must NOT repeat the most-recent tool/purpose.",
+            ]
+            if dominant_tool:
+                parts.append(f"- Avoid tool/action: '{dominant_tool}' "
+                             f"(used {tool_counts[dominant_tool]}x in last 10 steps)")
+            if dominant_purpose:
+                parts.append(f"- Avoid purpose: '{dominant_purpose}' "
+                             f"(repeated {action_counts[dominant_purpose]}x)")
+            parts.append(
+                "- Pick a DIFFERENT vuln_class OR a DIFFERENT endpoint OR "
+                "invent a novel probe you have not used yet. If you cannot, "
+                "submit_findings for what you have, then finish."
+            )
+
+            # Record on ctx for observability / downstream consumption
+            try:
+                pivots = getattr(ctx, "strategy_pivots", None)
+                if pivots is None:
+                    pivots = []
+                    setattr(ctx, "strategy_pivots", pivots)
+                pivots.append({
+                    "step": getattr(ctx, "step_count", 0),
+                    "dominant_tool": dominant_tool,
+                    "dominant_purpose": dominant_purpose,
+                    "reason": getattr(reflection, "recommendation", "") or "reflection.switch_strategy",
+                })
+            except Exception:
+                pass
+
+            return "\n".join(parts)
+        except Exception as e:
+            logger.debug(f"forced pivot skipped: {e}")
+            return None
+
+    def _react_think_phase(
+        self,
+        ctx: "ScanContext",
+        user_input: str,
+        reflection,
+        guidance: Optional[str] = None,
+    ) -> Optional[str]:
+        """Run a ReAct-style "think" turn before the decision call.
+
+        The classical single-shot decision call asks the LLM to jump
+        straight from context → JSON action. Modern agent design (ReAct,
+        chain-of-thought, "think before you act") shows that giving the
+        model a dedicated reasoning turn first — and then feeding that
+        reasoning back into the decision call as assistant context —
+        measurably improves action quality on hard targets.
+
+        This method makes one extra (cheap) LLM call asking the model
+        to reason step-by-step about what we know, what's most promising,
+        and what to test next. The result is then attached to the
+        decision call as assistant context.
+
+        Returns:
+            The model's free-form reasoning text, or ``None`` if the
+            think phase should be skipped (no client, error, empty
+            response, or disabled via config).
+        """
+        if self.ai_client is None:
+            return None
+
+        # Allow callers to disable the think phase if they want to skip
+        # the extra LLM call (e.g. tight token budget). Default: enabled.
+        if not getattr(self, "enable_react_think", True):
+            return None
+
+        try:
+            from tools.universal_ai_client import AIMessage
+
+            # Pull a compact summary of where we are so the think call
+            # doesn't re-derive everything from scratch.
+            try:
+                findings_count = len(ctx.all_findings)
+            except Exception:
+                findings_count = 0
+            try:
+                step = ctx.step_count
+            except Exception:
+                step = 0
+            try:
+                gaps = len(ctx.coverage_map.get_gaps()) if ctx.coverage_map else 0
+            except Exception:
+                gaps = 0
+            try:
+                no_find = int(getattr(ctx, "consecutive_no_findings", 0))
+            except Exception:
+                no_find = 0
+
+            reflection_summary = "on_track"
+            if reflection is not None:
+                reflection_summary = (
+                    f"{getattr(reflection, 'status', 'on_track')} — "
+                    f"{getattr(reflection, 'recommendation', '')[:200]}"
+                )
+
+            last_output_excerpt = ""
+            try:
+                lo = getattr(ctx, "last_output", "") or ""
+                last_output_excerpt = lo[:1500]
+            except Exception:
+                pass
+
+            think_prompt = _REACT_THINK_PROMPT.format(
+                step=step,
+                findings_count=findings_count,
+                coverage_gaps=gaps,
+                consecutive_no_findings=no_find,
+                reflection=reflection_summary,
+                last_output=last_output_excerpt,
+                guidance=(guidance or "").strip() or "(none)",
+                user_input=(user_input or "")[:300],
+            )
+
+            think_response = self.ai_client.chat(
+                [
+                    AIMessage(role="system", content=_REACT_THINK_SYSTEM),
+                    AIMessage(role="user", content=think_prompt),
+                ],
+                temperature=0.2,
+            )
+            text = (think_response.content or "").strip()
+            if not text:
+                return None
+
+            # Record trace for observability (TUI / logs / debugging).
+            try:
+                trace = getattr(self, "reasoning_trace", None)
+                if trace is None:
+                    trace = []
+                    setattr(self, "reasoning_trace", trace)
+                trace.append({"phase": "react_think", "content": text})
+            except Exception:
+                pass
+            return text
+        except Exception as e:
+            logger.debug(f"ReAct think phase skipped: {e}")
+            return None
 
     def _reflect(
         self,
@@ -276,6 +479,17 @@ class DecisionEngine:
 
         # Build the prompt with enhanced strategy context
         full_prompt = self._build_strategy_prompt(ctx, user_input, reflection)
+
+        # ── Interactive mode: show last command output at the TOP ──
+        # This makes the AI see the most recent shell output immediately,
+        # like a human typing commands in a terminal.
+        if ctx.last_output:
+            interactive_section = "\n\n### LAST COMMAND OUTPUT (you just ran this):\n"
+            interactive_section += f"Command: `{ctx.last_command}`\n"
+            interactive_section += f"Success: {'Yes' if ctx.last_command_success else 'No'}\n"
+            interactive_section += f"Output:\n```\n{ctx.last_output[:4000]}\n```\n"
+            interactive_section += "\nBased on this output, decide your next move.\n"
+            full_prompt = interactive_section + full_prompt
         if guidance:
             full_prompt = (
                 full_prompt
@@ -287,10 +501,26 @@ class DecisionEngine:
         try:
             from tools.universal_ai_client import ACTION_TOOLS, AIMessage
 
+            # ── ReAct "think" phase ──
+            # Before the AI commits to an action, give it a dedicated
+            # reasoning turn: think step-by-step about what we know,
+            # what's most promising, what to test next. This grounds the
+            # subsequent decision call in actual reasoning rather than
+            # jumping straight to a single-shot JSON action.
+            think_text = self._react_think_phase(ctx, user_input, reflection, guidance)
+
             messages = [
                 AIMessage(role="system", content=full_prompt),
-                AIMessage(role="user", content="Plan next action"),
             ]
+            if think_text:
+                # Provide the AI's own prior reasoning as assistant context
+                messages.append(AIMessage(role="assistant", content=think_text))
+                messages.append(AIMessage(
+                    role="user",
+                    content="Based on your reasoning above, choose the single best next action. Use the provided action tools.",
+                ))
+            else:
+                messages.append(AIMessage(role="user", content="Plan next action"))
 
             # Show spinner during AI call
             try:
@@ -393,6 +623,20 @@ class DecisionEngine:
         strategy_context += f"  - Consecutive no-findings: {ctx.consecutive_no_findings}\n"
         strategy_context += f"  - Steps remaining: {ctx.steps_remaining}\n\n"
 
+        # Add Learning Engine context (cross-session patterns)
+        try:
+            from tools.learning_engine import LearningEngine
+            engine = LearningEngine()
+            tech_stack = ctx.assets.get("tech_stack", []) if hasattr(ctx, 'assets') and ctx.assets else []
+            tool_rankings = engine.rank_tools(tech_stack=tech_stack or None, vuln_class=None, limit=5)
+            if tool_rankings:
+                strategy_context += "### RECOMMENDED TOOLS (from past experience):\n"
+                for tool, rate, samples in tool_rankings:
+                    strategy_context += f"  - {tool}: {rate:.0%} success rate ({samples} samples)\n"
+                strategy_context += "\n"
+        except Exception as e:
+            logger.debug(f"Could not load learning context: {e}")
+
         # Add instructions
         strategy_context += "### YOUR DECISION:\n"
         strategy_context += "Based on all the above context, decide your next action.\n"
@@ -401,6 +645,7 @@ class DecisionEngine:
         strategy_context += "- What findings suggest? (escalate? chain? pivot?)\n"
         strategy_context += "- What would be most efficient? (don't waste steps)\n"
         strategy_context += "- Is the attack tree still relevant? (override if needed)\n"
+        strategy_context += "- What tools worked best in the past? (check RECOMMENDED TOOLS)\n"
 
         return base + strategy_context
 
@@ -449,3 +694,54 @@ class DecisionEngine:
                 pass
 
         return None
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# ReAct "think" phase prompts
+# ═══════════════════════════════════════════════════════════════════════════
+
+_REACT_THINK_SYSTEM = """You are the reasoning step of an autonomous security agent.
+
+This turn is for THINKING ONLY. Do NOT produce an action JSON, do NOT
+call any tools. Reason step-by-step like a senior pentester who is
+explaining their thinking out loud before they type the next command.
+
+Your reasoning will be fed back into the next turn as your own prior
+context, so the decision call is grounded in actual analysis rather
+than a single-shot guess.
+
+Be honest about uncertainty. Surface what is NOT known. Identify the
+single highest-value next probe and justify why."""
+
+
+_REACT_THINK_PROMPT = """Reason step-by-step about the current state of this security scan
+before any action is chosen.
+
+## Mission
+{user_input}
+
+## Where we are
+- Step: {step}
+- Findings so far: {findings_count}
+- Coverage gaps: {coverage_gaps}
+- Consecutive steps without new findings: {consecutive_no_findings}
+- Reflection says: {reflection}
+- Forced guidance (if any): {guidance}
+
+## Most recent command output (if any)
+```
+{last_output}
+```
+
+## Your job (THINK ONLY — no action JSON)
+
+1. What do we actually KNOW from the evidence so far? List 2-3 concrete facts.
+2. What is the most promising attack vector RIGHT NOW, and why?
+3. What is the single highest-value next probe? Be specific: command or endpoint.
+4. What could go wrong with that probe? What's the fallback?
+5. Are we stuck on a pattern? Should we pivot — and to what?
+6. If you had ONE more command to run, what is it and what would the
+   output tell us?
+
+Reply as plain prose. Do NOT call tools. Do NOT output JSON."""
+

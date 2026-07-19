@@ -60,6 +60,11 @@ class AnalysisResult:
     risk_assessment: str = ""
     coverage_gaps: List[str] = field(default_factory=list)
     correlations: List[str] = field(default_factory=list)
+    # Chain-of-thought reasoning trace from the multi-turn analysis.
+    # Each entry: {"phase": "think"|"critique", "content": "..."}
+    # Useful for TUI display / debugging / audit trail of *how* the AI
+    # arrived at its hypotheses, not just what they are.
+    reasoning_trace: List[Dict[str, str]] = field(default_factory=list)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -126,6 +131,54 @@ Return JSON:
   "risk_assessment": "overall risk summary",
   "coverage_gaps": ["what we haven't tested yet"]
 }}"""
+
+
+# ── Chain-of-thought prompts (multi-turn reasoning) ─────────────────────────
+# These drive the 3-turn reasoning loop in VulnReasoningEngine.analyze_output.
+# Turn 1: free-form thinking — no JSON, just reason.
+# Turn 2: self-critique of that thinking.
+# Turn 3: structured hypotheses (using _HYPOTHESIS_PROMPT_TEMPLATE above).
+
+_COT_THINK_PROMPT = """Before producing any findings, think step-by-step about this
+tool output. This is a *reasoning* turn — do NOT output JSON yet.
+
+## Target: {target}
+## Tool: {tool_name}
+## Raw Output:
+{tool_output}
+
+## Previous Findings:
+{previous_findings}
+
+## Tech Stack:
+{tech_stack}
+
+Reason about:
+1. What does this output actually tell us? (signals, anomalies, surprises)
+2. What assumptions is the application making that we could violate?
+3. What attack vectors are NOW more likely than they were before this output?
+4. What endpoints/parameters look interesting and why?
+5. What is the single most promising next probe — and what would the
+   result tell us?
+
+Write your reasoning as plain prose. Be specific. Cite line evidence.
+"""
+
+
+_COT_CRITIQUE_PROMPT = """Now critically review your own reasoning above.
+
+- Which of your hypotheses are weakly supported? Mark them and say why.
+- What did you MISS? Think about edge cases, encoding, race conditions,
+  trust boundaries, and business-logic flaws that do not show up in
+  scanner output.
+- Which hypothesis would a *senior* pentester challenge you on?
+- If the most likely hypothesis turns out to be wrong, what is the
+  fallback probe?
+
+Reply as plain prose. Do NOT output JSON yet. Be honest about gaps.
+"""
+
+
 
 
 _PAYLOAD_GEN_PROMPT = """You are a payload generation expert. Given the context below,
@@ -240,6 +293,13 @@ class VulnReasoningEngine:
         This is the core method — it asks the LLM to reason about what the
         tool found, not just parse its output.
 
+        Uses a *chain-of-thought* reasoning pattern (multi-turn) so the
+        model thinks step-by-step, critiques its own hypotheses, and
+        only then produces structured output — instead of jumping straight
+        to JSON in a single shot. This significantly improves hypothesis
+        quality on complex targets (analogous to ReAct / self-critique
+        patterns in modern agent design).
+
         Args:
             target: The target being scanned.
             tool_name: Name of the tool that produced the output.
@@ -263,25 +323,79 @@ class VulnReasoningEngine:
         findings_str = json.dumps(previous_findings or [], indent=2, default=str)[:2000]
         tech_str = json.dumps(tech_stack or {}, indent=2, default=str)
 
-        prompt = _HYPOTHESIS_PROMPT_TEMPLATE.format(
-            target=target,
-            tool_name=tool_name,
-            tool_output=truncated_output,
-            previous_findings=findings_str,
-            tech_stack=tech_str,
-        )
-
+        # ── Chain-of-thought reasoning (3 turns) ──
+        # Turn 1: Think step-by-step about what the output tells us.
+        # Turn 2: Critique the first-pass thinking — what's missing / weak?
+        # Turn 3: Produce structured JSON hypotheses with the critique in mind.
         try:
             from tools.universal_ai_client import AIMessage
 
-            response = self.client.chat(
-                [
-                    AIMessage(role="system", content=_ANALYSIS_SYSTEM_PROMPT),
-                    AIMessage(role="user", content=prompt),
-                ],
-                temperature=self.temperature,
-            )
-            return self._parse_analysis(response.content or "")
+            # Use explicit message lists per turn (not a shared mutable list)
+            # so each chat() call receives only the messages we intend.
+            think_messages = [
+                AIMessage(role="system", content=_ANALYSIS_SYSTEM_PROMPT),
+                AIMessage(role="user", content=_COT_THINK_PROMPT.format(
+                    target=target,
+                    tool_name=tool_name,
+                    tool_output=truncated_output,
+                    previous_findings=findings_str,
+                    tech_stack=tech_str,
+                )),
+            ]
+            think_response = self.client.chat(think_messages, temperature=self.temperature)
+            thinking = (think_response.content or "").strip()
+            if not thinking:
+                logger.debug("chain-of-thought turn 1 empty — falling back")
+                return self._heuristic_analysis(target, tool_name, tool_output, previous_findings or [])
+
+            # Turn 2: self-critique (carries turn 1 as assistant context)
+            critique_messages = [
+                AIMessage(role="system", content=_ANALYSIS_SYSTEM_PROMPT),
+                AIMessage(role="user", content=_COT_THINK_PROMPT.format(
+                    target=target,
+                    tool_name=tool_name,
+                    tool_output=truncated_output,
+                    previous_findings=findings_str,
+                    tech_stack=tech_str,
+                )),
+                AIMessage(role="assistant", content=thinking),
+                AIMessage(role="user", content=_COT_CRITIQUE_PROMPT),
+            ]
+            critique_response = self.client.chat(critique_messages, temperature=self.temperature)
+            critique = (critique_response.content or "").strip()
+
+            # Turn 3: structured hypotheses grounded in thinking + critique
+            final_messages = [
+                AIMessage(role="system", content=_ANALYSIS_SYSTEM_PROMPT),
+                AIMessage(role="user", content=_COT_THINK_PROMPT.format(
+                    target=target,
+                    tool_name=tool_name,
+                    tool_output=truncated_output,
+                    previous_findings=findings_str,
+                    tech_stack=tech_str,
+                )),
+                AIMessage(role="assistant", content=thinking),
+                AIMessage(role="user", content=_COT_CRITIQUE_PROMPT),
+                AIMessage(role="assistant", content=critique),
+                AIMessage(role="user", content=_HYPOTHESIS_PROMPT_TEMPLATE.format(
+                    target=target,
+                    tool_name=tool_name,
+                    tool_output=truncated_output,
+                    previous_findings=findings_str,
+                    tech_stack=tech_str,
+                )),
+            ]
+            response = self.client.chat(final_messages, temperature=self.temperature)
+            result = self._parse_analysis(response.content or "")
+            # Attach reasoning trace for downstream observability (TUI / logs).
+            try:
+                result.reasoning_trace = [
+                    {"phase": "think", "content": thinking},
+                    {"phase": "critique", "content": critique},
+                ]
+            except Exception:
+                pass
+            return result
         except Exception as e:
             logger.error("LLM analysis failed: %s", e)
             return self._heuristic_analysis(target, tool_name, tool_output, previous_findings or [])

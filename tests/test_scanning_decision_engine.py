@@ -716,5 +716,145 @@ class TestDecideCoverage:
         mock_reflect.reflect.assert_called_once()
 
 
+# -------------------------------------------------------------------
+# _apply_forced_strategy_pivot()
+# -------------------------------------------------------------------
+
+
+class TestApplyForcedStrategyPivot:
+    """reflection.switch_strategy must be ACTUATED, not just suggested."""
+
+    def test_no_pivot_when_switch_false(self, engine, ctx):
+        from elengenix.scanning.decision_engine import Reflection
+        r = Reflection(status="on_track", switch_strategy=False)
+        assert engine._apply_forced_strategy_pivot(ctx, r) is None
+
+    def test_no_pivot_when_no_history(self, engine, ctx):
+        from elengenix.scanning.decision_engine import Reflection
+        ctx.action_history = []
+        r = Reflection(status="stuck", switch_strategy=True)
+        assert engine._apply_forced_strategy_pivot(ctx, r) is None
+
+    def test_pivot_when_switch_true_and_history_present(self, engine, ctx):
+        from elengenix.scanning.decision_engine import Reflection
+        ctx.action_history = [
+            {"tool": "nmap", "purpose": "port_scan"},
+            {"tool": "nmap", "purpose": "port_scan"},
+            {"tool": "nmap", "purpose": "port_scan"},
+        ]
+        r = Reflection(status="stuck", switch_strategy=True, recommendation="try something else")
+        result = engine._apply_forced_strategy_pivot(ctx, r)
+        assert result is not None
+        assert "FORCED STRATEGY PIVOT" in result
+        assert "nmap" in result  # mentions the dominant tool
+        assert "port_scan" in result  # mentions the dominant purpose
+
+    def test_pivot_records_on_ctx(self, engine, ctx):
+        from elengenix.scanning.decision_engine import Reflection
+        ctx.action_history = [{"tool": "nuclei", "purpose": "xss_scan"}]
+        # Ensure ctx has no prior strategy_pivots attr
+        if hasattr(ctx, "strategy_pivots"):
+            del ctx.strategy_pivots
+        r = Reflection(status="stuck", switch_strategy=True)
+        engine._apply_forced_strategy_pivot(ctx, r)
+        # The method should have created ctx.strategy_pivots with 1 entry
+        assert hasattr(ctx, "strategy_pivots")
+        assert len(ctx.strategy_pivots) == 1
+        assert ctx.strategy_pivots[0]["dominant_tool"] == "nuclei"
+
+    def test_pivot_handles_non_dict_history_entries(self, engine, ctx):
+        from elengenix.scanning.decision_engine import Reflection
+        ctx.action_history = ["garbage", {"tool": "nmap"}, None, 42]
+        r = Reflection(status="stuck", switch_strategy=True)
+        # Should not raise
+        result = engine._apply_forced_strategy_pivot(ctx, r)
+        assert result is not None
+
+
+# -------------------------------------------------------------------
+# _react_think_phase()
+# -------------------------------------------------------------------
+
+
+class TestReactThinkPhase:
+    """The ReAct 'think' turn runs before the decision call to ground
+    the action in step-by-step reasoning instead of single-shot JSON."""
+
+    def test_returns_none_when_no_client(self, ctx):
+        from elengenix.scanning.decision_engine import DecisionEngine
+        eng = DecisionEngine(ai_client=None)
+        assert eng._react_think_phase(ctx, "scan me", None) is None
+
+    def test_returns_none_when_disabled(self, engine, ctx, ai_client):
+        engine.enable_react_think = False
+        assert engine._react_think_phase(ctx, "scan me", None) is None
+
+    def test_returns_reasoning_text_when_enabled(self, engine, ctx, ai_client):
+        ai_msg = MagicMock()
+        ai_msg.content = "I should test /admin because..."
+        ai_client.chat.return_value = ai_msg
+        result = engine._react_think_phase(ctx, "scan me", None)
+        assert result == "I should test /admin because..."
+        # Should record trace
+        assert hasattr(engine, "reasoning_trace")
+        assert engine.reasoning_trace[-1]["phase"] == "react_think"
+
+    def test_returns_none_on_empty_response(self, engine, ctx, ai_client):
+        ai_msg = MagicMock()
+        ai_msg.content = ""
+        ai_client.chat.return_value = ai_msg
+        assert engine._react_think_phase(ctx, "scan me", None) is None
+
+    def test_returns_none_on_exception(self, engine, ctx, ai_client):
+        ai_client.chat.side_effect = RuntimeError("api down")
+        # Should NOT raise; just return None so decision call proceeds
+        assert engine._react_think_phase(ctx, "scan me", None) is None
+
+    def test_uses_reflection_summary_in_prompt(self, engine, ctx, ai_client, reflect_engine):
+        """The think prompt should reference the reflection status."""
+        from elengenix.scanning.decision_engine import Reflection
+        ai_msg = MagicMock()
+        ai_msg.content = "thinking..."
+        ai_client.chat.return_value = ai_msg
+        reflection = Reflection(status="stuck", recommendation="try harder")
+        engine._react_think_phase(ctx, "scan me", reflection)
+        # Check the user prompt passed to chat includes the reflection summary
+        call_args = ai_client.chat.call_args
+        messages = call_args.args[0]
+        user_msg = messages[-1].content
+        assert "stuck" in user_msg
+        assert "try harder" in user_msg
+
+
+# -------------------------------------------------------------------
+# decide() — integration with new reasoning features
+# -------------------------------------------------------------------
+
+
+class TestDecideReasoningIntegration:
+    """Verify decide() correctly wires in pivot + react_think."""
+
+    def test_stuck_reflection_triggers_real_stuck_count(self, engine, ctx, ai_client, prompt_builder):
+        """When stuck, the hypothesis boost should receive the REAL
+        consecutive_no_findings count from ctx, not a hardcoded 0."""
+        ctx.consecutive_no_findings = 5
+        stuck_reflect = MagicMock()
+        stuck_reflect.reflect.return_value = Reflection(status="stuck")
+
+        ai_msg = MagicMock()
+        ai_msg.content = '{"action": "finish"}'
+        ai_msg.tool_calls = []
+        # Two calls: think phase + decision call
+        ai_client.chat.return_value = ai_msg
+
+        with patch("elengenix.scanning.hypothesis_boost.build_stuck_guidance") as mock_guidance:
+            mock_guidance.return_value = "guidance"
+            engine.decide(ctx, "scan me", reflect_engine=stuck_reflect)
+
+        # stuck_count kwarg should match ctx.consecutive_no_findings
+        _, kwargs = mock_guidance.call_args
+        assert kwargs.get("stuck_count") == 5
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
