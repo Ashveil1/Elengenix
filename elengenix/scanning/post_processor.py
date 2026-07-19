@@ -347,6 +347,62 @@ class PostExecutionProcessor:
                 ctx.coverage_map.record_finding(endpoint, vuln_class)
             return True
 
+    def verify_ai_findings(
+        self,
+        ctx: "ScanContext",
+        ai_findings: List[Dict[str, Any]],
+        tool_name: str = "ai_reasoning",
+    ) -> List[Dict[str, Any]]:
+        """Run the verification gate over AI-generated hypotheses.
+
+        AI reasoning-phase findings are *agentic* (non-deterministic) and so
+        must pass the same multi-perspective verification gate as
+        deterministic tool findings before they reach the report. Findings
+        that fail verification are recorded as negatives (so they are not
+        re-tested) and discarded from the verified set.
+
+        Args:
+            ctx: Scan context.
+            ai_findings: Findings produced by the vuln_reasoning_phase.
+            tool_name: Origin tag (default "ai_reasoning").
+
+        Returns:
+            List of verified AI findings (already tagged with verification
+            metadata). Unverified findings are dropped.
+        """
+        verified: List[Dict[str, Any]] = []
+        for finding in ai_findings or []:
+            endpoint = (
+                finding.get("url")
+                or finding.get("target_endpoint")
+                or finding.get("endpoint")
+                or getattr(ctx, "target", "")
+                or "unknown"
+            )
+            vuln_class = (
+                finding.get("type")
+                or finding.get("vuln_class")
+                or "ai_hypothesis"
+            ).lower()
+
+            try:
+                ok = self._verify_finding(ctx, finding, endpoint, vuln_class, tool_name)
+            except Exception as e:
+                logger.debug(f"AI finding verification error: {e}")
+                ok = False
+
+            if ok:
+                finding.setdefault("provenance", "agentic")
+                finding.setdefault("trust_class", "non_deterministic")
+                finding["verified"] = True
+                verified.append(finding)
+            else:
+                finding["verified"] = False
+                logger.info(
+                    f"AI hypothesis rejected by verification: {vuln_class} at {endpoint}"
+                )
+        return verified
+
     def _process_escalation_and_chaining(
         self,
         ctx: "ScanContext",

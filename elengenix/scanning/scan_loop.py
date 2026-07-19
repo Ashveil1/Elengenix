@@ -92,16 +92,20 @@ class ScanLoop:
         ctx: "ScanContext",
         user_input: str,
         reflect_engine=None,
+        interactive: bool = True,
     ) -> ScanResult:
         """Run the scan loop until termination.
 
         This is the main entry point. It loops for max_steps iterations,
-        each time: reflecting → deciding → executing → processing.
+        each time: reflecting -> deciding -> executing -> processing.
 
         Args:
             ctx: The scan context (will be updated in place).
             user_input: The user's original request.
             reflect_engine: The reflection engine instance.
+            interactive: If True, the AI sees each command output immediately
+                before deciding the next action (like a human using a terminal).
+                If False, uses the legacy batch mode.
 
         Returns:
             ScanResult with summary, findings, and stats.
@@ -110,6 +114,21 @@ class ScanLoop:
 
         for step in range(ctx.max_steps):
             # Phase 1: Decide
+            # In interactive mode, show the last output to the user before deciding
+            # Only show for actual shell commands (not submit_findings, save_memory, etc.)
+            last_output = getattr(ctx, "last_output", "")
+            last_command = getattr(ctx, "last_command", "")
+            if (interactive and isinstance(last_output, str) and last_output and
+                    isinstance(last_command, str) and last_command and
+                    self.callback and step > 0):
+                last_success = getattr(ctx, "last_command_success", True)
+                self.callback(
+                    f"\n[Interactive] Last command: {last_command}\n"
+                    f"[Interactive] Output ({'success' if last_success else 'failed'}):\n"
+                    f"{last_output[:2000]}\n"
+                    f"[Interactive] AI is analyzing output and planning next move...\n"
+                )
+
             decision = self.decision_engine.decide(ctx, user_input, reflect_engine)
 
             # Phase 2: Validate action
@@ -142,18 +161,34 @@ class ScanLoop:
 
             # Phase 5b: Autonomous AI reasoning phase.
             # The AI reasons about the raw evidence from this step and may
-            # author vulnerability hypotheses on its own authority — no
+            # author vulnerability hypotheses on its own authority -- no
             # deterministic tool required. This is what makes Elengenix an
             # *agent* rather than a tool-chainer.
             raw_output = getattr(result, "output", "") if result else ""
             ai_findings = self._run_reasoning_phase(
                 ctx, raw_output or observation, step
             )
+            # AI hypotheses must pass the same multi-perspective verification
+            # gate as deterministic tool findings before reaching the report.
+            ai_findings = self.post_processor.verify_ai_findings(ctx, ai_findings)
             for f in ai_findings:
                 if hasattr(ctx, "add_finding"):
                     ctx.add_finding(f)
                 else:
                     ctx.all_findings.append(f)
+
+            # Phase 5c: Store to LearningEngine for cross-session learning
+            tool_name = decision.action_data.get("tool", "unknown")
+            command = decision.action_data.get("command", "")
+            findings_to_store = []
+            if result and hasattr(result, "findings") and result.findings:
+                findings_to_store = result.findings
+            findings_to_store.extend(ai_findings)
+            self._store_to_learning_engine(ctx, tool_name, command, result, findings_to_store)
+
+            # Phase 5d: Record adaptation if strategy changed and found something
+            if findings_to_store and getattr(decision, "source", "") == "ai_dynamic":
+                self._record_adaptation(ctx, decision, findings_to_store)
 
             # Phase 6: Post-process (deterministic tool findings)
             if result is not None:
@@ -192,6 +227,98 @@ class ScanLoop:
             success=False,
             action_history=action_history,
         )
+
+    def _store_to_learning_engine(
+        self,
+        ctx: "ScanContext",
+        tool_name: str,
+        command: str,
+        result: Any,
+        findings: List[Dict[str, Any]],
+    ) -> None:
+        """Store successful exploit to LearningEngine for cross-session learning.
+
+        Records each finding as an ExploitRecord so future scans can recall
+        what worked on similar targets.
+        """
+        try:
+            from tools.learning_engine import LearningEngine, ExploitRecord
+
+            engine = LearningEngine()
+
+            # Determine tech stack from context
+            tech_stack = []
+            if hasattr(ctx, 'assets') and ctx.assets:
+                tech_stack = ctx.assets.get("tech_stack", []) or []
+            if not tech_stack:
+                tech_stack = ["web"]
+
+            # Store each finding
+            for finding in (findings or []):
+                record = ExploitRecord(
+                    target=ctx.target,
+                    tech_stack=tech_stack,
+                    vuln_class=finding.get("type", "unknown"),
+                    tool=tool_name,
+                    payload=command[:500] if command else "",
+                    success=True,
+                    confidence=finding.get("confidence", 0.5),
+                    severity=finding.get("severity", "unknown"),
+                    notes=f"Discovered via {tool_name}: {finding.get('description', '')[:200]}"
+                )
+                engine.remember(record)
+
+            # If no findings but tool succeeded, store as negative result
+            if not findings and result and hasattr(result, 'success') and result.success:
+                record = ExploitRecord(
+                    target=ctx.target,
+                    tech_stack=tech_stack,
+                    vuln_class="unknown",
+                    tool=tool_name,
+                    payload=command[:500] if command else "",
+                    success=False,
+                    confidence=0.3,
+                    severity="none",
+                    notes=f"Tool {tool_name} ran successfully but found no vulnerabilities"
+                )
+                engine.remember(record)
+
+        except Exception as e:
+            logger.debug(f"Could not store to LearningEngine: {e}")
+
+    def _record_adaptation(
+        self,
+        ctx: "ScanContext",
+        decision,
+        findings: List[Dict[str, Any]],
+    ) -> None:
+        """Record successful strategy adaptation for future reference.
+
+        When the AI changes strategy and discovers findings, record the
+        adaptation chain (trigger -> change -> result) for reuse.
+        """
+        try:
+            from tools.learning_engine import LearningEngine
+
+            engine = LearningEngine()
+
+            # Determine trigger from findings
+            finding_types = [f.get("type", "unknown") for f in findings[:3]]
+            trigger = f"Found {', '.join(finding_types)}"
+
+            # Determine strategy change from decision reasoning
+            strategy_change = decision.reasoning or decision.action_data.get("purpose", "unknown")
+
+            # Record the adaptation
+            engine.record_adaptation(
+                trigger_finding=trigger,
+                strategy_change=strategy_change,
+                result=f"Discovered {len(findings)} findings",
+                success=True,
+            )
+
+        except Exception as e:
+            logger.debug(f"Could not record adaptation: {e}")
 
     def _run_reasoning_phase(self, ctx: "ScanContext", evidence: str, step: int) -> List[Dict[str, Any]]:
         """Run the autonomous vulnerability-reasoning phase for this step.
@@ -238,7 +365,7 @@ class ScanLoop:
 
         action = str(action_val).lower()
 
-        # Finish action → return summary
+        # Finish action -> return summary
         if action == "finish":
             summary = action_data.get("summary", "Mission completed")
             return ScanResult(
@@ -303,7 +430,19 @@ class ScanLoop:
         # Normal execution via injected executor
         if self.executor:
             try:
-                return self.executor(action_data, ctx)
+                success, result, observation = self.executor(action_data, ctx)
+
+                # Store last command output for interactive feedback
+                command = action_data.get("command", "")
+                if command and result is not None:
+                    raw_output = getattr(result, "output", "") if result else observation or ""
+                    ctx.set_last_command_output(
+                        command=command,
+                        output=raw_output[:5000] if raw_output else "",
+                        success=success,
+                    )
+
+                return success, result, observation
             except Exception as e:
                 logger.error(f"Executor failed: {e}")
                 return False, None, f"Execution error: {e}"

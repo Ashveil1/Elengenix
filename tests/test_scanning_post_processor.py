@@ -1274,3 +1274,98 @@ class TestProcess:
             "analysis",
             "strategy",
         ]
+
+
+# ===================================================================
+# verify_ai_findings (AI hypotheses verification gate)
+# ===================================================================
+
+
+class TestVerifyAiFindings:
+    """AI reasoning-phase hypotheses must pass the verification gate
+    before being added to ctx.all_findings (same contract as deterministic
+    tool findings)."""
+
+    def _make_ai_finding(self, **overrides):
+        f = {
+            "type": "ai_hypothesis",
+            "severity": "medium",
+            "url": "http://test.local/admin",
+            "source": "ai_reasoning",
+        }
+        f.update(overrides)
+        return f
+
+    def test_empty_input_returns_empty(self, mock_ctx, processor):
+        assert processor.verify_ai_findings(mock_ctx, []) == []
+        assert processor.verify_ai_findings(mock_ctx, None) == []
+
+    def test_verified_finding_is_returned_with_tags(self, mock_ctx, processor):
+        finding = self._make_ai_finding()
+        with patch.object(processor, "_verify_finding", return_value=True) as mock_v:
+            result = processor.verify_ai_findings(mock_ctx, [finding])
+        assert len(result) == 1
+        assert result[0]["verified"] is True
+        assert result[0]["provenance"] == "agentic"
+        assert result[0]["trust_class"] == "non_deterministic"
+        mock_v.assert_called_once()
+        # _verify_finding is called with positional args:
+        # (ctx, finding, endpoint, vuln_class, tool_name)
+        args = mock_v.call_args.args
+        assert args[2] == "http://test.local/admin"  # endpoint
+        assert args[3] == "ai_hypothesis"  # vuln_class
+        assert args[4] == "ai_reasoning"  # tool_name
+
+    def test_unverified_finding_is_dropped(self, mock_ctx, processor):
+        finding = self._make_ai_finding()
+        with patch.object(processor, "_verify_finding", return_value=False):
+            result = processor.verify_ai_findings(mock_ctx, [finding])
+        assert result == []
+        assert finding["verified"] is False
+
+    def test_exception_in_verify_finding_drops_finding(self, mock_ctx, processor):
+        finding = self._make_ai_finding()
+        with patch.object(processor, "_verify_finding", side_effect=RuntimeError("boom")):
+            result = processor.verify_ai_findings(mock_ctx, [finding])
+        assert result == []
+        assert finding["verified"] is False
+
+    def test_mixed_verified_and_unverified(self, mock_ctx, processor):
+        good = self._make_ai_finding(url="http://t/ok")
+        bad = self._make_ai_finding(url="http://t/bad")
+        with patch.object(
+            processor, "_verify_finding",
+            side_effect=lambda ctx, f, ep, vc, tn: ep == "http://t/ok",
+        ):
+            result = processor.verify_ai_findings(mock_ctx, [good, bad])
+        assert len(result) == 1
+        assert result[0]["url"] == "http://t/ok"
+        assert good["verified"] is True
+        assert bad["verified"] is False
+
+    def test_uses_fallback_endpoint_when_url_missing(self, mock_ctx, processor):
+        finding = self._make_ai_finding()
+        finding.pop("url")
+        finding.pop("target_endpoint", None)
+        finding.pop("endpoint", None)
+        # ctx.target = "http://test.local"
+        with patch.object(processor, "_verify_finding", return_value=True) as mock_v:
+            processor.verify_ai_findings(mock_ctx, [finding])
+        args = mock_v.call_args.args
+        assert args[2] == "http://test.local"  # endpoint falls back to ctx.target
+
+    def test_custom_tool_name_passthrough(self, mock_ctx, processor):
+        finding = self._make_ai_finding()
+        with patch.object(processor, "_verify_finding", return_value=True) as mock_v:
+            processor.verify_ai_findings(mock_ctx, [finding], tool_name="custom_origin")
+        args = mock_v.call_args.args
+        assert args[4] == "custom_origin"
+
+    def test_preserves_existing_provenance(self, mock_ctx, processor):
+        finding = self._make_ai_finding()
+        finding["provenance"] = "already_tagged"
+        with patch.object(processor, "_verify_finding", return_value=True):
+            result = processor.verify_ai_findings(mock_ctx, [finding])
+        # Should not overwrite existing provenance
+        assert result[0]["provenance"] == "already_tagged"
+
