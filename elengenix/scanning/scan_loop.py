@@ -68,6 +68,7 @@ class ScanLoop:
         cot_logger=None,
         callback: Optional[Callable] = None,
         client: Any = None,
+        replan_every: int = 5,
     ):
         self.decision_engine = decision_engine
         self.post_processor = post_processor
@@ -86,6 +87,14 @@ class ScanLoop:
             except Exception:
                 pass
         self._llm_client = client
+
+        # Periodic re-planning: every N steps, regenerate the attack tree
+        # from the current findings/fingerprint so the AI's strategy
+        # adapts to what it has learned, instead of being locked to the
+        # initial plan generated before any tool ran.
+        # replan_every=0 disables the feature.
+        self.replan_every = max(0, int(replan_every))
+        self._replan_count = 0
 
     async def run(
         self,
@@ -128,6 +137,17 @@ class ScanLoop:
                     f"{last_output[:2000]}\n"
                     f"[Interactive] AI is analyzing output and planning next move...\n"
                 )
+
+            # Phase 0: Periodic re-planning.
+            # Every N steps, regenerate the attack tree from the current
+            # findings/fingerprint so the strategy adapts to what the AI
+            # has actually learned. The AI still has full authority to
+            # override the new tree on the next decision turn — this
+            # only refreshes the SUGGESTION the AI sees.
+            if (self.replan_every > 0 and step > 0
+                    and step % self.replan_every == 0
+                    and getattr(ctx, "planner", None) is not None):
+                self._maybe_replan(ctx, user_input, step)
 
             decision = self.decision_engine.decide(ctx, user_input, reflect_engine)
 
@@ -319,6 +339,74 @@ class ScanLoop:
 
         except Exception as e:
             logger.debug(f"Could not record adaptation: {e}")
+
+    def _maybe_replan(self, ctx: "ScanContext", user_input: str, step: int) -> None:
+        """Periodically regenerate the attack tree from current findings.
+
+        This is the adaptive re-planning loop: instead of locking the
+        AI to a single attack tree generated before any tool ran, we
+        periodically ask the planner to re-generate the tree from the
+        CURRENT findings + fingerprint. The AI keeps full authority to
+        override the new tree on the next decision turn.
+
+        Idempotent & safe: any failure falls back to keeping the old tree.
+        Records re-plan events on ctx for observability.
+        """
+        planner = getattr(ctx, "planner", None)
+        if planner is None:
+            return
+        try:
+            target = getattr(ctx, "target", "") or user_input or ""
+            # Build a fingerprint-aware re-plan if the planner exposes
+            # generate_attack_tree; fall back to default otherwise.
+            findings = list(getattr(ctx, "all_findings", []) or [])
+            try:
+                from elengenix.scanning.planner import StrategicPlanner
+                if isinstance(planner, StrategicPlanner):
+                    new_tree = planner.generate_attack_tree(
+                        target=target,
+                        objective=getattr(ctx, "objective", "") or user_input,
+                    )
+                else:
+                    new_tree = planner.generate_attack_tree(target)  # type: ignore
+            except Exception:
+                new_tree = None
+
+            if new_tree is not None:
+                # Keep the old tree for diffing/observability.
+                old_tree = getattr(ctx, "attack_tree", None)
+                ctx.attack_tree = new_tree
+                self._replan_count += 1
+                # Record on ctx for downstream consumption (TUI / logs).
+                try:
+                    replans = getattr(ctx, "replan_history", None)
+                    if replans is None:
+                        replans = []
+                        setattr(ctx, "replan_history", replans)
+                    replans.append({
+                        "step": step,
+                        "findings_count": len(findings),
+                        "new_steps": len(getattr(new_tree, "steps", []) or []),
+                        "old_steps": len(getattr(old_tree, "steps", []) or []),
+                    })
+                except Exception:
+                    pass
+                logger.info(
+                    f"re-planned attack tree at step {step} "
+                    f"(findings={len(findings)}, new_steps="
+                    f"{len(getattr(new_tree, 'steps', []) or [])})"
+                )
+                if self.callback:
+                    try:
+                        self.callback(
+                            f"[RE-PLAN] step {step}: regenerated attack tree "
+                            f"with {len(getattr(new_tree, 'steps', []) or [])} steps "
+                            f"based on {len(findings)} findings so far."
+                        )
+                    except Exception:
+                        pass
+        except Exception as e:
+            logger.debug(f"re-planning skipped: {e}")
 
     def _run_reasoning_phase(self, ctx: "ScanContext", evidence: str, step: int) -> List[Dict[str, Any]]:
         """Run the autonomous vulnerability-reasoning phase for this step.

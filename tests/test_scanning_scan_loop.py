@@ -197,3 +197,135 @@ class TestScanLoop:
         d = _decision({})
         sig = loop._action_signature(d)
         assert sig == ":"
+
+
+# ===================================================================
+# _maybe_replan (periodic re-planning)
+# ===================================================================
+
+
+class TestMaybeReplan:
+    """Every N steps, the scan loop regenerates the attack tree from
+    current findings so the strategy adapts to what the AI has learned
+    — instead of being locked to the initial pre-scan plan."""
+
+    @pytest.fixture
+    def ctx(self):
+        # Use a SimpleNamespace so attribute writes aren't shadowed by
+        # MagicMock's auto-attribute behavior (MagicMock returns a mock
+        # for ANY attribute access, which breaks our setattr-on-first-write logic).
+        from types import SimpleNamespace
+        ctx = SimpleNamespace(
+            target="example.com",
+            objective="find vulnerabilities",
+            all_findings=[],
+            attack_tree=MagicMock(),
+            planner=MagicMock(),
+        )
+        return ctx
+
+    @pytest.fixture
+    def loop_with_replan(self):
+        de = MagicMock()
+        pp = MagicMock()
+        exec_ = MagicMock(return_value=(True, MagicMock(output="ok"), "ok"))
+        loop = ScanLoop(
+            decision_engine=de,
+            post_processor=pp,
+            executor=exec_,
+            loop_threshold=5,
+            replan_every=3,
+        )
+        loop._run_reasoning_phase = MagicMock(return_value=[])
+        return loop
+
+    def test_no_replan_when_planner_missing(self, loop_with_replan, ctx):
+        ctx.planner = None
+        ctx.attack_tree = MagicMock()
+        original_tree = ctx.attack_tree
+        loop_with_replan._maybe_replan(ctx, "scan me", step=3)
+        # Tree should be unchanged
+        assert ctx.attack_tree is original_tree
+
+    def test_replan_regenerates_attack_tree(self, loop_with_replan, ctx):
+        mock_planner = MagicMock()
+        new_tree = MagicMock()
+        new_tree.steps = ["new_step_1", "new_step_2"]
+        mock_planner.generate_attack_tree.return_value = new_tree
+        ctx.planner = mock_planner
+        ctx.target = "example.com"
+        ctx.objective = "find vulnerabilities"
+        ctx.all_findings = [{"type": "xss"}]
+        old_tree = ctx.attack_tree
+
+        loop_with_replan._maybe_replan(ctx, "scan me", step=3)
+
+        assert ctx.attack_tree is new_tree
+        assert mock_planner.generate_attack_tree.call_count == 1
+
+    def test_replan_records_history_on_ctx(self, loop_with_replan, ctx):
+        mock_planner = MagicMock()
+        new_tree = MagicMock()
+        new_tree.steps = [1, 2, 3]
+        mock_planner.generate_attack_tree.return_value = new_tree
+        ctx.planner = mock_planner
+        ctx.target = "example.com"
+
+        loop_with_replan._maybe_replan(ctx, "scan me", step=3)
+
+        assert hasattr(ctx, "replan_history")
+        assert len(ctx.replan_history) == 1
+        assert ctx.replan_history[0]["step"] == 3
+        assert ctx.replan_history[0]["new_steps"] == 3
+
+    def test_replan_increments_count(self, loop_with_replan, ctx):
+        mock_planner = MagicMock()
+        new_tree = MagicMock(); new_tree.steps = []
+        mock_planner.generate_attack_tree.return_value = new_tree
+        ctx.planner = mock_planner
+        ctx.target = "example.com"
+
+        assert loop_with_replan._replan_count == 0
+        loop_with_replan._maybe_replan(ctx, "scan me", step=3)
+        assert loop_with_replan._replan_count == 1
+        loop_with_replan._maybe_replan(ctx, "scan me", step=6)
+        assert loop_with_replan._replan_count == 2
+
+    def test_replan_exception_doesnt_break_loop(self, loop_with_replan, ctx):
+        mock_planner = MagicMock()
+        mock_planner.generate_attack_tree.side_effect = RuntimeError("api down")
+        ctx.planner = mock_planner
+        ctx.target = "example.com"
+        original_tree = ctx.attack_tree
+
+        # Should NOT raise
+        loop_with_replan._maybe_replan(ctx, "scan me", step=3)
+        # Tree unchanged
+        assert ctx.attack_tree is original_tree
+
+    def test_replan_calls_callback(self, loop_with_replan, ctx):
+        mock_planner = MagicMock()
+        new_tree = MagicMock(); new_tree.steps = [1, 2]
+        mock_planner.generate_attack_tree.return_value = new_tree
+        ctx.planner = mock_planner
+        ctx.target = "example.com"
+        loop_with_replan.callback = MagicMock()
+
+        loop_with_replan._maybe_replan(ctx, "scan me", step=3)
+
+        callback_msgs = [c.args[0] for c in loop_with_replan.callback.call_args_list if c.args]
+        assert any("[RE-PLAN]" in m for m in callback_msgs)
+
+    def test_replan_every_zero_disables_feature(self, ctx):
+        de = MagicMock(); pp = MagicMock(); exec_ = MagicMock()
+        loop = ScanLoop(
+            decision_engine=de,
+            post_processor=pp,
+            executor=exec_,
+            replan_every=0,
+        )
+        loop._run_reasoning_phase = MagicMock(return_value=[])
+        # Even with a planner present, no re-plan should happen because
+        # the run loop never calls _maybe_replan when replan_every=0.
+        assert loop.replan_every == 0
+

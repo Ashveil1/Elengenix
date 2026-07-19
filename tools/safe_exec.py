@@ -96,6 +96,88 @@ def execute_safely(
         return error_result(str(e))
 
 
+# Retryable error signatures. A command is retried only when the failure
+# looks transient (network blip / timeout / connection reset). Hard errors
+# like "command not found" or "permission denied" are NOT retried — they
+# are deterministic and a retry would just waste budget.
+_RETRYABLE_PATTERNS = (
+    "timed out",
+    "timeout",
+    "connection reset",
+    "connection refused",
+    "temporarily unavailable",
+    "name resolution",
+    "temporary failure",
+    "could not resolve",
+    "network is unreachable",
+    "no route to host",
+)
+
+
+def _is_retryable(result: Dict) -> bool:
+    """Return True if the failure looks transient (worth retrying)."""
+    if result.get("success"):
+        return False
+    err = (str(result.get("error", "")) + " " + str(result.get("stderr", ""))).lower()
+    if not err.strip():
+        # No error text but failure — be conservative, retry once.
+        return True
+    return any(pat in err for pat in _RETRYABLE_PATTERNS)
+
+
+def execute_with_retry(
+    command_str: str,
+    timeout: int = 300,
+    cwd: str | None = None,
+    max_retries: int = 2,
+    backoff_base: float = 0.5,
+) -> Dict[str, Union[str, int, bool]]:
+    """Run a shell command with automatic retry on transient failures.
+
+    Retryable conditions (network timeouts, connection resets, DNS blips)
+    are retried with exponential backoff. Deterministic failures
+    ("command not found", "permission denied") are returned immediately —
+    a retry would just waste budget.
+
+    Pipes / redirects / command composition (nmap | grep, etc.) are
+    already supported via shell=True — this wrapper just adds resilience.
+
+    Args:
+        command_str: Shell command (may use |, >, &&, etc.).
+        timeout: Per-attempt timeout in seconds.
+        cwd: Optional working directory.
+        max_retries: Max retry attempts on transient failures (default 2).
+        backoff_base: Base delay in seconds; multiplied by 2**attempt.
+
+    Returns:
+        Same dict shape as execute_safely, plus a "attempts" field.
+    """
+    import time as _time
+
+    last_result: Dict = {}
+    attempts = 0
+    for attempt in range(max_retries + 1):
+        attempts = attempt + 1
+        last_result = execute_safely(command_str, timeout=timeout, cwd=cwd)
+        last_result["attempts"] = attempts
+        if last_result.get("success"):
+            return last_result
+        if attempt >= max_retries:
+            break
+        if not _is_retryable(last_result):
+            return last_result
+        # Exponential backoff
+        delay = backoff_base * (2 ** attempt)
+        logger.info(
+            f"transient failure (attempt {attempts}/{max_retries + 1}) "
+            f"on '{command_str[:80]}', retrying in {delay:.1f}s: "
+            f"{last_result.get('error', '')[:120]}"
+        )
+        _time.sleep(delay)
+    last_result["attempts"] = attempts
+    return last_result
+
+
 def execute_safely_streaming(
     command_str: str,
     timeout: int = 300,

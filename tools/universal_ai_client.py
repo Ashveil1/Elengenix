@@ -242,6 +242,37 @@ ACTION_TOOLS: List[Dict[str, Any]] = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "run_batch",
+            "description": (
+                "Execute a BATCH of independent run_shell actions in PARALLEL. "
+                "Use this when you have multiple commands that don't depend on "
+                "each other (e.g. recon: nmap + whatweb + subfinder can all run "
+                "at once). Results are merged before the next decision turn. "
+                "Do NOT batch commands that depend on each other's output."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "actions": {
+                        "type": "array",
+                        "description": "Independent shell actions to run in parallel.",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "command": {"type": "string", "description": "Shell command to run"},
+                                "purpose": {"type": "string", "description": "Why this command is being run"},
+                            },
+                            "required": ["command"],
+                        },
+                    },
+                },
+                "required": ["actions"],
+            },
+        },
+    },
 ]
 
 

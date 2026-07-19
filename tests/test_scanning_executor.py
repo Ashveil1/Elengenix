@@ -644,6 +644,101 @@ class TestPromptApproval:
 # ===================================================================
 
 
+# ===================================================================
+# execute_batch (parallel run_shell actions)
+# ===================================================================
+
+
+class TestExecuteBatch:
+    """The run_batch action lets the AI fire off multiple independent
+    shell commands in parallel — like a pentester with several terminals."""
+
+    def test_empty_actions_returns_error(self, governance, callback):
+        from elengenix.scanning.executor import execute_batch
+        result = execute_batch({"action": "run_batch", "actions": []}, governance, callback=callback)
+        assert "Error" in result
+
+    def test_missing_actions_returns_error(self, governance, callback):
+        from elengenix.scanning.executor import execute_batch
+        result = execute_batch({"action": "run_batch"}, governance, callback=callback)
+        assert "Error" in result
+
+    def test_single_action_runs(self, governance, callback):
+        from elengenix.scanning.executor import execute_batch
+        with patch("elengenix.scanning.executor.execute_shell_command", return_value="hello") as mock_exec:
+            result = execute_batch(
+                {"action": "run_batch",
+                 "actions": [{"command": "echo hi", "purpose": "greet"}]},
+                governance, callback=callback,
+            )
+        assert mock_exec.call_count == 1
+        assert "[BATCH x1" in result
+        assert "echo hi" in result
+        assert "hello" in result
+
+    def test_multiple_actions_run_in_parallel(self, governance, callback):
+        from elengenix.scanning.executor import execute_batch
+        with patch("elengenix.scanning.executor.execute_shell_command", return_value="ok") as mock_exec:
+            result = execute_batch(
+                {"action": "run_batch",
+                 "actions": [
+                     {"command": "nmap -p 80 target", "purpose": "port scan"},
+                     {"command": "whatweb target", "purpose": "fingerprint"},
+                     {"command": "subfinder -d target", "purpose": "subdomain enum"},
+                 ]},
+                governance, callback=callback,
+            )
+        assert mock_exec.call_count == 3
+        # All three commands should appear in the merged result
+        assert "nmap -p 80 target" in result
+        assert "whatweb target" in result
+        assert "subfinder -d target" in result
+        assert "[BATCH x3" in result
+
+    def test_failed_action_marked_fail(self, governance, callback):
+        from elengenix.scanning.executor import execute_batch
+        with patch("elengenix.scanning.executor.execute_shell_command", return_value="[FAIL] Command failed: permission denied"):
+            result = execute_batch(
+                {"action": "run_batch",
+                 "actions": [{"command": "sudo bad", "purpose": "test"}]},
+                governance, callback=callback,
+            )
+        assert "[FAIL]" in result
+
+    def test_exception_in_one_action_doesnt_break_others(self, governance, callback):
+        from elengenix.scanning.executor import execute_batch
+        # First call raises, second returns normally
+        with patch("elengenix.scanning.executor.execute_shell_command",
+                   side_effect=[RuntimeError("api down"), "ok"]):
+            result = execute_batch(
+                {"action": "run_batch",
+                 "actions": [
+                     {"command": "cmd1"},
+                     {"command": "cmd2"},
+                 ]},
+                governance, callback=callback,
+            )
+        # Should not raise; should still return merged result
+        assert "[BATCH x2" in result
+
+    def test_callback_notified_at_end(self, governance, callback):
+        from elengenix.scanning.executor import execute_batch
+        with patch("elengenix.scanning.executor.execute_shell_command", return_value="ok"):
+            execute_batch(
+                {"action": "run_batch",
+                 "actions": [{"command": "echo hi"}]},
+                governance, callback=callback,
+            )
+        # Should have at least one callback call (the batch_done notification)
+        batch_calls = [c for c in callback.call_args_list if c.args and isinstance(c.args[0], str) and c.args[0].startswith("batch_done")]
+        assert len(batch_calls) >= 1
+
+
+# ===================================================================
+# execute_write_script
+# ===================================================================
+
+
 class TestExecuteWriteScript:
     """Test write_script action."""
 

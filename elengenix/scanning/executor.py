@@ -11,7 +11,7 @@ import json
 import logging
 import subprocess
 from pathlib import Path
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 from tools.governance import Governance
 from tools.safe_exec import execute_safely, execute_safely_streaming, execute_safely_interactive
@@ -146,10 +146,13 @@ def execute_tool(
     if action == "install_tool":
         return execute_install_tool(action_data, governance, max_output_len, callback)
 
+    if action == "run_batch":
+        return execute_batch(action_data, governance, max_output_len, callback)
+
     if action != "run_shell":
         return (
             f"Error: Unknown action '{action}'. "
-            "Use: run_shell, write_script, install_tool, ask_user, web_search, "
+            "Use: run_shell, run_batch, write_script, install_tool, ask_user, web_search, "
             "save_memory, create_ai_tool, run_ai_tool, or finish."
         )
     if not cmd_raw or not isinstance(cmd_raw, str):
@@ -382,6 +385,104 @@ def _prompt_approval(
     if raw == "y":
         return True, False
     return False, False
+
+
+def execute_batch(
+    action_data: Dict[str, Any],
+    governance: Governance,
+    max_output_len: int = 100000,
+    callback: Optional[Callable] = None,
+) -> str:
+    """Execute a batch of independent shell actions in PARALLEL.
+
+    The AI uses the ``run_batch`` action when it has multiple commands
+    that do not depend on each other (e.g. nmap + whatweb + subfinder
+    during recon). Results are merged into a single structured string
+    so the next decision turn sees all of them at once, exactly like a
+    human pentester who fires off several terminals in parallel.
+
+    Args:
+        action_data: Dict with key "actions" -> list of action dicts.
+            Each sub-action is a run_shell dict: {"command": "...", "purpose": "..."}.
+        governance: Governance instance (gates every command).
+        max_output_len: Per-command output cap.
+        callback: Optional streaming callback.
+
+    Returns:
+        JSON string with per-action results + a merged summary.
+    """
+    actions = action_data.get("actions", []) or []
+    if not isinstance(actions, list) or not actions:
+        return "Error: run_batch requires a non-empty 'actions' list."
+
+    # Cap concurrency to avoid spawning too many subprocesses. 5 is a
+    # reasonable default that mirrors a human running a few terminals.
+    max_concurrent = min(8, max(1, len(actions)))
+
+    def _run_one(sub: Dict[str, Any]) -> Dict[str, Any]:
+        cmd = sub.get("command", "") if isinstance(sub, dict) else ""
+        purpose = sub.get("purpose", "") if isinstance(sub, dict) else ""
+        if not cmd or not isinstance(cmd, str):
+            return {"command": str(cmd), "purpose": purpose, "success": False,
+                    "output": "", "error": "Invalid or empty command"}
+        try:
+            output = execute_shell_command(
+                cmd, governance,
+                max_output_len=max_output_len,
+                callback=callback,
+                purpose=purpose,
+                thought="",
+            )
+            success = not output.startswith("[FAIL]") and not output.startswith("Error:")
+            return {"command": cmd, "purpose": purpose, "success": success, "output": output}
+        except Exception as e:
+            return {"command": cmd, "purpose": purpose, "success": False,
+                    "output": "", "error": str(e)}
+
+    import concurrent.futures
+
+    results: List[Dict[str, Any]] = []
+    try:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max_concurrent) as pool:
+            futures = [pool.submit(_run_one, sub) for sub in actions]
+            for fut in concurrent.futures.as_completed(futures):
+                try:
+                    results.append(fut.result())
+                except Exception as e:
+                    results.append({"command": "?", "purpose": "",
+                                    "success": False, "output": "", "error": str(e)})
+    except Exception as e:
+        # Fallback: run serially if thread pool fails (rare)
+        logger.warning(f"parallel batch failed, falling back to serial: {e}")
+        for sub in actions:
+            results.append(_run_one(sub))
+
+    # Preserve input order in the merged output (better for AI comprehension).
+    order = {id(sub): i for i, sub in enumerate(actions)}
+    results.sort(key=lambda r: r.get("command", ""))
+
+    # Build a single merged summary string the AI can reason about.
+    parts = [f"[BATCH x{len(results)} — parallel execution]"]
+    for i, r in enumerate(results, 1):
+        status = "OK" if r.get("success") else "FAIL"
+        parts.append(f"\n── action {i}/{len(results)} [{status}] ──")
+        parts.append(f"command: {r.get('command', '?')}")
+        if r.get("purpose"):
+            parts.append(f"purpose: {r['purpose']}")
+        out = r.get("output", "") or r.get("error", "")
+        if out:
+            # Per-action cap so one verbose command doesn't drown the others.
+            parts.append("output:\n" + out[:max_output_len // max(1, len(results))])
+    summary = "\n".join(parts)
+
+    # Notify callback once for the whole batch (backward-compat with TUI).
+    if callback:
+        try:
+            callback(f"batch_done:{len(results)} actions executed in parallel")
+        except Exception:
+            pass
+
+    return summary
 
 
 def execute_write_script(
