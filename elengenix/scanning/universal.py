@@ -351,6 +351,120 @@ def _create_mission_context(target: str, objective: str):
     )
 
 
+def _try_canonical_scan_loop(
+    user_input: str,
+    client: Any,
+    target: str,
+    governance: Governance,
+    callback: Optional[Callable],
+    conversation_history: List[Dict[str, str]],
+    base_prompt: str = "",
+) -> Optional[str]:
+    """Delegate the scan to the canonical ScanLoop (modern agent path).
+
+    Returns the scan result as a string, or ``None`` to signal the caller
+    to fall back to the legacy loop. All failures here are caught and
+    return ``None`` so the agent never breaks — it just falls back.
+
+    This is the single integration point that connects the user-facing
+    TUI (which calls process_universal → here) to the canonical ScanLoop
+    that has all modern agent features wired in:
+      - chain-of-thought + ReAct think phase (decision_engine)
+      - StrategicMemory cross-session knowledge graph (scan_loop)
+      - parallel batch execution (executor.run_batch)
+      - periodic re-planning (scan_loop._maybe_replan)
+      - AI hypothesis verification gate (post_processor.verify_ai_findings)
+      - DataFacility LLM empowerment (prompt_builder)
+    """
+    try:
+        import asyncio
+
+        from elengenix.scanning.decision_engine import DecisionEngine
+        from elengenix.scanning.post_processor import PostExecutionProcessor
+        from elengenix.scanning.prompt_builder import PromptBuilder
+        from elengenix.scanning.scan_context import ScanContext
+        from elengenix.scanning.scan_loop import ScanLoop
+
+        # Build the canonical ScanContext
+        ctx = ScanContext(
+            target=target,
+            base_url=target if target.startswith("http") else f"http://{target}",
+            objective=user_input,
+            mission_key=f"universal-{int(time.time())}",
+            max_steps=50,
+        )
+
+        # Wire executor to call the universal executor (governance-gated)
+        def _executor(action_data: Dict[str, Any], ctx: Any):
+            from elengenix.scanning.executor import execute_tool
+            try:
+                output = execute_tool(action_data, governance, callback=callback)
+                from tools.tool_registry import ToolResult, ToolCategory
+                success = not (output.startswith("[FAIL]") or output.startswith("Error:"))
+                result = ToolResult(
+                    success=success,
+                    tool_name=action_data.get("tool", action_data.get("action", "unknown")),
+                    category=ToolCategory.SCANNER,
+                    output=output,
+                    findings=[],
+                )
+                return success, result, output
+            except Exception as e:
+                logger.debug(f"canonical executor failed: {e}")
+                return False, None, str(e)
+
+        # Build the canonical components
+        prompt_builder = PromptBuilder(base_prompt=base_prompt or "You are Elengenix, an autonomous security agent.", max_tokens=8000)
+        decision_engine = DecisionEngine(
+            ai_client=client,
+            prompt_builder=prompt_builder,
+        )
+        post_processor = PostExecutionProcessor(callback=callback)
+
+        loop = ScanLoop(
+            decision_engine=decision_engine,
+            post_processor=post_processor,
+            executor=_executor,
+            callback=callback,
+            client=client,
+            replan_every=5,
+        )
+
+        # Patch in conversation history from the TUI so the AI sees prior chat
+        try:
+            for msg in (conversation_history or [])[-10:]:
+                ctx.append_history(msg.get("role", "user"), msg.get("content", ""))
+        except Exception:
+            pass
+
+        if callback:
+            callback("[ScanLoop] Starting canonical agent loop with full reasoning depth...")
+
+        # Run the async scan loop
+        result = asyncio.run(loop.run(ctx, user_input, interactive=True))
+
+        # Format the result for the TUI
+        parts = []
+        if result.summary:
+            parts.append(result.summary)
+        if result.findings:
+            parts.append(f"\nFindings: {len(result.findings)}")
+            for f in result.findings[:20]:
+                sev = f.get("severity", "?")
+                ftype = f.get("type", "?")
+                url = f.get("url", target)
+                parts.append(f"  - [{sev.upper()}] {ftype} at {url}")
+        if result.steps_taken:
+            parts.append(f"\nSteps: {result.steps_taken}")
+        parts.append(f"Success: {result.success}")
+
+        return "\n".join(parts) if parts else None
+
+    except Exception as e:
+        logger.debug(f"canonical scan loop failed, falling back to legacy: {e}")
+        return None
+
+
 def process_universal(
     user_input: str,
     client: Any,
@@ -610,7 +724,25 @@ Keep it short and conversational. No tools. No emojis."""
             return brain_result
         # Fall through to legacy loop if brain mode fails
 
-    # ── Main execution loop ────────────────────────────────────────────
+    # ── Canonical ScanLoop path ─────────────────────────────────────────
+    # When this is a security scan task, delegate to the canonical ScanLoop
+    # (elengenix.scanning.scan_loop) which has all the modern agent features
+    # wired in: chain-of-thought reasoning, ReAct think phase, StrategicMemory,
+    # parallel batch execution, periodic re-planning, AI hypothesis
+    # verification gate. The legacy loop below is kept as a fallback only.
+    if is_security_task and target:
+        scan_loop_result = _try_canonical_scan_loop(
+            user_input=user_input,
+            client=client,
+            target=target,
+            governance=governance,
+            callback=callback,
+            conversation_history=conversation_history,
+        )
+        if scan_loop_result is not None:
+            return scan_loop_result
+
+    # ── Main execution loop (legacy fallback) ──────────────────────────
     max_steps = 5 if intent == "research" else 50
     history: List[Dict] = [{"role": "user", "content": user_input}]
     all_findings: List[Dict] = []
