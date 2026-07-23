@@ -698,6 +698,11 @@ class HybridAgent:
                     session_type="hybrid",
                 )
 
+        # LearningEngine (cross-session exploit memory)
+        if result.findings:
+            for f in result.findings[:5]:
+                self._store_finding_to_learning_engine(f, self.target or "hybrid", tool_name)
+
         # Analysis pipeline
         if not self.enable_analysis:
             return
@@ -729,6 +734,26 @@ class HybridAgent:
         if _SIMPLE_COMMANDS.match(command):
             return False
         return True
+
+    def _store_finding_to_learning_engine(self, finding: Dict, target: str, tool_name: str) -> None:
+        """Store finding to LearningEngine for cross-session learning."""
+        try:
+            from tools.learning_engine import LearningEngine, ExploitRecord
+
+            engine = LearningEngine()
+            record = ExploitRecord(
+                target=target,
+                tech_stack=finding.get("tech_stack", ["web"]),
+                vuln_class=finding.get("type", "unknown"),
+                tool=tool_name,
+                payload=finding.get("evidence", "")[:500],
+                success=True,
+                confidence=finding.get("confidence", 0.5),
+                severity=finding.get("severity", "unknown"),
+            )
+            engine.remember(record)
+        except Exception as e:
+            logger.debug(f"Could not store to LearningEngine: {e}")
 
     @staticmethod
     def _extract_findings(output: str, command: str) -> List[Dict]:

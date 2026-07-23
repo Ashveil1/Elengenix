@@ -15,6 +15,7 @@ import logging
 import os
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
+from tools.data_facility import DataFacility
 
 if TYPE_CHECKING:
     from elengenix.scanning.scan_context import ScanContext
@@ -174,7 +175,7 @@ def _format_few_shots(traces: List[Dict[str, Any]]) -> str:
     lines.append("KEY PATTERNS TO EMULATE:")
     lines.append("1. ALWAYS capture baseline before injecting")
     lines.append("2. Use differential oracles (baseline vs injected)")
-    lines.append("3. Chain channels: error → UNION → time/boolean fallback")
+    lines.append("3. Chain channels: error -> UNION -> time/boolean fallback")
     lines.append("4. Validate scope before every injection")
     lines.append("5. Report with EXFILTRATED DATA, not just 'error triggered'")
     lines.append("")
@@ -201,18 +202,22 @@ class PromptBuilder:
     def build_scan_prompt(self, ctx: "ScanContext", user_input: str) -> str:
         """Build the full prompt for scan/reasoning mode.
 
-        Assembles 13 context sources into a single prompt:
+        Assembles 14 context sources into a single prompt:
         1. System prompt + planning instructions
         2. Available tools list
-        3. Semantic memory context
-        4. Related memories
-        5. Chat history
-        6. Previous results summary
-        7. Mission state snapshot
-        8. Coverage gaps
-        9. Active hypotheses
-        10. Reflection status
-        11. Negative results
+        3. Few-shot reasoning traces
+        4. Strategy authority
+        5. Attack tree suggestion
+        6. Mission state snapshot
+        7. Coverage gaps
+        8. Active hypotheses
+        9. Reflection status
+        10. Negative results
+        11. Previous results summary
+        12. Semantic memory context
+        13. Related memories
+        14. Learning Engine context (cross-session patterns)
+        15. Chat history
 
         Args:
             ctx: The scan context (all state).
@@ -274,7 +279,21 @@ class PromptBuilder:
         related_section = self._build_related_memories(ctx, user_input)
         sections.append((related_section, 400))
 
-        # Priority 11: Chat history (lowest priority)
+        # Priority 13: Learning Engine context (cross-session patterns)
+        learning_section = self._build_learning_context(ctx)
+        sections.append((learning_section, 600))
+
+        # Priority 13b: Strategic memory — what worked/failed/chained before
+        # on similar targets. This is the senior-pentester pattern memory
+        # that flat LearningEngine records alone cannot capture.
+        strategic_section = self._build_strategic_memory_context(ctx)
+        sections.append((strategic_section, 700))
+
+        # Priority 14: Data Facility context (comprehensive data)
+        data_section = self._build_data_facility_context(ctx)
+        sections.append((data_section, 800))
+
+        # Priority 15: Chat history (lowest priority)
         history_section = self._build_history(ctx)
         sections.append((history_section, 400))
 
@@ -289,7 +308,7 @@ class PromptBuilder:
     def build_chat_prompt(self, ctx: "ScanContext", user_input: str, intent: str) -> str:
         """Build prompt for casual/security chat mode.
 
-        Simpler than scan mode — just system prompt + memory + history.
+        Simpler than scan mode -- just system prompt + memory + history.
 
         Args:
             ctx: The scan context.
@@ -506,6 +525,118 @@ Do NOT attempt to run a scan. Respond naturally in the user's language (English 
             logger.debug(f"Could not get negative results: {e}")
             return ""
 
+    def _build_learning_context(self, ctx: "ScanContext") -> str:
+        """Build cross-session learning context from LearningEngine.
+
+        Surfaces tool success rates, suggested payloads, and similar past exploits
+        to help the AI make data-driven decisions based on historical scan results.
+        """
+        try:
+            from tools.learning_engine import LearningEngine
+
+            engine = LearningEngine()
+
+            # Get tech stack from context if available
+            tech_stack = []
+            if hasattr(ctx, 'assets') and ctx.assets:
+                tech_stack = ctx.assets.get("tech_stack", []) or []
+
+            # 1. Tool rankings for current target's tech stack
+            tool_rankings = engine.rank_tools(
+                tech_stack=tech_stack or None,
+                vuln_class=None,
+                limit=5
+            )
+
+            # 2. Suggested payloads for common vuln classes
+            payload_suggestions: Dict[str, List[str]] = {}
+            for vuln_class in ["sqli", "xss", "ssrf", "rce", "lfi"]:
+                payloads = engine.suggest_payloads(vuln_class, n=3)
+                if payloads:
+                    payload_suggestions[vuln_class] = payloads
+
+            # 3. Similar past exploits
+            similar = engine.recall_similar(
+                tech_stack=tech_stack or ["web"],
+                limit=3
+            )
+
+            # Build section
+            lines: List[str] = []
+
+            if tool_rankings:
+                lines.append("### TOOL SUCCESS RATES (from past scans):")
+                for tool, rate, samples in tool_rankings:
+                    lines.append(f"  - {tool}: {rate:.0%} success rate ({samples} samples)")
+                lines.append("")
+
+            if payload_suggestions:
+                lines.append("### PAYLOADS THAT WORKED BEFORE:")
+                for vuln_class, payloads in payload_suggestions.items():
+                    lines.append(f"  - {vuln_class}: {', '.join(payloads[:3])}")
+                lines.append("")
+
+            if similar:
+                lines.append("### SIMILAR PAST EXPLOITS:")
+                for exp in similar:
+                    lines.append(
+                        f"  - {exp.vuln_class} via {exp.tool} on {exp.target} "
+                        f"(confidence: {exp.confidence:.0%})"
+                    )
+                lines.append("")
+
+            return "\n".join(lines) if lines else ""
+
+        except Exception as e:
+            logger.debug(f"Could not load learning context: {e}")
+            return ""
+
+    def _build_strategic_memory_context(self, ctx: "ScanContext") -> str:
+        """Build strategic memory context from StrategicMemory facade.
+
+        Recalls what worked / what failed / what chains succeeded on
+        similar targets before — the senior-pentester pattern memory.
+        Returns a single formatted string for prompt injection.
+        """
+        try:
+            from tools.strategic_memory import StrategicMemory
+            sm = StrategicMemory()
+            tech_stack = []
+            if hasattr(ctx, 'assets') and ctx.assets:
+                tech_stack = ctx.assets.get("tech_stack", []) or []
+            target = getattr(ctx, "target", "") or ""
+            return sm.build_decision_context(
+                target=target,
+                tech_stack=tech_stack or None,
+                vuln_class=None,
+            )
+        except Exception as e:
+            logger.debug(f"Could not load strategic memory context: {e}")
+            return ""
+
+    def _build_data_facility_context(self, ctx: "ScanContext") -> str:
+        """Build comprehensive data context from DataFacility.
+
+        Provides all relevant data for LLM decision-making:
+        - Past scan knowledge
+        - Tool recommendations
+        - Vulnerability knowledge (CVE, CWE, OWASP)
+        - Payload suggestions
+        """
+        try:
+            tech_stack = []
+            if hasattr(ctx, 'assets') and ctx.assets:
+                tech_stack = ctx.assets.get("tech_stack", []) or []
+
+            facility = DataFacility()
+            return facility.get_prompt_context(
+                target=ctx.target or "unknown",
+                tech_stack=tech_stack or None,
+            )
+        except Exception as e:
+            logger.debug(f"Could not load data facility context: {e}")
+            return ""
+
     def _get_now_context(self) -> str:
         """Get current date/time context."""
         import datetime
@@ -534,7 +665,7 @@ Do NOT attempt to run a scan. Respond naturally in the user's language (English 
             # No truncation needed
             return "\n\n".join(text for text, _ in sections if text)
 
-        # Need to truncate — calculate how much to cut
+        # Need to truncate -- calculate how much to cut
         over_budget = total - self.max_tokens
 
         # Build list of truncatable sections (max_tokens > 0) in reverse priority
@@ -571,20 +702,20 @@ Do NOT attempt to run a scan. Respond naturally in the user's language (English 
         return "\n\n".join(result_parts)
 
 
-# ── Planning Instructions (always appended to scan prompts) ─────
+# -- Planning Instructions (always appended to scan prompts) -----
 
 _PLANNING_INSTRUCTIONS = """
 
 Plan your next move. Consider:
 1. What do we know from previous sessions about this target?
-2. What shell command would be most effective now? (Think freely — use pipes, redirects, scripting)
+2. What shell command would be most effective now? (Think freely -- use pipes, redirects, scripting)
 3. Do you need to research a vulnerability or tech stack? Use web_search.
 4. Have you found any vulnerabilities? Use submit_findings to report them IMMEDIATELY!
 5. Is a tool missing? Use ask_user to request installation.
-6. Check COVERAGE GAPS above — are there untested vulnerability classes on known endpoints?
-7. Check ACTIVE HYPOTHESES above — prioritize testing hypotheses with HIGH confidence.
-8. Check REFLECTION above — if strategy is stuck, try a completely different approach.
-9. Check PREVIOUSLY TESTED above — don't repeat the same test on the same endpoint.
+6. Check COVERAGE GAPS above -- are there untested vulnerability classes on known endpoints?
+7. Check ACTIVE HYPOTHESES above -- prioritize testing hypotheses with HIGH confidence.
+8. Check REFLECTION above -- if strategy is stuck, try a completely different approach.
+9. Check PREVIOUSLY TESTED above -- don't repeat the same test on the same endpoint.
 10. When you report a finding submit_findings, include the SPECIFIC endpoint and vulnerability type so coverage tracking can update.
 
 Use JSON format:

@@ -463,6 +463,123 @@ ARCTIC: Dict[str, str] = _validate(
 )
 
 
+# ---------------------------------------------------------------------------
+# NEON - electric blue / hot pink on deep black (cyber-noir)
+# ---------------------------------------------------------------------------
+
+NEON: Dict[str, str] = _validate(
+    {
+        "bg_dark": "#050510",
+        "bg_panel": "#0a0a1a",
+        "bg_card": "#0f0f24",
+        "bg_overlay": "#15152e",
+        "bg_input": "#080814",
+        "text": "#e8e8ff",
+        "muted": "#7878b0",
+        "dim": "#4a4a7a",
+        "inverse_text": "#050510",
+        "inverse_bg": "#00d4ff",
+        "primary": "#00d4ff",  # electric cyan
+        "secondary": "#ff2d7b",  # hot pink
+        "accent": "#7b61ff",  # violet
+        "highlight": "#00ffcc",  # neon mint
+        "success": "#00ffcc",
+        "warning": "#ffcc00",
+        "error": "#ff2d7b",
+        "info": "#00d4ff",
+        "critical": "#ff2d7b",
+        "high": "#ff6b35",
+        "medium": "#ffcc00",
+        "low": "#00ffcc",
+        "border": "#00d4ff",
+        "border_strong": "#7b61ff",
+        "border_glow": "#00ffcc",
+        "gradient_1": "#00d4ff",
+        "gradient_2": "#7b61ff",
+        "gradient_3": "#ff2d7b",
+    },
+    "NEON",
+)
+
+
+# ---------------------------------------------------------------------------
+# DRACULA - purple / pink / green (popular IDE theme)
+# ---------------------------------------------------------------------------
+
+DRACULA: Dict[str, str] = _validate(
+    {
+        "bg_dark": "#1e1e2e",
+        "bg_panel": "#282840",
+        "bg_card": "#313150",
+        "bg_overlay": "#3b3b5a",
+        "bg_input": "#1a1a2a",
+        "text": "#f8f8f2",
+        "muted": "#6272a4",
+        "dim": "#44475a",
+        "inverse_text": "#1e1e2e",
+        "inverse_bg": "#ff79c6",
+        "primary": "#ff79c6",  # pink
+        "secondary": "#bd93f9",  # purple
+        "accent": "#50fa7b",  # green
+        "highlight": "#8be9fd",  # cyan
+        "success": "#50fa7b",
+        "warning": "#f1fa8c",
+        "error": "#ff5555",
+        "info": "#8be9fd",
+        "critical": "#ff5555",
+        "high": "#ffb86c",
+        "medium": "#f1fa8c",
+        "low": "#50fa7b",
+        "border": "#6272a4",
+        "border_strong": "#ff79c6",
+        "border_glow": "#bd93f9",
+        "gradient_1": "#bd93f9",
+        "gradient_2": "#ff79c6",
+        "gradient_3": "#f1fa8c",
+    },
+    "DRACULA",
+)
+
+
+# ---------------------------------------------------------------------------
+# OBSIDIAN - deep charcoal with amber accents (premium dark)
+# ---------------------------------------------------------------------------
+
+OBSIDIAN: Dict[str, str] = _validate(
+    {
+        "bg_dark": "#0c0c0c",
+        "bg_panel": "#141414",
+        "bg_card": "#1c1c1c",
+        "bg_overlay": "#242424",
+        "bg_input": "#101010",
+        "text": "#d4d4d4",
+        "muted": "#6b6b6b",
+        "dim": "#404040",
+        "inverse_text": "#0c0c0c",
+        "inverse_bg": "#d4a017",
+        "primary": "#d4a017",  # amber gold
+        "secondary": "#b8860b",  # dark goldenrod
+        "accent": "#f0c040",  # bright gold
+        "highlight": "#ffd700",  # gold
+        "success": "#4caf50",
+        "warning": "#ff9800",
+        "error": "#e53935",
+        "info": "#42a5f5",
+        "critical": "#e53935",
+        "high": "#ff7043",
+        "medium": "#ffb300",
+        "low": "#4caf50",
+        "border": "#333333",
+        "border_strong": "#d4a017",
+        "border_glow": "#f0c040",
+        "gradient_1": "#b8860b",
+        "gradient_2": "#d4a017",
+        "gradient_3": "#f0c040",
+    },
+    "OBSIDIAN",
+)
+
+
 THEMES: Dict[str, Dict[str, str]] = {
     "DEFAULT": DEFAULT,
     "CYBERPUNK": CYBERPUNK,
@@ -473,6 +590,9 @@ THEMES: Dict[str, Dict[str, str]] = {
     "FOREST": FOREST,
     "SUNSET": SUNSET,
     "ARCTIC": ARCTIC,
+    "NEON": NEON,
+    "DRACULA": DRACULA,
+    "OBSIDIAN": OBSIDIAN,
 }
 
 
@@ -494,7 +614,7 @@ def _hex_to_rgb(value: str) -> Tuple[int, int, int]:
         return (255, 255, 255)
 
 
-def _rgb_to_hex(rgb: Tuple[int, int, int]) -> str:
+def _rgb_to_hex(rgb: Tuple[float, float, float]) -> str:
     """Convert an ``(r, g, b)`` tuple to ``"#rrggbb"``."""
     r, g, b = (max(0, min(255, round(c))) for c in rgb)
     return f"#{r:02x}{g:02x}{b:02x}"
@@ -595,7 +715,7 @@ class ThemeManager:
         if not self._transitioning:
             return dict(self._to_colors)
         t = self._transition_progress()
-        eased = Easing.apply(self._easing, t)
+        eased = Easing.apply(self._easing, t, 0.0, 1.0)
         return {
             k: lerp_color(
                 self._from_colors.get(k, "#ffffff"), self._to_colors.get(k, "#ffffff"), eased
@@ -618,7 +738,7 @@ class ThemeManager:
         """Return the names of all registered themes."""
         return list(THEMES.keys())
 
-    def register_listener(self, callback: callable) -> None:
+    def register_listener(self, callback: Callable) -> None:
         """Register a callable to be invoked on every transition tick.
 
         The callback receives ``(manager: ThemeManager)`` and may be a
@@ -779,6 +899,9 @@ __all__ = [
     "FOREST",
     "SUNSET",
     "ARCTIC",
+    "NEON",
+    "DRACULA",
+    "OBSIDIAN",
     "ThemeManager",
     "get_manager",
     "get_theme",

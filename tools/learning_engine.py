@@ -24,6 +24,10 @@ Public API:
         rank_tools(tech_stack, vuln_class) -> List[(tool, success_rate)]
         suggest_payloads(vuln_class, n=10) -> List[str]
         get_stats() -> Dict
+        consolidate(target=None) -> int
+        decay(max_age_days=90) -> int
+        record_adaptation(trigger, change, result)
+        suggest_adaptation(state) -> Optional[str]
 """
 
 from __future__ import annotations
@@ -35,7 +39,7 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 from elengenix.paths import get_data_path, get_data_dir
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger("elengenix.learning_engine")
 
@@ -128,11 +132,22 @@ class LearningEngine:
                 ON exploits(vuln_class, success);
             CREATE INDEX IF NOT EXISTS idx_exploits_tool
                 ON exploits(tool, vuln_class);
+
+            CREATE TABLE IF NOT EXISTS adaptations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                trigger_finding TEXT NOT NULL,
+                strategy_change TEXT NOT NULL,
+                result TEXT,
+                success INTEGER DEFAULT 1,
+                timestamp REAL
+            );
+            CREATE INDEX IF NOT EXISTS idx_adaptations_trigger
+                ON adaptations(trigger_finding);
         """
         )
         self._conn.commit()
 
-    # ── Remembering ──
+    # -- Remembering --
 
     def remember(self, record: ExploitRecord) -> int:
         """Store a past exploit. Returns the row ID."""
@@ -184,7 +199,7 @@ class LearningEngine:
         """Store many records at once. Returns list of IDs."""
         return [self.remember(r) for r in records]
 
-    # ── Recall ──
+    # -- Recall --
 
     def recall_similar(
         self,
@@ -373,10 +388,183 @@ class LearningEngine:
             "chroma_enabled": self._chroma_collection is not None,
         }
 
+    # -- Memory Management (Phase 3) --
+
+    def consolidate(self, target: Optional[str] = None) -> int:
+        """Merge similar exploit records, keep highest confidence.
+
+        Groups by (vuln_class, tool, payload_prefix) and keeps only the
+        record with the highest confidence in each group.
+
+        Args:
+            target: Optional target to consolidate for. If None, consolidates all.
+
+        Returns:
+            Number of duplicate records deleted.
+        """
+        cur = self._conn.cursor()
+        target_clause = "AND target = ?" if target else ""
+        params = [target] if target else []
+
+        # Find duplicates: same vuln_class + tool + similar payload
+        rows = cur.execute(
+            f"""
+            SELECT vuln_class, tool, SUBSTR(payload, 1, 50) as payload_prefix,
+                   MAX(confidence) as max_conf,
+                   GROUP_CONCAT(id) as ids,
+                   COUNT(*) as cnt
+            FROM exploits
+            WHERE success = 1 {target_clause}
+            GROUP BY vuln_class, tool, payload_prefix
+            HAVING cnt > 1
+        """,
+            params,
+        ).fetchall()
+
+        deleted = 0
+        for row in rows:
+            ids = [int(i) for i in row["ids"].split(",")]
+            # Keep the first one (highest confidence due to MAX), delete the rest
+            keep_id = ids[0]
+            delete_ids = ids[1:]
+            if delete_ids:
+                placeholders = ",".join("?" * len(delete_ids))
+                cur.execute(f"DELETE FROM exploits WHERE id IN ({placeholders})", delete_ids)
+                deleted += len(delete_ids)
+
+        self._conn.commit()
+        if deleted > 0:
+            logger.debug(f"Consolidated {deleted} duplicate exploit records")
+        return deleted
+
+    def decay(self, max_age_days: int = 90) -> int:
+        """Reduce confidence of old records and delete very old low-confidence ones.
+
+        Records older than max_age_days get confidence reduced by 10%.
+        Records older than max_age_days with confidence < 0.1 are deleted.
+
+        Args:
+            max_age_days: Age threshold in days.
+
+        Returns:
+            Number of records deleted.
+        """
+        cur = self._conn.cursor()
+        cutoff = time.time() - (max_age_days * 86400)
+
+        # Reduce confidence for old records
+        cur.execute(
+            """
+            UPDATE exploits
+            SET confidence = confidence * 0.9
+            WHERE timestamp < ? AND confidence > 0.1
+        """,
+            (cutoff,),
+        )
+
+        # Delete very old records with very low confidence
+        cur.execute(
+            """
+            DELETE FROM exploits
+            WHERE timestamp < ? AND confidence < 0.1
+        """,
+            (cutoff,),
+        )
+
+        deleted = cur.rowcount
+        self._conn.commit()
+        if deleted > 0:
+            logger.debug(f"Decayed and deleted {deleted} old exploit records")
+        return deleted
+
+    # -- Adaptation Tracking (Phase 4) --
+
+    def record_adaptation(
+        self,
+        trigger_finding: str,
+        strategy_change: str,
+        result: str,
+        success: bool = True,
+    ) -> int:
+        """Store successful strategy adaptations for reuse.
+
+        When the AI changes strategy and succeeds, store the chain
+        (trigger -> adaptation -> result) for future reference.
+
+        Args:
+            trigger_finding: What finding triggered the adaptation.
+            strategy_change: What strategy was changed.
+            result: Outcome of the adaptation.
+            success: Whether the adaptation was successful.
+
+        Returns:
+            Row ID of the stored adaptation.
+        """
+        cur = self._conn.cursor()
+        cur.execute(
+            """
+            INSERT INTO adaptations (trigger_finding, strategy_change, result, success, timestamp)
+            VALUES (?, ?, ?, ?, ?)
+        """,
+            (trigger_finding, strategy_change, result, int(success), time.time()),
+        )
+        self._conn.commit()
+        return cur.lastrowid or 0
+
+    def suggest_adaptation(self, current_state: str) -> Optional[str]:
+        """Suggest strategy adaptation based on past successes.
+
+        Looks for past adaptations where the trigger matches the current state.
+
+        Args:
+            current_state: Description of the current situation.
+
+        Returns:
+            Suggested adaptation or None if no match found.
+        """
+        cur = self._conn.cursor()
+        rows = cur.execute(
+            """
+            SELECT strategy_change, COUNT(*) as cnt
+            FROM adaptations
+            WHERE trigger_finding LIKE ? AND success = 1
+            GROUP BY strategy_change
+            ORDER BY cnt DESC
+            LIMIT 1
+        """,
+            (f"%{current_state}%",),
+        ).fetchone()
+
+        return rows["strategy_change"] if rows else None
+
+    def get_adaptation_stats(self) -> Dict[str, Any]:
+        """Get statistics about strategy adaptations."""
+        cur = self._conn.cursor()
+        total = cur.execute("SELECT COUNT(*) FROM adaptations").fetchone()[0]
+        successful = cur.execute(
+            "SELECT COUNT(*) FROM adaptations WHERE success=1"
+        ).fetchone()[0]
+        by_trigger = cur.execute(
+            """
+            SELECT trigger_finding, COUNT(*) as cnt
+            FROM adaptations
+            GROUP BY trigger_finding
+            ORDER BY cnt DESC
+            LIMIT 10
+        """
+        ).fetchall()
+        return {
+            "total_adaptations": total,
+            "successful_adaptations": successful,
+            "success_rate": round(successful / max(total, 1), 3),
+            "top_triggers": {r["trigger_finding"]: r["cnt"] for r in by_trigger},
+        }
+
     def reset(self) -> None:
         """Drop all data (for tests)."""
         cur = self._conn.cursor()
         cur.execute("DELETE FROM exploits")
+        cur.execute("DELETE FROM adaptations")
         self._conn.commit()
         if self._chroma_collection is not None:
             try:

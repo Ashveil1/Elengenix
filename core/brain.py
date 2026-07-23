@@ -693,14 +693,40 @@ class ElengenixAgent:
     # -- process universal ------------------------------------------------
 
     def process_universal(self, user_input: str, target: Optional[str] = None,
-                          mode: str = "auto") -> str:
+                          mode: str = "auto", callback: Optional[Callable] = None) -> str:
         self._check_context_overflow()
         if self.mode_processor is not None:
             return self.mode_processor.process_universal(
-                user_input, target=target, mode=mode
+                user_input,
+                conversation_history=self.conversation_history,
+                base_prompt=self.base_prompt,
+                callback=callback,
+                target=target or "",
+                mode=mode,
             )
+        if self.client is None:
+            self._init_client()
+        if self.client is None:
+            return "Error: No AI client configured. Set an API key in Settings (Ctrl+,)."
         from elengenix.scanning.universal import process_universal as _run
-        return _run(mode, user_input, target=target or "")
+        return _run(
+            user_input,
+            client=self.client,
+            conversation_history=self.conversation_history,
+            base_prompt=self.base_prompt,
+            governance=self.governance,
+            target=target or "",
+            mode=mode,
+            callback=callback,
+        )
+
+    def _init_client(self) -> None:
+        """Lazily initialise the AI client from environment config."""
+        try:
+            from tools.universal_ai_client import UniversalAIClient
+            self.client = UniversalAIClient()
+        except Exception:
+            self.client = None
 
     # -- process hybrid ---------------------------------------------------
 

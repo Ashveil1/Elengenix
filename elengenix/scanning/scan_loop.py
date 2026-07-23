@@ -96,6 +96,11 @@ class ScanLoop:
         self.replan_every = max(0, int(replan_every))
         self._replan_count = 0
 
+        # Lazy-init StrategicMemory (cross-session knowledge graph +
+        # learning + vector). Used to record findings and recall
+        # strategies on the next mission / step.
+        self._strategic_memory = None
+
     async def run(
         self,
         ctx: "ScanContext",
@@ -206,6 +211,15 @@ class ScanLoop:
             findings_to_store.extend(ai_findings)
             self._store_to_learning_engine(ctx, tool_name, command, result, findings_to_store)
 
+            # Phase 5c-bis: Record findings to the cross-session
+            # StrategicMemory (knowledge graph + learning + vector).
+            # This is what lets the AI on the NEXT mission (or even next
+            # step) recall "what worked / what failed / what chains
+            # succeeded" on similar targets — the senior-pentester pattern
+            # memory that LearningEngine alone cannot capture.
+            if findings_to_store:
+                self._record_to_strategic_memory(ctx, decision, findings_to_store, tool_name, command)
+
             # Phase 5d: Record adaptation if strategy changed and found something
             if findings_to_store and getattr(decision, "source", "") == "ai_dynamic":
                 self._record_adaptation(ctx, decision, findings_to_store)
@@ -305,6 +319,74 @@ class ScanLoop:
 
         except Exception as e:
             logger.debug(f"Could not store to LearningEngine: {e}")
+
+    def _get_strategic_memory(self):
+        """Lazy-init StrategicMemory facade (knowledge graph + learning + vector)."""
+        if self._strategic_memory is None:
+            try:
+                from tools.strategic_memory import StrategicMemory
+                self._strategic_memory = StrategicMemory()
+            except Exception as e:
+                logger.debug(f"StrategicMemory unavailable: {e}")
+                self._strategic_memory = False  # marker: unavailable
+        return self._strategic_memory if self._strategic_memory is not False else None
+
+    def _record_to_strategic_memory(
+        self,
+        ctx: "ScanContext",
+        decision,
+        findings: List[Dict[str, Any]],
+        tool_name: str,
+        command: str,
+    ) -> None:
+        """Record each finding to the cross-session StrategicMemory.
+
+        Captures: target, endpoint, tech_stack, vuln_class, tool, payload,
+        severity, success — so future missions (and future steps) can recall
+        "what worked / what failed" via the knowledge graph.
+
+        Best-effort: failures here MUST NOT break the scan loop.
+        """
+        sm = self._get_strategic_memory()
+        if sm is None:
+            return
+        try:
+            tech_stack = []
+            if hasattr(ctx, "assets") and ctx.assets:
+                tech_stack = ctx.assets.get("tech_stack", []) or []
+            target = getattr(ctx, "target", "") or ""
+            mission_id = getattr(ctx, "mission_key", "") or None
+
+            for finding in findings or []:
+                endpoint = (
+                    finding.get("url")
+                    or finding.get("target_endpoint")
+                    or finding.get("endpoint")
+                    or "/"
+                )
+                vuln_class = (
+                    finding.get("type")
+                    or finding.get("vuln_class")
+                    or "unknown"
+                )
+                payload = finding.get("payload") or command[:500] or ""
+                severity = finding.get("severity", "unknown")
+                confidence = float(finding.get("confidence", 0.5) or 0.5)
+                success = bool(finding.get("verified", True))
+                sm.record_finding(
+                    target=target,
+                    endpoint=endpoint,
+                    tech_stack=tech_stack,
+                    vuln_class=vuln_class,
+                    tool=tool_name,
+                    payload=payload,
+                    severity=severity,
+                    success=success,
+                    confidence=confidence,
+                    mission_id=mission_id,
+                )
+        except Exception as e:
+            logger.debug(f"StrategicMemory record failed: {e}")
 
     def _record_adaptation(
         self,

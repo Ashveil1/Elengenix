@@ -36,7 +36,7 @@ from textual.containers import Container, Horizontal
 from textual.reactive import reactive
 from textual.widgets import Static
 
-from .themes import get_theme
+from .themes import get_theme, lerp_color as _mix
 from .visualizations import RiskGauge, SeverityChart
 
 logger = logging.getLogger("elengenix.tui.dashboard")
@@ -440,34 +440,41 @@ class ThreatDashboard(Container):
         accent = theme.get("accent", "#ffffff")
         score = int(round(self.risk_score))
         score_color = (
-            theme.get("critical")
+            theme.get("critical", "#ff003c")
             if score >= 80
             else (
-                theme.get("high")
+                theme.get("high", "#ff5500")
                 if score >= 60
-                else theme.get("medium")
+                else theme.get("medium", "#ffb300")
                 if score >= 30
-                else theme.get("low")
+                else theme.get("low", "#81c784")
             )
         )
 
-        line = Text()
-        line.append(" ELENGENIX", style=f"bold {primary}")
-        line.append("  /  ", style=muted)
-        line.append("THREAT DASHBOARD", style=f"bold {text}")
-        line.append("  /  ", style=muted)
-        line.append(f"TARGET: {self.target}", style=accent)
-        line.append("  /  ", style=muted)
-        line.append(f"RISK: {score}", style=f"bold {score_color}")
-        line.append("  /  ", style=muted)
-        line.append(f"THEME: {self.theme_name}", style=text)
-        line.append("  ", style="")
-        line.append(self.clock, style=f"bold {primary}")
+        # Risk indicator mini-bar (10 chars)
+        risk_bar_filled = int(score / 10)
+        risk_bar = "\u2588" * risk_bar_filled + "\u2591" * (10 - risk_bar_filled)
 
+        line = Text()
+        line.append(" \u25b6 ", style=f"bold {primary}")
+        line.append("ELENGENIX", style=f"bold {primary}")
+        line.append(" \u2502 ", style="#333333")
+        line.append("DASHBOARD", style=f"bold {text}")
+        line.append(" \u2502 ", style="#333333")
+        line.append(self.target, style=f"bold {accent}")
+        line.append(" \u2502 ", style="#333333")
+        line.append(" RISK ", style=muted)
+        line.append(f"{score:3d}", style=f"bold {score_color}")
+        line.append(f" [{risk_bar}]", style=score_color)
+        line.append(" \u2502 ", style="#333333")
+        line.append(self.clock, style=f"bold {muted}")
+
+        # Border color reflects risk level
+        border = score_color if score >= 60 else primary
         widget.update(
             Panel(
                 line,
-                border_style=primary,
+                border_style=border,
                 box=HEAVY,
                 padding=(0, 1),
             )
@@ -499,32 +506,57 @@ class ThreatDashboard(Container):
             "low": theme.get("low", "#81c784"),
             "info": theme.get("info", "#888888"),
         }
+        # Severity-specific marker glyphs (more variety = more alive)
+        sev_glyphs = {
+            "critical": ["\u25cf", "\u2666", "\u2b24"],  # filled circle, diamond, octagon
+            "high": ["\u25c6", "\u2666", "\u2b23"],       # diamond, diamond, hexagon
+            "medium": ["\u25c9", "\u25cb", "\u25ce"],     # fisheye, circle, bullseye
+            "low": ["\u25cf", "\u25cb", "\u25cc"],        # filled, open, dotted circle
+            "info": ["\u00b7", "\u2022", "\u25e6"],       # middle dot, bullet, open bullet
+        }
 
-        grid = [[" "] * self._threatmap_w for _ in range(self._threatmap_h)]
+        # Build the grid with a richer background pattern
+        grid: list = [[" "] * self._threatmap_w for _ in range(self._threatmap_h)]
         for y, row in enumerate(grid):
             for x in range(self._threatmap_w):
-                # Background latitude/longitude lines.
                 if y == 0 or y == self._threatmap_h - 1:
-                    row[x] = ("-", muted)
+                    row[x] = ("\u2500", f"#222222")  # thin horizontal line
                 elif x == 0 or x == self._threatmap_w - 1:
-                    row[x] = ("|", muted)
-                elif (x + y) % 8 == 0:
-                    row[x] = (".", muted)
+                    row[x] = ("\u2502", f"#222222")  # thin vertical line
+                elif (x + y) % 12 == 0:
+                    row[x] = ("\u00b7", "#1a1a1a")   # subtle grid dots
+                elif (x + y) % 6 == 0:
+                    row[x] = ("\u2022", "#151515")   # secondary dots
+
+        # Place markers with pulsing animation
         for m in self.markers:
             if 0 <= m.x < self._threatmap_w and 0 <= m.y < self._threatmap_h:
                 color = sev_colors.get(m.severity, primary)
-                # Pulsing glyph: + at pulse=0, * at pulse=0.5, + at pulse=1.
-                glyph = "*" if 0.3 < m.pulse < 0.7 else "+"
+                glyphs = sev_glyphs.get(m.severity, ["+"])
+                # Cycle through glyphs based on pulse phase
+                glyph_idx = int(m.pulse * len(glyphs)) % len(glyphs)
+                glyph = glyphs[glyph_idx]
                 grid[m.y][m.x] = (glyph, f"bold {color}")
-                # 4-directional pulse ring (subtle).
-                ring = "."
-                for dx, dy in ((-1, 0), (1, 0), (0, -1), (0, 1)):
+
+                # Pulse ring: 8-directional for critical, 4 for others
+                if m.severity in ("critical", "high"):
+                    ring_offsets = [(-1, 0), (1, 0), (0, -1), (0, 1),
+                                    (-1, -1), (1, -1), (-1, 1), (1, 1)]
+                    ring_ch = "\u2571" if m.pulse < 0.5 else "\u2572"
+                else:
+                    ring_offsets = [(-1, 0), (1, 0), (0, -1), (0, 1)]
+                    ring_ch = "\u00b7"
+
+                for dx, dy in ring_offsets:
                     nx, ny = m.x + dx, m.y + dy
                     if 0 <= nx < self._threatmap_w and 0 <= ny < self._threatmap_h:
-                        if grid[ny][nx][0] in (" ", "-", "|", "."):
-                            grid[ny][nx] = (ring, color)
+                        existing = grid[ny][nx][0] if isinstance(grid[ny][nx], tuple) else grid[ny][nx]
+                        if existing in (" ", "\u00b7", "\u2022", "\u2500", "\u2502"):
+                            ring_intensity = 0.4 + 0.6 * m.pulse
+                            grid[ny][nx] = (ring_ch, color)
 
-        text = Text()
+        # Render the grid
+        tm_text = Text()
         for y, row in enumerate(grid):
             for item in row:
                 if isinstance(item, str):
@@ -532,18 +564,31 @@ class ThreatDashboard(Container):
                 else:
                     ch, style = item
                 if ch == " ":
-                    text.append(" ")
+                    tm_text.append(" ")
                 elif style:
-                    text.append(ch, style=style)
+                    tm_text.append(ch, style=style)
                 else:
-                    text.append(ch)
+                    tm_text.append(ch)
             if y < len(grid) - 1:
-                text.append("\n")
-        title = Text("THREAT MAP", style=f"bold {text}")
-        title.append(f"  markers: {len(self.markers)}", style=muted)
+                tm_text.append("\n")
+
+        # Legend strip at the bottom
+        legend = Text()
+        legend.append(" ", style="")
+        for sev, color in sev_colors.items():
+            glyph = sev_glyphs.get(sev, ["?"])[0]
+            legend.append(f" {glyph} {sev.upper()}", style=f"bold {color}")
+            legend.append(" ", style="")
+        legend.append(f"  [{len(self.markers)} active]", style=muted)
+
+        from rich.console import Group as RichGroup
+        body = RichGroup(tm_text, legend)
+
+        title = Text("THREAT MAP", style=f"bold {primary}")
+        title.append(f"  {len(self.markers)} markers", style=muted)
         widget.update(
             Panel(
-                text,
+                body,
                 title=title,
                 border_style=primary,
                 box=ROUNDED,
@@ -621,26 +666,54 @@ class ThreatDashboard(Container):
             "low": theme.get("low", "#81c784"),
             "info": theme.get("info", "#888888"),
         }
+        sev_badges = {
+            "critical": "CRIT",
+            "high": "HIGH",
+            "medium": " MED",
+            "low": " LOW",
+            "info": "INFO",
+        }
         items = sorted(self.findings, key=lambda f: f.timestamp, reverse=True)[: self._max_findings]
+
+        # Summary header
+        counts = {}
+        for f in items:
+            counts[f.severity] = counts.get(f.severity, 0) + 1
+
         if not items:
             body = Text("  (no findings yet)", style=muted)
         else:
             rows: List[Text] = []
-            for f in items:
+            for i, f in enumerate(items):
                 color = sev_colors.get(f.severity, primary)
+                badge = sev_badges.get(f.severity, " ? ")
                 line = Text()
-                line.append(f" {f.timestamp.strftime('%H:%M:%S')} ", style=muted)
-                line.append(f"[{f.severity.upper():8s}] ", style=f"bold {color}")
-                line.append(f.title[:42], style=text)
+                # Severity badge (colored background)
+                line.append(f" {badge} ", style=f"bold black on {color}")
+                line.append(" ", style="")
+                line.append(f.title[:40], style=f"bold {text}" if f.severity in ("critical", "high") else text)
                 if f.location:
-                    line.append(f"  {f.location[:24]}", style=muted)
+                    line.append(f"  {f.location[:20]}", style=muted)
                 rows.append(line)
+                # Add separator between items (not after the last one)
+                if i < len(items) - 1:
+                    rows.append(Text(" \u2500" * 38, style="#1a1a1a"))
             body = Group(*rows)
+
+        # Build title with severity summary
+        title = Text("FINDINGS", style=f"bold {text}")
+        if counts:
+            title.append("  ", style="")
+            for sev in ["critical", "high", "medium", "low", "info"]:
+                if counts.get(sev, 0) > 0:
+                    color = sev_colors.get(sev, muted)
+                    title.append(f" {counts[sev]}", style=f"bold {color}")
+                    title.append(f"{sev[0].upper()}", style=color)
 
         widget.update(
             Panel(
                 body,
-                title=f"[bold {text}]FINDINGS FEED[/bold {text}]",
+                title=title,
                 border_style=primary,
                 box=ROUNDED,
                 padding=(0, 1),
@@ -654,39 +727,60 @@ class ThreatDashboard(Container):
         text = theme.get("text", "#ffffff")
         muted = theme.get("muted", "#888888")
 
-        def _bar(value: float, width: int = 18) -> Text:
+        def _bar(value: float, width: int = 20) -> Text:
             filled = int(round((value / 100.0) * width))
-            color = (
-                theme.get("critical", "#ff003c")
-                if value >= 80
-                else (
-                    theme.get("high", "#ff5500")
-                    if value >= 60
-                    else (
-                        theme.get("medium", "#ffb300")
-                        if value >= 30
-                        else theme.get("low", "#81c784")
+            # Gradient bar: dark at start, color at end
+            bar = Text()
+            for i in range(width):
+                if i < filled:
+                    intensity = i / max(1, filled - 1) if filled > 1 else 1.0
+                    color = (
+                        theme.get("critical", "#ff003c")
+                        if value >= 80
+                        else (
+                            theme.get("high", "#ff5500")
+                            if value >= 60
+                            else (
+                                theme.get("medium", "#ffb300")
+                                if value >= 30
+                                else theme.get("low", "#81c784")
+                            )
+                        )
                     )
-                )
-            )
-            return Text(
-                "\u2588" * filled + "\u2591" * (width - filled) + f" {int(round(value)):3d}%",
-                style=color,
-            )
+                    c = _mix("#333333", color, 0.3 + intensity * 0.7)
+                    bar.append("\u2588", style=f"bold {c}")
+                else:
+                    bar.append("\u2591", style="#1a1a1a")
+            bar.append(f" {int(round(value)):3d}%", style=text)
+            return bar
+
+        def _net_bar(value: float, max_val: float = 500.0, width: int = 20) -> Text:
+            ratio = min(1.0, value / max_val)
+            filled = int(ratio * width)
+            bar = Text()
+            for i in range(width):
+                if i < filled:
+                    intensity = i / max(1, filled - 1) if filled > 1 else 1.0
+                    c = _mix("#333333", primary, 0.3 + intensity * 0.7)
+                    bar.append("\u2588", style=f"bold {c}")
+                else:
+                    bar.append("\u2591", style="#1a1a1a")
+            bar.append(f" {value:7.1f}k", style=text)
+            return bar
 
         body = Table(
-            show_header=False,
+            show_header=True,
+            header_style=f"bold {muted}",
             box=SIMPLE,
             padding=(0, 0),
             expand=True,
         )
         body.add_column("Label", style=muted, width=10)
-        body.add_column("Bar", width=24)
-        body.add_column("Value", style=text, justify="right", width=8)
-        body.add_row("CPU", _bar(self.stats.cpu), f"{self.stats.cpu:.1f}%")
-        body.add_row("MEMORY", _bar(self.stats.memory), f"{self.stats.memory:.1f}%")
-        body.add_row("NET IN", Text(f"{self.stats.net_in:7.1f} kbps", style=text), "")
-        body.add_row("NET OUT", Text(f"{self.stats.net_out:7.1f} kbps", style=text), "")
+        body.add_column("Bar", width=32)
+        body.add_row("CPU", _bar(self.stats.cpu))
+        body.add_row("MEMORY", _bar(self.stats.memory))
+        body.add_row("NET \u2191", _net_bar(self.stats.net_in))
+        body.add_row("NET \u2193", _net_bar(self.stats.net_out))
 
         widget.update(
             Panel(
@@ -711,31 +805,51 @@ class ThreatDashboard(Container):
             "low": theme.get("low", "#81c784"),
             "info": theme.get("info", "#888888"),
         }
+        sev_dots = {
+            "critical": "\u25cf",  # filled circle
+            "high": "\u25c6",      # diamond
+            "medium": "\u25cb",    # open circle
+            "low": "\u25cc",       # dotted circle
+            "info": "\u00b7",      # middle dot
+        }
         if not self.hosts:
             body = Text("  (no hosts discovered)", style=muted)
         else:
             rows: List[Text] = []
-            # Fake "spine" connecting all hosts - the gateway is the root.
             for i, h in enumerate(self.hosts[: self._topology_h]):
                 color = sev_colors.get(h.risk, primary)
-                indent = "  " if i == 0 else "  |  "
-                branch = "[ROOT]" if i == 0 else "+-- "
-                rows.append(
-                    Text.assemble(
-                        (indent, muted),
-                        (branch, color),
-                        (h.ip, f"bold {text}"),
-                        ("  ", ""),
-                        (f"{h.role:<8s}", muted),
-                        (f"  [{h.risk.upper():7s}]", f"bold {color}"),
-                    )
-                )
+                dot = sev_dots.get(h.risk, "\u00b7")
+                is_last = (i == len(self.hosts) - 1) or (i >= self._topology_h - 1)
+                is_root = (i == 0)
+
+                if is_root:
+                    connector = " \u25b6 "  # arrow for root
+                    prefix = "   "
+                else:
+                    connector = " \u2514\u2500\u2500 "  # L-shaped connector
+                    prefix = " \u2502  " if not is_last else "    "
+
+                line = Text()
+                line.append(prefix, style="#333333")
+                line.append(connector, style=color)
+                line.append(dot, style=f"bold {color}")
+                line.append(" ", style="")
+                line.append(h.ip, style=f"bold {text}")
+                line.append(" ", style="")
+                line.append(f"{h.role}", style=muted)
+                line.append(f"  ", style="")
+                line.append(f"[{h.risk.upper()}]", style=f"bold {color}")
+                rows.append(line)
             body = Group(*rows)
+
+        # Host count in title
+        title = Text("TOPOLOGY", style=f"bold {text}")
+        title.append(f"  {len(self.hosts)} hosts", style=muted)
 
         widget.update(
             Panel(
                 body,
-                title=f"[bold {text}]TOPOLOGY[/bold {text}]",
+                title=title,
                 border_style=primary,
                 box=ROUNDED,
                 padding=(0, 1),

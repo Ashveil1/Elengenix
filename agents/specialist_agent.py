@@ -27,7 +27,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger("elengenix.specialist")
 
 
-# ── Sub-Workers ────────────────────────────────────────────────────────────────
+# -- Sub-Workers ----------------------------------------------------------------
 
 
 class ExploitWorker(BaseWorker):
@@ -198,7 +198,7 @@ class FuzzerWorker(BaseWorker):
         )
 
 
-# ── SpecialistAgent ─────────────────────────────────────────────────────────────
+# -- SpecialistAgent -------------------------------------------------------------
 
 
 class SpecialistAgent:
@@ -213,6 +213,7 @@ class SpecialistAgent:
         governance: Governance instance for safety gating.
         enable_workers: If True, ExploitWorker and FuzzerWorker are active.
         max_retries: How many times to retry a failed AI decision.
+        memory: Optional AgentMemory instance for cross-session learning.
     """
 
     EXECUTE_PROMPT = """You are an elite security specialist. Execute the given task precisely.
@@ -232,6 +233,8 @@ Decide ONE action:
 Context from recent history:
 {history_context}
 
+{learning_context}
+
 Respond ONLY with valid JSON. No extra text."""
 
     def __init__(
@@ -241,6 +244,7 @@ Respond ONLY with valid JSON. No extra text."""
         governance: Any = None,
         enable_workers: bool = True,
         max_retries: int = 2,
+        memory: Any = None,
     ) -> None:
         self.client = client
         self.model_label = model_label
@@ -248,6 +252,7 @@ Respond ONLY with valid JSON. No extra text."""
         self.enable_workers = enable_workers
         self.max_retries = max_retries
         self.total_tokens_used: int = 0
+        self.memory = memory  # Optional cross-session memory
 
         self._history: List[str] = []
         self._all_findings: List[Dict[str, Any]] = []
@@ -287,6 +292,9 @@ Respond ONLY with valid JSON. No extra text."""
         # History context
         history_ctx = "\n".join(self._history[-4:]) if self._history else "(none)"
 
+        # Learning context (cross-session memory)
+        learning_ctx = self._build_learning_context(target, description)
+
         prompt = self.EXECUTE_PROMPT.format(
             task_description=description,
             target=target,
@@ -294,6 +302,7 @@ Respond ONLY with valid JSON. No extra text."""
             risk=risk,
             available_tools=tool_list or tool_hint or "python_scanner, dns_lookup, http_probe",
             history_context=history_ctx,
+            learning_context=learning_ctx,
         )
 
         # Get AI decision
@@ -320,6 +329,10 @@ Respond ONLY with valid JSON. No extra text."""
         # Execute
         result = self._dispatch(action, decision, target, description)
 
+        # Store findings to LearningEngine for cross-session learning
+        if result.findings:
+            self._store_findings_to_learning_engine(result.findings, target, action)
+
         # Track history
         self._history.append(f"[{action.upper()}] {description}: {len(result.findings)} findings")
         self._all_findings.extend(result.findings)
@@ -335,6 +348,73 @@ Respond ONLY with valid JSON. No extra text."""
         )
 
         return result
+
+    def _build_learning_context(self, target: str, task_description: str) -> str:
+        """Build learning context from cross-session memory.
+
+        Queries LearningEngine for relevant past exploits and tool rankings.
+        """
+        try:
+            from tools.learning_engine import LearningEngine
+
+            engine = LearningEngine()
+
+            # Get tool rankings
+            tool_rankings = engine.rank_tools(limit=5)
+
+            # Get suggested payloads for common vuln classes
+            payload_suggestions = {}
+            for vuln_class in ["sqli", "xss", "ssrf", "rce"]:
+                payloads = engine.suggest_payloads(vuln_class, n=3)
+                if payloads:
+                    payload_suggestions[vuln_class] = payloads
+
+            # Build context
+            lines = []
+
+            if tool_rankings:
+                lines.append("### PAST TOOL SUCCESS RATES:")
+                for tool, rate, samples in tool_rankings:
+                    lines.append(f"  - {tool}: {rate:.0%} success ({samples} samples)")
+
+            if payload_suggestions:
+                lines.append("### PAYLOADS THAT WORKED BEFORE:")
+                for vuln_class, payloads in payload_suggestions.items():
+                    lines.append(f"  - {vuln_class}: {', '.join(payloads[:3])}")
+
+            return "\n".join(lines) if lines else ""
+
+        except Exception as e:
+            logger.debug(f"Could not load learning context: {e}")
+            return ""
+
+    def _store_findings_to_learning_engine(
+        self,
+        findings: List[Dict[str, Any]],
+        target: str,
+        tool_name: str,
+    ) -> None:
+        """Store findings to LearningEngine for cross-session learning."""
+        try:
+            from tools.learning_engine import LearningEngine, ExploitRecord
+
+            engine = LearningEngine()
+
+            for finding in findings[:5]:  # Store up to 5 findings
+                record = ExploitRecord(
+                    target=target,
+                    tech_stack=finding.get("tech_stack", ["web"]),
+                    vuln_class=finding.get("type", "unknown"),
+                    tool=tool_name,
+                    payload=finding.get("evidence", "")[:500],
+                    success=True,
+                    confidence=finding.get("confidence", 0.5),
+                    severity=finding.get("severity", "unknown"),
+                )
+                engine.remember(record)
+
+        except Exception as e:
+            logger.debug(f"Could not store to LearningEngine: {e}")
 
     def _dispatch(
         self,
@@ -385,7 +465,6 @@ Respond ONLY with valid JSON. No extra text."""
         import asyncio
         from pathlib import Path
         from elengenix.paths import get_reports_path
-        from typing import (
         from tools.tool_registry import registry
 
         tool_name = decision.get("tool", "")
@@ -521,7 +600,7 @@ Respond ONLY with valid JSON. No extra text."""
         return None
 
 
-# ── Helpers ────────────────────────────────────────────────────────────────────
+# -- Helpers ----------------------------------------------------------------------
 
 
 def _parse_json(text: str) -> Optional[Dict[str, Any]]:

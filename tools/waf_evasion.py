@@ -7,6 +7,7 @@ Purpose:
 - Mutate payloads based on WAF feedback (adaptive strategy)
 - Learn which mutation techniques work against specific WAFs
 - Provide evidence-based bypass candidates
+- Persist learned strategies across sessions via LearningEngine
 
 Safety:
 - Only sends test payloads to user-specified endpoints
@@ -16,6 +17,7 @@ Safety:
 
 from __future__ import annotations
 
+import json
 import logging
 import random
 import re
@@ -51,9 +53,10 @@ class WAFEvasionEngine:
     """
     Adaptive WAF evasion engine with feedback loop.
     Learns which mutations work against detected WAF signatures.
+    Persists learned strategies across sessions via LearningEngine.
     """
 
-    # Known WAF indicators — centralized via waf_signatures module
+    # Known WAF indicators -- centralized via waf_signatures module
     @property
     def WAF_SIGNATURES(self):
         try:
@@ -80,6 +83,9 @@ class WAFEvasionEngine:
         self.rate_limit_rps = max(0.2, float(rate_limit_rps))
         self._last_req_ts = 0.0
         self._learned_strategies: Dict[str, List[str]] = {}  # WAF type -> effective techniques
+
+        # Load persisted strategies from LearningEngine
+        self._load_learned_strategies()
 
     def _sleep_rate_limit(self) -> None:
         min_interval = 1.0 / self.rate_limit_rps
@@ -225,7 +231,7 @@ class WAFEvasionEngine:
         """
         techniques = self._get_mutation_techniques()
 
-        # Prioritize based on learned strategies
+        # Prioritize based on learned strategies (including persisted ones)
         if waf_type and waf_type in self._learned_strategies:
             effective = self._learned_strategies[waf_type]
             techniques.sort(key=lambda t: (0 if t.name in effective else 1, random.random()))
@@ -271,6 +277,7 @@ class WAFEvasionEngine:
         """
         Test mutations against target and learn which work.
         Returns list of results with bypass success indicators.
+        Persists successful strategies to LearningEngine.
         """
         results: List[WAFTestResult] = []
 
@@ -306,6 +313,10 @@ class WAFEvasionEngine:
                     if tech not in self._learned_strategies[detected_waf]:
                         self._learned_strategies[detected_waf].append(tech)
 
+        # Persist learned strategies after test
+        if self._learned_strategies:
+            self._persist_learned_strategies()
+
         return results
 
     def get_best_bypass(self, results: List[WAFTestResult]) -> Optional[WAFTestResult]:
@@ -323,3 +334,62 @@ class WAFEvasionEngine:
     def import_learned_strategies(self, data: Dict[str, List[str]]) -> None:
         """Import previously learned strategies."""
         self._learned_strategies.update(data)
+
+    # -- Cross-Session Persistence (Phase 5) --
+
+    def _persist_learned_strategies(self) -> None:
+        """Save learned WAF bypass techniques to LearningEngine."""
+        try:
+            from tools.learning_engine import LearningEngine, ExploitRecord
+
+            engine = LearningEngine()
+
+            for waf_type, techniques in self._learned_strategies.items():
+                for technique in techniques:
+                    record = ExploitRecord(
+                        target=self.base_url,
+                        tech_stack=["waf", waf_type],
+                        vuln_class="waf_bypass",
+                        tool="waf_evasion",
+                        payload=f"technique:{technique}",
+                        success=True,
+                        confidence=0.8,
+                        severity="medium",
+                        notes=f"WAF bypass technique for {waf_type}: {technique}",
+                    )
+                    engine.remember(record)
+
+            logger.debug(f"Persisted {sum(len(v) for v in self._learned_strategies.values())} WAF strategies")
+
+        except Exception as e:
+            logger.debug(f"Could not persist WAF strategies: {e}")
+
+    def _load_learned_strategies(self) -> None:
+        """Load past WAF bypass techniques from LearningEngine."""
+        try:
+            from tools.learning_engine import LearningEngine
+
+            engine = LearningEngine()
+
+            # Query for WAF bypass records
+            similar = engine.recall_similar(
+                tech_stack=["waf"],
+                vuln_class="waf_bypass",
+                limit=50,
+            )
+
+            for record in similar:
+                if record.payload.startswith("technique:"):
+                    technique = record.payload.replace("technique:", "")
+                    waf_type = record.tech_stack[1] if len(record.tech_stack) > 1 else "generic"
+                    if waf_type not in self._learned_strategies:
+                        self._learned_strategies[waf_type] = []
+                    if technique not in self._learned_strategies[waf_type]:
+                        self._learned_strategies[waf_type].append(technique)
+
+            if self._learned_strategies:
+                total = sum(len(v) for v in self._learned_strategies.values())
+                logger.debug(f"Loaded {total} WAF strategies from LearningEngine")
+
+        except Exception as e:
+            logger.debug(f"Could not load WAF strategies: {e}")

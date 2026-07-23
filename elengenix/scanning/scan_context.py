@@ -98,6 +98,11 @@ class ScanContext:
     # ── Reflection state ──
     last_reflection: Any = None
 
+    # ── Interactive mode state ──
+    last_command: str = ""
+    last_output: str = ""
+    last_command_success: bool = False
+
     def __post_init__(self):
         if not self.target:
             raise ValueError("ScanContext.target must not be empty")
@@ -188,6 +193,16 @@ class ScanContext:
     def append_history(self, role: str, content: str) -> None:
         """Append a message to the conversation history."""
         self.history.append({"role": role, "content": content})
+
+    def set_last_command_output(self, command: str, output: str, success: bool = True) -> None:
+        """Store the most recent command and its output for interactive feedback.
+
+        This makes the output available to the AI in the very next decision
+        cycle, without waiting for the full history to be processed.
+        """
+        self.last_command = command
+        self.last_output = output
+        self.last_command_success = success
 
     @property
     def has_findings(self) -> bool:

@@ -54,6 +54,26 @@ DEFAULT_SEVERITY_COLORS: Dict[str, str] = {
 }
 
 
+def _mix(a: str, b: str, t: float) -> str:
+    """Linearly interpolate two hex colours."""
+    t = max(0.0, min(1.0, float(t)))
+    a = a.lstrip("#")
+    b = b.lstrip("#")
+    if len(a) == 3:
+        a = "".join(c * 2 for c in a)
+    if len(b) == 3:
+        b = "".join(c * 2 for c in b)
+    try:
+        ra, ga, ba = int(a[0:2], 16), int(a[2:4], 16), int(a[4:6], 16)
+        rb, gb, bb = int(b[0:2], 16), int(b[2:4], 16), int(b[4:6], 16)
+    except (ValueError, IndexError):
+        return a
+    r = int(ra + (rb - ra) * t)
+    g = int(ga + (gb - ga) * t)
+    bv = int(ba + (bb - ba) * t)
+    return f"#{r:02x}{g:02x}{bv:02x}"
+
+
 def _color_for(
     severity: str,
     severity_colors: Optional[Dict[str, str]] = None,
@@ -439,25 +459,27 @@ class AttackSurfaceMap:
 class RiskGauge:
     """Radial gauge (speedometer style) rendered with ASCII art.
 
-    The arc is drawn with box-drawing characters, with a tick mark and
-    label at major positions. The current value is highlighted, and a
-    short caption is shown below the arc.
+    The arc is drawn with smooth box-drawing characters and Braille
+    elements for higher resolution. The current value is highlighted with
+    a glowing needle, and tick marks appear at major positions.
 
     Example:
         gauge = RiskGauge(value=73, max_value=100, label="RISK SCORE")
         console.print(gauge.render())
     """
 
-    # Half-circle arc characters (top half), from -90 deg (left) to +90 deg (right).
-    ARC = " \u2570\u256f\u256d\u256e\u2588"
-    TICKS = "|----+----+----+----+----+"
+    # Arc character palette: dim, filled, and glow.
+    ARC_DIM = "\u2592"  # medium shade
+    ARC_FILL = "\u2588"  # full block
+    ARC_GLOW = "\u2593"  # dark shade (for glow halo)
+    NEEDLE = "\u25cf"  # filled circle (needle tip)
 
     def __init__(
         self,
         value: float = 0.0,
         max_value: float = 100.0,
         label: str = "RISK",
-        width: int = 32,
+        width: int = 36,
         height: int = 10,
         low_color: str = "#81c784",
         mid_color: str = "#ffb300",
@@ -467,7 +489,7 @@ class RiskGauge:
         self.value = max(0.0, float(value))
         self.max_value = max(1.0, float(max_value))
         self.label = label
-        self.width = max(16, width)
+        self.width = max(20, width)
         self.height = max(6, height)
         self.low_color = low_color
         self.mid_color = mid_color
@@ -475,58 +497,79 @@ class RiskGauge:
         self.unit = unit
 
     def _arc_color(self, ratio: float) -> str:
-        if ratio < 0.5:
-            return self.low_color
-        if ratio < 0.8:
-            return self.mid_color
+        """Interpolate across low -> mid -> high based on ratio [0..1]."""
+        if ratio < 0.4:
+            return _mix(self.low_color, self.mid_color, ratio / 0.4)
+        if ratio < 0.75:
+            return _mix(self.mid_color, self.high_color, (ratio - 0.4) / 0.35)
         return self.high_color
+
+    def _needle_char(self, ratio: float, fill_ratio: float) -> str:
+        """Pick the right character for this arc position."""
+        diff = abs(fill_ratio - ratio)
+        if diff < 0.02:
+            return self.NEEDLE  # needle position
+        if fill_ratio > ratio:
+            return self.ARC_FILL  # already filled
+        return self.ARC_DIM  # unfilled
 
     def render(self) -> Panel:
         """Build the gauge as a Rich ``Panel``."""
         ratio = min(1.0, max(0.0, self.value / self.max_value))
-        # Build the arc: a series of layers.
         lines: List[Text] = []
         cx = self.width // 2
         radius = min(self.width // 2 - 2, self.height * 2 - 1)
-        # Vertical rows: 0 is top, height-1 is bottom (where the value sits).
         rows = self.height
+
         for r in range(rows):
-            line = Text(" " * (cx - radius))
+            line = Text(" " * max(0, cx - radius))
             for x in range(2 * radius + 1):
-                # Compute distance from the centre of the arc.
                 dx = x - radius
                 dy = (rows - 1) - r
                 dist = math.sqrt(dx * dx + (dy * 2) ** 2)
-                # We're drawing the top half of a circle.
                 in_arc = abs(dist - radius) < 1.0 and dy >= 0
                 if in_arc:
-                    # Map x to angle.
-                    theta = math.atan2(dy, dx - 0) + math.pi  # 0..pi
-                    fill = theta / math.pi  # 0..1
-                    if fill <= ratio:
-                        line.append(self.ARC[4], style=f"bold {self._arc_color(fill)}")
+                    theta = math.atan2(dy, dx) + math.pi
+                    fill = theta / math.pi  # 0..1 left to right
+                    color = self._arc_color(fill)
+                    ch = self._needle_char(ratio, fill)
+                    # Glow halo near the needle
+                    if abs(fill - ratio) < 0.05 and fill > ratio:
+                        line.append(ch, style=f"bold {_mix(color, '#ffffff', 0.3)}")
                     else:
-                        line.append(self.ARC[1], style="#333333")
+                        line.append(ch, style=f"bold {color}" if fill <= ratio else f"#333333")
                 else:
-                    line.append(" ", style="")
+                    line.append(" ")
             lines.append(line)
 
-        # Value line below the arc.
+        # Tick marks row: 0% -- 25% -- 50% -- 75% -- 100%
+        ticks = Text()
+        tick_positions = [0, 0.25, 0.5, 0.75, 1.0]
+        tick_labels = ["0", "25", "50", "75", "100"]
+        tick_width = 2 * radius + 1
+        for i, (tp, tl) in enumerate(zip(tick_positions, tick_labels)):
+            pos = int(tp * tick_width)
+            while len(ticks._text) < pos:
+                ticks.append("\u2500", style="#333333")
+            ticks.append("+", style="#555555")
+        lines.append(ticks)
+
+        # Value line
         value_text = Text()
-        value_text.append(" " * max(0, cx - 4))
-        value_text.append(
-            f"{int(round(self.value))}{self.unit}", style=f"bold {self._arc_color(ratio)}"
-        )
+        value_text.append(" " * max(0, cx - 5))
+        val_str = f"{int(round(self.value))}{self.unit}"
+        value_text.append(val_str, style=f"bold {self._arc_color(ratio)}")
         lines.append(value_text)
 
-        # Caption (centred horizontally to the panel width).
-        cap = Text(self.label, style="#888888", justify="center", end="")
+        # Label centred
+        cap = Text(self.label, style="#666666", justify="center", end="")
         lines.append(Align.center(cap, width=self.width))
 
+        border_color = self._arc_color(ratio)
         return Panel(
             Group(*lines),
-            title=f"[bold]{self.label}[/bold]",
-            border_style="#888888",
+            title=f"[bold {border_color}]{self.label}[/bold {border_color}]",
+            border_style=border_color,
             box=ROUNDED,
             padding=(0, 1),
             width=self.width + 2,
@@ -576,24 +619,58 @@ class SeverityChart:
         """Build the chart as a Rich ``Panel``."""
         max_count = max(1, max(self.counts.values()))
         bar_w = self.max_bar_width
+        total = sum(self.counts.values())
         rows: List[Text] = []
         for sev in SEVERITY_ORDER:
             count = self.counts.get(sev, 0)
             color = _color_for(sev, self.severity_colors)
             filled = int(round((count / max_count) * bar_w))
+            pct = (count / total * 100) if total > 0 else 0
             row = Text()
             row.append(f" {sev.upper():8s} ", style=f"bold {color}")
-            row.append("|", style="#444444")
-            row.append("\u2588" * filled, style=f"bold {color}")
-            row.append(" " * (bar_w - filled), style="")
-            row.append("|", style="#444444")
-            row.append(f" {count:>4d}", style="#ffffff")
+            row.append("\u2502", style="#333333")
+            # Gradient fill: darker at start, brighter at end
+            for i in range(bar_w):
+                if i < filled:
+                    intensity = i / max(1, filled - 1) if filled > 1 else 1.0
+                    bar_color = _mix(f"#333333", color, 0.4 + intensity * 0.6)
+                    row.append("\u2588", style=f"bold {bar_color}")
+                else:
+                    row.append("\u2591", style="#1a1a1a")
+            row.append("\u2502", style="#333333")
+            row.append(f" {count:>4d}", style=f"bold {color}")
+            row.append(f" {pct:5.1f}%", style="#666666")
             rows.append(row)
 
+        # Total row
+        rows.append(Text(""))
+        total_row = Text()
+        total_row.append(f" {'TOTAL':8s} ", style="bold #ffffff")
+        total_row.append("\u2502", style="#333333")
+        total_row.append("\u2588" * bar_w, style="#555555")
+        total_row.append("\u2502", style="#333333")
+        total_row.append(f" {total:>4d}", style="bold #ffffff")
+        rows.append(total_row)
+
+        # Severity bar sparkline at the bottom
+        if total > 0:
+            spark = Text()
+            spark.append(" ", style="")
+            for sev in SEVERITY_ORDER:
+                count = self.counts.get(sev, 0)
+                color = _color_for(sev, self.severity_colors)
+                seg_len = max(0, int(round((count / total) * 30)))
+                spark.append("\u2580" * seg_len, style=f"bold {color}")
+            rows.append(spark)
+
+        border = _color_for(
+            max(SEVERITY_ORDER, key=lambda s: self.counts.get(s, 0)),
+            self.severity_colors,
+        )
         return Panel(
             Group(*rows),
-            title=f"[bold]{self.title}[/bold]",
-            border_style="#888888",
+            title=f"[bold {border}]{self.title}[/bold {border}]  ({total})",
+            border_style=border,
             box=ROUNDED,
             padding=(0, 1),
         )

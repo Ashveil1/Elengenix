@@ -73,7 +73,7 @@ class SettingsOverlay:
 
             # Highlight selected item
             if i == self._selected_idx:
-                lines.append(f"[bold white]> {label}[/bold white]")
+                lines.append(f"[bold white on #333333] \u25b6 {label} [/bold white on #333333]")
             else:
                 lines.append(f"  {label}")
 
@@ -87,7 +87,7 @@ class SettingsOverlay:
             text,
             title=f"[bold]{title}[/bold]",
             border_style="white",
-            padding=(1, 2),
+            padding=(0, 1),
         )
 
     def _adjust_scroll(self) -> None:
@@ -867,17 +867,17 @@ class SettingsOverlay:
 
     def _get_title(self) -> str:
         titles = {
-            "main": "[CONFIG] ELENGENIX SETTINGS",
-            "sessions": "[SESSIONS] LOAD SESSION",
-            "agent_setup": "[AGENT] AGENT SETUP",
-            "provider_select": "[PROVIDER] SELECT PROVIDER",
-            "model_select": "[MODEL] SELECT MODEL",
-            "api_keys": "[KEYS] API KEYS",
-            "api_key_edit": "[EDIT] EDIT API KEY",
-            "rate_limits": "[RATE] RATE LIMITS",
-            "mcp_servers": "[MCP] MCP SERVERS",
-            "mcp_add": "[MCP] ADD SERVER",
-            "mode_settings": "[MODE] MODE SETTINGS",
-            "custom_url": "[CUSTOM] ENTER API URL",
+            "main": "ELENGENIX SETTINGS",
+            "sessions": "LOAD SESSION",
+            "agent_setup": "AGENT SETUP",
+            "provider_select": "SELECT PROVIDER",
+            "model_select": "SELECT MODEL",
+            "api_keys": "API KEYS",
+            "api_key_edit": "EDIT API KEY",
+            "rate_limits": "RATE LIMITS",
+            "mcp_servers": "MCP SERVERS",
+            "mcp_add": "ADD SERVER",
+            "mode_settings": "MODE SETTINGS",
+            "custom_url": "ENTER API URL",
         }
-        return titles.get(self._current_layer, "[CONFIG] SETTINGS")
+        return titles.get(self._current_layer, "SETTINGS")
