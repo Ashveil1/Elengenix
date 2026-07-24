@@ -54,6 +54,9 @@ dependencies = [
     # Async
     "nest-asyncio>=1.6.0",
     "tenacity>=8.0.0",
+    "aiosqlite>=0.19.0",
+    # Knowledge graph (local Graphiti replacement)
+    "networkx>=3.0",
     # Token counting
     "tiktoken>=0.5.0",
     # Vector memory
