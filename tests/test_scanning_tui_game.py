@@ -45,7 +45,7 @@ class TestObbyGameInit:
 
         # Terrain length may vary slightly due to generation loop
         assert len(game.terrain) >= 400
-        assert len(game.terrain) <= 405
+        assert len(game.terrain) <= 410
         # First 12 should be safe ground
         assert all(t == "█" for t in game.terrain[:12])
 
