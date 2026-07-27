@@ -25,9 +25,8 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -e .
-          # Ensure test deps are present
-          pip install pytest pytest-timeout rich 2>/dev/null || true
+          pip install -e ".[brutal]"
+          pip install pytest pytest-asyncio pytest-timeout rich
 
       - name: Run test suite
         run: |
