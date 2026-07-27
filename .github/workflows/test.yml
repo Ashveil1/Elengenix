@@ -24,8 +24,8 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install -e .
-        # Ensure test deps are present
-        pip install pytest pytest-timeout rich 2>/dev/null || true
+        # Ensure test deps are present — pytest-asyncio is REQUIRED for async tests
+        pip install pytest pytest-asyncio pytest-timeout rich
 
     - name: Run unit tests (no network)
       run: |
