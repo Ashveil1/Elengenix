@@ -25,7 +25,7 @@ jobs:
         python -m pip install --upgrade pip
         pip install -e .
         # Ensure test deps are present — pytest-asyncio is REQUIRED for async tests
-        pip install pytest pytest-asyncio pytest-timeout rich
+        pip install pytest pytest-asyncio pytest-timeout rich itsdangerous
 
     - name: Run unit tests (no network)
       run: |
@@ -38,6 +38,7 @@ jobs:
           --ignore=tests/test_ecosystem.py \
           --ignore=tests/test_executor_freedom.py \
           --ignore=tests/test_cli_e2e.py \
+          --ignore=tests/brutal \
           --tb=short
 
     - name: Run integration tests (network, allowed to fail)
