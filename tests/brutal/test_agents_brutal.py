@@ -1421,7 +1421,7 @@ class TestEnricher:
         """Enricher.run pre-validates the question and raises ValueError on empty input."""
         e = Enricher(llm_client=FakeLLMClient())
         with pytest.raises(ValueError, match="non-empty question"):
-            asyncio.get_event_loop().run_until_complete(e.run(question=""))
+            asyncio.run(e.run(question=""))
 
     def test_enricher_render_prompts_system_nonempty(self) -> None:
         """The rendered system prompt references the enricher_result tool."""
