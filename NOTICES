@@ -1,0 +1,166 @@
+# Third-Party Software Notices
+
+This project (Elengenix) uses the following open-source libraries.
+We gratefully acknowledge the authors and contributors of these projects.
+
+---
+
+## GPL v3 (GNU General Public License v3)
+
+### trafilatura
+- **License:** GPL v3.0
+- **Copyright:** Copyright (C) Adrien Barbaresi
+- **Homepage:** https://github.com/adbar/trafilatura
+- **Note:** This library is GPL v3 licensed. Elengenix is also GPL v3, so this is compatible.
+
+---
+
+## LGPL v3 (GNU Lesser General Public License v3)
+
+### python-telegram-bot
+- **License:** LGPL v3.0
+- **Copyright:** Copyright (C) Leandro Toledo
+- **Homepage:** https://github.com/python-telegram-bot/python-telegram-bot
+- **Note:** This library is LGPL v3 licensed. Applications using this library are not required to be LGPL, but modifications to the library itself must be LGPL.
+
+---
+
+## Apache License 2.0
+
+### requests
+- **License:** Apache License 2.0
+- **Copyright:** Copyright (C) Kenneth Reitz
+- **Homepage:** https://github.com/psf/requests
+
+### openai
+- **License:** Apache License 2.0
+- **Copyright:** Copyright (C) OpenAI
+- **Homepage:** https://github.com/openai/openai-python
+
+### google-generativeai
+- **License:** Apache License 2.0
+- **Copyright:** Copyright (C) Google
+- **Homepage:** https://github.com/google/generative-ai-python
+
+### huggingface-hub
+- **License:** Apache License 2.0
+- **Copyright:** Copyright (C) Hugging Face
+- **Homepage:** https://github.com/huggingface/huggingface_hub
+
+### replicate
+- **License:** Apache License 2.0
+- **Copyright:** Copyright (C) Replicate
+- **Homepage:** https://github.com/replicate/replicate-python
+
+### tenacity
+- **License:** Apache License 2.0
+- **Copyright:** Copyright (C) Michal Klos
+- **Homepage:** https://github.com/jd/tenacity
+
+### chromadb
+- **License:** Apache License 2.0
+- **Copyright:** Copyright (C) Chroma Inc.
+- **Homepage:** https://github.com/chroma-core/chroma
+
+### sentence-transformers
+- **License:** Apache License 2.0
+- **Copyright:** Copyright (C) UKP Lab, Technical University of Darmstadt
+- **Homepage:** https://github.com/UKPLab/sentence-transformers
+
+### pytest-asyncio
+- **License:** Apache License 2.0
+- **Copyright:** Copyright (C) Michael Howitz
+- **Homepage:** https://github.com/pytest-dev/pytest-asyncio
+
+---
+
+## MIT License
+
+### pyyaml
+- **License:** MIT License
+- **Copyright:** Copyright (C) Ingy dot Net, Kirill Simonov
+- **Homepage:** https://github.com/yaml/pyyaml
+
+### anthropic
+- **License:** MIT License
+- **Copyright:** Copyright (C) Anthropic
+- **Homepage:** https://github.com/anthropics/anthropic-sdk-python
+
+### cohere
+- **License:** MIT License
+- **Copyright:** Copyright (C) Cohere
+- **Homepage:** https://github.com/cohere-ai/cohere-python
+
+### rich
+- **License:** MIT License
+- **Copyright:** Copyright (C) Will McGugan
+- **Homepage:** https://github.com/Textualize/rich
+
+### questionary
+- **License:** MIT License
+- **Copyright:** Copyright (C) Tom Bocklisch
+- **Homepage:** https://github.com/tmbo/questionary
+
+### textual
+- **License:** MIT License
+- **Copyright:** Copyright (C) Will McGugan
+- **Homepage:** https://github.com/Textualize/textual
+
+### tiktoken
+- **License:** MIT License
+- **Copyright:** Copyright (C) OpenAI
+- **Homepage:** https://github.com/openai/tiktoken
+
+### googlesearch-python
+- **License:** MIT License
+- **Copyright:** Copyright (C) Various Contributors
+- **Homepage:** https://github.com/Nv-zhao/googlesearch-python
+
+### ddgs (DuckDuckGo Search)
+- **License:** MIT License
+- **Copyright:** Copyright (C) Various Contributors
+- **Homepage:** https://github.com/deedy5/duckduckgo_search
+
+### pytest
+- **License:** MIT License
+- **Copyright:** Copyright (C) Holger Krekel
+- **Homepage:** https://github.com/pytest-dev/pytest
+
+---
+
+## BSD License
+
+### python-dotenv
+- **License:** BSD License
+- **Copyright:** Copyright (C) Saurabh Kumar
+- **Homepage:** https://github.com/theskumar/python-dotenv
+
+### prompt_toolkit
+- **License:** BSD License
+- **Copyright:** Copyright (C) Jonathan Slenders
+- **Homepage:** https://github.com/prompt-toolkit/python-prompt-toolkit
+
+### nest-asyncio
+- **License:** BSD License
+- **Copyright:** Copyright (C) Masud Rahman
+- **Homepage:** https://github.com/erdewit/nest_asyncio
+
+---
+
+## Full License Texts
+
+The full license texts for all dependencies can be found in the `licenses/` directory
+or at their respective homepages listed above.
+
+For GPL v3 and LGPL v3 licenses, the full text is available at:
+https://www.gnu.org/licenses/gpl-3.0.html
+https://www.gnu.org/licenses/lgpl-3.0.html
+
+For Apache License 2.0, the full text is available at:
+https://www.apache.org/licenses/LICENSE-2.0
+
+For MIT License, the full text is available at:
+https://opensource.org/licenses/MIT
+
+For BSD License, the full text is available at:
+https://opensource.org/licenses/BSD-3-Clause
