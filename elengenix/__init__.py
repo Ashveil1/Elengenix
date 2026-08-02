@@ -102,4 +102,18 @@ __all__ = [
     "TrueAIBrain", "TrueAgenticLoop",
 ]
 
-__version__ = "99999"
+def _detect_version() -> str:
+    """Read the installed distribution version (from pyproject metadata).
+
+    Falls back to a placeholder when running from an uninstalled source tree
+    where importlib.metadata has no distribution record.
+    """
+    try:
+        from importlib.metadata import version
+
+        return version("elengenix")
+    except Exception:
+        return "0.0.0+local"
+
+
+__version__ = _detect_version()

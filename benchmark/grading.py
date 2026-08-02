@@ -14,6 +14,11 @@ matches a known ground-truth vuln. Matching is fuzzy on vuln_class
 synonyms (e.g. "sqli" == "sql_injection" == "SQL Injection") so the
 grader is robust to how the agent phrases its findings.
 
+On top of detection, the grader computes an *impact* metric: a finding is
+"impact proven" when the per-run FLAG (planted in the target by the
+runner) appears verbatim in the finding's evidence. Impact is strictly
+additive — precision/recall/F1 and every existing field are unchanged.
+
 Public API
 ----------
     from benchmark.grading import BenchmarkGrader, GROUND_TRUTH
@@ -86,6 +91,42 @@ def _build_synonym_map() -> None:
 _build_synonym_map()
 
 
+# ---------------------------------------------------------------------------#
+# Impact (flag) — ground-truth classes where exploitation can be *proven*
+# ---------------------------------------------------------------------------#
+
+# Single declaration of which ground-truth vuln classes can be proven by
+# extracting the runner-planted FLAG (see tests/vulnerable_target/app.py):
+#   - sqli: the flag sits in the `flags` DB table, reachable via the /login
+#     UNION-based SQLi.
+#   - ssti: the flag is in the /render Jinja context ({{ FLAG }}); a working
+#     SSTI read is the practical RCE-equivalent signal for this app.
+#   - path_traversal: the flag file lives outside the download base, reachable
+#     only via a real traversal. The runner also plants the same value there as
+#     "lfi" coverage — both canonical names map here via _VULN_CLASS_SYNONYMS.
+# Only these classes count toward the impact_rate denominator.
+FLAG_ELIGIBLE_CLASSES: Set[str] = {"sqli", "ssti", "path_traversal"}
+
+
+def flag_eligible_ground_truth_count(ground_truth: List[Dict[str, str]]) -> int:
+    """How many ground-truth items are flag-eligible (impact denominator)."""
+    return sum(
+        1
+        for g in ground_truth
+        if canonicalize_vuln_class(g.get("vuln_class", "")) in FLAG_ELIGIBLE_CLASSES
+    )
+
+
+def _finding_evidence_text(finding: Dict[str, Any]) -> str:
+    """Best-effort concatenation of everything that could hold evidence text."""
+    parts: List[str] = []
+    for key in ("evidence", "details", "description", "output", "proof", "snippet"):
+        val = finding.get(key)
+        if isinstance(val, str) and val:
+            parts.append(val)
+    return "\n".join(parts)
+
+
 def canonicalize_vuln_class(raw: str) -> str:
     """Normalize a vuln-class string to its canonical short name."""
     if not raw:
@@ -124,6 +165,9 @@ class GradedFinding:
     matched_truth: Optional[Dict[str, str]] = None
     is_true_positive: bool = False
     severity: str = "unknown"
+    # Additive impact field (set only when a run FLAG was supplied to grade()):
+    # True iff the finding's evidence text contains the FLAG string.
+    impact_proven: bool = False
 
 
 @dataclass
@@ -137,6 +181,16 @@ class BenchmarkResult:
     scan_duration_sec: float = 0.0
     time_to_first_finding_sec: float = 0.0
     steps_taken: int = 0
+    # Set when the run failed for environmental/infra reasons (no AI key,
+    # missing deps, import failure, target wouldn't start, legacy loop
+    # unsupported). Distinguishes "benchmark is broken" from a genuine
+    # "agent ran and found nothing" run, where this stays None.
+    error: Optional[str] = None
+    # Additive impact metrics (do not affect precision/recall/F1).
+    # impact_proven: canonical vuln classes whose evidence contained the FLAG.
+    # impact_rate: len(impact_proven) / flag-eligible ground-truth count.
+    impact_proven: List[str] = field(default_factory=list)
+    impact_rate: float = 0.0
 
     def precision(self) -> float:
         tp = len(self.true_positives)
@@ -153,11 +207,28 @@ class BenchmarkResult:
         return 2 * p * r / (p + r) if (p + r) > 0 else 0.0
 
     def summary(self) -> str:
+        if self.error:
+            return "\n".join(
+                [
+                    "═══ BENCHMARK RESULT ═══",
+                    "Status: FAILED (benchmark did not run to completion)",
+                    f"Error: {self.error}",
+                    "No precision/recall measured — findings are empty because the run failed, not because the agent found nothing.",
+                ]
+            )
         lines = [
             "═══ BENCHMARK RESULT ═══",
             f"Precision:  {self.precision():.1%} ({len(self.true_positives)} TP / {self.total_reported} reported)",
             f"Recall:     {self.recall():.1%} ({len(self.true_positives)} TP / {self.total_ground_truth} known)",
             f"F1 Score:   {self.f1():.1%}",
+            # Additive impact line — detection score stays primary, this shows
+            # how often exploitation was actually *proven* via FLAG extraction.
+            "Impact proven: "
+            + (
+                f"{len(self.impact_proven)}/{flag_eligible_ground_truth_count(GROUND_TRUTH)} "
+                f"classes ({self.impact_rate:.1%})"
+                + (f" [{', '.join(self.impact_proven)}]" if self.impact_proven else "")
+            ),
             f"False Positives: {len(self.false_positives)}",
             f"False Negatives: {len(self.false_negatives)} (missed vulns)",
             f"Scan duration:   {self.scan_duration_sec:.1f}s",
@@ -187,7 +258,11 @@ class BenchmarkResult:
             "scan_duration_sec": self.scan_duration_sec,
             "time_to_first_finding_sec": self.time_to_first_finding_sec,
             "steps_taken": self.steps_taken,
+            "error": self.error,
             "missed": self.false_negatives,
+            # Additive impact metrics (new keys; existing keys unchanged).
+            "impact_proven": list(self.impact_proven),
+            "impact_rate": self.impact_rate,
         }
 
 
@@ -217,6 +292,8 @@ class BenchmarkGrader:
         scan_duration_sec: float = 0.0,
         time_to_first_finding_sec: float = 0.0,
         steps_taken: int = 0,
+        error: Optional[str] = None,
+        flag: Optional[str] = None,
     ) -> BenchmarkResult:
         """Grade a list of reported findings against ground truth.
 
@@ -226,6 +303,14 @@ class BenchmarkGrader:
             scan_duration_sec: Total scan wall-clock time.
             time_to_first_finding_sec: Time until the first TP was found.
             steps_taken: Number of agent steps executed.
+            error: If the run failed for environmental/infra reasons, the
+                error message. Propagated onto the result so callers can
+                distinguish "benchmark broken" from "agent found nothing".
+            flag: Optional per-run FLAG planted in the target. When set,
+                true-positive (or non-error) findings whose evidence text
+                contains the FLAG string are marked ``impact_proven`` and
+                an additive ``impact_rate`` is computed. Existing
+                precision/recall/F1 behavior is unchanged.
 
         Returns:
             BenchmarkResult with full metrics.
@@ -236,9 +321,12 @@ class BenchmarkGrader:
             scan_duration_sec=scan_duration_sec,
             time_to_first_finding_sec=time_to_first_finding_sec,
             steps_taken=steps_taken,
+            error=error,
         )
 
         matched_truth_indices: Set[int] = set()
+        # Ordered set of canonical classes whose evidence proved impact via FLAG.
+        impact_proven_canonical: List[str] = []
 
         for finding in reported_findings:
             raw_class = (
@@ -263,6 +351,19 @@ class BenchmarkGrader:
                 severity=str(severity),
             )
 
+            # Additive impact marking: the exact per-run FLAG string appearing
+            # in the finding's evidence means exploitation was *proven*, not
+            # just detected. Marked before TP matching so even a mis-matched
+            # finding still counts toward impact when it carries the flag of a
+            # flag-eligible class.
+            if flag and flag in _finding_evidence_text(finding):
+                graded.impact_proven = True
+                if (
+                    canonical in FLAG_ELIGIBLE_CLASSES
+                    and canonical not in impact_proven_canonical
+                ):
+                    impact_proven_canonical.append(canonical)
+
             # Try to match against ground truth
             matched = False
             for i, (gt_class, gt_endpoint, gt_dict) in enumerate(self._gt_canonical):
@@ -284,5 +385,12 @@ class BenchmarkGrader:
         for i, (gt_class, gt_endpoint, gt_dict) in enumerate(self._gt_canonical):
             if i not in matched_truth_indices:
                 result.false_negatives.append(gt_dict)
+
+        # Additive impact rate: impact-proven classes / flag-eligible total.
+        result.impact_proven = impact_proven_canonical
+        eligible = flag_eligible_ground_truth_count(self.ground_truth)
+        result.impact_rate = (
+            len(impact_proven_canonical) / eligible if eligible > 0 else 0.0
+        )
 
         return result

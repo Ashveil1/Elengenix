@@ -704,15 +704,18 @@ def prompt_choice(options: List[str]) -> int:
         console.print(f"  [bold #ffffff]{i:2}.[/bold #ffffff] [bold #ffffff]{opt}[/bold #ffffff]")
 
     while True:
-        choice = console.input(
-            "\n[bold #ffffff]Select[/bold #ffffff] [dim #ffffff](number)[/dim #ffffff]: "
-        )
+        response = console.input(
+            "[bold #ffffff]Select[/bold #ffffff] [dim #ffffff](number, Enter to cancel)[/dim #ffffff]: "
+        ).strip()
+        if not response:
+            raise EOFError("cancelled")
         try:
-            idx = int(choice) - 1
+            idx = int(response) - 1
             if 0 <= idx < len(options):
                 return idx
         except ValueError:
-            console.print("[bold #ffffff]Invalid selection[/bold #ffffff]")
+            pass
+        console.print(f"[bold #ffffff]Invalid selection — enter 1-{len(options)}[/bold #ffffff]")
 
 
 def confirm(message: str, default: bool = False) -> bool:

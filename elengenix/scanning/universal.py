@@ -91,6 +91,74 @@ def _format_preflight_context(findings: List[Dict[str, Any]]) -> str:
     return "\n".join(lines)
 
 
+def _decide_with_provider_or_stack_b(
+    *,
+    client: Any,
+    step_prompt: str,
+    backend: Any = None,
+) -> str:
+    """Return the scan loop's decide-call response as a JSON-encoded text blob.
+
+    Two backends, in priority order:
+
+    1) ``backend`` — a :class:`StackAFixingBackend` from
+       ``elengenix.scanning.provider_bridge``. When it is not ``None`` and
+       produces a usable tool call, we emit the canonical
+       ``{"thought": ..., "action": {...}}`` JSON string directly — no
+       regex-based text extraction. Malformed tool arguments are repaired
+       via ``ToolCallFixer`` inside the backend.
+    2) Stack B (``tools.universal_ai_client.UniversalAIClient.chat``) — the
+       historical behavior. Used when ``backend`` is ``None`` (no Stack A
+       provider configured) *or* when the Stack A ``decide`` step returned
+       ``None`` (transient fall-through). The text-JSON extraction fallback
+       stays here untouched.
+
+    Raises if the Stack B call itself fails — matching the pre-existing
+    ``except Exception`` contract at the caller.
+    """
+    from tools.universal_ai_client import ACTION_TOOLS
+
+    if backend is not None:
+        decision = backend.decide(
+            system_prompt=step_prompt,
+            user_prompt="What is the next action?",
+            action_tools=ACTION_TOOLS,
+        )
+        if decision is not None:
+            arguments = dict(decision["arguments"])
+            return json.dumps(
+                {
+                    "thought": arguments.pop("thought", "execute action"),
+                    "action": {"type": decision["name"], "params": arguments},
+                }
+            )
+
+    # Stack B path (original behavior).
+    _resp = client.chat(
+        [
+            AIMessage(role="system", content=step_prompt),
+            AIMessage(role="user", content="What is the next action?"),
+        ],
+        temperature=0.2,
+        tools=ACTION_TOOLS,
+    )
+    # Prefer native tool-calling; fall back to text-JSON extraction.
+    # ``_resp.tool_calls`` may be a bare ``Mock`` on some paths — treat it as
+    # absent unless it is actually a list/tuple.
+    _tool_calls = getattr(_resp, "tool_calls", None) or []
+    if not isinstance(_tool_calls, (list, tuple)):
+        _tool_calls = []
+    if _tool_calls:
+        _tc = _tool_calls[0]
+        return json.dumps(
+            {
+                "thought": _tc.arguments.pop("thought", "execute action"),
+                "action": {"type": _tc.name, "params": _tc.arguments},
+            }
+        )
+    return _resp.content or ""
+
+
 def _run_brain_mode(
     user_input: str,
     client: Any,
@@ -515,6 +583,34 @@ def process_universal(
         or (bool(target) and intent in ("scan", "security_chat"))
     )
 
+    # Stack A provider backend (``elengenix.providers``) — preferred when
+    # configured. Resolved lazily on first decide call; cached in
+    # ``_stack_a_backend`` below so the loop doesn't re-do config.yaml/env
+    # resolution per step. ``_stack_a_attempted`` flips after the first
+    # resolver call so we don't keep retrying on permanent fallback to B.
+    _stack_a_backend: Any = None
+    _stack_a_attempted = False
+
+    def _get_stack_a_backend() -> Any:
+        """Return the Stack A decide-call backend, or ``None`` for Stack B.
+
+        See :func:`elengenix.scanning.provider_bridge.resolve_stack_a_backend`
+        for the resolution rules. Never raises — any failure leaves Stack B
+        in charge of the loop exactly as before.
+        """
+        nonlocal _stack_a_backend, _stack_a_attempted
+        if _stack_a_attempted:
+            return _stack_a_backend
+        _stack_a_attempted = True
+        try:
+            from elengenix.scanning.provider_bridge import resolve_stack_a_backend
+
+            _stack_a_backend = resolve_stack_a_backend()
+        except Exception as e:  # noqa: BLE001 — Stack B keeps working regardless
+            logger.debug(f"Stack A resolver failed (Stack B fallback): {e}")
+            _stack_a_backend = None
+        return _stack_a_backend
+
     # ── Casual / chat without target ─────────────────────────────────────
     if intent in ["casual", "security_chat"] and not target:
         past_memories = get_context_for_ai(
@@ -820,29 +916,13 @@ Respond with JSON:
 "params": {{...}}}},
 "next_step": "..."}}"""
 
-        # Get AI decision
+        # Get AI decision (Stack A preferred, Stack B fallback)
         try:
-            from tools.universal_ai_client import ACTION_TOOLS
-
-            _resp = client.chat(
-                [
-                    AIMessage(role="system", content=step_prompt),
-                    AIMessage(role="user", content="What is the next action?"),
-                ],
-                temperature=0.2,
-                tools=ACTION_TOOLS,
+            response_text = _decide_with_provider_or_stack_b(
+                client=client,
+                step_prompt=step_prompt,
+                backend=_get_stack_a_backend(),
             )
-            # Prefer native tool-calling; fall back to text-JSON extraction
-            if _resp.tool_calls:
-                _tc = _resp.tool_calls[0]
-                response_text = json.dumps(
-                    {
-                        "thought": _tc.arguments.pop("thought", "execute action"),
-                        "action": {"type": _tc.name, "params": _tc.arguments},
-                    }
-                )
-            else:
-                response_text = _resp.content or ""
             consecutive_ai_failures = 0  # reset on success
         except Exception as e:
             consecutive_ai_failures += 1
@@ -908,29 +988,13 @@ Respond with JSON:
         # ── Legacy decision path (JSON parse) ─────────────────────────
         decision = None
         if not _brain_loop:
-            # Get AI decision
+            # Get AI decision (Stack A preferred, Stack B fallback)
             try:
-                from tools.universal_ai_client import ACTION_TOOLS
-
-                _resp = client.chat(
-                    [
-                        AIMessage(role="system", content=step_prompt),
-                        AIMessage(role="user", content="What is the next action?"),
-                    ],
-                    temperature=0.2,
-                    tools=ACTION_TOOLS,
+                response_text = _decide_with_provider_or_stack_b(
+                    client=client,
+                    step_prompt=step_prompt,
+                    backend=_get_stack_a_backend(),
                 )
-                # Prefer native tool-calling; fall back to text-JSON extraction
-                if _resp.tool_calls:
-                    _tc = _resp.tool_calls[0]
-                    response_text = json.dumps(
-                        {
-                            "thought": _tc.arguments.pop("thought", "execute action"),
-                            "action": {"type": _tc.name, "params": _tc.arguments},
-                        }
-                    )
-                else:
-                    response_text = _resp.content or ""
                 consecutive_ai_failures = 0  # reset on success
             except Exception as e:
                 consecutive_ai_failures += 1

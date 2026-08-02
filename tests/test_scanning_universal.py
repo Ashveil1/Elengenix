@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import pytest
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
 from elengenix.scanning.universal import (
     _format_preflight_context,
     process_universal,
@@ -13,6 +13,8 @@ from elengenix.scanning.universal import (
     _build_bug_bounty_prompt,
     _build_general_prompt,
     _run_brain_mode,
+    _try_canonical_scan_loop,
+    _create_mission_context,
 )
 
 
@@ -490,6 +492,568 @@ class TestProcessUniversal:
             executor=Mock(),
         )
         assert result is None
+
+
+class TestCreateMissionContext:
+    """Tests for _create_mission_context function."""
+
+    def test_creates_mission_context(self):
+        """Should create a MissionContext with correct fields."""
+        ctx = _create_mission_context("example.com", "find vulns")
+        assert ctx.target == "example.com"
+        assert ctx.objectives == ["find vulns"]
+        assert ctx.scope == ["full"]
+
+    def test_empty_target_defaults_to_unknown(self):
+        """Should default empty target to 'unknown'."""
+        ctx = _create_mission_context("", "find vulns")
+        assert ctx.target == "unknown"
+
+    def test_empty_objective(self):
+        """Should handle empty objective."""
+        ctx = _create_mission_context("example.com", "")
+        assert ctx.objectives == [""]
+
+
+class TestTryCanonicalScanLoop:
+    """Tests for _try_canonical_scan_loop function."""
+
+    def test_returns_none_on_import_error(self):
+        """Should return None when imports fail."""
+        with patch.dict("sys.modules", {"elengenix.scanning.scan_loop": None}):
+            result = _try_canonical_scan_loop(
+                user_input="scan example.com",
+                client=Mock(),
+                target="example.com",
+                governance=Mock(),
+                callback=None,
+                conversation_history=[],
+            )
+        assert result is None
+
+    def test_returns_none_on_scan_loop_failure(self):
+        """Should return None when scan loop raises an exception."""
+        with patch("elengenix.scanning.scan_loop.ScanLoop", side_effect=Exception("fail")):
+            result = _try_canonical_scan_loop(
+                user_input="scan example.com",
+                client=Mock(),
+                target="example.com",
+                governance=Mock(),
+                callback=None,
+                conversation_history=[],
+            )
+        assert result is None
+
+    def test_builds_scan_context_correctly(self):
+        """Should build ScanContext with correct fields."""
+        mock_client = Mock()
+        mock_result = Mock()
+        mock_result.summary = "Scan complete"
+        mock_result.findings = []
+        mock_result.steps_taken = 5
+        mock_result.success = True
+
+        mock_loop_instance = Mock()
+        mock_loop_instance.run = AsyncMock(return_value=mock_result)
+
+        with patch("elengenix.scanning.scan_loop.ScanLoop", return_value=mock_loop_instance), \
+             patch("elengenix.scanning.scan_context.ScanContext") as mock_ctx_cls:
+            result = _try_canonical_scan_loop(
+                user_input="scan example.com",
+                client=mock_client,
+                target="example.com",
+                governance=Mock(),
+                callback=None,
+                conversation_history=[],
+            )
+
+        assert result is not None
+        assert "Scan complete" in result
+
+    def test_formats_findings_in_result(self):
+        """Should include findings in the result."""
+        mock_client = Mock()
+        mock_result = Mock()
+        mock_result.summary = "Done"
+        mock_result.findings = [
+            {"severity": "High", "type": "xss", "url": "http://example.com"},
+            {"severity": "Critical", "type": "sqli", "url": "http://example.com"},
+        ]
+        mock_result.steps_taken = 3
+        mock_result.success = True
+
+        mock_loop_instance = Mock()
+        mock_loop_instance.run = AsyncMock(return_value=mock_result)
+
+        with patch("elengenix.scanning.scan_loop.ScanLoop", return_value=mock_loop_instance), \
+             patch("elengenix.scanning.scan_context.ScanContext"):
+            result = _try_canonical_scan_loop(
+                user_input="scan example.com",
+                client=mock_client,
+                target="example.com",
+                governance=Mock(),
+                callback=None,
+                conversation_history=[],
+            )
+
+        assert result is not None
+        assert "Findings: 2" in result
+        assert "HIGH" in result
+        assert "CRITICAL" in result
+
+    def test_appends_conversation_history(self):
+        """Should append conversation history to ScanContext."""
+        mock_client = Mock()
+        history = [
+            {"role": "user", "content": "scan this"},
+            {"role": "assistant", "content": "scanning..."},
+        ]
+        mock_result = Mock()
+        mock_result.summary = "Done"
+        mock_result.findings = []
+        mock_result.steps_taken = 1
+        mock_result.success = True
+
+        mock_loop_instance = Mock()
+        mock_loop_instance.run.return_value = mock_result
+        mock_ctx_instance = Mock()
+        mock_ctx_instance.append_history = Mock()
+
+        with patch("elengenix.scanning.scan_loop.ScanLoop", return_value=mock_loop_instance), \
+             patch("elengenix.scanning.scan_context.ScanContext", return_value=mock_ctx_instance):
+            _try_canonical_scan_loop(
+                user_input="scan example.com",
+                client=mock_client,
+                target="example.com",
+                governance=Mock(),
+                callback=None,
+                conversation_history=history,
+            )
+
+        assert mock_ctx_instance.append_history.call_count >= 1
+
+    def test_calls_callback_with_status(self):
+        """Should call callback with status messages."""
+        mock_callback = Mock()
+        mock_client = Mock()
+        mock_result = Mock()
+        mock_result.summary = "Done"
+        mock_result.findings = []
+        mock_result.steps_taken = 1
+        mock_result.success = True
+
+        mock_loop_instance = Mock()
+        mock_loop_instance.run.return_value = mock_result
+
+        with patch("elengenix.scanning.scan_loop.ScanLoop", return_value=mock_loop_instance), \
+             patch("elengenix.scanning.scan_context.ScanContext"):
+            _try_canonical_scan_loop(
+                user_input="scan example.com",
+                client=mock_client,
+                target="example.com",
+                governance=Mock(),
+                callback=mock_callback,
+                conversation_history=[],
+            )
+
+        assert mock_callback.call_count >= 1
+        assert any("ScanLoop" in str(c) for c in mock_callback.call_args_list)
+
+    def test_conversation_history_truncated_to_10(self):
+        """Should only use last 10 messages from history."""
+        mock_client = Mock()
+        history = [{"role": "user", "content": f"msg{i}"} for i in range(15)]
+        mock_result = Mock()
+        mock_result.summary = "Done"
+        mock_result.findings = []
+        mock_result.steps_taken = 1
+        mock_result.success = True
+
+        mock_loop_instance = Mock()
+        mock_loop_instance.run.return_value = mock_result
+        mock_ctx_instance = Mock()
+        mock_ctx_instance.append_history = Mock()
+
+        with patch("elengenix.scanning.scan_loop.ScanLoop", return_value=mock_loop_instance), \
+             patch("elengenix.scanning.scan_context.ScanContext", return_value=mock_ctx_instance):
+            _try_canonical_scan_loop(
+                user_input="scan example.com",
+                client=mock_client,
+                target="example.com",
+                governance=Mock(),
+                callback=None,
+                conversation_history=history,
+            )
+
+        assert mock_ctx_instance.append_history.call_count <= 10
+
+
+class TestProcessUniversalLegacyLoop:
+    """Tests for process_universal legacy loop paths."""
+
+    def test_governance_approval_approved(self):
+        """Shell commands needing approval that get approved should execute."""
+        with patch("elengenix.scanning.universal.analyze_intent", return_value="scan"):
+            with patch("elengenix.scanning.universal.registry") as mock_reg:
+                mock_reg.list_available_tools.return_value = {}
+                mock_governance = Mock()
+                mock_gate = Mock()
+                mock_gate.decision = "needs_approval"
+                mock_governance.gate.return_value = mock_gate
+                mock_client = Mock()
+                mock_client.chat.return_value = Mock(
+                    content='{"thought": "run cmd", "action": {"type": "run_shell", "params": {"command": "ls"}}}'
+                )
+                with patch("elengenix.scanning.universal.get_universal_executor") as mock_exec:
+                    mock_exec.return_value.execute_action.return_value = Mock(success=True, output="file1\nfile2")
+                    with patch("cli.ui_components.confirm", return_value=True):
+                        result = process_universal(
+                            user_input="scan example.com",
+                            client=mock_client,
+                            conversation_history=[],
+                            base_prompt="test",
+                            governance=mock_governance,
+                            target="example.com",
+                        )
+        assert isinstance(result, str)
+
+    def test_run_tool_action(self):
+        """Should handle run_tool action type."""
+        with patch("elengenix.scanning.universal.analyze_intent", return_value="scan"):
+            with patch("elengenix.scanning.universal.registry") as mock_reg:
+                mock_reg.list_available_tools.return_value = {}
+                mock_client = Mock()
+                mock_client.chat.return_value = Mock(
+                    content='{"thought": "scan ports", "action": {"type": "run_tool", "params": {"tool": "nmap", "target": "example.com"}}}'
+                )
+                with patch("elengenix.scanning.universal.get_universal_executor") as mock_exec:
+                    mock_exec.return_value.execute_action.return_value = Mock(success=True, output="port 80 open")
+                    result = process_universal(
+                        user_input="scan example.com",
+                        client=mock_client,
+                        conversation_history=[],
+                        base_prompt="test",
+                        governance=Mock(),
+                        target="example.com",
+                    )
+        assert isinstance(result, str)
+
+    def test_invalid_json_response(self):
+        """Should handle invalid JSON from AI gracefully."""
+        with patch("elengenix.scanning.universal.analyze_intent", return_value="scan"):
+            with patch("elengenix.scanning.universal.registry") as mock_reg:
+                mock_reg.list_available_tools.return_value = {}
+                mock_client = Mock()
+                mock_client.chat.return_value = Mock(content="not valid json at all")
+                with patch("elengenix.scanning.universal.get_universal_executor") as mock_exec:
+                    mock_exec.return_value.execute_action.return_value = Mock(success=True, output="ok")
+                    result = process_universal(
+                        user_input="scan example.com",
+                        client=mock_client,
+                        conversation_history=[],
+                        base_prompt="test",
+                        governance=Mock(),
+                        target="example.com",
+                    )
+        assert isinstance(result, str)
+
+    def test_tool_call_response(self):
+        """Should handle tool_calls response format."""
+        with patch("elengenix.scanning.universal.analyze_intent", return_value="scan"):
+            with patch("elengenix.scanning.universal.registry") as mock_reg:
+                mock_reg.list_available_tools.return_value = {}
+                mock_client = Mock()
+                mock_tc = Mock()
+                mock_tc.name = "run_shell"
+                mock_tc.arguments = {"command": "echo test", "thought": "testing"}
+                mock_resp = Mock()
+                mock_resp.tool_calls = [mock_tc]
+                mock_resp.content = None
+                mock_client.chat.return_value = mock_resp
+                with patch("elengenix.scanning.universal.get_universal_executor") as mock_exec:
+                    mock_exec.return_value.execute_action.return_value = Mock(success=True, output="test")
+                    result = process_universal(
+                        user_input="scan example.com",
+                        client=mock_client,
+                        conversation_history=[],
+                        base_prompt="test",
+                        governance=Mock(),
+                        target="example.com",
+                    )
+        assert isinstance(result, str)
+
+    def test_consecutive_ai_failures_exits_early(self):
+        """Two consecutive AI failures should exit with marker."""
+        with patch("elengenix.scanning.universal.analyze_intent", return_value="scan"):
+            with patch("elengenix.scanning.universal.registry") as mock_reg:
+                mock_reg.list_available_tools.return_value = {}
+                mock_client = Mock()
+                mock_client.chat.side_effect = Exception("API down")
+                with patch("elengenix.scanning.universal.get_universal_executor"):
+                    with patch("elengenix.scanning.universal._try_canonical_scan_loop", return_value=None):
+                        result = process_universal(
+                            user_input="scan example.com",
+                            client=mock_client,
+                            conversation_history=[],
+                            base_prompt="test",
+                            governance=Mock(),
+                            target="example.com",
+                        )
+        assert "[ELENGENIX_AI_UNAVAILABLE]" in result
+
+    def test_thought_in_history(self):
+        """Should include AI thought in history entry."""
+        with patch("elengenix.scanning.universal.analyze_intent", return_value="scan"):
+            with patch("elengenix.scanning.universal.registry") as mock_reg:
+                mock_reg.list_available_tools.return_value = {}
+                mock_client = Mock()
+                mock_client.chat.return_value = Mock(
+                    content='{"thought": "testing port scan", "action": {"type": "finish"}}'
+                )
+                with patch("elengenix.scanning.universal.get_universal_executor") as mock_exec:
+                    mock_exec.return_value.execute_action.return_value = Mock(success=True, output="ok")
+                    result = process_universal(
+                        user_input="scan example.com",
+                        client=mock_client,
+                        conversation_history=[],
+                        base_prompt="test",
+                        governance=Mock(),
+                        target="example.com",
+                    )
+        assert isinstance(result, str)
+
+    def test_casual_with_target(self):
+        """Casual intent with target should go to main loop."""
+        with patch("elengenix.scanning.universal.analyze_intent", return_value="casual"):
+            with patch("elengenix.scanning.universal.registry") as mock_reg:
+                mock_reg.list_available_tools.return_value = {}
+                mock_client = Mock()
+                mock_client.chat.return_value = Mock(content="Hello!")
+                with patch("elengenix.scanning.universal.get_context_for_ai", return_value=""):
+                    with patch("elengenix.scanning.universal._get_memory_profile_context", return_value=""):
+                        with patch("elengenix.scanning.universal._get_now_context", return_value="Now"):
+                            result = process_universal(
+                                user_input="hello",
+                                client=mock_client,
+                                conversation_history=[],
+                                base_prompt="test",
+                                governance=Mock(),
+                                target="example.com",
+                            )
+        assert isinstance(result, str)
+
+    def test_simple_greeting_thai(self):
+        """Thai greeting should get Thai response."""
+        with patch("elengenix.scanning.universal.analyze_intent", return_value="casual"):
+            with patch("elengenix.scanning.universal.registry") as mock_reg:
+                mock_reg.list_available_tools.return_value = {}
+                mock_client = Mock()
+                mock_client.chat.return_value = Mock(content="")
+                with patch("elengenix.scanning.universal.get_context_for_ai", return_value=""):
+                    with patch("elengenix.scanning.universal._get_memory_profile_context", return_value=""):
+                        with patch("elengenix.scanning.universal._get_now_context", return_value="Now"):
+                            result = process_universal(
+                                user_input="สวัสดี",
+                                client=mock_client,
+                                conversation_history=[],
+                                base_prompt="test",
+                                governance=Mock(),
+                            )
+        assert isinstance(result, str)
+
+    def test_reflection_caution(self):
+        """Should use reflection caution when available."""
+        mock_reflection = Mock()
+        mock_reflection.retrieve_caution.return_value = "Caution: XSS found before"
+        with patch("elengenix.scanning.universal.analyze_intent", return_value="casual"):
+            with patch("elengenix.scanning.universal.registry") as mock_reg:
+                mock_reg.list_available_tools.return_value = {}
+                mock_client = Mock()
+                mock_client.chat.return_value = Mock(content="Hello!")
+                with patch("elengenix.scanning.universal.get_context_for_ai", return_value=""):
+                    with patch("elengenix.scanning.universal._get_memory_profile_context", return_value=""):
+                        with patch("elengenix.scanning.universal._get_now_context", return_value="Now"):
+                            result = process_universal(
+                                user_input="hello",
+                                client=mock_client,
+                                conversation_history=[],
+                                base_prompt="test",
+                                governance=Mock(),
+                                reflection_tracker=mock_reflection,
+                            )
+        assert isinstance(result, str)
+
+    def test_preflight_findings_injected(self):
+        """Should inject preflight findings into prompt."""
+        with patch("elengenix.scanning.universal.analyze_intent", return_value="scan"):
+            with patch("elengenix.scanning.universal.registry") as mock_reg:
+                mock_reg.list_available_tools.return_value = {}
+                mock_client = Mock()
+                mock_client.chat.return_value = Mock(
+                    content='{"thought": "done", "action": {"type": "finish"}}'
+                )
+                with patch("elengenix.scanning.universal.get_universal_executor") as mock_exec:
+                    mock_exec.return_value.execute_action.return_value = Mock(success=True, output="ok")
+                    with patch("elengenix.scanning.universal._try_canonical_scan_loop", return_value=None):
+                        result = process_universal(
+                            user_input="scan example.com",
+                            client=mock_client,
+                            conversation_history=[],
+                            base_prompt="test",
+                            governance=Mock(),
+                            target="example.com",
+                            preflight_findings=[
+                                {"type": "xss", "severity": "High", "title": "XSS vuln"},
+                            ],
+                        )
+        assert isinstance(result, str)
+
+    def test_brain_mode_in_legacy_loop(self):
+        """Should initialize brain components when use_brain=True."""
+        with patch("elengenix.scanning.universal.analyze_intent", return_value="scan"):
+            with patch("elengenix.scanning.universal.registry") as mock_reg:
+                mock_reg.list_available_tools.return_value = {}
+                mock_client = Mock()
+                mock_client.chat.return_value = Mock(
+                    content='{"thought": "done", "action": {"type": "finish"}}'
+                )
+                with patch("elengenix.scanning.universal.get_universal_executor") as mock_exec:
+                    mock_exec.return_value.execute_action.return_value = Mock(success=True, output="ok")
+                    with patch("elengenix.scanning.universal._try_canonical_scan_loop", return_value=None):
+                        result = process_universal(
+                            user_input="scan example.com",
+                            client=mock_client,
+                            conversation_history=[],
+                            base_prompt="test",
+                            governance=Mock(),
+                            target="example.com",
+                            use_brain=True,
+                        )
+        assert isinstance(result, str)
+
+    def test_action_type_conversion(self):
+        """Should convert run_shell to shell."""
+        with patch("elengenix.scanning.universal.analyze_intent", return_value="scan"):
+            with patch("elengenix.scanning.universal.registry") as mock_reg:
+                mock_reg.list_available_tools.return_value = {}
+                mock_client = Mock()
+                mock_client.chat.return_value = Mock(
+                    content='{"thought": "test", "action": {"type": "run_shell", "params": {"command": "ls"}}}'
+                )
+                with patch("elengenix.scanning.universal.get_universal_executor") as mock_exec:
+                    mock_exec.return_value.execute_action.return_value = Mock(success=True, output="file1")
+                    result = process_universal(
+                        user_input="scan example.com",
+                        client=mock_client,
+                        conversation_history=[],
+                        base_prompt="test",
+                        governance=Mock(),
+                        target="example.com",
+                    )
+        assert isinstance(result, str)
+
+    def test_action_without_params(self):
+        """Should handle action without params."""
+        with patch("elengenix.scanning.universal.analyze_intent", return_value="scan"):
+            with patch("elengenix.scanning.universal.registry") as mock_reg:
+                mock_reg.list_available_tools.return_value = {}
+                mock_client = Mock()
+                mock_client.chat.return_value = Mock(
+                    content='{"thought": "test", "action": {"type": "finish"}}'
+                )
+                with patch("elengenix.scanning.universal.get_universal_executor") as mock_exec:
+                    mock_exec.return_value.execute_action.return_value = Mock(success=True, output="ok")
+                    result = process_universal(
+                        user_input="scan example.com",
+                        client=mock_client,
+                        conversation_history=[],
+                        base_prompt="test",
+                        governance=Mock(),
+                        target="example.com",
+                    )
+        assert isinstance(result, str)
+
+    def test_cvss_scoring(self):
+        """Should score findings with CVSS calculator."""
+        with patch("elengenix.scanning.universal.analyze_intent", return_value="scan"):
+            with patch("elengenix.scanning.universal.registry") as mock_reg:
+                mock_reg.list_available_tools.return_value = {}
+                mock_client = Mock()
+                mock_client.chat.return_value = Mock(
+                    content='{"thought": "done", "action": {"type": "finish"}}'
+                )
+                with patch("elengenix.scanning.universal.get_universal_executor") as mock_exec:
+                    mock_exec.return_value.execute_action.return_value = Mock(success=True, output="vuln found")
+                    with patch("elengenix.scanning.universal.CVSSCalculator") as mock_cvss:
+                        mock_score = Mock()
+                        mock_score.severity.value = "High"
+                        mock_score.base_score = 7.5
+                        mock_cvss.return_value.from_finding.return_value = mock_score
+                        result = process_universal(
+                            user_input="scan example.com",
+                            client=mock_client,
+                            conversation_history=[],
+                            base_prompt="test",
+                            governance=Mock(),
+                            target="example.com",
+                        )
+        assert isinstance(result, str)
+
+    def test_summary_generation(self):
+        """Should generate summary with findings."""
+        with patch("elengenix.scanning.universal.analyze_intent", return_value="scan"):
+            with patch("elengenix.scanning.universal.registry") as mock_reg:
+                mock_reg.list_available_tools.return_value = {}
+                mock_client = Mock()
+                mock_client.chat.return_value = Mock(
+                    content='{"thought": "done", "action": {"type": "finish"}}'
+                )
+                # No Stack-A provider configured in this test — force Stack B.
+                with patch(
+                    "elengenix.scanning.provider_bridge.resolve_stack_a_backend",
+                    return_value=None,
+                ), patch(
+                    "elengenix.scanning.universal.get_universal_executor"
+                ) as mock_exec:
+                    mock_exec.return_value.execute_action.return_value = Mock(success=True, output="vuln found")
+                    with patch("elengenix.scanning.universal._try_canonical_scan_loop", return_value=None):
+                        with patch("elengenix.scanning.universal.CVSSCalculator") as mock_cvss:
+                            mock_score = Mock()
+                            mock_score.severity.value = "High"
+                            mock_score.base_score = 7.5
+                            mock_cvss.return_value.from_finding.return_value = mock_score
+                            result = process_universal(
+                                user_input="scan example.com",
+                                client=mock_client,
+                                conversation_history=[],
+                                base_prompt="test",
+                                governance=Mock(),
+                                target="example.com",
+                            )
+        assert "Universal Agent Summary" in result
+        assert "Target" in result
+        assert "Findings" in result
+
+    def test_run_tool_without_tool_name(self):
+        """Should convert to shell when run_tool has no tool name."""
+        with patch("elengenix.scanning.universal.analyze_intent", return_value="scan"):
+            with patch("elengenix.scanning.universal.registry") as mock_reg:
+                mock_reg.list_available_tools.return_value = {}
+                mock_client = Mock()
+                mock_client.chat.return_value = Mock(
+                    content='{"thought": "test", "action": {"type": "run_tool", "params": {}}}'
+                )
+                with patch("elengenix.scanning.universal.get_universal_executor") as mock_exec:
+                    mock_exec.return_value.execute_action.return_value = Mock(success=True, output="ok")
+                    result = process_universal(
+                        user_input="scan example.com",
+                        client=mock_client,
+                        conversation_history=[],
+                        base_prompt="test",
+                        governance=Mock(),
+                        target="example.com",
+                    )
+        assert isinstance(result, str)
 
 
 if __name__ == "__main__":

@@ -146,6 +146,23 @@ def _run_tool(tool_file: str, target: str) -> int:
         return 1
 
 
+def _prompt_valid_target() -> str:
+    """Prompt until a valid target is entered (or empty to cancel).
+
+    Re-prompts on invalid input instead of dumping the user back out or
+    crashing. Returns an empty string when the user cancels (blank entry).
+    """
+    from cli.ui_components import prompt_target
+
+    while True:
+        target = prompt_target().strip()
+        if not target:
+            return ""
+        if _validate_target(target):
+            return target
+        print_error("Invalid target. Enter a bare domain or IPv4 (e.g. example.com) — no schemes, paths, or shell chars.")
+
+
 def show_tools_menu():
     """Main Interactive Arsenal Loop."""
     from cli.ui_components import (
@@ -166,18 +183,20 @@ def show_tools_menu():
 
         try:
             choice = input("Select Vector [0-{}]: ".format(len(TOOLS))).strip()
-            if choice == "0":
+            if choice == "0" or not choice:
                 return
             if not choice.isdigit() or not (1 <= int(choice) <= len(TOOLS)):
-                console.print("[red] Invalid selection.[/red]\n")
+                console.print(
+                    f"[red] Invalid selection — enter a number 0-{len(TOOLS)} (0 to exit).[/red]\n"
+                )
                 continue
 
             selected = TOOLS[int(choice) - 1]
             console.print(f"\n[bold red]{selected['name']}[/bold red]")
-            target = prompt_target()
+            target = _prompt_valid_target()
 
-            if not _validate_target(target):
-                print_error("Security Violation: Target format not allowed")
+            if not target:
+                console.print("[dim]Cancelled.[/dim]")
                 console.input("\n[dim]Press Enter to continue...[/dim]")
                 continue
 

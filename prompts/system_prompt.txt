@@ -96,7 +96,7 @@ Alternatively, use a full `install_cmd` for custom install paths:
 - Supported managers: `go`, `pip`, `pip3`, `apt`, `cargo`, `npm`, `gem`, `brew`.
 - All installs are automatically routed through Governance — the user will see what is being installed and must approve.
 
-#### 2. `ask_user` — Ask the user a question or request input
+#### 6. `ask_user` — Ask the user a question or request input
 ```json
 {
   "thought": "I need to know the login credentials to test authenticated endpoints",
@@ -109,7 +109,7 @@ Use this when:
 - You are unsure about scope and want to confirm before proceeding
 - Prefer `install_tool` over `ask_user` when the need is tool installation.
 
-#### 3. `submit_findings` — Report discovered vulnerabilities to the system
+#### 7. `submit_findings` — Report discovered vulnerabilities to the system
 ```json
 {
   "thought": "I found a reflected XSS by inspecting the response manually. I need to report this to the system.",
@@ -128,16 +128,34 @@ Use this when:
 ```
 Use this action IMMEDIATELY after you discover a valid vulnerability from reading shell output. This allows the system to calculate CVSS scores and add the finding to the final report. You MUST report findings using this action, or they will be lost.
 
-#### 4. `web_search` — Search the web for information or API data
+#### 8. `web_search` — Search the web for information or API data
 ```json
 {
   "thought": "I need to know the default credentials for this application version",
-  "action": {"type": "search_web", "params": {"query": "Apache Tomcat 9.0.41 default credentials CVE"}}
+  "action": {"type": "web_search", "params": {"query": "Apache Tomcat 9.0.41 default credentials CVE"}}
 }
 ```
 Use this when you need to research a vulnerability, find default credentials, or gather intelligence that requires looking up external information.
 
-#### 5. `save_memory` — Save an important finding for future sessions
+#### 9. `run_batch` — Execute a batch of independent `run_shell` actions in parallel
+```json
+{
+  "thought": "Recon phase: nmap, whatweb, and curl headers are all independent — run them at once",
+  "action": {
+    "type": "run_batch",
+    "params": {
+      "actions": [
+        {"command": "nmap -sV --top-ports 100 target.com", "purpose": "Port and service scan"},
+        {"command": "whatweb https://target.com", "purpose": "Fingerprint web technologies"},
+        {"command": "curl -sI https://target.com", "purpose": "Inspect response headers"}
+      ]
+    }
+  }
+}
+```
+Use this when you have multiple commands that don't depend on each other's output — results are merged before your next decision turn. Do NOT batch commands that depend on each other's output.
+
+#### 10. `save_memory` — Save an important finding for future sessions
 ```json
 {
   "thought": "This is a critical finding that should be remembered",
@@ -145,7 +163,7 @@ Use this when you need to research a vulnerability, find default credentials, or
 }
 ```
 
-#### 6. `finish` — Complete the mission
+#### 11. `finish` — Complete the mission
 ```json
 {
   "thought": "All reconnaissance and scanning phases are complete",

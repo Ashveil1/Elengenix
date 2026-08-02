@@ -7,8 +7,8 @@ import json
 import logging
 import time
 from pathlib import Path
+from typing import List, Optional
 from elengenix.paths import get_data_dir
-from typing import (
 
 from elengenix.scanning.dataclasses import AgentThought
 

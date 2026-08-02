@@ -235,6 +235,15 @@ def show_banner():
 
 
 def main():
+    # Fast path: --help/-h must print usage and exit without starting the
+    # banner, MCP server, welcome wizard, or TUI. argparse is configured with
+    # add_help=False below (custom help flow), so handle it here.
+    if any(a in ("-h", "--help") for a in sys.argv[1:]):
+        from tools.auto_detector import CommandSimplifier
+
+        Console().print(CommandSimplifier.get_help_text())
+        return
+
     # Depth guard for recursive profile expansion (max 3 levels)
     _main_depth = getattr(main, "_depth", 0) + 1
     main._depth = _main_depth

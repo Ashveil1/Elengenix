@@ -250,6 +250,138 @@ class TestBenchmarkResult:
         assert d["steps_taken"] == 5
         assert d["scan_duration_sec"] == 10.0
 
+    def test_to_dict_backward_compat_keys_present(self):
+        """Legacy consumers rely on these exact keys — they must not move."""
+        d = BenchmarkResult().to_dict()
+        legacy_keys = {
+            "precision", "recall", "f1", "true_positives", "false_positives",
+            "false_negatives", "total_reported", "total_ground_truth",
+            "scan_duration_sec", "time_to_first_finding_sec", "steps_taken",
+            "error", "missed",
+        }
+        assert legacy_keys.issubset(d.keys())
+
+    def test_to_dict_includes_additive_impact_keys(self):
+        d = BenchmarkResult().to_dict()
+        assert "impact_proven" in d
+        assert "impact_rate" in d
+        # New keys default safely for runs graded without a flag.
+        assert d["impact_proven"] == []
+        assert d["impact_rate"] == 0.0
+
+
+# ===================================================================
+# Impact (FLAG) metrics — additive, flag-eligible classes only
+# ===================================================================
+
+
+class TestImpactMetrics:
+    """Per-run FLAG planted by the runner proves exploitation when it appears
+    verbatim in a finding's evidence. Only sqli / ssti / path_traversal count
+    toward the impact_rate denominator (3 classes)."""
+
+    FLAG = "ELENGENIX-FLAG-testvalue123"
+    ELIGIBLE = 3  # sqli + ssti + path_traversal
+
+    @pytest.fixture
+    def grader(self):
+        return BenchmarkGrader(GROUND_TRUTH)
+
+    def _findings_with_flag(self, *specs):
+        """specs: (vuln_class, url, include_flag)."""
+        return [
+            {
+                "type": vc,
+                "url": url,
+                "evidence": (
+                    f"extracted {self.FLAG} successfully" if inc else "detected, no proof"
+                ),
+            }
+            for vc, url, inc in specs
+        ]
+
+    def test_no_flag_no_impact(self, grader):
+        findings = [{"type": "sqli", "url": "/login", "evidence": self.FLAG}]
+        r = grader.grade(findings)  # flag not supplied
+        assert r.impact_proven == []
+        assert r.impact_rate == 0.0
+
+    def test_flag_in_sqli_evidence_proves_impact(self, grader):
+        r = grader.grade(
+            self._findings_with_flag(("sqli", "/login", True)), flag=self.FLAG
+        )
+        assert r.impact_proven == ["sqli"]
+        assert r.impact_rate == pytest.approx(1 / self.ELIGIBLE)
+
+    def test_flag_absent_from_evidence_no_impact(self, grader):
+        r = grader.grade(
+            self._findings_with_flag(
+                ("sqli", "/login", False), ("ssti", "/render", False)
+            ),
+            flag=self.FLAG,
+        )
+        assert r.impact_proven == []
+        assert r.impact_rate == 0.0
+
+    def test_all_three_eligible_classes_give_full_impact(self, grader):
+        r = grader.grade(
+            self._findings_with_flag(
+                ("sqli", "/login", True),
+                ("ssti", "/render", True),
+                ("path_traversal", "/download", True),
+            ),
+            flag=self.FLAG,
+        )
+        assert set(r.impact_proven) == {"sqli", "ssti", "path_traversal"}
+        assert r.impact_rate == pytest.approx(1.0)
+
+    def test_non_eligible_class_with_flag_not_counted(self, grader):
+        """xss carrying the flag string is NOT impact-eligible — must not
+        inflate impact_proven / impact_rate."""
+        r = grader.grade(
+            self._findings_with_flag(("xss", "/search", True)), flag=self.FLAG
+        )
+        assert r.impact_proven == []
+        assert r.impact_rate == 0.0
+
+    def test_flag_in_evidence_but_wrong_class_no_impact(self, grader):
+        # lfi→path_traversal is eligible, jwt is not.
+        r = grader.grade(
+            self._findings_with_flag(("jwt_none", "/api/jwt/verify", True)),
+            flag=self.FLAG,
+        )
+        assert r.impact_proven == []
+
+    def test_impact_does_not_change_precision_recall_f1(self, grader):
+        findings = self._findings_with_flag(("sqli", "/login", True))
+        plain = grader.grade(findings)
+        flagged = grader.grade(findings, flag=self.FLAG)
+        assert plain.precision() == flagged.precision()
+        assert plain.recall() == flagged.recall()
+        assert plain.f1() == flagged.f1()
+        assert flagged.impact_proven == ["sqli"]
+
+    def test_impact_proven_serialized(self, grader):
+        r = grader.grade(
+            self._findings_with_flag(("ssti", "/render", True)), flag=self.FLAG
+        )
+        d = r.to_dict()
+        assert d["impact_proven"] == ["ssti"]
+        assert d["impact_rate"] == pytest.approx(1 / self.ELIGIBLE)
+
+    def test_error_run_still_serializes_impact_fields(self, grader):
+        r = grader.grade([], error="no AI key", flag=self.FLAG)
+        d = r.to_dict()
+        assert d["impact_proven"] == []
+        assert d["impact_rate"] == 0.0
+        assert "Impact proven" not in r.summary()  # error path has its own summary
+
+    def test_flag_eligible_mapping_declared_in_one_place(self):
+        from benchmark import grading
+
+        assert grading.FLAG_ELIGIBLE_CLASSES == {"sqli", "ssti", "path_traversal"}
+        assert grading.flag_eligible_ground_truth_count(grading.GROUND_TRUTH) == 3
+
 
 # ===================================================================
 # Ground truth integrity

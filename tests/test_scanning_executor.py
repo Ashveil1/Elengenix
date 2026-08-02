@@ -490,7 +490,7 @@ class TestExecuteShellCommand:
     @patch("elengenix.scanning.executor.execute_safely")
     @patch("elengenix.scanning.executor.detect_and_install_missing_tool")
     def test_command_failure_missing_tool_installed_retry_fails(
-        self, mock_detect, mock_safe, governance, callback
+        self, mock_detect, mock_safe, governance
     ):
         """Missing tool installed but retry also fails."""
         mock_safe.side_effect = [
@@ -498,7 +498,7 @@ class TestExecuteShellCommand:
             {"success": False, "stdout": "", "stderr": "still broken", "exit_code": 1, "error": "still broken"},
         ]
         mock_detect.return_value = "installed"
-        result = execute_shell_command("nmap -h", governance, callback=callback)
+        result = execute_shell_command("nmap -h", governance)
         assert result.startswith("[FAIL]")
 
     @patch("elengenix.scanning.executor.execute_safely_interactive")

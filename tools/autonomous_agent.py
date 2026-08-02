@@ -32,7 +32,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from elengenix.paths import get_data_dir
-from typing import (
+from typing import Any, Dict, List, Optional
 from urllib.parse import urlparse
 
 try:
@@ -2228,9 +2228,9 @@ def _exec_ssrf_scan_ex(action: AgentAction, state: AgentState) -> List[Dict]:
     try:
         from tools.ssrf_scanner import SSRFScanner
 
-        engine = SSRFScanner(base_url=action.target)
-        results = engine.scan(url=action.target, headers=_build_headers(state))
-        findings.extend(results)
+        engine = SSRFScanner()
+        scan_result = engine.scan(target_url=action.target)
+        findings.extend(scan_result.results)
         _display(f"  [ssrf_scan] {action.target} → {len(findings)} SSRF findings")
     except Exception as e:
         logger.warning(f"SSRF scan error: {e}")
@@ -2242,10 +2242,11 @@ def _exec_graphql_ex(action: AgentAction, state: AgentState) -> List[Dict]:
     """Execute GraphQL introspection scan."""
     findings = []
     try:
-        from tools.graphql_scanner import scan_graphql
+        from tools.graphql_scanner import GraphQLScanner
 
-        results = scan_graphql(action.target, headers=_build_headers(state))
-        findings.extend(results)
+        scanner = GraphQLScanner()
+        scan_result = scanner.scan(action.target)
+        findings.extend(scan_result.results)
         _display(f"  [graphql_introspect] {action.target} → {len(findings)} findings")
     except Exception as e:
         logger.warning(f"GraphQL scan error: {e}")

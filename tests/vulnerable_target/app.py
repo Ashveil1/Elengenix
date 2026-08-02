@@ -17,6 +17,21 @@ Contains intentional vulnerabilities for testing detection capabilities:
 Run: python3 app.py
 Default port: 5555 (configurable via PORT env var)
 
+Difficulty tiers:
+    - LOUD (default): index page lists all endpoints + vuln hints; the SQLi
+      endpoint debug-leaks the raw query. Easy mode for smoke tests.
+    - STEALTH (ELENGENIX_BENCH_STEALTH=1): index returns an opaque service
+      page; error echoes do not leak the raw SQL query. Forces the agent to
+      discover endpoints and infer vulnerability class on its own.
+
+Impact flags:
+    The runner injects a random per-run flag via FLAG env var. Three critical
+    classes (sqli, ssti/rce, lfi/path_traversal) can each be proven by
+    extracting the flag: it is planted in a hidden DB row (login SQLi), inside
+    a file only reachable via path traversal, and rendered via SSTI.
+    A grader can mark those findings as 'impact proven' when the flag string
+    appears in the reported evidence.
+
 NEVER deploy this to production. NEVER expose to internet.
 For local scanner testing ONLY.
 """
@@ -35,6 +50,21 @@ app = Flask(__name__)
 app.config["SECRET_KEY"] = "supersecretkey-12345"  # INTENTIONALLY WEAK
 DB_PATH = "/tmp/elengenix_vuln.db"
 
+# Difficulty toggle: when set, the index page becomes opaque and error paths
+# stop leaking debug detail (raw SQL query). Read once at startup so the
+# benchmark runner can choose loud vs stealth reliability.
+STEALTH = os.environ.get("ELENGENIX_BENCH_STEALTH", "").strip().lower() in (
+    "1",
+    "true",
+    "yes",
+    "on",
+)
+
+# Per-run impact flag injected by the benchmark runner via FLAG env var. The
+# app plants it in three places tied to 3 critical vuln classes. Using a
+# random value per run ensures the agent cannot hard-code it.
+FLAG = os.environ.get("FLAG", "").strip()
+
 # ═══════════════════════════════════════════════════════════════════════════
 # DB SETUP
 # ═══════════════════════════════════════════════════════════════════════════
@@ -48,6 +78,7 @@ def _init_db():
         DROP TABLE IF EXISTS users;
         DROP TABLE IF EXISTS comments;
         DROP TABLE IF EXISTS coupons;
+        DROP TABLE IF EXISTS flags;
         CREATE TABLE users (
             id INTEGER PRIMARY KEY,
             username TEXT UNIQUE NOT NULL,
@@ -67,6 +98,10 @@ def _init_db():
             used INTEGER DEFAULT 0,
             value REAL DEFAULT 50.0
         );
+        CREATE TABLE flags (
+            id INTEGER PRIMARY KEY,
+            flag TEXT NOT NULL
+        );
         INSERT INTO users (username, password, email, role, balance) VALUES
             ('alice', 'alice123', 'alice@test.com', 'user', 100.0),
             ('bob',   'bob123',   'bob@test.com',   'user', 50.0),
@@ -78,6 +113,14 @@ def _init_db():
     )
     conn.commit()
     conn.close()
+    # Plant the impact flag in the DB (reachable via SQLi UNION on /login).
+    # Runs after DROP/CREATE so restarting the app refreshes the flag value
+    # only when FLAG is provided by the runner.
+    if FLAG:
+        conn = sqlite3.connect(DB_PATH)
+        conn.execute("INSERT INTO flags (flag) VALUES (?)", (FLAG,))
+        conn.commit()
+        conn.close()
 
 
 _init_db()
@@ -117,6 +160,9 @@ def login_sqli():
         )
         resp.set_cookie("session_id", session_id, httponly=False, samesite="Lax")
         return resp
+    # STEALTH mode suppresses the debug query echo — same vuln, less hand-holding.
+    if STEALTH:
+        return jsonify({"status": "fail"}), 401
     return jsonify({"status": "fail", "query": query}), 401  # echoes query (debug leak)
 
 
@@ -215,8 +261,14 @@ def register_mass_assign():
 def render_ssti():
     tpl = request.args.get("template", "Hello {{ name }}")
     name = request.args.get("name", "World")
-    # VULNERABLE: user-controlled template string
-    return render_template_string(tpl, name=name), 200, {"Content-Type": "text/html"}
+    # VULNERABLE: user-controlled template string. FLAG is in the render
+    # context so a working SSTI probe (e.g. {{ FLAG }}) can recover the flag —
+    # 'impact proven' instead of just 'class detected'.
+    return (
+        render_template_string(tpl, name=name, FLAG=FLAG),
+        200,
+        {"Content-Type": "text/html"},
+    )
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -304,6 +356,14 @@ def download_traversal():
     if not os.path.exists(safe_file):
         with open(safe_file, "w") as f:
             f.write("Welcome to Elengenix Test Files\n")
+    # Plant the impact flag OUTSIDE the download base so only a working
+    # traversal (e.g. file=../elengenix_flag.txt) can read it — 'impact
+    # proven' instead of just 'class detected'.
+    if FLAG:
+        flag_file = "/tmp/elengenix_flag.txt"
+        if not os.path.exists(flag_file):
+            with open(flag_file, "w") as f:
+                f.write(f"flag: {FLAG}\n")
     # Concatenate and return — vulnerable to ../../etc/passwd
     try:
         full = os.path.join(base, fname)
@@ -311,6 +371,9 @@ def download_traversal():
         with open(full, "r") as f:
             return f.read(), 200, {"Content-Type": "text/plain"}
     except Exception as e:
+        # STEALTH mode suppresses the attempted-path echo.
+        if STEALTH:
+            return jsonify({"error": "unable to read file"}), 400
         return jsonify({"error": str(e), "attempted": fname}), 400
 
 
@@ -321,6 +384,10 @@ def download_traversal():
 
 @app.route("/")
 def index():
+    # STEALTH mode: opaque service page. No vuln class names, no endpoint list.
+    # A crawler can no longer leech the ground-truth off the index.
+    if STEALTH:
+        return jsonify({"status": "ok", "service": "elengenix-target"})
     return jsonify(
         {
             "app": "Elengenix Vulnerable Test Target",

@@ -22,8 +22,8 @@ from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
 from elengenix.paths import get_reports_path
-from typing import (
 
 logger = logging.getLogger("elengenix.hunt")
 

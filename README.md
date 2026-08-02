@@ -53,37 +53,57 @@ Unlike "script chaining with an AI on top", Elengenix gives the AI **genuine aut
 
 ## Quick Start
 
+### Prerequisites
+
+- **Python 3.10 or newer** (`python3 --version` to check) and `pip`
+- **An AI provider key** — at least one of: `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`,
+  `GEMINI_API_KEY`, `GROQ_API_KEY`, `DEEPSEEK_API_KEY`… or a local
+  [Ollama](https://ollama.com) install (no key needed)
+- *Optional:* [Node.js](https://nodejs.org) ≥ 18 if you want the default
+  npm-based MCP servers (Elengenix works fine without them)
+
 ### Install
 
 ```bash
-pip install elengenix
+pip install elengenix            # from PyPI
+# or, from a source checkout:
+pip install .
 ```
 
-### First Run
+That's it. The install takes a few minutes (ChromaDB + sentence-transformers
+are the heavy parts). User config, memory, and reports all live under
+`~/.elengenix/`.
+
+### Scan a target in 3 lines
 
 ```bash
-# System health check
-elengenix doctor
-
-# Configure AI providers
-elengenix configure
-
-# Start an autonomous vulnerability hunt
-elengenix hunt example.com
+elengenix configure              # one-line setup: pick a provider, paste your key
+elengenix doctor                 # sanity-check the installation
+elengenix scan example.com       # autonomous AI vulnerability hunt
 ```
+
+Skip the wizard entirely by exporting a key instead:
+
+```bash
+export OPENAI_API_KEY=sk-...     # or ANTHROPIC_API_KEY / GROQ_API_KEY / ...
+elengenix scan example.com
+```
+
+> **Only scan targets you own or have written permission to test.**
+> Every potentially intrusive action is gated by the Governance layer and
+> asks for your approval first (`--mode strict` blocks it outright).
 
 ### Terminal Demo
 
 ```text
 ┌─────────────────────────────────────────────────────────────┐
-│  $ elengenix hunt example.com                                │
+│  $ elengenix scan example.com                                │
 │                                                              │
 │  ╔═══════════════════════════════════════════════════════╗   │
-│  ║  ELENGENIX HUNT — Autonomous AI Vulnerability Hunter   ║   │
+│  ║  ELENGENIX — Autonomous AI Vulnerability Hunter        ║   │
 │  ╚═══════════════════════════════════════════════════════╝   │
 │                                                              │
-│  [INFO] Starting autonomous AI hunt...                       │
-│  [INFO] Target: example.com                                  │
+│  [INFO] Target validated: example.com                        │
 │  [INFO] Cross-session memory: ACTIVE                         │
 │                                                              │
 │  VulnAgent uses 25 available tools...                        │
@@ -95,8 +115,21 @@ elengenix hunt example.com
 │  └── Report generated with findings                          │
 │                                                              │
 │  [OK] Hunt complete!                                         │
-│  [OK] Report: ~/.elengenix/reports/hunt_example_com.md         │
+│  [OK] Report: ~/.elengenix/reports/hunt_example_com.md       │
 └─────────────────────────────────────────────────────────────┘
+```
+
+*(Illustrative session; your output depends on the target.)*
+
+### Try it without a real target
+
+A deliberately vulnerable test app ships with the repo. Point Elengenix at
+localhost, or run the offline benchmark (real precision/recall/F1 numbers
+against 10 planted vulnerabilities — no external target needed):
+
+```bash
+python3 benchmark/run_benchmark.py --json      # single benchmark run
+python3 benchmark/run_benchmark.py --history   # past results
 ```
 
 <img src="assets/red-divider.svg" width="100%">
@@ -269,6 +302,50 @@ Supported: OpenAI, Anthropic, Google Gemini, Groq, DeepSeek, Ollama (local), and
 ```bash
 elengenix configure  # Interactive setup wizard
 ```
+
+Or set the key directly and skip the wizard: `export OPENAI_API_KEY=sk-...`
+(any of `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `GROQ_API_KEY`,
+`DEEPSEEK_API_KEY` works too). Put keys in `~/.elengenix/.env` for
+persistence — never commit them.
+
+<img src="assets/red-divider.svg" width="100%">
+
+## Common Issues
+
+**`No AI provider configured` / scan exits immediately.**
+Run `elengenix configure` or export a key (`export OPENAI_API_KEY=...`).
+No key at all? Use local models: install [Ollama](https://ollama.com),
+`ollama pull qwen2.5-coder`, then select Ollama in the wizard.
+
+**`429` / provider rate-limit errors.**
+The provider is throttling you. Lower the request rate
+(`elengenix scan example.com --rate-limit 2`), wait for the quota window to
+reset, or switch providers with `elengenix configure`.
+
+**`Target not reachable` / every probe times out.**
+Check the hostname resolves (`ping -c1 example.com`), try the full URL
+(`elengenix scan https://example.com`), and confirm you're not behind a
+proxy/VPN blocking outbound traffic. Host-only scopes mean the target must
+pass `elengenix doctor`'s network check.
+
+**MCP servers fail to start (`npx: command not found`).**
+Optional. Install Node.js ≥ 18, or edit `~/.elengenix/mcp.json` and remove
+the npm-based entries — Elengenix runs fine with MCP disabled.
+
+**First run hangs on a welcome wizard / download.**
+The wizard only runs once; answer it or press Ctrl-C and run
+`elengenix configure` manually. Model downloads (sentence-transformers,
+~100 MB) happen once and are cached.
+
+**`pip install elengenix` fails to build a dependency.**
+Use Python 3.10–3.13 and a venv:
+`python3 -m venv .venv && . .venv/bin/activate && pip install elengenix`.
+Very new interpreters (3.14+) work but some wheels build from source —
+install your distro's `python3-dev` / build tools if so.
+
+**Reports or memory missing.**
+Everything lives under `~/.elengenix/` (`reports/`, `data/memory.json`,
+`data/skills.json`) — check there, not the source checkout.
 
 <img src="assets/red-divider.svg" width="100%">
 

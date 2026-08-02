@@ -2,19 +2,13 @@
 
 Universal AI Client - OpenAI-compatible API for any provider.
 
-Design Principle (OpenClaw-style):
-- Direct HTTP API calls (no vendor-locked libraries)
-- OpenAI-compatible format (universal standard)
-- Support: OpenAI, Gemini, Anthropic, Ollama, LocalAI, etc.
-- Easy provider switching (just change base_url + key)
-- Async via httpx (optional); falls back to synchronous requests.
+CREDENTIAL SOURCES: config.yaml ONLY (no environment variables).
+- Set provider credentials under `providers.{name}.api_key` in config.yaml.
+- `elengenix configure` manages these for you.
+- Single source of truth — no env-var shadowing across machines.
 
-Providers with OpenAI-compatible API:
-- OpenAI (native)
-- Gemini (via endpoint)
-- Anthropic (Claude with OpenAI adapter)
-- Ollama (local models)
-- LocalAI, vLLM, etc.
+Design (OpenClaw-style): HTTP direct, OpenAI-compatible, supports
+OpenAI/Gemini/Anthropic/Ollama/OpenCode/LocalAI/custom endpoints.
 """
 
 from __future__ import annotations
@@ -344,6 +338,14 @@ class UniversalAIClient:
             "base_url": "",
             "env_key": None,
             "default_model": "custom-model",
+        },
+        # OpenCode Zen — OpenAI-compatible gateway (https://opencode.ai/zen/v1)
+        # exposing tier-1 models: Claude 5.x/4.x, GPT-5.x, Gemini 3.x, Kimi K3,
+        # DeepSeek V4, Grok, Qwen3.6, GLM-5.x, MiniMax M3 — plus several free tiers.
+        "opencode": {
+            "base_url": "https://opencode.ai/zen/v1",
+            "env_key": "OPENCODE_API_KEY",
+            "default_model": "gpt-5.4-mini",
         },
     }
 
@@ -911,9 +913,52 @@ class UniversalAIClient:
             self._ping_ok = False
             return False
 
-    def fetch_available_models(self) -> List[str]:
-        """Fetch models from the provider's /v1/models endpoint."""
+    def _discover_stack_a_models(self) -> List[str]:
+        """Try Stack A (``elengenix.providers``) dynamic model listing.
+
+        Returns the provider's advertised models when Stack A has an
+        implementation for this provider *and* the provider can enumerate
+        them; otherwise ``[]``. Purely additive — never raises, and callers
+        fall back to the hardcoded / HTTP-list behaviors on ``[]``.
+        """
         try:
+            from elengenix.providers.base import ProviderType
+            from elengenix.providers.registry import get_default_registry
+
+            try:
+                provider_type = ProviderType(self.provider)
+            except ValueError:
+                return []
+
+            provider = get_default_registry().get_provider(provider_type)
+            if provider is None:
+                return []
+            models = provider.get_models() or []
+            out: List[str] = []
+            for m in models:
+                name = getattr(m, "name", None) or getattr(m, "id", None) or (
+                    m if isinstance(m, str) else None
+                )
+                if name:
+                    out.append(str(name))
+            return out
+        except Exception as e:  # noqa: BLE001 — discovery is best-effort
+            logger.debug(f"Stack A dynamic model discovery failed for {self.provider}: {e}")
+            return []
+
+    def fetch_available_models(self) -> List[str]:
+        """Fetch models from the provider's /v1/models endpoint.
+
+        Prefers Stack A's dynamic model list when available; falls back to
+        the legacy HTTP GET /models and then to hardcoded defaults.
+        """
+        try:
+            # Prefer Stack A dynamic discovery (no HTTP call, respects each
+            # provider's canonical model list from the registry).
+            discovered = self._discover_stack_a_models()
+            if discovered:
+                return discovered
+
             # Special handling for Anthropic (don't support /models well)
             if self.provider == "anthropic":
                 return [
@@ -1057,7 +1102,14 @@ class AIClientManager:
         return self.active_client.provider if self.active_client else "none"
 
     def get_all_providers_status(self) -> List[Dict[str, Any]]:
-        """Get status for all supported providers."""
+        """Get honest status for all supported providers.
+
+        A provider only reports "available" when it actually has credentials
+        (API key in env/config.yaml for remote providers) or is reachable for
+        local ones (ollama). The previous behavior marked every hardcoded
+        provider as READY even with no key, which is why `elengenix configure`
+        listed everything as ready on a fresh install.
+        """
         status_list = []
         # Temporarily silence logs to avoid cluttering during discovery
         original_level = logger.level
@@ -1067,6 +1119,15 @@ class AIClientManager:
             try:
                 temp_client = UniversalAIClient(provider=p_name)
                 status = temp_client.get_status()
+                # Honest availability: require a key for hosted providers, or a
+                # reachable endpoint for key-free local ones.
+                if p_name in ("ollama",):
+                    status["available"] = temp_client.is_available()
+                else:
+                    status["available"] = bool(
+                        status.get("has_api_key")
+                        and temp_client.is_available()
+                    )
                 # Check if it's currently the active one
                 status["active"] = self.active_client and self.active_client.provider == p_name
                 status_list.append(status)

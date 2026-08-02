@@ -24,6 +24,11 @@ from collections import deque
 from pathlib import Path
 from elengenix.paths import get_data_dir
 from typing import (
+    Any,
+    Callable,
+    List,
+    Optional,
+)
 
 from rich.align import Align
 from rich.box import ASCII
@@ -34,9 +39,12 @@ from core.agent import get_agent
 from tools.overlay_menu import SettingsOverlay
 from cli.ui_components import console, render_sidebar
 
-# Logging Setup
-LOG_FILE = get_data_dir("elengenix_cli.log")
-LOG_FILE.parent.mkdir(exist_ok=True)
+# Logging Setup — logs live under ~/.elengenix/logs/ (mkdir -p so an existing
+# *file* or *directory* at that path never crashes the import).
+from elengenix.paths import get_log_dir
+
+LOG_DIR = get_log_dir()
+LOG_FILE = LOG_DIR / "elengenix_cli.log"
 
 # Use a stream handler for module-level logging to avoid unclosed file warnings.
 logging.basicConfig(
@@ -48,10 +56,16 @@ logging.basicConfig(
 )
 logger = logging.getLogger("elengenix.cli")
 
-# Dedicated file logger (created once, flushed properly).
-_file_handler = logging.FileHandler(LOG_FILE, encoding="utf-8")
-_file_handler.setFormatter(logging.Formatter("%(asctime)s - %(levelname)s - %(message)s"))
-logger.addHandler(_file_handler)
+# Dedicated file logger (created once, flushed properly). If the log path is
+# unwritable for any reason (permissions, a stray directory, read-only home),
+# fall back to stderr-only logging instead of crashing the whole CLI at import.
+_file_handler = None
+try:
+    _file_handler = logging.FileHandler(LOG_FILE, encoding="utf-8")
+    _file_handler.setFormatter(logging.Formatter("%(asctime)s - %(levelname)s - %(message)s"))
+    logger.addHandler(_file_handler)
+except OSError as _log_err:
+    sys.stderr.write(f"[elengenix] file logging disabled: {_log_err}\n")
 
 # ── AI Disclaimer & Consent Management ─────────────────────────
 CONSENT_FILE = get_data_dir(".ai_consent_accepted")
@@ -342,8 +356,12 @@ def show_mode_selector(console: Console) -> Optional[str]:
     print("  0. Cancel (or just press Enter)")
     print("====================================")
 
-    try:
-        choice = input("Select (0-5): ").strip()
+    while True:
+        try:
+            choice = input("Select (0-5): ").strip()
+        except (EOFError, KeyboardInterrupt):
+            print("Cancelled.")
+            return None
         if not choice:  # Empty = cancel
             print("Cancelled.")
             return None
@@ -356,10 +374,7 @@ def show_mode_selector(console: Console) -> Optional[str]:
                 selected = modes[idx - 1][0]
                 print(f"Selected: {selected}")
                 return selected
-        print("Invalid choice.")
-    except (EOFError, KeyboardInterrupt):
-        print("Cancelled.")
-    return None
+        print("Invalid choice — enter a number 0-5 (or Enter to cancel).")
 
 
 def show_model_selector(console: Console, manager: Any) -> Optional[List[Any]]:
@@ -678,6 +693,16 @@ def main(mode: str = "auto", target: Optional[str] = None):
         logger.error(f"Agent Init Failed: {e}")
         console.print(f"[bold red] Failed to initialize Agent: {e}[/bold red]")
         return
+
+    # Provider pre-flight: show exactly which provider/model/key-source will
+    # be used BEFORE any action runs, and warn if nothing usable is set up.
+    # Advisory only — never blocks the UI.
+    try:
+        from cli.provider_info import render_provider_status_panel
+
+        render_provider_status_panel()
+    except Exception:
+        pass
 
     # ── AI Disclaimer Consent Check (First Run or Policy Update) ──────────
     if not _has_user_consented():
@@ -1607,9 +1632,16 @@ def main(mode: str = "auto", target: Optional[str] = None):
                 except Exception as ex:
                     import traceback
 
-                    traceback.print_exc()
+                    # Keep the raw traceback out of the chat — log it, show a
+                    # friendly one-liner instead so the TUI stays readable.
+                    logger.error("Agent processing failed:\n%s", traceback.format_exc())
                     chat.set_thinking(False)
-                    chat.add(f"Error: {ex}", role="error")
+                    chat.add(
+                        f"[bold #ffffff]Something went wrong while processing that.[/]\n"
+                        f"[dim]{type(ex).__name__}: {ex}[/]\n"
+                        f"[dim](full traceback written to the log)[/]",
+                        role="error",
+                    )
                     session_mgr.set_status("error")
 
             t = threading.Thread(target=_run, daemon=True)
@@ -1939,8 +1971,10 @@ def main(mode: str = "auto", target: Optional[str] = None):
                             input_panel = _info_input(ibuf, icur)
                             layout["input"].update(input_panel)
                         except Exception as e:
-                            traceback.print_exc()
-                            print(f"RENDER ERROR: {e}", file=sys.stderr)
+                            # Render loop errors were crashing the whole UI via
+                            # a bare traceback dump. Log it and keep the loop
+                            # alive; worst case one frame is skipped.
+                            logger.debug("Render loop update failed: %s", e)
 
                     # Read input
                     ch = raw.read_char(0.05)

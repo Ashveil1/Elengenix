@@ -123,6 +123,33 @@ class LiveDisplay:
         self.step_count = 0
         self.max_steps = 50
 
+        # Compact mission-status line extras (additive; all optional).
+        self.findings_so_far = 0
+        self.provider = ""
+        self.model = ""
+
+    def set_model_info(self, provider: str = "", model: str = "") -> None:
+        """Record the active provider+model for the mission status line."""
+        self.provider = provider or ""
+        self.model = model or ""
+
+    def render_mission_status(self) -> str:
+        """One-line mission status: target / step / findings / provider+model.
+
+        Compact Rich-markup string used under the header; degrades gracefully
+        when pieces are unset.
+        """
+        tgt = self.current_target or "—"
+        model_info = ""
+        if self.provider or self.model:
+            model_info = f" | [grey70]{self.provider or ''}{('/' + self.model) if self.model else ''}[/grey70]"
+        return (
+            f"[grey70]target[/grey70] [bold white]{tgt}[/bold white]  "
+            f"[grey70]step[/grey70] [white]{self.step_count}/{self.max_steps}[/white]  "
+            f"[grey70]findings[/grey70] [white]{self.findings_so_far}[/white]"
+            f"{model_info}"
+        )
+
     def create_layout(self) -> Layout:
         """Create Rich layout for display."""
         layout = Layout()
@@ -138,15 +165,16 @@ class LiveDisplay:
         return layout
 
     def render_header(self) -> Panel:
-        """Render header with current status."""
+        """Render header with current status (incl. mission status line)."""
         status_text = f"Step {self.step_count}/{self.max_steps}"
         if self.current_tool:
             status_text += f" | Tool: {self.current_tool}"
         if self.current_target:
             status_text += f" | Target: {self.current_target}"
+        status_text += "\n" + self.render_mission_status()
 
         return Panel(
-            Text(status_text, style="red"),
+            Text.from_markup(status_text),
             title="[bold red]Agent Activity Monitor[/bold red]",
             border_style="red",
         )

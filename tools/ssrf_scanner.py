@@ -37,6 +37,9 @@ class SSRFResult:
     evidence: str = ""
     severity: str = "High"
     confidence: float = 0.0
+    # Blind-detection provenance (additive; default = signature/baseline path)
+    blind_confirmed: bool = False
+    provenance: str = "signature"  # signature | oob_callback
 
 
 @dataclass
@@ -119,6 +122,8 @@ class SSRFScanner:
         timeout: float = 10.0,
         verify_ssl: bool = False,
         max_redirects: int = 5,
+        enable_oob: bool = True,
+        oob_timeout: float = 3.0,
     ):
         """Initialize the SSRF scanner.
 
@@ -126,10 +131,52 @@ class SSRFScanner:
             timeout: Request timeout in seconds.
             verify_ssl: Whether to verify SSL certificates.
             max_redirects: Maximum number of redirects to follow.
+            enable_oob: Add a blind-confirmation pass using the local OOB
+                callback server after the signature pass. Auto-disabled if
+                the server cannot bind (non-fatal).
+            oob_timeout: Seconds to wait for each OOB callback.
         """
         self.timeout = timeout
         self.verify_ssl = verify_ssl
         self.max_redirects = max_redirects
+        self.oob_timeout = oob_timeout
+        self._oob = None
+        if enable_oob:
+            try:
+                from tools.oob_server import get_oob_server
+
+                srv = get_oob_server()
+                if srv is not None and srv.running:
+                    self._oob = srv
+            except Exception as e:
+                logger.debug(f"OOB unavailable, blind pass disabled: {e}")
+
+    def _get_payloads(self) -> List[tuple]:
+        """Return signature payloads — payload DB first, inline list as fallback.
+
+        DB SSrf entries carry ``detect.pattern`` used as the response marker
+        (paired with the same indicators as the inline SSRF_INDICATORS list);
+        entries without a usable marker still map to their metadata label.
+        The DB subset is capped so scans stay bounded; the inline set is never
+        truncated (fallback behavior stays identical).
+        """
+        try:
+            from tools.payload_db import get_payloads
+        except Exception:
+            return list(SSRF_PAYLOADS)
+        db = get_payloads("ssrf")
+        if not db:
+            return list(SSRF_PAYLOADS)
+        out: List[tuple] = []
+        for entry in db:
+            value = entry.get("value")
+            if not isinstance(value, str) or entry.get("context") == "oob":
+                continue  # OOB payloads are generated per-test with tokens
+            detect = (entry.get("detect") or {}).get("pattern") or ""
+            out.append((value, f"[{entry.get('target', 'generic')}] {detect}".strip()))
+            if len(out) >= 32:
+                break
+        return out or list(SSRF_PAYLOADS)
 
     def scan(
         self,
@@ -175,8 +222,9 @@ class SSRFScanner:
             }
 
         # Test each parameter with each payload
+        payloads = self._get_payloads()
         for param_name, original_value in test_params.items():
-            for payload, description in SSRF_PAYLOADS:
+            for payload, description in payloads:
                 result.total_tests += 1
 
                 try:
@@ -197,6 +245,7 @@ class SSRFScanner:
 
                     # Check for SSRF indicators
                     response_text = response.text[:10000]
+                    hit_found = False
                     for pattern, indicator_desc in SSRF_INDICATORS:
                         if re.search(pattern, response_text, re.IGNORECASE):
                             ssrf_result = SSRFResult(
@@ -213,7 +262,10 @@ class SSRFScanner:
                             if param_name not in result.vulnerable_params:
                                 result.vulnerable_params.append(param_name)
                             logger.info(f"SSRF found: {param_name} with {description}")
+                            hit_found = True
                             break
+                    if hit_found:
+                        break  # one signature hit per param is enough
 
                 except requests.exceptions.Timeout:
                     # Timeout might indicate the server tried to connect
@@ -225,8 +277,73 @@ class SSRFScanner:
                 except Exception as e:
                     logger.debug(f"Error testing {param_name}: {e}")
 
+        known_hit_params = {
+            r.param for r in result.results if r.vulnerable and not r.blind_confirmed
+        }
+        if self._oob is not None:
+            self._oob_blind_pass(target_url, parsed, test_params, known_hit_params, result)
+
         result.duration = time.time() - start_time
         return result
+
+    def _oob_blind_pass(
+        self,
+        target_url: str,
+        parsed,
+        test_params: Dict[str, str],
+        skip_params: set,
+        result: SSRFScanResult,
+    ) -> None:
+        """Blind-confirmation pass: per-param unique OOB callback payloads.
+
+        For every parameter with no signature hit, inject a unique callback
+        URL; if the target fetches it within ``oob_timeout`` seconds, record
+        a finding marked ``blind_confirmed=True, provenance='oob_callback'``.
+        Purely additive — never mutates or removes signature results.
+        """
+        import requests
+
+        for param_name in test_params:
+            if param_name in skip_params:
+                continue
+            token, callback_url = self._oob.new_url()
+            result.total_tests += 1
+            test_params_copy = dict(test_params)
+            test_params_copy[param_name] = callback_url
+            test_url = urllib.parse.urlunparse(
+                parsed._replace(query=urllib.parse.urlencode(test_params_copy))
+            )
+            try:
+                requests.get(
+                    test_url,
+                    timeout=self.timeout,
+                    verify=self.verify_ssl,
+                    allow_redirects=False,
+                )
+            except Exception as e:
+                logger.debug(f"OOB payload request failed for {param_name}: {e}")
+            hit = self._oob.wait_for(token, timeout=self.oob_timeout)
+            if hit is not None:
+                result.results.append(
+                    SSRFResult(
+                        url=test_url,
+                        param=param_name,
+                        payload=callback_url,
+                        vulnerable=True,
+                        response_contains="",
+                        evidence=(
+                            f"Blind SSRF confirmed: server fetched OOB callback "
+                            f"{hit.path} ({hit.method} from {hit.client})"
+                        ),
+                        severity="High",
+                        confidence=0.95,
+                        blind_confirmed=True,
+                        provenance="oob_callback",
+                    )
+                )
+                if param_name not in result.vulnerable_params:
+                    result.vulnerable_params.append(param_name)
+                logger.info(f"Blind SSRF (OOB) found: {param_name}")
 
     def scan_with_params(
         self,

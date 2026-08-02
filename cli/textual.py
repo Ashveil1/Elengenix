@@ -12,9 +12,12 @@ import warnings
 from pathlib import Path
 from elengenix.paths import get_data_dir
 
+from elengenix.paths import get_log_dir
+
 warnings.filterwarnings("ignore", category=FutureWarning)
 
 from rich.markdown import Markdown
+from rich.box import ASCII
 from rich.panel import Panel
 from rich.text import Text
 from textual import work
@@ -39,10 +42,18 @@ try:
 except ImportError:
     _TUI_WIDGETS_AVAILABLE = False
 
-LOG_FILE = get_data_dir("elengenix_cli.log")
-LOG_FILE.parent.mkdir(exist_ok=True)
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger("elengenix.cli_textual")
+
+# File log under ~/.elengenix/logs/ — best-effort, never crash the TUI on an
+# unwritable/stray path.
+try:
+    _LOG_FILE = get_log_dir() / "elengenix_cli.log"
+    _fh = logging.FileHandler(_LOG_FILE, encoding="utf-8")
+    _fh.setFormatter(logging.Formatter("%(asctime)s - %(levelname)s - %(message)s"))
+    logger.addHandler(_fh)
+except OSError:
+    pass
 
 # ── DUAL THEME: CHILL (white) ──────────────────────────────────────────
 BASE = "#000000"
@@ -120,6 +131,7 @@ HELP_TEXT = """\
   [dim]/session load <id>[/] Load session
   [dim]/stats[/]       Memory stats
   [dim]/team[/]        Show team
+  [dim]/doctor[/]      Run setup health check
 
 [white]━━━ SHORTCUTS ━━━[/]
   [dim]Ctrl+R[/] Research  [dim]Ctrl+M[/] CHILL/HUNT
@@ -1020,16 +1032,69 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
             "[INFO] Registering 62 vulnerability detection skills...",
             "[INFO] Initializing Governance risk engine...",
             "[INFO] Establishing LLM client session...",
-            "[OK] System initialized successfully. Ready to hunt.",
         ]
         for log in sys_logs:
             time.sleep(0.15)
             self.call_from_thread(self._chat_write_system, log)
 
+        # Proactive provider check: surface "no AI key" immediately at startup
+        # instead of letting the first scan fail mid-loop with an opaque error.
+        self.call_from_thread(self._check_provider_and_warn)
+
         # Single friendly notification ring on complete boot
         if bell_enabled:
             sys.stdout.write("\a")
             sys.stdout.flush()
+
+    def _check_provider_and_warn(self) -> None:
+        """If no AI provider looks configured, show a friendly startup warning.
+
+        When one *is* configured, still surface which provider/model/key-source
+        is about to be used (plus endpoint reachability) so nothing is hidden.
+        Purely advisory — the run continues, but the user sees exactly how to
+        fix it before burning a scan. Never raises.
+        """
+        try:
+            from tools.ai_config import any_provider_configured, describe_provider_setup
+
+            if not any_provider_configured():
+                self._chat_write_panel(
+                    Panel(
+                        "[white]No AI provider configured[/]\n\n"
+                        "[dim]Scans and chat need an AI backend. Set one of:[/]\n"
+                        "  • [white]ELENGENIX_<PROVIDER>_API_KEY[/] or "
+                        "[white]<PROVIDER>_API_KEY[/] in your environment\n"
+                        "  • [white]ai.providers[/] in [white]config.yaml[/]\n"
+                        "  • or run [white]elengenix doctor[/] to verify your setup\n\n"
+                        "[dim]Then restart Elengenix.[/]",
+                        title="[white]⚠ Setup needed[/]",
+                        border_style=MUTED,
+                        box=ASCII,
+                    )
+                )
+                return
+
+            # Configured: say exactly which provider/model/key-source is live.
+            try:
+                info = describe_provider_setup()
+                active = info.get("active") or "(auto)"
+                model = info.get("model") or "(default)"
+                src = info.get("key_source", "env")
+                reach = next(
+                    (p.get("reachable") for p in info.get("providers", []) if p.get("active")),
+                    None,
+                )
+                reach_txt = (
+                    "reachable" if reach is True else ("unreachable" if reach is False else "n/a")
+                )
+                self._chat_write_system(
+                    f"[OK] AI provider configured: {active} / {model} "
+                    f"(key: {src}, endpoint: {reach_txt}). Ready to hunt."
+                )
+            except Exception:
+                self._chat_write_system("[OK] AI provider configured. Ready to hunt.")
+        except Exception as e:  # never let the check break boot
+            logger.debug("Provider preflight check skipped: %s", e)
 
     def _trigger_border_glow(self) -> None:
         """Temporarily add the .glow class to the screen to trigger border pulse."""
@@ -1676,6 +1741,14 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
                 self._start_game()
             else:
                 self._stop_game()
+            return True
+        if low == "/doctor":
+            try:
+                from cli.doctor import run_doctor
+
+                run_doctor()
+            except Exception as e:
+                self._chat_write_error(f"doctor failed: {e}")
             return True
         if low.startswith("/"):
             self._chat_write_system(f"Unknown: {low}  (/help)")

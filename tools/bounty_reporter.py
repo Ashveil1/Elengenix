@@ -23,7 +23,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from elengenix.paths import get_reports_path
-from typing import (
+from typing import List, Optional
 
 logger = logging.getLogger("elengenix.bounty_reporter")
 

@@ -16,8 +16,8 @@ import logging
 import os
 from datetime import datetime
 from pathlib import Path
+from typing import Any, Dict, List, Optional
 from elengenix.paths import get_reports_path
-from prompt_toolkit
 
 from rich.align import Align
 from rich.box import HEAVY, ROUNDED, SIMPLE

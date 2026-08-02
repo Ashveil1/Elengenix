@@ -12,8 +12,8 @@ import sqlite3
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
 from elengenix.paths import get_data_dir
-from typing import (
 from urllib.parse import urlencode
 
 import requests

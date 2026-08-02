@@ -115,6 +115,37 @@ def get_provider_config(provider: str) -> Dict[str, Any]:
     return dict(providers.get(provider, {}) or {})
 
 
+# Providers that are usable without an API key (local servers, probed for
+# reachability separately by UniversalAIClient.is_available).
+_KEY_FREE_PROVIDERS = {"ollama"}
+
+
+def any_provider_configured() -> bool:
+    """Return True if at least one AI provider is genuinely usable.
+
+    A provider counts as configured when it has a real credential: either a
+    non-empty API key in the environment, or a provider section in
+    config.yaml that contains a resolvable api_key (literal key or env_key
+    pointing to a set env var). Prevents providers from appearing "READY"
+    merely because the project repo ships a config.yaml with model names.
+    """
+    # Explicit provider key in env wins fast.
+    for name in _KNOWN_PROVIDER_PREFIXES:
+        env_key = _default_env_key_for(name)
+        if env_key and os.getenv(env_key, "").strip():
+            return True
+    # CUSTOM_API_BASE_URL + CUSTOM_API_KEY pair.
+    if os.getenv("CUSTOM_API_KEY", "").strip() or os.getenv(
+        "CUSTOM_API_BASE", ""
+    ).strip():
+        return True
+    # Active provider explicitly set to a key-free local provider.
+    active = get_active_provider()
+    if active in _KEY_FREE_PROVIDERS and os.getenv("OLLAMA_BASE_URL"):
+        return True
+    return False
+
+
 def resolve_provider_settings(
     provider: str,
     model: Optional[str] = None,
@@ -135,18 +166,18 @@ def resolve_provider_settings(
     provider_lower = provider.lower() if provider else "auto"
     pc = get_provider_config(provider_lower)
 
-    # base_url
+    # base_url — strip trailing slashes so endpoints join cleanly
     sources: Dict[str, str] = {}
     if base_url:
-        final_base_url = base_url
+        final_base_url = base_url.rstrip("/")
         sources["base_url"] = "param"
     elif pc.get("base_url"):
-        final_base_url = pc["base_url"]
+        final_base_url = pc["base_url"].rstrip("/")
         sources["base_url"] = "config.yaml"
     else:
         env_base = os.getenv(f"{provider_lower.upper()}_BASE_URL")
         if env_base:
-            final_base_url = env_base
+            final_base_url = env_base.rstrip("/")
             sources["base_url"] = "env"
         else:
             final_base_url = ""
@@ -168,25 +199,24 @@ def resolve_provider_settings(
             final_model = ""
             sources["model"] = "default"
 
-    # api_key
+    # api_key — config.yaml ONLY (explicit, auditable single source of truth).
+    # This avoids the "which credential actually got used?" ambiguity that
+    # makes environments hard to reproduce across machines/CI.
     if api_key:
         final_api_key = api_key
         sources["api_key"] = "param"
     else:
-        # Try config.yaml first (in case someone embeds there)
-        cfg_key = pc.get("api_key") or pc.get("env_key_lookup")
-        if cfg_key:
-            final_api_key = os.getenv(cfg_key, "")
-            sources["api_key"] = f"env({cfg_key})"
+        cfg_key = pc.get("api_key")
+        if isinstance(cfg_key, str) and cfg_key.strip():
+            # literal key embedded in config.yaml (discouraged but allowed)
+            final_api_key = cfg_key
+            sources["api_key"] = "config.yaml (literal)"
+            logger.warning(
+                "Hardcoded api_key in config.yaml — use .env or rotate regularly."
+            )
         else:
-            # Look up env_key in PROVIDER_CONFIGS
-            env_key_name = pc.get("env_key") or _default_env_key_for(provider_lower)
-            if env_key_name:
-                final_api_key = os.getenv(env_key_name, "")
-                sources["api_key"] = f"env({env_key_name})"
-            else:
-                final_api_key = ""
-                sources["api_key"] = "none"
+            final_api_key = ""
+            sources["api_key"] = "none"
 
     return {
         "provider": provider_lower,
@@ -262,6 +292,7 @@ _KNOWN_PROVIDER_PREFIXES = {
     "openrouter",
     "together",
     "perplexity",
+    "opencode",
     "ollama",
 }
 
@@ -282,6 +313,107 @@ def _default_env_key_for(provider: str) -> Optional[str]:
         "openrouter": "OPENROUTER_API_KEY",
         "together": "TOGETHER_API_KEY",
         "perplexity": "PERPLEXITY_API_KEY",
+        "opencode": "OPENCODE_API_KEY",
         "ollama": None,
         "custom": "CUSTOM_API_KEY",
     }.get(provider)
+
+
+def describe_provider_setup() -> Dict[str, Any]:
+    """Describe which AI provider will be used and whether its key is set.
+
+    Additive helper for the CLI/UX layer (`elengenix configure`, interactive
+    chat startup, TUI status line). Purely read-only — it never mutates env
+    or config, and never performs hidden fallback selection.
+
+    Returns a dict with keys:
+      - providers : list of per-provider dicts (name, env_key, key_set,
+        key_source, reachable, active)
+      - active    : the provider name that will actually be used (or "")
+      - model     : resolved model for the active provider (or "")
+      - key_set   : bool — does the active provider have a credential?
+      - key_source: where the credential comes from
+          ("env:NAME", "config.yaml", "param", "env", "key-free",
+          "none (not set)")
+      - ok        : bool — True when some provider is genuinely usable.
+
+    `reachable` is a socket-level TCP connect to the provider's host
+    (no HTTP request, no key sent), so it is safe to call offline — on
+    failure it simply reports "offline".
+    """
+    active = get_active_provider()
+    providers: List[Dict[str, Any]] = []
+    for name in sorted(_KNOWN_PROVIDER_PREFIXES):
+        pc = get_provider_config(name) or {}
+        env_name = _default_env_key_for(name)
+        key_val, key_source = "", "none (not set)"
+        if env_name and os.getenv(env_name, "").strip():
+            key_val, key_source = os.getenv(env_name, "").strip(), f"env:{env_name}"
+        elif isinstance(pc.get("api_key"), str) and pc.get("api_key", "").strip():
+            key_val, key_source = pc["api_key"].strip(), "config.yaml"
+        if name in _KEY_FREE_PROVIDERS:
+            base_hint = os.getenv("OLLAMA_BASE_URL", "").strip() or str(
+                pc.get("base_url", "") or ""
+            ).strip()
+            key_set = bool(base_hint)
+            key_source = "key-free" if key_set else "none (not set)"
+        else:
+            key_set = bool(key_val)
+        providers.append(
+            {
+                "name": name,
+                "env_key": env_name or "",
+                "key_set": key_set,
+                "key_source": key_source,
+                "reachable": None,  # filled below for active provider only
+                "active": name == active,
+            }
+        )
+
+    ok = any_provider_configured()
+
+    # Model for the active provider
+    resolved = resolve_provider_settings(active) if active else {}
+    active_model = str(resolved.get("model") or "")
+
+    # Socket-level reachability probe for the active provider only
+    active_reachable: Optional[bool] = None
+    base_url = ""
+    if active:
+        base_url = str(resolved.get("base_url") or "")
+        if not base_url:
+            pc = get_provider_config(active) or {}
+            base_url = str(pc.get("base_url") or "")
+        if not base_url and active == "ollama":
+            base_url = os.getenv("OLLAMA_BASE_URL", "")
+    if base_url:
+        try:
+            from urllib.parse import urlparse
+            import socket
+
+            u = urlparse(base_url if "://" in base_url else f"https://{base_url}")
+            host = u.hostname or ""
+            port = u.port or (443 if u.scheme == "https" else 80)
+            if host:
+                with socket.create_connection((host, port), timeout=2.0):
+                    active_reachable = True
+        except Exception:
+            active_reachable = False
+    for p in providers:
+        if p["name"] == active:
+            p["reachable"] = active_reachable
+
+    # Active provider convenience view
+    active_info = next((p for p in providers if p["name"] == active), None)
+    key_set = active_info["key_set"] if active_info else False
+    key_source = active_info["key_source"] if active_info else "none (not set)"
+
+    return {
+        "providers": providers,
+        "active": active if active != "auto" else "",
+        "model": active_model,
+        "key_set": key_set,
+        "key_source": key_source,
+        "ok": ok,
+    }
+

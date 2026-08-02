@@ -134,6 +134,15 @@ def main() -> None:
 
     console.print("\n[bold red]AI Provider Configuration Wizard[/bold red]\n")
 
+    # Show what is CURRENTLY configured before asking anything, so the user
+    # knows exactly which provider/model/key the system would use if they bail.
+    try:
+        from cli.provider_info import render_provider_status_panel
+
+        render_provider_status_panel()
+    except Exception:
+        pass
+
     # Step 1: Select provider
     provider = questionary.select("Select your AI Provider:", choices=PROVIDERS).ask()
 
@@ -176,6 +185,13 @@ def main() -> None:
             f"\n[bold white][OK] {provider.upper()} configured with model: {model}[/bold white]"
         )
         console.print("[dim]API key saved to .env (not stored in config.yaml)[/dim]")
+        # Show resulting effective setup (no hidden fallbacks)
+        try:
+            from cli.provider_info import render_provider_status_panel
+
+            render_provider_status_panel()
+        except Exception:
+            pass
     else:
         console.print("[bold red][FAIL] Configuration could not be saved[/bold red]")
 
