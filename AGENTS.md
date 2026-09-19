@@ -1,119 +1,52 @@
-# AGENTS.md — How to Work with Elengenix
+# AGENTS.md — Elengenix
 
-## Working Protocol
+## Setup
 
-### ขั้นตอนทำงาน
+```bash
+pip install -e ".[dev]"   # editable + pytest/black/isort/flake8/mypy/ruff
+elengenix doctor          # or: python3 main.py doctor
+```
 
-| ขั้นตอน | ทำอะไร |
-|---------|--------|
-| **คิด** | วิเคราะห์ปัญหาและผลกระทบก่อนลงมือ |
-| **สำรวจ** | อ่านโค้ดที่เกี่ยวข้อง |
-| **วางแผน** | กำหนดว่าจะแก้ตรงไหน |
-| **ทำ** | เขียนโค้ด |
-| **ทดสอบ** | รัน test ตรวจสอบ |
-| **ตรวจสอบ** | ว่าไม่กระทบส่วนอื่น |
+Python ≥3.10 (CI matrix: 3.11–3.13). Keys via `~/.elengenix/.env`, never committed.
+Env/config lookup order: `$ELENGENIX_ENV`/`$ELENGENIX_CONFIG` → `~/.elengenix/` → cwd (see `elengenix/paths.py`).
 
-### กฎเหล็ก
+## Where code lives
 
-- **อย่าแก้โค้ดโดยไม่อ่านก่อน** — ต้อง `read` ไฟล์ก่อน `edit`
-- **อย่าข้าม test** — ต้องรัน test หลังแก้โค้ดทุกครั้ง
-- **อย่าแก้หลายไฟล์พร้อมกัน** — แก้ทีละไฟล์ ทดสอบทีละจุด
-- **อย่าเดา** — ถ้าไม่แน่ใจ ให้ `grep` หาคำตอบ
+- Entry: `main.py` (CLI router) → `commands/`, `cli/`, `tui/`.
+- Live code: `elengenix/scanning/` (ScanLoop, planner, decision engine, prompt builder, verification) and `elengenix/agent/` (VulnAgent + memory/skills).
+- `elengenix/providers/` is the preferred LLM path (`Provider` Protocol: `call`/`call_ex`/`call_with_tools`); `tools/universal_ai_client.py` is the legacy fallback. `elengenix/scanning/provider_bridge.py` prefers Stack A, falls back to Stack B.
+- **Do not extend `agents/` or `core/`** — both are deprecated shims re-exporting from `elengenix.*` with `DeprecationWarning` (pytest config ignores it). Keep them working, don't add modules there.
+- `mcp/` is a compact JSON-RPC 2.0 implementation (stdio + HTTP); use it for new external tools.
+- Runtime state lives under `~/.elengenix/` (`reports/`, `data/memory.json`, `data/skills.json`, `data/benchmark_results/`). Use `elengenix/paths.py` getters (`get_data_dir`, `get_reports_path`); never write user data into the repo checkout.
+- `benchmark/runner.py` spins up `tests/vulnerable_target/app.py` and runs the canonical `ScanLoop`; `benchmark/grading.py` grades 10 planted vulns.
 
----
+## Verify (CI is truth: `.github/workflows/ci.yml`)
 
-## Code Review Checklist
+```bash
+python3 -m pytest tests/ -m "not integration" --ignore=tests/test_brain_coverage.py --ignore=tests/test_brain_coverage_gap.py -q
+python3 -m pytest tests/test_scanning_scan_loop.py -q        # one file
+python3 -m pytest tests/test_x.py::TestY::test_z -q          # one test
+python3 -m pytest tests/test_benchmark_grading.py tests/test_benchmark_sweep.py -q  # offline/hermetic
+```
 
-เมื่อรีวิวโค้ด ต้องตรวจสอบ:
-
-- [ ] **Imports** — ถูกต้องไหม? ไม่ circular?
-- [ ] **Error handling** — จับ exception ได้ไหม?
-- [ ] **Security** — มี injection? XSS? ข้อมูลรั่ว?
-- [ ] **Performance** — มี bottleneck? N+1 query?
-- [ ] **Backward compatibility** — โค้ดเดิมพังไหม?
-- [ ] **Test coverage** — มี test ครอบคลุมไหม?
-
----
-
-## Architecture Notes (canonical namespace)
-
-- **Live code lives under `elengenix/`** — especially `elengenix/scanning/*` (scan loop, council, planner, decision engine, prompt builder, verification, vuln reasoning).
-- **Top-level `agents/*.py` are thin deprecation shims** that re-export from `elengenix.scanning.*` with a `DeprecationWarning`. Do not add new top-level agent modules; extend `elengenix/scanning/` instead. If you need a public symbol, import it from the live module.
-- **Top-level `core/`** (`brain.py`, `agent.py`, `orchestrator.py`) are deprecated compatibility shims delegating into `elengenix/` — same rule: keep them working, don't extend them.
-- **Two LLM stacks exist**:
-  - *Stack A* — `elengenix/providers/`: clean 10-provider `Provider` Protocol (`call`/`call_ex`/`call_with_tools`) with reflection and `ToolCallFixer`. This is the preferred, model-agnostic path.
-  - *Stack B* — `tools/universal_ai_client.py`: legacy live client (textual-JSON + native tool-call hybrid). The scan loop prefers Stack A when configured (see `elengenix/scanning/provider_bridge.py`) and falls back to Stack B otherwise.
-- **MCP**: `mcp/protocol.py` + `mcp/client.py` provide a compact JSON-RPC 2.0 MCP implementation (stdio + http). Use it for tool standardization when integrating new external tools.
-
----
+- `@pytest.mark.integration` = needs network; always deselect locally with `-m "not integration"`.
+- `tests/brutal/` is a separate expensive subset — exclude from default runs.
+- Format/lint: `black --line-length=100` (pre-commit enforces this + trailing whitespace only), `isort` (profile=black), `flake8`/`ruff check`/`mypy` per `pyproject.toml`.
 
 ## Benchmark
 
-- `benchmark/README.md` — what the benchmark measures + how to run sweeps & read history
-- `benchmark/run_benchmark.py` — CLI: single run, `--models a,b --repeat N` sweep, `--history`
-- `benchmark/grading.py` — ground truth (10 planted vulns) + precision/recall/F1 grader
-- `benchmark/runner.py` — spins up `tests/vulnerable_target/app.py`, runs the canonical ScanLoop
-- `benchmark/sweep.py` — per-model sweep aggregation (mean/min/max F1 across repeats)
-- `benchmark/results_store.py` — persists each run JSON to `data/benchmark_results/` (via `get_data_dir`), history loader/formatter
-
-Useful commands:
-
 ```bash
-python3 benchmark/run_benchmark.py --json                                  # single run
-python3 benchmark/run_benchmark.py --models gpt-4o-mini,qwen2.5-coder     # sweep across models
-python3 benchmark/run_benchmark.py --models llama3.2 --repeat 3           # repeat stats (mean/min/max F1)
-python3 benchmark/run_benchmark.py --history                              # last 20 stored runs
+python3 benchmark/run_benchmark.py --json              # stealth (default, honest mode)
+python3 benchmark/run_benchmark.py --loud              # easy smoke-test mode only
+python3 benchmark/run_benchmark.py --models a,b --repeat 3
+python3 benchmark/run_benchmark.py --history
 ```
 
-Exit codes: `0` = ran, recall>0 · `1` = ran, recall=0 · `2` = infrastructure error (missing API key, target failed to start, legacy mode, …). See `benchmark/README.md` for detail.
+Exit codes: `0` = recall>0, `1` = ran but found nothing, `2` = infra failure (no key, target down, legacy mode). Never conflate 1 and 2. Needs a real provider key or exit is 2. See `benchmark/README.md`.
 
----
+## Conventions (repo-specific)
 
-## Common Patterns
-
-### Lazy Import
-```python
-# ใช้เมื่อ import อาจล้มเหลว
-try:
-    from tools.optional_module import Something
-except ImportError:
-    Something = None
-```
-
-### Safe Operation
-```python
-# ใช้เมื่อ operation อาจล้มเหลว
-def _safe_operation(name, fn, *args, **kwargs):
-    try:
-        return fn(*args, **kwargs)
-    except Exception as e:
-        logger.debug(f"{name} failed: {e}")
-```
-
-### Governance Check
-```python
-# ทุก shell command ต้องผ่าน governance
-gate = governance.gate(mission_id, target, action)
-if gate.decision == "needs_approval":
-    # popup ถาม user
-elif gate.decision == "deny":
-    # บล็อค
-```
-
----
-
-## Testing Commands
-
-```bash
-# Full test suite (everything, excluding brutal/ subset)
-python3 -m pytest tests/ --ignore=tests/brutal -q
-
-# Scanning subsystem
-python3 -m pytest tests/test_scanning_*.py -q
-
-# Benchmark (grading, results store, sweep — offline/hermetic)
-python3 -m pytest tests/test_benchmark_grading.py tests/test_benchmark_sweep.py -q
-
-# MCP subsystem
-python3 -m pytest tests/test_mcp_*.py -q
-```
+- 4-space indent, type hints everywhere, `rich` for terminal UI.
+- No emoji in output/logs/comments — use `[OK]` `[FAIL]` `[WARN]` `[INFO]` `[RUN]` `[SKIP]`.
+- Every shell command goes through governance: `governance.gate(mission_id, target, action)` → `needs_approval` prompts, `deny` blocks.
+- Every scan target must pass `validate_target()` + `is_in_scope()` (`elengenix/scope.py`) before any probing; only scan targets you own/have permission for.
