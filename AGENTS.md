@@ -1,5 +1,7 @@
 # AGENTS.md — Elengenix
 
+> Work plan / handoff ระหว่างทำรอบใหญ่: ดู `PLAN.md` (สถานะ PR, งานค้าง, หลักฐาน)
+
 ## Setup
 
 ```bash
@@ -23,14 +25,17 @@ Env/config lookup order: `$ELENGENIX_ENV`/`$ELENGENIX_CONFIG` → `~/.elengenix/
 ## Verify (CI is truth: `.github/workflows/ci.yml`)
 
 ```bash
-python3 -m pytest tests/ -m "not integration" --ignore=tests/test_brain_coverage.py --ignore=tests/test_brain_coverage_gap.py -q
+python3 -m pytest tests/ -m "not integration" --ignore=tests/brutal --ignore=tests/test_brain_coverage.py --ignore=tests/test_brain_coverage_gap.py -q
+python3 -m pytest tests/brutal -q                          # expensive/fuzz-style subset (separate CI job)
 python3 -m pytest tests/test_scanning_scan_loop.py -q        # one file
 python3 -m pytest tests/test_x.py::TestY::test_z -q          # one test
 python3 -m pytest tests/test_benchmark_grading.py tests/test_benchmark_sweep.py -q  # offline/hermetic
 ```
 
-- `@pytest.mark.integration` = needs network; always deselect locally with `-m "not integration"`.
-- `tests/brutal/` is a separate expensive subset — exclude from default runs.
+- Pytest config lives only in `pyproject.toml [tool.pytest.ini_options]` (`testpaths`, `asyncio_mode=auto`, `timeout=300`, `filterwarnings`, `integration` marker). There is no `pytest.ini`.
+- `timeout=300` needs the `pytest-timeout` plugin (in `[dev]` deps; CI installs via `pip install -e ".[dev]"`).
+- `@pytest.mark.integration` = opt-in marker for real-network tests; currently no test uses it (suite is hermetic), but always keep `-m "not integration"` in commands.
+- `tests/brutal/` is a separate expensive subset with its own CI job — exclude from default runs.
 - Format/lint: `black --line-length=100` (pre-commit enforces this + trailing whitespace only), `isort` (profile=black), `flake8`/`ruff check`/`mypy` per `pyproject.toml`.
 
 ## Benchmark

@@ -77,6 +77,11 @@ response.html
 .coverage.*
 htmlcov/
 coverage.xml
+# Coverage artifact copies accidentally committed as "*,cover"
+*,cover
+
+# Stale integration snapshots (do not commit)
+*.tar.gz
 
 # Python build artifacts
 *.egg-info/

@@ -1048,9 +1048,7 @@ class TestTryAuth:
         """No credentials → no identity (anonymous)."""
         _cfg_mw()
         req = _make_request()
-        result = asyncio.get_event_loop().run_until_complete(
-            asyncio.wait_for(mw.try_auth(req), 1)
-        ) if False else asyncio.run(mw.try_auth(req))
+        result = asyncio.run(mw.try_auth(req))
         assert result is None
         assert req.state.identity is None
 

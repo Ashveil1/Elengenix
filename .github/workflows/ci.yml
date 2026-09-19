@@ -25,14 +25,13 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -e .
-          # Ensure test deps are present
-          pip install pytest pytest-timeout rich 2>/dev/null || true
+          pip install -e ".[dev]"
 
-      - name: Run test suite
+      - name: Run test suite (excludes brutal/ — see brutal job)
         run: |
-          python -m pytest -q --timeout=300 \
-            tests/ -m "not integration" \
+          python -m pytest tests/ -q \
+            -m "not integration" \
+            --ignore=tests/brutal \
             --ignore=tests/test_brain_coverage.py \
             --ignore=tests/test_brain_coverage_gap.py \
             --tb=short
@@ -40,3 +39,23 @@ jobs:
       - name: Boot smoke test
         run: |
           python -m elengenix --help || elengenix --help || true
+
+  brutal:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Run brutal suite (expensive/fuzz-style, deterministic)
+        run: |
+          python -m pytest tests/brutal -q --tb=short
