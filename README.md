@@ -10,7 +10,7 @@
 
 [![Python](https://img.shields.io/badge/Python-3.10+-white?style=for-the-badge&logo=python&logoColor=red)](https://python.org)
 [![License](https://img.shields.io/badge/License-GPL_3.0-red?style=for-the-badge)](LICENSE)
-[![Tests](https://img.shields.io/badge/Tests-334%20passing-white?style=for-the-badge)](https://github.com/Ashveil1/Elengenix/actions)
+[![Tests](https://img.shields.io/badge/Tests-3150%2B%20passing-white?style=for-the-badge)](https://github.com/Ashveil1/Elengenix/actions)
 [![MCP](https://img.shields.io/badge/MCP-Supported-red?style=for-the-badge)](https://modelcontextprotocol.io)
 [![Security](https://img.shields.io/badge/Security-Governance-red?style=for-the-badge)](https://github.com/Ashveil1/Elengenix)
 
@@ -352,14 +352,17 @@ Everything lives under `~/.elengenix/` (`reports/`, `data/memory.json`,
 ## Testing
 
 ```bash
-# Full test suite
+# Full test suite (3,150+ tests, ~5 min)
 python3 -m pytest tests/ -v
 
-# Stable suite (no network)
-python3 -m pytest tests/test_tui.py tests/test_security.py tests/test_core_modules.py -v
+# Brutal integration/security/stress suite
+python3 -m pytest tests/brutal/ -v
+
+# Skip network-dependent integration tests
+python3 -m pytest tests/ -m "not integration" -v
 ```
 
-**334 tests** covering: governance, shell execution, target validation, MCP protocol, VulnAgent tools, agent memory, agent skills, and more.
+**3,150+ tests** covering: governance, shell execution, target validation, MCP protocol, VulnAgent tools, agent memory, agent skills, report generation (Markdown/HTML/PDF with CVSS v3.1 scoring), and the brutal integration/security/stress suite.
 
 <img src="assets/red-divider.svg" width="100%">
 
@@ -374,28 +377,29 @@ Elengenix/
 ├── elengenix/              # Canonical module location
 │   ├── agent/              # True AI agent (VulnAgent)
 │   │   ├── __init__.py     # Exports VulnAgent
-│   │   ├── vuln_agent.py   # Main agent + 25 tools
+│   │   ├── vuln_agent.py   # Main agent + tool selection
 │   │   ├── agent_memory.py # JSON-backed memory store
 │   │   ├── agent_skills.py # JSON-backed skill store
 │   │   ├── memory.py       # ChromaDB + FTS5 memory
-│   │   └── report.py       # Report generation
+│   │   ├── compat.py       # Scan wrappers over VulnAgent
+│   │   └── crew/           # PentAGI-ported multi-agent crew (PrimaryAgent + 15 specialists)
+│   ├── chat/               # Interactive chat agent (brain, agent, orchestrator)
+│   ├── scanning/           # Scanning subsystems (context, decision engine, loop)
+│   ├── reports/            # Report generation (Markdown, HTML, PDF, CVSS v3.1)
 │   ├── scope.py            # Target validation & scope
 │   ├── paths.py            # Path resolution
 │   ├── governance.py       # Governance layer
-│   ├── scanning/           # Scanning subsystems
-│   ├── brain.py            # Hybrid brain (deprecated)
+│   ├── brain.py            # Planning engine
 │   └── loop.py             # Main agent loop
 ├── mcp/                    # MCP integration
 │   ├── server.py           # MCP server (25 dynamic tools)
 │   ├── client.py           # MCP client
 │   ├── config.py           # MCP configuration
 │   └── manager.py          # MCP lifecycle
-├── tools/                  # 100+ tool modules
+├── tools/                  # 140+ tool modules
 ├── cli/                    # UI components + TUI (textual.py)
-├── core/                   # Legacy (deprecated stubs)
-├── pipeline/               # LEGACY: only scope.py remains
-├── tests/                  # 334 tests
-└── dist/                   # Built wheel
+├── tui/                    # Textual TUI application
+└── tests/                  # 3,150+ tests (tests/brutal/ = security suite)
 ```
 
 <img src="assets/red-divider.svg" width="100%">

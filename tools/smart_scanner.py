@@ -387,7 +387,7 @@ class SmartScanner:
         try:
             import asyncio
 
-            from core.orchestrator import run_standard_scan
+            from elengenix.agent.compat import run_standard_scan
 
             # Handle nested event loop gracefully
             try:

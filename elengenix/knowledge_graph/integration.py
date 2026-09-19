@@ -43,7 +43,7 @@ from .extractor import (
 from .graph import Community, Episode  # noqa: F401  (re-exported below)
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
-    from elengenix.agents.base import LLMClient
+    from elengenix.agent.crew.base import LLMClient
 
 logger = logging.getLogger("elengenix.knowledge_graph.integration")
 

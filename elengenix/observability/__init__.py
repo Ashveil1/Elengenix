@@ -17,7 +17,7 @@ Re-exports the public API of the four observability sub-modules:
   flows count, agent iterations, docker containers, search providers,
   knowledge-graph nodes).
 * :mod:`elengenix.observability.chains` — chain summarisation helpers
-  re-exported from :mod:`elengenix.agents.summarizer`.
+  re-exported from :mod:`elengenix.agent.crew.summarizer`.
 
 Typical usage::
 

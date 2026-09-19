@@ -1,3 +1,5 @@
+> **HISTORICAL DOCUMENT (2026-07-02).** This plan predates the 2026-09-19 restructuring: `core/`, `pipeline/`, `agents/`, and `redteam_agent/` no longer exist. The live architecture lives under `elengenix/` (see README.md and CLAUDE.md). Kept verbatim for reference.
+
 # Adaptive Vulnerability Finder — Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use compose:subagent (recommended) or compose:execute to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.

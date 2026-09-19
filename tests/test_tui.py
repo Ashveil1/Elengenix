@@ -189,7 +189,7 @@ class TestTuiProviderCheck:
 
     @staticmethod
     def _reenforce_clean_env(monkeypatch):
-        """Importing cli.textual pulls in core.agent, which re-loads .env and
+        """Importing cli.textual pulls in elengenix.chat.agent, which re-loads .env and
         re-populates provider keys — wipe + reset ai_config again *after* import
         so the check-under-test actually sees a clean slate."""
         from tools import ai_config as ac

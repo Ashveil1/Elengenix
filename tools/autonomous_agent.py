@@ -141,7 +141,7 @@ def _parse_json(text: str) -> dict:
     Delegates to the unified hardened extractor; preserves the ``{}``-on-failure
     contract that callers rely on (they use ``.get(...)`` on the result).
     """
-    from agents.agent_helpers import extract_json
+    from elengenix.scanning.helpers import extract_json
 
     result = extract_json(text, expect="object")
     return result if isinstance(result, dict) else {}

@@ -8,17 +8,21 @@ Elengenix is an **autonomous AI security research framework** that performs vuln
 
 **Entry point:** `main.py` → `elengenix` command (via `pip install -e .`)
 
+All canonical code lives under `elengenix/`. The former legacy trees (`core/`, `agents/`, `pipeline/`, `redteam_agent/`) have been fully removed — do not reference them. The multi-agent crew lives at `elengenix/agent/crew/` (the old `elengenix/agents/` path remains only as a deprecation shim that re-exports it).
+
 ---
 
 ## Common Development Commands
 
 ### Install & Setup
 ```bash
-# Development install (editable)
+# Development install (editable, includes test deps)
 pip install -e ".[dev]"
 
-# Or run setup script (handles system deps)
-./setup.sh
+# Optional extras
+pip install -e ".[api]"      # FastAPI/uvicorn API server
+pip install -e ".[graphql]"  # Strawberry GraphQL layer
+pip install -e ".[pdf]"      # PDF report export (reportlab)
 
 # Verify installation
 elengenix doctor
@@ -26,20 +30,20 @@ elengenix doctor
 
 ### Testing
 ```bash
-# Full test suite (379+ tests)
+# Full test suite (3,150+ tests, ~5 min)
 python3 -m pytest tests/ -v
 
-# Stable suite (no network dependencies)
-python3 -m pytest tests/test_tui.py tests/test_security.py tests/test_core_modules.py -v
+# Brutal integration/security/stress suite
+python3 -m pytest tests/brutal/ -v
 
-# New modules
-python3 -m pytest tests/test_scan_context.py tests/test_prompt_builder.py tests/test_post_processor.py tests/test_decision_engine.py tests/test_scan_loop.py -v
-
-# Pipeline tests
-python3 -m pytest tests/test_scope.py tests/test_phase_registry.py tests/test_unified_pipeline.py -v
-
-# Skip integration tests (require network)
+# Skip network-dependent integration tests
 python3 -m pytest tests/ -m "not integration" -v
+
+# Scanning subsystem tests
+python3 -m pytest tests/test_scanning_decision_engine.py tests/test_scanning_scan_loop.py -v
+
+# Single file
+python3 -m pytest tests/test_tui.py -v
 ```
 
 ### Code Quality
@@ -69,9 +73,8 @@ elengenix scan example.com
 elengenix tui
 
 # Shortcuts
-elengenix bb        # BOLA testing
-elengenix check     # Quick recon
-elengenix test      # WAF detection
+elengenix bb        # bounty mode
+elengenix check     # quick check
 elengenix hack      # AI chat mode
 ```
 
@@ -82,64 +85,68 @@ elengenix hack      # AI chat mode
 ```
 main.py (CLI entry)
     │
-    ├── core/brain.py          # AI reasoning engine (Strategist, Recon Lead, Exploit Analyst)
-    ├── core/orchestrator.py   # Pipeline engine (6 phases)
-    ├── core/agent.py          # Agent singleton
-    ├── core/scan_engine.py    # Smart scan engine
+    ├── elengenix/               # Canonical package
+    │   ├── agent/               # VulnAgent (true AI agent) + memory + skills
+    │   │   ├── vuln_agent.py    # Main agent + tool selection
+    │   │   ├── agent_memory.py  # JSON-backed memory store
+    │   │   ├── agent_skills.py  # JSON-backed skill store
+    │   │   ├── compat.py        # Scan wrappers over VulnAgent (ex-orchestrator)
+    │   │   └── crew/            # PentAGI-ported multi-agent crew (15 specialists)
+    │   ├── chat/                # Interactive chat agent
+    │   │   ├── brain.py         # Chat brain (recon/exploit reasoning)
+    │   │   ├── agent.py         # ElengenixAgent singleton
+    │   │   └── smart_orchestrator.py
+    │   ├── scanning/            # Scanning subsystem
+    │   │   ├── scan_context.py  # Central state object (ScanContext)
+    │   │   ├── prompt_builder.py# AI prompt assembly
+    │   │   ├── decision_engine.py # AI decision making
+    │   │   ├── post_processor.py  # Result processing
+    │   │   └── scan_loop.py     # Main execution loop
+    │   ├── reports/             # Report generation
+    │   │   ├── markdown.py      # Markdown rendering (task/finding sections)
+    │   │   ├── cvss.py          # CVSS v3.1 base score math (Roundup)
+    │   │   ├── templates.py     # Report templates
+    │   │   ├── export.py        # Markdown/HTML export (XSS-safe)
+    │   │   └── pdf.py           # PDF export (reportlab, CJK-capable)
+    │   ├── scope.py             # Target validation & scope
+    │   ├── governance.py        # Governance layer
+    │   ├── brain.py             # Planning engine
+    │   ├── loop.py              # Main agent loop
+    │   ├── api/ + auth/ + graphql/  # API server, sessions, GraphQL
+    │   └── flows/ + knowledge_graph/
     │
-    ├── agents/                # Agent subsystem
-    │   ├── scan_context.py    # Central state object (ScanContext)
-    │   ├── prompt_builder.py  # AI prompt assembly
-    │   ├── decision_engine.py # AI decision making
-    │   ├── post_processor.py  # Result processing
-    │   └── scan_loop.py       # Main execution loop
+    ├── mcp/                     # Model Context Protocol
+    │   ├── server.py            # MCP server
+    │   ├── client.py            # MCP client
+    │   ├── config.py            # MCP configuration
+    │   └── manager.py           # MCP lifecycle
     │
-    ├── pipeline/              # Configurable phase pipeline
-    │   ├── scope.py           # Target validation (ScopeManager)
-    │   ├── phase_registry.py  # Phase definitions
-    │   └── unified.py         # Unified pipeline entry
-    │
-    ├── mcp/                   # Model Context Protocol
-    │   ├── server.py          # MCP server
-    │   ├── client.py          # MCP client
-    │   ├── config.py          # MCP configuration
-    │   └── manager.py         # MCP lifecycle
-    │
-    ├── tools/                 # 120+ security tools (nmap, sqlmap, ffuf, etc.)
-    ├── commands/              # CLI commands (scan, configure, doctor, tui)
-    ├── cli/                   # UI components (rich, textual)
-    └── tui/                   # Textual TUI application
+    ├── tools/                   # 140+ security tool modules (nmap, sqlmap, ffuf, etc.)
+    ├── commands/                # CLI command handlers (scan, system, worldclass)
+    ├── cli/                     # UI components (rich, textual), wizard, doctor
+    ├── tui/                     # Textual TUI application
+    ├── integrations/            # Telegram bot gateway
+    └── tests/                   # 3,150+ tests (tests/brutal/ = security/stress suite)
 ```
 
-**Key data flow:** `ScanContext` (state) → `DecisionEngine` (AI chooses next action) → `ToolExecutor` (runs tool via governance) → `PostProcessor` (analyzes results) → updates `ScanContext` → loop.
+**Key data flow:** `ScanContext` (state) → `DecisionEngine` (AI chooses next action) → executor (runs tool via governance) → `PostProcessor` (analyzes results) → updates `ScanContext` → loop.
 
 ---
 
 ## Critical Working Rules (from AGENTS.md)
 
-### MCP Thinking Tools — MANDATORY
-**Call these BEFORE writing any code:**
-
-| Tool | When to Use |
-|------|-------------|
-| `sequential-thinking` | New task, uncertain problem, choosing between options, complex bug |
-| `chain-of-recursive-thoughts` | Deep analysis, root cause, large refactor |
-| `mcp-structured-thinking` | Planning steps, breaking down work, estimation |
-
 ### Workflow Protocol
-1. **Think** — MCP thinking tools analyze first
-2. **Explore** — Read relevant files before editing
-3. **Plan** — Decide what to change
-4. **Implement** — One file at a time
-5. **Test** — Run tests after every change
-6. **Verify** — Check no regressions elsewhere
+1. **Explore** — Read relevant files before editing
+2. **Plan** — Decide what to change
+3. **Implement** — One file at a time
+4. **Test** — Run tests after every change
+5. **Verify** — Check no regressions elsewhere
 
 ### Iron Rules
 - **Never edit without reading first** — `Read` before `Edit`
 - **Never skip tests** — Run tests after every change
 - **One file at a time** — Edit, test, verify, then next
 - **Don't guess** — `grep`/`search` for answers
-- **Never skip MCP thinking** — Required before every task
 
 ---
 
@@ -148,11 +155,10 @@ main.py (CLI entry)
 | File | Purpose |
 |------|---------|
 | `pyproject.toml` | Build config, dependencies, pytest/black/isort/flake8 settings |
-| `mcp.json` | MCP server configs (copied from `mcp.json.example`) |
-| `.env` | API keys, model preferences (copied from `.env.example`) |
-| `.mcp.json` | Project-scoped MCP servers |
+| `mcp.json.example` | MCP server config template (auto-copied to `~/.elengenix/mcp.json`) |
+| `.env.example` | Template for API keys (real `.env` is git-ignored) |
 | `config.yaml.example` | Main config template |
-| `AGENTS.md` | Working protocols (this file references it) |
+| `AGENTS.md` | Working protocols |
 
 ---
 
@@ -194,23 +200,23 @@ def func(param: Type) -> ReturnType:
 
 ## Testing Guidelines
 
-- **Test location:** `tests/` mirroring source structure
-- **Markers:** `@pytest.mark.integration` for network tests
-- **Run stable tests locally:** `pytest tests/test_tui.py tests/test_security.py tests/test_core_modules.py -v`
-- **CI runs full suite** including integration
+- **Test location:** `tests/` mirroring source structure; `tests/brutal/` for integration/security/stress
+- **Markers:** `@pytest.mark.integration` for network tests (deselect with `-m "not integration"`)
+- **Runtime:** full suite takes ~5 minutes; pytest timeout is 300s per test
+- **CI runs the full suite** including brutal tests
 
 ---
 
 ## Important Notes for Future Agents
 
-1. **This is a security tool** — all targets must pass `validate_target()` and `is_in_scope()` before scanning
+1. **This is a security tool** — all targets must pass `validate_target()` and `is_in_scope()` (in `elengenix/scope.py`) before scanning
 2. **Governance is non-negotiable** — every shell command goes through the governance layer
 3. **MCP servers require npm/node** — sequential-thinking, memory, filesystem servers are external
 4. **Cross-session memory** uses ChromaDB + SQLite FTS5 (in `~/.elengenix/data/`)
-5. **AGENTS.md is the source of truth** for working protocols — read it first
-6. **379+ tests exist** — they're comprehensive; run them
-7. **CLI uses `rich` + `textual`** for TUI; `questionary` for prompts
-8. **AI providers are optional** — framework runs without them (pre-flight scanner only)
+5. **3,150+ tests exist** — they're comprehensive; run them
+6. **CLI uses `rich` + `textual`** for TUI; `questionary` for prompts
+7. **AI providers are optional** — framework runs without them (pre-flight scanner only)
+8. **PDF reports** need the `[pdf]` extra (reportlab); CJK text uses a bundled fallback font
 
 ---
 

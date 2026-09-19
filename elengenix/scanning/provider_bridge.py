@@ -46,7 +46,7 @@ PROVIDER_SLOT: ProviderOptionsType = ProviderOptionsType.PRIMARY_AGENT
 class _ProviderCompletionAdapter:
     """Adapt a Stack-A ``Provider`` to the fixer's tiny ``SyncLLMProvider`` surface.
 
-    :class:`~elengenix.agents.toolcall_fixer.ToolCallFixer` only needs
+    :class:`~elengenix.agent.crew.toolcall_fixer.ToolCallFixer` only needs
     ``provider.complete(prompt, *, system=None) -> str``. We forward to
     ``Provider.call(slot, prompt)`` for the plain case and prepend the
     ``system`` hint as a proper system-role chain entry via
@@ -77,7 +77,7 @@ class StackAFixingBackend:
     ``None`` to signal "no usable decision — let Stack B handle it".
 
     Malformed tool-call arguments go through the shared
-    :class:`~elengenix.agents.toolcall_fixer.ToolCallFixer` (LLM-assisted,
+    :class:`~elengenix.agent.crew.toolcall_fixer.ToolCallFixer` (LLM-assisted,
     lazily constructed) so the loop never needs the regex-path extractor when
     this backend is active.
     """
@@ -168,7 +168,7 @@ class StackAFixingBackend:
         name (the executor treats missing params as defaults).
         """
         if self._fixer is None:
-            from elengenix.agents.toolcall_fixer import ToolCallFixer
+            from elengenix.agent.crew.toolcall_fixer import ToolCallFixer
 
             self._fixer = ToolCallFixer(
                 provider=_ProviderCompletionAdapter(self.provider, self.slot)
@@ -203,7 +203,7 @@ class StackAFixingBackend:
 
 def _agent_type():
     """Return the AgentType for the fixer log lines (lazy import)."""
-    from elengenix.agents import base as _agents_base
+    from elengenix.agent.crew import base as _agents_base
 
     return _agents_base.AgentType.PRIMARY
 

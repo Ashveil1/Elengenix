@@ -13,7 +13,7 @@ The extractor is intentionally lazy about heavy dependencies — the only
 top-level imports are stdlib (``re``, ``logging``, ``uuid``, ``asyncio``,
 ``dataclasses``, ``enum``, ``json``, ``typing``). The LLM client (when
 configured) is supplied by callers via the
-:class:`elengenix.agents.base.LLMClient` Protocol so the module never
+:class:`elengenix.agent.crew.base.LLMClient` Protocol so the module never
 imports langchain / litellm / pydantic-ai directly.
 
 Public API:
@@ -54,7 +54,7 @@ from datetime import datetime, timezone
 from typing import Any, Callable, Iterable, Protocol, TYPE_CHECKING
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
-    from elengenix.agents.base import LLMClient
+    from elengenix.agent.crew.base import LLMClient
 
 logger = logging.getLogger("elengenix.knowledge_graph.extractor")
 
@@ -173,7 +173,7 @@ Context:
 class _SupportsLLMCall(Protocol):
     """Structural protocol for any object exposing ``async call(chain, ...)``.
 
-    Matches :class:`elengenix.agents.base.LLMClient` so callers can pass
+    Matches :class:`elengenix.agent.crew.base.LLMClient` so callers can pass
     either the real client or any test double without a hard dependency.
     """
 
@@ -613,7 +613,7 @@ class EntityExtractor:
         group_id: str,
     ) -> list[Edge]:
         """Ask the LLM to identify relationships between ``nodes``."""
-        from elengenix.agents.base import Message  # type: ignore
+        from elengenix.agent.crew.base import Message  # type: ignore
 
         ctx = context[: self.max_text_chars]
         entities_block = "\n".join(

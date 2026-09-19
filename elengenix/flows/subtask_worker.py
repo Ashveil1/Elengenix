@@ -49,7 +49,7 @@ import asyncio
 import logging
 from typing import TYPE_CHECKING
 
-from elengenix.agents.base import AgentContext, AgentType, PerformResult
+from elengenix.agent.crew.base import AgentContext, AgentType, PerformResult
 from elengenix.flows.flow_worker import (
     SubtaskContext,
     TaskContext,

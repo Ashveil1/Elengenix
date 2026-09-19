@@ -30,7 +30,7 @@ from .extractor import Edge, EdgeType, Node, NodeLabel, _label_str, _now_dt
 from .graph import Community, KnowledgeGraph  # noqa: F401  (re-exported)
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
-    from elengenix.agents.base import LLMClient
+    from elengenix.agent.crew.base import LLMClient
 
 logger = logging.getLogger("elengenix.knowledge_graph.community")
 
@@ -570,7 +570,7 @@ class CommunityDetector:
         llm_client: "LLMClient",
     ) -> str:
         """LLM-generated summary of the community."""
-        from elengenix.agents.base import Message  # type: ignore
+        from elengenix.agent.crew.base import Message  # type: ignore
 
         entities_block = "\n".join(
             f"  - {_label_str(n)}: {n.name}" for n in nodes[:50]

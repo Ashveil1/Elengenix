@@ -51,7 +51,7 @@ import logging
 from dataclasses import dataclass, field
 from typing import Any, Protocol, runtime_checkable
 
-from elengenix.agents.base import AgentContext, AgentType, PerformResult
+from elengenix.agent.crew.base import AgentContext, AgentType, PerformResult
 from elengenix.flows.db import FlowDB
 from elengenix.flows.models import (
     Flow,
@@ -88,7 +88,7 @@ class FlowProvider(Protocol):
 
     Mirrors PentAGI's ``providers.FlowProvider`` interface. Concrete
     implementations wire up the Generator / Refiner / Reporter /
-    PrimaryAgent specialists defined in :mod:`elengenix.agents`.
+    PrimaryAgent specialists defined in :mod:`elengenix.agent.crew`.
     """
 
     async def get_task_title(self, input: str) -> str:
@@ -105,7 +105,7 @@ class FlowProvider(Protocol):
 
         Mirrors PentAGI's ``flowProvider.GenerateSubtasks`` — delegates
         to the :class:`Generator` agent (see
-        :mod:`elengenix.agents.generator`).
+        :mod:`elengenix.agent.crew.generator`).
         """
         ...
 
@@ -113,7 +113,7 @@ class FlowProvider(Protocol):
         """Produce a delta-patched subtask plan after each subtask completes.
 
         Mirrors PentAGI's ``flowProvider.RefineSubtasks`` — delegates to
-        the :class:`Refiner` agent (see :mod:`elengenix.agents.refiner`).
+        the :class:`Refiner` agent (see :mod:`elengenix.agent.crew.refiner`).
         Returns the *new* full plan (the caller deletes the old
         ``CREATED`` subtasks and inserts the new ones).
         """
@@ -136,7 +136,7 @@ class FlowProvider(Protocol):
 
         Mirrors PentAGI's ``flowProvider.PerformAgentChain`` — drives the
         :class:`PrimaryAgent` chain (see
-        :mod:`elengenix.agents.primary_agent`).
+        :mod:`elengenix.agent.crew.primary_agent`).
         """
         ...
 
@@ -165,7 +165,7 @@ class FlowProvider(Protocol):
         """Produce the final task report (success flag + write-up).
 
         Mirrors PentAGI's ``flowProvider.GetTaskResult`` — delegates to
-        the :class:`Reporter` agent (see :mod:`elengenix.agents.reporter`).
+        the :class:`Reporter` agent (see :mod:`elengenix.agent.crew.reporter`).
         """
         ...
 
@@ -179,7 +179,7 @@ class FlowProvider(Protocol):
 class TaskResult:
     """Final task report produced by the Reporter agent.
 
-    Mirrors :class:`elengenix.agents.reporter.TaskResult` but kept
+    Mirrors :class:`elengenix.agent.crew.reporter.TaskResult` but kept
     dependency-light (a plain dataclass) so the workers don't import
     Pydantic at module load.
     """

@@ -55,6 +55,8 @@ dependencies = [
     "nest-asyncio>=1.6.0",
     "tenacity>=8.0.0",
     "aiosqlite>=0.19.0",
+    # Session cookies
+    "itsdangerous>=2.0",
     # Knowledge graph (local Graphiti replacement)
     "networkx>=3.0",
     # Token counting
@@ -83,6 +85,19 @@ dev = [
     "flake8",
     "mypy",
     "ruff",
+    "fastapi>=0.100",
+    "uvicorn>=0.20",
+    "strawberry-graphql>=0.200",
+]
+api = [
+    "fastapi>=0.100",
+    "uvicorn>=0.20",
+]
+graphql = [
+    "strawberry-graphql>=0.200",
+]
+pdf = [
+    "reportlab>=4.0",
 ]
 
 [project.scripts]
@@ -101,7 +116,7 @@ py-modules = ["main"]
 include-package-data = true
 
 [tool.setuptools.package-data]
-"*" = ["*.txt", "*.yaml", "*.md", "*.json"]
+"*" = ["*.txt", "*.yaml", "*.md", "*.json", "*.ttf"]
 
 [tool.pytest.ini_options]
 minversion = "7.0"
@@ -122,7 +137,7 @@ target-version = ["py310"]
 [tool.isort]
 profile = "black"
 line_length = 100
-known_first_party = ["tools", "agents", "tui", "commands"]
+known_first_party = ["tools", "tui", "commands"]
 
 [tool.flake8]
 max-line-length = 100

@@ -1,63 +1,77 @@
-"""elengenix.agents — PentAGI-style multi-agent system ported to Elengenix.
+"""DEPRECATED — use :mod:`elengenix.agent.crew` instead.
 
-This package contains the hierarchical orchestrator pattern with 15 agent types
-ported from PentAGI's Go implementation:
-    PrimaryAgent (Orchestrator) — root, delegates to 6 specialists
-    Searcher (Researcher)       — information gathering
-    Pentester                   — hands-on security testing
-    Coder (Developer)           — writes exploits/scripts
-    Installer (Maintenance)     — environment setup
-    Memorist (Archivist)        — vector + KG retrieval
-    Adviser (Mentor)            — strategic guidance
-    Enricher                    — sub-agent of Adviser
-    Generator                   — decomposes task into subtasks
-    Refiner                     — patches subtask plan
-    Reporter                    — final task report
-    Reflector                   — repairs non-tool-call responses
-    Summarizer                  — condenses long chains
-    ToolCallFixer               — repairs malformed tool calls
-    Assistant                   — interactive conversational
-
-Architecture (ported from PentAGI backend/pkg/providers/performer.go):
-    Universal perform_agent_chain() loop with:
-      - Iteration caps (100 for general agents, 20 for limited)
-      - Reflector injection on no-tool-call
-      - Summarizer on context overflow
-      - Barrier tool termination (done/ask)
-      - Back-propagation state machine (created→running→waiting→finished|failed)
+The PentAGI-ported multi-agent crew moved to ``elengenix/agent/crew/`` so all
+agent code lives under one home. This shim keeps the old
+``elengenix.agents.*`` import paths working (including submodule imports like
+``from elengenix.agents.base import LLMClient``) and will be removed in a
+future release.
 """
 
 from __future__ import annotations
 
-from elengenix.agents.base import (
-    AgentType,
-    AgentContext,
-    perform_agent_chain,
+import importlib
+import sys
+import warnings
+
+warnings.warn(
+    "elengenix.agents is deprecated — import from elengenix.agent.crew instead",
+    DeprecationWarning,
+    stacklevel=2,
+)
+
+_CREW = "elengenix.agent.crew"
+
+from elengenix.agent.crew.base import (  # noqa: F401  (re-exports)
     MAX_GENERAL_ITERATIONS,
     MAX_LIMITED_ITERATIONS,
+    AgentContext,
+    AgentType,
+    perform_agent_chain,
 )
-from elengenix.agents.primary_agent import PrimaryAgent
-from elengenix.agents.searcher import Searcher
-from elengenix.agents.pentester import Pentester
-from elengenix.agents.coder import Coder
-from elengenix.agents.installer import Installer
-from elengenix.agents.memorist import Memorist
-from elengenix.agents.adviser import Adviser
-from elengenix.agents.enricher import Enricher
-from elengenix.agents.generator import Generator
-from elengenix.agents.refiner import Refiner
-from elengenix.agents.reporter import Reporter
-from elengenix.agents.reflector import Reflector
-from elengenix.agents.summarizer import Summarizer
-from elengenix.agents.toolcall_fixer import ToolCallFixer
-from elengenix.agents.assistant import Assistant
+from elengenix.agent.crew.primary_agent import PrimaryAgent  # noqa: F401
+from elengenix.agent.crew.searcher import Searcher  # noqa: F401
+from elengenix.agent.crew.pentester import Pentester  # noqa: F401
+from elengenix.agent.crew.coder import Coder  # noqa: F401
+from elengenix.agent.crew.installer import Installer  # noqa: F401
+from elengenix.agent.crew.memorist import Memorist  # noqa: F401
+from elengenix.agent.crew.adviser import Adviser  # noqa: F401
+from elengenix.agent.crew.enricher import Enricher  # noqa: F401
+from elengenix.agent.crew.generator import Generator  # noqa: F401
+from elengenix.agent.crew.refiner import Refiner  # noqa: F401
+from elengenix.agent.crew.reporter import Reporter  # noqa: F401
+from elengenix.agent.crew.reflector import Reflector  # noqa: F401
+from elengenix.agent.crew.summarizer import Summarizer  # noqa: F401
+from elengenix.agent.crew.toolcall_fixer import ToolCallFixer  # noqa: F401
+from elengenix.agent.crew.assistant import Assistant  # noqa: F401
+
+# Alias every former submodule so ``from elengenix.agents.<mod> import X``
+# keeps resolving to the relocated module.
+for _mod in (
+    "adviser",
+    "assistant",
+    "base",
+    "coder",
+    "enricher",
+    "generator",
+    "installer",
+    "memorist",
+    "pentester",
+    "primary_agent",
+    "refiner",
+    "reflector",
+    "reporter",
+    "searcher",
+    "summarizer",
+    "toolcall_fixer",
+):
+    sys.modules.setdefault(f"elengenix.agents.{_mod}", importlib.import_module(f"{_CREW}.{_mod}"))
 
 __all__ = [
-    "AgentType",
-    "AgentContext",
-    "perform_agent_chain",
     "MAX_GENERAL_ITERATIONS",
     "MAX_LIMITED_ITERATIONS",
+    "AgentContext",
+    "AgentType",
+    "perform_agent_chain",
     "PrimaryAgent",
     "Searcher",
     "Pentester",

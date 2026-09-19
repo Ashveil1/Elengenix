@@ -35,7 +35,7 @@ from rich.box import ASCII
 from rich.console import Console
 from rich.markdown import Markdown
 
-from core.agent import get_agent
+from elengenix.chat.agent import get_agent
 from tools.overlay_menu import SettingsOverlay
 from cli.ui_components import console, render_sidebar
 

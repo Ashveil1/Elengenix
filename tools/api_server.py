@@ -199,7 +199,7 @@ if _HAS_FASTAPI:
 
         try:
             from main import normalize_target
-            from core.orchestrator import Orchestrator
+            from elengenix.agent.compat import Orchestrator
 
             normalized = normalize_target(target)
             orch = Orchestrator(normalized)

@@ -64,9 +64,9 @@ class TestScanContextFromTarget:
         assert ctx.step_count == 0
 
     def test_target_normalized(self, monkeypatch):
-        """from_target normalizes via core.orchestrator.normalize_target."""
+        """from_target normalizes via elengenix.scope.normalize_target."""
         monkeypatch.setattr(
-            "core.orchestrator.normalize_target",
+            "elengenix.scope.normalize_target",
             lambda t: "normalized.local",
         )
         ctx = ScanContext.from_target("EXAMPLE.COM")
@@ -74,7 +74,7 @@ class TestScanContextFromTarget:
 
     def test_normalize_failure_raises(self, monkeypatch):
         monkeypatch.setattr(
-            "core.orchestrator.normalize_target",
+            "elengenix.scope.normalize_target",
             lambda t: "",
         )
         with pytest.raises(ValueError, match="Cannot normalize target"):
@@ -279,7 +279,7 @@ class TestScanContextEdgeCases:
 
     def test_normalized_target_spaces_replaced(self, monkeypatch):
         monkeypatch.setattr(
-            "core.orchestrator.normalize_target",
+            "elengenix.scope.normalize_target",
             lambda t: "my target.local",
         )
         ctx = ScanContext.from_target("my target.local")

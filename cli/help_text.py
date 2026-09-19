@@ -28,6 +28,7 @@ HELP_TEXT = """
 
   [bold #ffffff]Interactive chat / TUI[/bold]
     elengenix tui                     [dim]# full-screen terminal UI (default)[/dim]
+    elengenix hack                    [dim]# AI chat assistant (same brain as TUI)[/dim]
     elengenix cli-legacy              [dim]# classic line-mode chat[/dim]
 
 [bold]Options[/bold]

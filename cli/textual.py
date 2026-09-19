@@ -28,8 +28,8 @@ from textual.theme import Theme
 from textual.widget import Widget
 from textual.widgets import Input, RichLog, Static
 
-from core.agent import get_agent
-from agents.tui_game import ObbyGame
+from elengenix.chat.agent import get_agent
+from elengenix.scanning.tui_game import ObbyGame
 
 # TUI widgets (mounted but hidden by default; toggled via Ctrl+D)
 try:

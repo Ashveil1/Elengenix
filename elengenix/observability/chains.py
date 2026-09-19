@@ -1,12 +1,12 @@
-"""Chain summarization helpers — public re-export of ``elengenix.agents.summarizer``.
+"""Chain summarization helpers — public re-export of ``elengenix.agent.crew.summarizer``.
 
 Ports PentAGI's ``pentagi/pkg/cast`` chain helpers (documented under Task 1-c
 of the worklog) into the observability package so callers outside the
-``elengenix.agents`` namespace can use them without creating a cross-package
+``elengenix.agent.crew`` namespace can use them without creating a cross-package
 dependency.
 
 The full ChainAST + 3-phase summarisation algorithm lives in
-``elengenix.agents.summarizer`` — this module re-exports the public API
+``elengenix.agent.crew.summarizer`` — this module re-exports the public API
 (``ChainAST``, ``summarize_chain``, ``SummarizerConfig``) and adds four
 chain-level helper functions that PentAGI's Go upstream exposes as methods
 on the ``ChainAST`` type but which Elengenix callers prefer to invoke on
@@ -37,7 +37,7 @@ import re
 import secrets
 from typing import Any, Optional, Union
 
-from elengenix.agents.summarizer import (  # noqa: F401  (re-exports)
+from elengenix.agent.crew.summarizer import (  # noqa: F401  (re-exports)
     GEMINI_FAKE_THOUGHT_SIGNATURE,
     SUMMARY_TOOL_NAME,
     SUMMARIZED_CONTENT_PREFIX,
@@ -55,20 +55,20 @@ from elengenix.agents.summarizer import (  # noqa: F401  (re-exports)
     get_default_summarizer,
     serialize_chain,
 )
-from elengenix.agents.summarizer import (
+from elengenix.agent.crew.summarizer import (
     _extract_reasoning_message as _section_extract_reasoning,
 )
-from elengenix.agents.summarizer import (
+from elengenix.agent.crew.summarizer import (
     _contains_tool_call_reasoning as _section_contains_tool_call_reasoning,
 )
-from elengenix.agents.summarizer import (
+from elengenix.agent.crew.summarizer import (
     _strip_reasoning as _strip_message_reasoning,
 )
 
 # Public alias for ``summarize_chain`` — kept here for IDE re-discovery
-# (the function lives in ``elengenix.agents.summarizer`` but callers
+# (the function lives in ``elengenix.agent.crew.summarizer`` but callers
 # commonly import it from the observability package).
-from elengenix.agents.summarizer import summarize_chain  # noqa: F401
+from elengenix.agent.crew.summarizer import summarize_chain  # noqa: F401
 
 logger = logging.getLogger("elengenix.observability.chains")
 
@@ -447,7 +447,7 @@ def _first_reasoning_text(msg: dict[str, Any]) -> Optional[str]:
 
 
 __all__ = [
-    # Re-exports from elengenix.agents.summarizer
+    # Re-exports from elengenix.agent.crew.summarizer
     "GEMINI_FAKE_THOUGHT_SIGNATURE",
     "SUMMARY_TOOL_NAME",
     "SUMMARIZED_CONTENT_PREFIX",

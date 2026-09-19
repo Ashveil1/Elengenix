@@ -191,7 +191,7 @@ def is_authorized_scan_target(target: str) -> bool:
     if not validate_target(target):
         return False
 
-    from core.orchestrator import is_in_scope
+    from elengenix.scope import is_in_scope
 
     return is_in_scope(target)
 
@@ -202,7 +202,7 @@ def require_authorized_scan_target(target: str) -> bool:
         print_error("[FAIL] SECURITY ERROR: Invalid target format")
         return False
 
-    from core.orchestrator import is_in_scope, normalize_target
+    from elengenix.scope import is_in_scope, normalize_target
 
     normalized = normalize_target(target)
     if not is_in_scope(normalized):
@@ -279,6 +279,7 @@ def main():
         "menu",
         "auto",
         "help",
+        "ai",
         "bb",
         "check",
         "test",
@@ -706,6 +707,14 @@ def main():
             from cli.textual import main as cli_textual_main
 
             cli_textual_main()
+            return
+
+        elif args.command == "ai":
+            # hack / learn shortcut → AI chat assistant.
+            # Same chat brain as the TUI (elengenix.chat) — one brain, two skins.
+            from cli.interactive import main as interactive_main
+
+            interactive_main(mode=args.mode, target=args.target)
             return
 
         elif args.command == "cli-legacy":

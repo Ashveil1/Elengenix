@@ -32,7 +32,7 @@ import yaml
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import ApplicationBuilder, CallbackQueryHandler, CommandHandler, ContextTypes
 
-from core.brain import ElengenixAgent
+from elengenix.chat.brain import ElengenixAgent
 from tools.user_preferences import (
     add_favorite_target,
     get_preferences,
@@ -224,7 +224,7 @@ async def cmd_scan(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
     try:
-        from core.orchestrator import run_standard_scan
+        from elengenix.agent.compat import run_standard_scan
 
         # 10-Minute Timeout Protection
         result = await asyncio.wait_for(run_in_thread(run_standard_scan, target), timeout=600)

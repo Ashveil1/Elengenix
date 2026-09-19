@@ -45,7 +45,7 @@ import asyncio
 import logging
 from typing import TYPE_CHECKING, Any
 
-from elengenix.agents.base import AgentContext, AgentType
+from elengenix.agent.crew.base import AgentContext, AgentType
 from elengenix.flows.db import FlowDB
 from elengenix.flows.flow_worker import (
     FlowContext,

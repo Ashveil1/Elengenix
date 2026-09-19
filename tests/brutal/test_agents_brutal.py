@@ -34,7 +34,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from pydantic import ValidationError
 
-from elengenix.agents.base import (
+from elengenix.agent.crew.base import (
     MAX_AGENT_SHUTDOWN_ITERATIONS,
     MAX_GENERAL_ITERATIONS,
     MAX_LIMITED_ITERATIONS,
@@ -54,7 +54,7 @@ from elengenix.agents.base import (
     is_limited_agent,
     perform_agent_chain,
 )
-from elengenix.agents.primary_agent import (
+from elengenix.agent.crew.primary_agent import (
     ADVICE_TOOL_NAME,
     ASK_TOOL_NAME,
     BARRIER_TOOL_NAMES,
@@ -70,62 +70,62 @@ from elengenix.agents.primary_agent import (
     PrimaryAgentRunStats,
     render_system_prompt,
 )
-from elengenix.agents.searcher import (
+from elengenix.agent.crew.searcher import (
     SEARCH_RESULT_TOOL_NAME,
     Searcher,
 )
-from elengenix.agents.pentester import (
+from elengenix.agent.crew.pentester import (
     HACK_RESULT_TOOL_NAME,
     PENTEST_DOCKER_IMAGE,
     Pentester,
 )
-from elengenix.agents.coder import (
+from elengenix.agent.crew.coder import (
     CODE_RESULT_TOOL_NAME,
     Coder,
 )
-from elengenix.agents.installer import (
+from elengenix.agent.crew.installer import (
     Installer,
 )
-from elengenix.agents.memorist import (
+from elengenix.agent.crew.memorist import (
     MEMORIST_RESULT_TOOL_NAME,
     Memorist,
     anonymize,
 )
-from elengenix.agents.adviser import (
+from elengenix.agent.crew.adviser import (
     AdviceResult,
     Adviser,
     AskAdvice,
 )
-from elengenix.agents.enricher import (
+from elengenix.agent.crew.enricher import (
     ENRICHER_RESULT_TOOL_NAME,
     Enricher,
     EnricherResult,
 )
-from elengenix.agents.generator import (
+from elengenix.agent.crew.generator import (
     Generator,
     SubtaskInfo,
     SubtaskList,
     SubtaskListToolName,
     TasksNumberLimit,
 )
-from elengenix.agents.refiner import (
+from elengenix.agent.crew.refiner import (
     Refiner,
     SubtaskPatch,
     SubtaskPatchOp,
     SubtaskPatchToolName,
 )
-from elengenix.agents.reporter import (
+from elengenix.agent.crew.reporter import (
     ReportMessageLengthLimit,
     ReportResultLengthLimit,
     ReportResultToolName,
     Reporter,
     TaskResult,
 )
-from elengenix.agents.reflector import (
+from elengenix.agent.crew.reflector import (
     REFLECTOR_SYSTEM_PROMPT,
     Reflector as ReflectorAgent,
 )
-from elengenix.agents.summarizer import (
+from elengenix.agent.crew.summarizer import (
     GEMINI_FAKE_THOUGHT_SIGNATURE,
     SUMMARIZED_CONTENT_PREFIX,
     SUMMARY_TOOL_NAME,
@@ -141,11 +141,11 @@ from elengenix.agents.summarizer import (
     contains_summarized_content,
     serialize_chain,
 )
-from elengenix.agents.toolcall_fixer import (
+from elengenix.agent.crew.toolcall_fixer import (
     TOOLCALL_FIXER_SYSTEM_PROMPT,
     ToolCallFixer,
 )
-from elengenix.agents.assistant import (
+from elengenix.agent.crew.assistant import (
     ASSISTANT_SYSTEM_PROMPT,
     Assistant,
     AssistantConversation,
@@ -1284,7 +1284,7 @@ class TestInstaller:
     def test_installer_completion_tool_is_maintenance_result(self) -> None:
         """Installer's barrier tool name is 'maintenance_result'."""
         # The constant is module-private; verify the canonical name.
-        from elengenix.agents.installer import MAINTENANCE_RESULT_TOOL_NAME
+        from elengenix.agent.crew.installer import MAINTENANCE_RESULT_TOOL_NAME
         assert MAINTENANCE_RESULT_TOOL_NAME == "maintenance_result"
         assert Installer.COMPLETION_TOOL == MAINTENANCE_RESULT_TOOL_NAME
 
@@ -1294,7 +1294,7 @@ class TestInstaller:
 
     def test_installer_render_prompts_system_nonempty(self) -> None:
         """The rendered system prompt references the maintenance_result tool."""
-        from elengenix.agents.installer import MAINTENANCE_RESULT_TOOL_NAME
+        from elengenix.agent.crew.installer import MAINTENANCE_RESULT_TOOL_NAME
         i = Installer(llm_client=MagicMock())
         sys_p, _ = i._render_prompts(question="install nmap", execution_context="")
         assert MAINTENANCE_RESULT_TOOL_NAME in sys_p

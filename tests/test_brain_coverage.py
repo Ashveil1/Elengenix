@@ -14,7 +14,7 @@ from tools.governance import Governance
 
 def _make_agent():
     """Create a lightweight agent for testing."""
-    from core.brain import ElengenixAgent
+    from elengenix.chat.brain import ElengenixAgent
 
     agent = ElengenixAgent.__new__(ElengenixAgent)
     agent.max_steps = 25
@@ -102,7 +102,7 @@ class TestFingerprintTarget:
         mock_resp.cookies = []
         mock_resp.text = "<html>test</html>"
         with patch("requests.get", return_value=mock_resp):
-            with patch("agents.agent_planner.TargetFingerprinter") as MockFP:
+            with patch("elengenix.scanning.planner.TargetFingerprinter") as MockFP:
                 mock_fp = MagicMock()
                 mock_fp.fingerprint.return_value = {"server": "nginx", "technologies": []}
                 MockFP.return_value = mock_fp
@@ -123,7 +123,7 @@ class TestFingerprintTarget:
         mock_resp.text = ""
         with patch("requests.get", return_value=mock_resp):
             with patch(
-                "agents.agent_planner.TargetFingerprinter", side_effect=Exception("fp error")
+                "elengenix.scanning.planner.TargetFingerprinter", side_effect=Exception("fp error")
             ):
                 result = agent._fingerprint_target_for_planning("http://example.com")
                 assert result is None
@@ -135,7 +135,7 @@ class TestFingerprintTarget:
         mock_resp.cookies = []
         mock_resp.text = ""
         with patch("requests.get", return_value=mock_resp):
-            with patch("agents.agent_planner.TargetFingerprinter") as MockFP:
+            with patch("elengenix.scanning.planner.TargetFingerprinter") as MockFP:
                 mock_fp = MagicMock()
                 mock_fp.fingerprint.return_value = {"server": None}
                 MockFP.return_value = mock_fp
@@ -176,13 +176,13 @@ class TestInitTeamAegis:
 class TestSaveToPersistentMemory:
     def test_success(self):
         agent = _make_agent()
-        with patch("core.brain._sqlite_save_message") as mock_save:
+        with patch("elengenix.chat.brain._sqlite_save_message") as mock_save:
             agent._save_to_persistent_memory("user", "hello")
             mock_save.assert_called_once()
 
     def test_exception_does_not_raise(self):
         agent = _make_agent()
-        with patch("core.brain._sqlite_save_message", side_effect=Exception("err")):
+        with patch("elengenix.chat.brain._sqlite_save_message", side_effect=Exception("err")):
             agent._save_to_persistent_memory("user", "hello")
 
 
@@ -194,7 +194,7 @@ class TestSaveToPersistentMemory:
 class TestCheckContextOverflow:
     def test_not_near_full(self):
         agent = _make_agent()
-        with patch("core.brain._get_context_status") as mock_status:
+        with patch("elengenix.chat.brain._get_context_status") as mock_status:
             mock_status.return_value = {
                 "is_near_full": False,
                 "percent": 30.0,
@@ -206,7 +206,7 @@ class TestCheckContextOverflow:
     def test_near_full_triggers_summarize(self):
         agent = _make_agent()
         agent.conversation_history = [{"role": "user", "content": "hi"}] * 10
-        with patch("core.brain._get_context_status") as mock_status:
+        with patch("elengenix.chat.brain._get_context_status") as mock_status:
             mock_status.return_value = {
                 "is_near_full": True,
                 "percent": 95.0,
@@ -219,7 +219,7 @@ class TestCheckContextOverflow:
 
     def test_exception_returns_false(self):
         agent = _make_agent()
-        with patch("core.brain._get_context_status", side_effect=Exception("fail")):
+        with patch("elengenix.chat.brain._get_context_status", side_effect=Exception("fail")):
             assert agent._check_context_overflow() is False
 
 
@@ -246,9 +246,9 @@ class TestSummarizeOldConversation:
         mock_response = SimpleNamespace(content="This is a summary of the conversation.")
         agent.client.chat.return_value = mock_response
 
-        with patch("core.brain._sqlite_clear_session"), patch(
-            "core.brain._sqlite_save_message"
-        ), patch("core.brain.logger"):
+        with patch("elengenix.chat.brain._sqlite_clear_session"), patch(
+            "elengenix.chat.brain._sqlite_save_message"
+        ), patch("elengenix.chat.brain.logger"):
             with patch("tools.token_counter.count_tokens", return_value=100):
                 agent._summarize_old_conversation()
 
@@ -268,7 +268,7 @@ class TestSummarizeOldConversation:
         agent.client.chat.return_value = mock_response
 
         original_len = len(agent.conversation_history)
-        with patch("core.brain._sqlite_clear_session"), patch("core.brain.logger"):
+        with patch("elengenix.chat.brain._sqlite_clear_session"), patch("elengenix.chat.brain.logger"):
             agent._summarize_old_conversation()
         assert len(agent.conversation_history) == original_len
 
@@ -436,20 +436,20 @@ class TestAppendHistory:
 class TestProcessQuery:
     def test_casual_intent(self):
         agent = _make_agent()
-        with patch("core.brain._analyze_intent", return_value="casual"):
+        with patch("elengenix.chat.brain._analyze_intent", return_value="casual"):
             result = agent.process_query("hello", callback=None)
             assert result is not None
 
     def test_scan_with_target(self):
         agent = _make_agent()
-        with patch("core.brain._analyze_intent", return_value="scan"):
+        with patch("elengenix.chat.brain._analyze_intent", return_value="scan"):
             result = agent.process_query("scan example.com", target="example.com")
             assert result is not None
 
     def test_save_memory_action(self):
         agent = _make_agent()
         agent.mode_processor.process_universal.return_value = "saved"
-        with patch("core.brain._analyze_intent", return_value="casual"):
+        with patch("elengenix.chat.brain._analyze_intent", return_value="casual"):
             result = agent.process_query("remember this", callback=None)
             assert result is not None
 
@@ -458,13 +458,13 @@ class TestProcessQuery:
         agent.governance.gate = MagicMock(
             return_value=MagicMock(decision="deny", rationale="blocked")
         )
-        with patch("core.brain._analyze_intent", return_value="scan"):
+        with patch("elengenix.chat.brain._analyze_intent", return_value="scan"):
             result = agent.process_query("run nmap", target="example.com")
             assert result is not None
 
     def test_deadlock_detection(self):
         agent = _make_agent()
-        with patch("core.brain._analyze_intent", return_value="scan"):
+        with patch("elengenix.chat.brain._analyze_intent", return_value="scan"):
             for _ in range(5):
                 result = agent.process_query("run tool", target="example.com")
             assert result is not None
@@ -483,14 +483,14 @@ class TestProcessModes:
 
     def test_process_hybrid_with_target(self):
         agent = _make_agent()
-        with patch("core.brain._analyze_intent", return_value="scan"):
+        with patch("elengenix.chat.brain._analyze_intent", return_value="scan"):
             result = agent.process_hybrid("scan example.com", target="example.com")
             assert result is not None
 
     def test_process_hybrid_no_target_no_inference(self):
         agent = _make_agent()
-        with patch("core.brain._analyze_intent", return_value="scan"):
-            with patch("core.brain._extract_target_from_text", return_value=""):
+        with patch("elengenix.chat.brain._analyze_intent", return_value="scan"):
+            with patch("elengenix.chat.brain._extract_target_from_text", return_value=""):
                 result = agent.process_hybrid("scan something", target="")
                 assert "No target specified" in result
 
@@ -509,7 +509,7 @@ class TestFingerprintActivityLog:
         mock_resp.cookies = []
         mock_resp.text = "<html></html>"
         with patch("requests.get", return_value=mock_resp):
-            with patch("agents.agent_planner.TargetFingerprinter") as MockFP:
+            with patch("elengenix.scanning.planner.TargetFingerprinter") as MockFP:
                 mock_fp = MagicMock()
                 mock_fp.fingerprint.return_value = {"server": "nginx", "technologies": []}
                 MockFP.return_value = mock_fp
@@ -525,7 +525,7 @@ class TestFingerprintActivityLog:
         mock_resp.cookies = []
         mock_resp.text = ""
         with patch("requests.get", return_value=mock_resp):
-            with patch("agents.agent_planner.TargetFingerprinter") as MockFP:
+            with patch("elengenix.scanning.planner.TargetFingerprinter") as MockFP:
                 mock_fp = MagicMock()
                 mock_fp.fingerprint.return_value = {"server": None}
                 MockFP.return_value = mock_fp
@@ -581,7 +581,7 @@ class TestProcessQueryAdditional:
     def test_max_steps_halt(self):
         agent = _make_agent()
         agent.max_steps = 1
-        with patch("core.brain._analyze_intent", return_value="scan"):
+        with patch("elengenix.chat.brain._analyze_intent", return_value="scan"):
             for _ in range(3):
                 result = agent.process_query("run tool", target="example.com")
             assert result is not None
@@ -589,13 +589,13 @@ class TestProcessQueryAdditional:
     def test_callback_called_on_intent(self):
         agent = _make_agent()
         callback = MagicMock()
-        with patch("core.brain._analyze_intent", return_value="casual"):
+        with patch("elengenix.chat.brain._analyze_intent", return_value="casual"):
             agent.process_query("hello", callback=callback)
             callback.assert_called()
 
     def test_no_target_scan_inferred(self):
         agent = _make_agent()
-        with patch("core.brain._analyze_intent", return_value="scan"):
-            with patch("core.brain._extract_target_from_text", return_value="example.com"):
+        with patch("elengenix.chat.brain._analyze_intent", return_value="scan"):
+            with patch("elengenix.chat.brain._extract_target_from_text", return_value="example.com"):
                 result = agent.process_query("scan example.com")
                 assert result is not None

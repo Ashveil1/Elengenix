@@ -747,11 +747,6 @@ class SettingsOverlay:
                 # Also re-init team_aegis clients
                 if hasattr(self.agent, "_init_team_aegis_clients"):
                     self.agent._team_aegis_clients = self.agent._init_team_aegis_clients()
-                # Re-create planner with new client
-                if hasattr(self.agent, "planner") and self.agent.planner:
-                    from core.brain import StrategicPlanner
-
-                    self.agent.planner = StrategicPlanner(new_manager)
                 self.agent.conversation_history = saved_history
 
             return f"saved:{','.join(active_models)}"

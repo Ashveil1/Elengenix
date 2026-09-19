@@ -12,7 +12,7 @@ from unittest.mock import MagicMock, patch
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from core.brain import (  # noqa: E402
+from elengenix.chat.brain import (  # noqa: E402
     ElengenixAgent,
     _get_db_path,
     get_context_for_ai,
@@ -34,7 +34,7 @@ from tools.tool_registry import ToolCategory, ToolResult
 
 
 class TestGetDbPath:
-    """Covers core.brain:35-38 — _SQLITE_DB is None branch."""
+    """Covers elengenix.chat.brain:35-38 — _SQLITE_DB is None branch."""
 
     def test_returns_default_path(self):
         path = _get_db_path()
@@ -43,7 +43,7 @@ class TestGetDbPath:
 
 
 class TestGetContextForAiEmptyQuery:
-    """Covers core.brain:147 — current_query is falsy -> returns ''."""
+    """Covers elengenix.chat.brain:147 — current_query is falsy -> returns ''."""
 
     def test_empty_query(self):
         assert get_context_for_ai("", target="test") == ""
@@ -53,7 +53,7 @@ class TestGetContextForAiEmptyQuery:
 
 
 class TestAnalyzeIntentFallback:
-    """Covers core.brain:200-205 — exception handler fallback keywords."""
+    """Covers elengenix.chat.brain:200-205 — exception handler fallback keywords."""
 
     def _fallback_intent(self, text: str) -> str:
         """Force the fallback path by making analyze_intent raise."""
@@ -84,7 +84,7 @@ class TestAnalyzeIntentFallback:
 
 
 class TestExtractTargetFromText:
-    """Covers core.brain:211-220 — domain + IP regex extraction."""
+    """Covers elengenix.chat.brain:211-220 — domain + IP regex extraction."""
 
     def test_extract_domain(self):
         assert _extract_target_from_text("scan example.com") == "example.com"
@@ -102,27 +102,27 @@ class TestExtractTargetFromText:
 
 
 class TestDisplayInChatMode:
-    """Covers core.brain:231."""
+    """Covers elengenix.chat.brain:231."""
 
     def test_logs_message(self, caplog):
         import logging
-        with caplog.at_level(logging.INFO, logger="core.brain"):
+        with caplog.at_level(logging.INFO, logger="elengenix.chat.brain"):
             display_in_chat_mode("test message", mode="warn")
         assert "[WARN] test message" in caplog.text
 
 
 class TestSendTelegramNotification:
-    """Covers core.brain:236."""
+    """Covers elengenix.chat.brain:236."""
 
     def test_logs_message(self, caplog):
         import logging
-        with caplog.at_level(logging.INFO, logger="core.brain"):
+        with caplog.at_level(logging.INFO, logger="elengenix.chat.brain"):
             send_telegram_notification("alert!")
         assert "[TELEGRAM] alert!" in caplog.text
 
 
 class TestExecuteTool:
-    """Covers core.brain:243-244 — delegates to tools.tool_executor.execute_tool."""
+    """Covers elengenix.chat.brain:243-244 — delegates to tools.tool_executor.execute_tool."""
 
     def test_calls_through(self):
         """Fake the import so the function body runs without real module."""
@@ -139,7 +139,7 @@ class TestExecuteTool:
 
 
 class TestHandleAskUser:
-    """Covers core.brain:249."""
+    """Covers elengenix.chat.brain:249."""
 
     def test_returns_prompt(self):
         result = handle_ask_user({"question": "Proceed?"})
@@ -148,7 +148,7 @@ class TestHandleAskUser:
 
 
 class TestExecuteToolRegistry:
-    """Covers core.brain:255-259 — tool found + not found."""
+    """Covers elengenix.chat.brain:255-259 — tool found + not found."""
 
     @patch("tools.tool_registry.registry")
     def test_tool_found(self, mock_reg):
@@ -171,7 +171,7 @@ class TestExecuteToolRegistry:
 
 
 class TestExecuteToolSubprocess:
-    """Covers core.brain:265-273 — subprocess success + failure."""
+    """Covers elengenix.chat.brain:265-273 — subprocess success + failure."""
 
     @patch("subprocess.check_output")
     def test_success(self, mock_check):
@@ -192,7 +192,7 @@ class TestExecuteToolSubprocess:
 
 
 class TestAgentConstructor:
-    """Covers core.brain:337-367 — __init__ body."""
+    """Covers elengenix.chat.brain:337-367 — __init__ body."""
 
     def test_init_sets_all_attributes(self):
         agent = ElengenixAgent(
@@ -222,7 +222,7 @@ class TestAgentConstructor:
 
 
 class TestAgentPropertySetters:
-    """Covers core.brain:380, 391, 402 — property setters."""
+    """Covers elengenix.chat.brain:380, 391, 402 — property setters."""
 
     def test_logic_analyzer_setter(self):
         agent = ElengenixAgent()
@@ -244,7 +244,7 @@ class TestAgentPropertySetters:
 
 
 class TestAgentConversation:
-    """Covers core.brain:417, 423, 431 — no conversation_manager branches."""
+    """Covers elengenix.chat.brain:417, 423, 431 — no conversation_manager branches."""
 
     def test_append_history_no_manager(self):
         agent = ElengenixAgent()
@@ -275,7 +275,7 @@ class TestAgentConversation:
 
 
 class TestProcessQueryCasualEdgeCases:
-    """Covers core.brain:777, 790-791 — no client + remember exception."""
+    """Covers elengenix.chat.brain:777, 790-791 — no client + remember exception."""
 
     def test_casual_no_client(self):
         """agent with client=None -> uses fallback response format."""
@@ -286,7 +286,7 @@ class TestProcessQueryCasualEdgeCases:
             result = agent.process_query("hello there")
         assert "[CASUAL] Received: hello there" in result
 
-    @patch("core.brain.remember")
+    @patch("elengenix.chat.brain.remember")
     def test_casual_remember_exception(self, mock_remember):
         """remember() raises -> caught by except, still returns response."""
         mock_remember.side_effect = Exception("db full")
@@ -317,9 +317,9 @@ class TestProcessQueryScanEdgeCases:
         result = agent.process_query("scan test.com", target="test.com")
         assert isinstance(result, str)
 
-    @patch("core.brain.remember")
-    @patch("core.brain.get_context_for_ai", return_value="")
-    @patch("core.brain._get_now_context", return_value="now")
+    @patch("elengenix.chat.brain.remember")
+    @patch("elengenix.chat.brain.get_context_for_ai", return_value="")
+    @patch("elengenix.chat.brain._get_now_context", return_value="now")
     def test_scan_invalid_json_from_ai(self, mock_now, mock_context, mock_remember):
         """AI returns malformed JSON -> action defaults to finish."""
         agent = ElengenixAgent()
@@ -331,9 +331,9 @@ class TestProcessQueryScanEdgeCases:
         result = agent.process_query("scan target", target="target")
         assert "Task finished" in result
 
-    @patch("core.brain.remember")
-    @patch("core.brain.get_context_for_ai", return_value="")
-    @patch("core.brain._get_now_context", return_value="now")
+    @patch("elengenix.chat.brain.remember")
+    @patch("elengenix.chat.brain.get_context_for_ai", return_value="")
+    @patch("elengenix.chat.brain._get_now_context", return_value="now")
     def test_scan_remember_exception_on_finish(self, mock_now, mock_context, mock_remember):
         """remember() on finish branch raises -> caught."""
         mock_remember.side_effect = Exception("fail")
@@ -346,10 +346,10 @@ class TestProcessQueryScanEdgeCases:
         result = agent.process_query("scan target", target="target")
         assert "Task finished" in result
 
-    @patch("core.brain.remember", return_value=None)
-    @patch("core.brain.get_context_for_ai", return_value="")
-    @patch("core.brain._get_now_context", return_value="now")
-    @patch("core.brain.display_in_chat_mode")
+    @patch("elengenix.chat.brain.remember", return_value=None)
+    @patch("elengenix.chat.brain.get_context_for_ai", return_value="")
+    @patch("elengenix.chat.brain._get_now_context", return_value="now")
+    @patch("elengenix.chat.brain.display_in_chat_mode")
     def test_scan_save_memory_action(self, mock_display, mock_now, mock_context, mock_remember):
         """'save_memory' action continues loop."""
         from collections import namedtuple
@@ -378,8 +378,8 @@ class TestProcessQueryScanEdgeCases:
         assert "Task finished" in result
         mock_display.assert_called()
 
-    @patch("core.brain.get_context_for_ai", return_value="")
-    @patch("core.brain._get_now_context", return_value="now")
+    @patch("elengenix.chat.brain.get_context_for_ai", return_value="")
+    @patch("elengenix.chat.brain._get_now_context", return_value="now")
     def test_scan_governance_blocked_not_deny(self, mock_now, mock_context):
         """Gate with allowed=False but decision != 'deny' -> hits line 894-898."""
         agent = ElengenixAgent()
@@ -404,10 +404,10 @@ class TestProcessQueryScanEdgeCases:
         result = agent.process_query("scan test", target="test")
         assert "Governance gate" in result
 
-    @patch("core.brain.get_context_for_ai", return_value="")
-    @patch("core.brain._get_now_context", return_value="now")
+    @patch("elengenix.chat.brain.get_context_for_ai", return_value="")
+    @patch("elengenix.chat.brain._get_now_context", return_value="now")
     @patch(
-        "core.brain.execute_tool_registry",
+        "elengenix.chat.brain.execute_tool_registry",
         return_value=ToolResult(
             success=True,
             tool_name="nmap",
@@ -415,7 +415,7 @@ class TestProcessQueryScanEdgeCases:
             output="done",
         ),
     )
-    @patch("core.brain.display_in_chat_mode")
+    @patch("elengenix.chat.brain.display_in_chat_mode")
     def test_scan_execute_tool_path(
         self, mock_display, mock_exec, mock_now, mock_context
     ):
@@ -453,9 +453,9 @@ class TestProcessQueryScanEdgeCases:
         assert "Task finished" in result
         mock_exec.assert_called()
 
-    @patch("core.brain.get_context_for_ai", return_value="")
-    @patch("core.brain._get_now_context", return_value="now")
-    @patch("core.brain.execute_tool_registry")
+    @patch("elengenix.chat.brain.get_context_for_ai", return_value="")
+    @patch("elengenix.chat.brain._get_now_context", return_value="now")
+    @patch("elengenix.chat.brain.execute_tool_registry")
     def test_scan_execute_tool_exception(self, mock_exec, mock_now, mock_context):
         """execute_tool_registry raises -> caught (line 906-907)."""
         from collections import namedtuple
@@ -490,9 +490,9 @@ class TestProcessQueryScanEdgeCases:
         result = agent.process_query("scan x", target="x")
         assert "Task finished" in result
 
-    @patch("core.brain.get_context_for_ai", return_value="")
-    @patch("core.brain._get_now_context", return_value="now")
-    @patch("core.brain.remember")
+    @patch("elengenix.chat.brain.get_context_for_ai", return_value="")
+    @patch("elengenix.chat.brain._get_now_context", return_value="now")
+    @patch("elengenix.chat.brain.remember")
     def test_scan_remember_exception_in_save_memory(
         self, mock_remember, mock_now, mock_context
     ):
@@ -523,8 +523,8 @@ class TestProcessQueryScanEdgeCases:
         result = agent.process_query("scan x", target="x")
         assert "Task finished" in result
 
-    @patch("core.brain.get_context_for_ai", return_value="")
-    @patch("core.brain._get_now_context", return_value="now")
+    @patch("elengenix.chat.brain.get_context_for_ai", return_value="")
+    @patch("elengenix.chat.brain._get_now_context", return_value="now")
     def test_scan_unknown_action(self, mock_now, mock_context):
         """Unknown action -> treated as finish (line 914-918)."""
         from collections import namedtuple
@@ -546,7 +546,7 @@ class TestProcessQueryScanEdgeCases:
 
 
 class TestAgentEnhancePrompt:
-    """Covers core.brain:599 — no base_prompt path."""
+    """Covers elengenix.chat.brain:599 — no base_prompt path."""
 
     def test_no_base_prompt(self):
         agent = ElengenixAgent()
@@ -557,7 +557,7 @@ class TestAgentEnhancePrompt:
 
 
 class TestAgentExtractJson:
-    """Covers core.brain:636-638, 645-648 — JSON extraction with repair."""
+    """Covers elengenix.chat.brain:636-638, 645-648 — JSON extraction with repair."""
 
     def test_empty_text(self):
         agent = ElengenixAgent()
@@ -586,7 +586,7 @@ class TestAgentExtractJson:
 
 
 class TestAgentSumarizeResults:
-    """Covers core.brain:933-938 — result objects with .output and dict fallback."""
+    """Covers elengenix.chat.brain:933-938 — result objects with .output and dict fallback."""
 
     def test_result_with_output_attr(self):
         """Object with .output (no .tool_name) -> hits elif branch."""
@@ -608,7 +608,7 @@ class TestAgentSumarizeResults:
 
 
 class TestAgentActivityLog:
-    """Covers core.brain:950-951 — callback exception."""
+    """Covers elengenix.chat.brain:950-951 — callback exception."""
 
     def test_callback_raises(self):
         agent = ElengenixAgent()
@@ -621,7 +621,7 @@ class TestAgentActivityLog:
 
 
 class TestAgentFingerprint:
-    """Covers core.brain:956-958 — empty target path."""
+    """Covers elengenix.chat.brain:956-958 — empty target path."""
 
     def test_empty_target(self):
         agent = ElengenixAgent()
@@ -635,7 +635,7 @@ class TestAgentFingerprint:
 
 
 class TestAgentInitTeamAegis:
-    """Covers core.brain:996-1004 — no config file, disabled, error."""
+    """Covers elengenix.chat.brain:996-1004 — no config file, disabled, error."""
 
     def test_no_config_file(self):
         agent = ElengenixAgent()
@@ -645,19 +645,19 @@ class TestAgentInitTeamAegis:
 
 
 class TestAgentSaveMemory:
-    """Covers core.brain:1008-1012, 1015-1020."""
+    """Covers elengenix.chat.brain:1008-1012, 1015-1020."""
 
     def test_save_to_persistent_memory(self):
         agent = ElengenixAgent()
         agent._save_to_persistent_memory("user", "important data")
 
-    @patch("core.brain.remember", return_value=None)
+    @patch("elengenix.chat.brain.remember", return_value=None)
     def test_handle_save_memory_success(self, mock_remember):
         agent = ElengenixAgent()
         result = agent._handle_save_memory("my note", target="x")
         assert "Memory saved" in result
 
-    @patch("core.brain.remember")
+    @patch("elengenix.chat.brain.remember")
     def test_handle_save_memory_failure(self, mock_remember):
         mock_remember.side_effect = Exception("full")
         agent = ElengenixAgent()
@@ -666,7 +666,7 @@ class TestAgentSaveMemory:
 
 
 class TestAgentRequestToolInstall:
-    """Covers core.brain:1059-1060 — confirm_install exception."""
+    """Covers elengenix.chat.brain:1059-1060 — confirm_install exception."""
 
     def test_no_skill_registry(self):
         agent = ElengenixAgent()
@@ -684,7 +684,7 @@ class TestAgentRequestToolInstall:
 
 
 class TestAgentResumeMission:
-    """Covers core.brain:1086."""
+    """Covers elengenix.chat.brain:1086."""
 
     def test_resume_mission(self):
         agent = ElengenixAgent()
@@ -693,9 +693,9 @@ class TestAgentResumeMission:
 
 
 class TestAgentProcessTeamScan:
-    """Covers core.brain:1089."""
+    """Covers elengenix.chat.brain:1089."""
 
-    @patch("core.brain.ElengenixAgent.run_smart_scan")
+    @patch("elengenix.chat.brain.ElengenixAgent.run_smart_scan")
     def test_process_team_scan(self, mock_run):
         agent = ElengenixAgent()
         result = agent.process_team_scan("target")
@@ -703,12 +703,12 @@ class TestAgentProcessTeamScan:
 
 
 class TestAgentExecuteWithGovernance:
-    """Covers core.brain:1070-1083."""
+    """Covers elengenix.chat.brain:1070-1083."""
 
     def test_no_governance(self):
         agent = ElengenixAgent()
         agent.governance = None
-        with patch("core.brain.execute_tool", return_value="done"):
+        with patch("elengenix.chat.brain.execute_tool", return_value="done"):
             result = agent._execute_with_governance("nmap", "test", "scan x")
             assert result == "done"
 
@@ -725,7 +725,7 @@ class TestAgentExecuteWithGovernance:
 
 
 class TestAgentProcessQueryNew:
-    """Covers core.brain:1066."""
+    """Covers elengenix.chat.brain:1066."""
 
     def test_delegates_to_process_universal(self):
         agent = ElengenixAgent()
@@ -736,7 +736,7 @@ class TestAgentProcessQueryNew:
 
 
 class TestAgentProcessHybridModeProcessor:
-    """Covers core.brain:726 — mode_processor branch."""
+    """Covers elengenix.chat.brain:726 — mode_processor branch."""
 
     def test_calls_mode_processor_hybrid(self):
         agent = ElengenixAgent()

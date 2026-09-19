@@ -113,7 +113,7 @@ class SearchSummarizerProtocol(Protocol):
 
     Implementations are expected to wrap Elengenix's existing LLM clients
     (``universal_ai_client``, ``llm_reasoning``, or the
-    :class:`elengenix.agents.summarizer.AsyncLLMProvider` protocol). The
+    :class:`elengenix.agent.crew.summarizer.AsyncLLMProvider` protocol). The
     only contract is a single coroutine that takes a ``prompt`` (and
     optional ``system``) and returns the model's text completion.
     """

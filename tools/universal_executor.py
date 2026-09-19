@@ -450,7 +450,7 @@ class UniversalExecutor:
 
         if gate.decision == "needs_approval":
             try:
-                from agents.agent_executor import _prompt_approval
+                from elengenix.scanning.executor import _prompt_approval
 
                 approved, enable_auto = _prompt_approval(
                     cmd=command,

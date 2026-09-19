@@ -32,7 +32,8 @@ if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
 from integrations.bot_utils import send_telegram_notification
-from core.orchestrator import is_in_scope, run_standard_scan
+from elengenix.scope import is_in_scope
+from elengenix.agent.compat import run_standard_scan
 from tools.cvss_calculator import CVSSCalculator
 from tools.html_reporter import generate_html_report
 from tools.reporter import generate_bug_report

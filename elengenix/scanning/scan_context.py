@@ -132,7 +132,7 @@ class ScanContext:
         Returns:
             ScanContext with target normalized and report_dir set.
         """
-        from core.orchestrator import normalize_target
+        from elengenix.scope import normalize_target
 
         normalized = normalize_target(target)
         if not normalized:
