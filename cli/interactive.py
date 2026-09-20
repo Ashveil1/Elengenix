@@ -716,7 +716,7 @@ def main(mode: str = "auto", target: Optional[str] = None):
             console.print(
                 "[bold red]Access denied. You must accept the terms to continue.[/bold red]"
             )
-            console.print("[dim]To re-accept terms later, run: elengenix cli --accept-terms[/dim]")
+            console.print("[dim]To accept the terms later, run: elengenix hack[/dim]")
             return
 
     # Silence verbose tool/discovery logs during startup for a cleaner UI

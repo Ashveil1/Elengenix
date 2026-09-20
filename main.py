@@ -2409,7 +2409,7 @@ def _cmd_examples():
         ("[cyan]Resume paused mission[/cyan]", "elengenix resume <mission-id>"),
         ("[cyan]Show scan history[/cyan]", "elengenix history list"),
         ("[cyan]Telegram gateway[/cyan]", "elengenix gateway"),
-        ("[cyan]Interactive AI chat[/cyan]", "elengenix cli"),
+        ("[cyan]Interactive AI chat[/cyan]", "elengenix hack"),
     ]
     for desc, cmd in examples:
         console.print(f"  {desc}")

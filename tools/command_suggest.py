@@ -63,7 +63,7 @@ class CommandSuggester:
     COMMANDS = {
         "ai": {
             "description": "Chat with AI security assistant",
-            "examples": ["elengenix ai", "Ask about vulnerabilities, get guidance"],
+            "examples": ["elengenix hack", "Ask about vulnerabilities, get guidance"],
             "category": "core",
             "requires_target": False,
             "aliases": ["chat", "assistant"],
@@ -376,7 +376,7 @@ class CommandSuggester:
             # General guidance
             lines.append("\n  [Quick Start]")
             lines.append("    elengenix autonomous https://target.com")
-            lines.append("    elengenix ai")
+            lines.append("    elengenix hack")
             lines.append("    elengenix research CVE-2024-21626")
 
             lines.append("\n  [Get Help]")

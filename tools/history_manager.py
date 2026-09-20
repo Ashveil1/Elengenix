@@ -615,7 +615,7 @@ def run_cli():
         else:
             print("\n  No specific suggestions. Try:")
             print("    elengenix quick <target>")
-            print("    elengenix ai")
+            print("    elengenix hack")
 
     elif command == "clear":
         if input("Clear all history? (yes/no): ").strip().lower() == "yes":

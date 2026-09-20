@@ -260,7 +260,7 @@ class WelcomeWizard:
         if default_mode == "autonomous":
             self._print_suggestion("Try: elengenix autonomous https://target.com")
         elif default_mode == "ai":
-            self._print_suggestion("Try: elengenix ai")
+            self._print_suggestion("Try: elengenix hack")
 
         # Step 4: Preferences
         self._print_header("Quick Preferences", 4, 4)
@@ -418,7 +418,7 @@ class WelcomeWizard:
 
         elif config.default_mode == "ai":
             print("\n  Start chatting with AI:")
-            print("    $ elengenix ai")
+            print("    $ elengenix hack")
             print("\n  Then try asking:")
             print('    > "How do I find IDOR vulnerabilities?"')
             print('    > "Research CVE-2024-21626 for me"')
