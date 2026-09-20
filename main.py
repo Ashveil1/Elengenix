@@ -262,7 +262,6 @@ def main():
         pass  # MCP is optional — don't block startup
 
     command_choices = [
-        "universal",
         "scan",
         "gateway",
         "configure",
@@ -279,7 +278,6 @@ def main():
         "menu",
         "auto",
         "help",
-        "ai",
         "bb",
         "check",
         "test",
@@ -304,11 +302,7 @@ def main():
         "mission",
         "pause",
         "resume",
-        "cli",
         "tui",
-        "cli-textual",
-        "cli-legacy",
-        "clitest",
         "vuln-hunt",
         # New unified commands
         "sast",
@@ -425,7 +419,7 @@ def main():
         return
 
     # Auto-run welcome if first time (unless running specific commands)
-    skip_welcome_commands = ["doctor", "configure", "update", "welcome", "cli", "cli-textual"]
+    skip_welcome_commands = ["doctor", "configure", "update", "welcome"]
     if args.command not in skip_welcome_commands:
         from tools.welcome_wizard import WelcomeWizard
 
@@ -453,6 +447,13 @@ def main():
             for sugg in suggestions:
                 console.print(f"  [red]elengenix {sugg.split(' -- ')[0]}[/red]")
         return
+
+    # ── Shortcut Pre-Processing ── resolve aliases BEFORE validation so a
+    # shortcut's target (e.g. swarm -> autonomous) can never hit the
+    # unknown-command branch below. Must stay after the early `help` handler.
+    from tools.auto_detector import CommandSimplifier
+
+    CommandSimplifier.apply_to_args(args)
 
     # Handle unknown commands with smart suggestions
     valid_commands = set(command_choices)
@@ -498,12 +499,6 @@ def main():
                 for entry in recent:
                     console.print(f"  [red]elengenix {entry.command} {entry.args}[/red]")
             return
-
-    # ── Shortcut Pre-Processing ── resolve aliases BEFORE auto-detect block
-    # e.g. 'elengenix bb', 'elengenix hack', 'elengenix red' (no target needed)
-    from tools.auto_detector import CommandSimplifier
-
-    CommandSimplifier.apply_to_args(args)
 
     # If no command or target is specified and it's "auto" (default), run the TUI
     if args.command == "auto" and not args.target:
@@ -566,8 +561,7 @@ def main():
     # Auto-detect mode — skip for explicit commands
     explicit_commands = {
         "scan",
-        "ai",
-        "cli",
+        "hack",
         "tui",
         "hunt",
         "recon",
@@ -612,34 +606,34 @@ def main():
                 console.print(f"[bold white]Selected module:[/bold white] {module_name}")
                 console.print("[dim]   (Use --manual to override)[/dim]\n")
 
-                detected_action = detection.get("action", "ai")
-                detected_module = detection.get("module", "ai")
+                detected_action = detection.get("action", "hack")
+                detected_module = detection.get("module", "hack")
                 action_fallback_map = {
                     "bola_test": "bola",
                     "web_scan": "waf",
-                    "protocol": "ai",
-                    "mobile_api": "ai",
-                    "cloud_scan": "ai",
-                    "soc_analysis": "ai",
-                    "analyze_findings": "ai",
-                    "json_analysis": "ai",
-                    "admin_test": "ai",
-                    "file_analysis": "ai",
-                    "schema": "ai",
-                    "swarm": "ai",
+                    "protocol": "hack",
+                    "mobile_api": "hack",
+                    "cloud_scan": "hack",
+                    "soc_analysis": "hack",
+                    "analyze_findings": "hack",
+                    "json_analysis": "hack",
+                    "admin_test": "hack",
+                    "file_analysis": "hack",
+                    "schema": "hack",
+                    "swarm": "hack",
                 }
 
                 candidate_command = detected_action
                 if candidate_command not in valid_commands:
                     candidate_command = detected_module
                 if candidate_command not in valid_commands:
-                    candidate_command = action_fallback_map.get(detected_action, "ai")
+                    candidate_command = action_fallback_map.get(detected_action, "hack")
 
                 args.command = candidate_command
                 args.target = effective_target
             else:
                 console.print("[grey70]Low confidence detection. Starting AI assistant...[/grey70]")
-                args.command = "ai"
+                args.command = "hack"
                 args.target = effective_target
 
     # Interactive Menu (Wizard)
@@ -657,19 +651,14 @@ def main():
             handle_scan(args)
             return
 
-        elif args.command == "universal":
-            from cli.textual import main as cli_textual_main
-
-            cli_textual_main()
-            return
-
         elif args.command == "gateway":
-            bot_path = Path(__file__).parent / "bot.py"
+            bot_path = Path(__file__).parent / "integrations" / "bot.py"
             if not bot_path.exists():
-                print_error("bot.py not found")
+                print_error("integrations/bot.py not found")
                 return
             console.print("[red]Starting Telegram Gateway...[/red]")
-            subprocess.run([sys.executable, str(bot_path)])
+            # Run as a module so the project root is importable (elengenix.*)
+            subprocess.run([sys.executable, "-m", "integrations.bot"])
             return
 
         elif args.command == "doctor":
@@ -697,30 +686,17 @@ def main():
                 server.start_stdio()
             return
 
-        elif args.command == "cli":
+        elif args.command == "tui":
             from cli.textual import main as cli_textual_main
 
             cli_textual_main()
             return
 
-        elif args.command in ("tui", "cli-textual", "clitest"):
-            from cli.textual import main as cli_textual_main
-
-            cli_textual_main()
-            return
-
-        elif args.command == "ai":
-            # hack / learn shortcut → AI chat assistant.
-            # Same chat brain as the TUI (elengenix.chat) — one brain, two skins.
+        elif args.command == "hack":
+            # AI chat assistant (line mode) — same brain as the TUI (elengenix.chat).
             from cli.interactive import main as interactive_main
 
             interactive_main(mode=args.mode, target=args.target)
-            return
-
-        elif args.command == "cli-legacy":
-            from cli.interactive import main as cli_main
-
-            cli_main()
             return
 
         elif args.command == "research":
@@ -1741,7 +1717,7 @@ def main():
                 console.print(format_edr_report(plan))
             return
 
-        elif args.command == "report":
+        elif args.command in ("report", "pdf", "pd"):
             from tools.pdf_report_generator import (
                 PDFReportGenerator,
                 ReportMetadata,

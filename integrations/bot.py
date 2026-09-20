@@ -64,14 +64,21 @@ def check_config_security(path: Path):
         logger.warning("[WARN] Run: chmod 600 config.yaml to protect your secrets")
 
 
-# Load Config
-try:
-    with open(CONFIG_PATH, "r") as f:
-        config = yaml.safe_load(f)
+# Load Config — optional at import time.
+# main() validates the token itself (env var first, then config), so a missing
+# config.yaml must NOT kill the importing process (the former SystemExit here
+# broke every module that merely imported this file).
+config: dict = {}
+if CONFIG_PATH.exists():
+    try:
+        with open(CONFIG_PATH, "r") as f:
+            config = yaml.safe_load(f) or {}
         check_config_security(CONFIG_PATH)
-except Exception as e:
-    logger.error(f"Config error: {e}")
-    raise SystemExit(1)
+    except Exception as e:
+        logger.error(f"Config error: {e}")
+        config = {}
+else:
+    logger.info("No integrations/config.yaml — will use TELEGRAM_BOT_TOKEN env var if set")
 
 # Rate Limiting Setup
 # Max 3 commands per 60 seconds per user

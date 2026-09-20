@@ -1,8 +1,9 @@
 # Elengenix Tool Catalog (snapshot from 2026-06-07)
 
 > Snapshot of `tools/*.py` module docstrings taken 2026-06-07, when `tools/`
-> held 98 modules. The directory has since grown to ~143 modules — treat this
-> catalog as a historical overview, not a live inventory.
+> held 98 modules. The directory later grew to ~143 modules; after the
+> 2026-09-19 dead-code cleanup it holds 134. Treat this catalog as a
+> historical overview, not a live inventory.
 
 ## Quick Reference
 

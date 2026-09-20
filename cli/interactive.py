@@ -143,7 +143,11 @@ def show_ai_disclaimer() -> bool:
     # Show confirmation prompt 2 times before forcing accept/decline
     attempts = 0
     while attempts < 3:
-        response = input("Do you accept these terms? (yes/no): ").strip().lower()
+        try:
+            response = input("Do you accept these terms? (yes/no): ").strip().lower()
+        except EOFError:
+            console.print("[bold red]Input stream closed. Access denied.[/]")
+            return False
         if response in ("yes", "y", "accept", "agree"):
             _record_consent()
             console.print("[dim]Consent recorded. Proceeding...[/]\n")

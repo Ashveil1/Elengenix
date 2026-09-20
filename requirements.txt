@@ -57,3 +57,12 @@ duckduckgo-search>=4.0.0  # DDG search (legacy name kept for compat; mirrors pyp
 # -- Testing and Development --
 pytest>=7.0.0             # Unit and integration testing
 pytest-asyncio            # Async test support
+
+# ── API / GraphQL / Async DB (sync with pyproject extras) ──
+fastapi>=0.100            # API server (tools/api_server.py)
+uvicorn>=0.20             # ASGI server for the API
+strawberry-graphql>=0.200 # GraphQL layer (elengenix/graphql/)
+aiosqlite>=0.19.0         # Async SQLite for flows/DB
+
+# ── PDF Report Export (optional extra: pip install -e ".[pdf]") ──
+# reportlab>=4.0

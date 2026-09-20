@@ -292,20 +292,15 @@ class CommandSimplifier:
         "check": "scan --phase recon",  # Quick recon check
         "test": "scan --phase waf",  # WAF detection test
         "recon": "scan --phase recon",  # Reconnaissance
-        "scan": "scan",  # Full scan (no change)
         # Interactive mode shortcuts (advanced)
         "bola": "scan --interactive bola",  # Interactive BOLA
         "waf": "scan --interactive waf",  # Interactive WAF bypass
         # Other shortcuts
-        "hack": "ai",  # AI mode
-        "learn": "ai",  # AI mode
-        "help": "menu",  # Show menu
-        "report": "report",
         "pd": "report",
         "red": "evasion",  # Red team
         "team": "evasion",
-        "swarm": "swarm",
-        "batch": "swarm",
+        "swarm": "autonomous",  # multi-agent Team Aegis (via autonomous handler)
+        "batch": "autonomous",  # multi-agent Team Aegis (via autonomous handler)
     }
 
     @staticmethod
@@ -373,8 +368,8 @@ class CommandSimplifier:
 │  [bold cyan]INTERACTIVE[/bold cyan]       │                                              │
 [dim]├─────────────────────┼──────────────────────────────────────────────┤[/dim]
 │  [cyan]elengenix tui[/cyan]       [dim](default)[/dim]  [white]Textual TUI — full-featured[/white]     │
-│  [cyan]elengenix cli[/cyan]                    [white]Gemini-style CLI session[/white]          │
-│  [cyan]elengenix universal[/cyan]              [white]Autonomous agent mode[/white]              │
+│  [cyan]elengenix hack[/cyan]                [white]AI chat assistant (line mode)[/white]        │
+│  [cyan]elengenix autonomous[/cyan] <target> [white]Autonomous agent (Team Aegis w/ 2+ models)[/white]│
 [dim]├─────────────────────┼──────────────────────────────────────────────┤[/dim]
 │  [bold cyan]ANALYSIS[/bold cyan]           │                                              │
 [dim]├─────────────────────┼──────────────────────────────────────────────┤[/dim]

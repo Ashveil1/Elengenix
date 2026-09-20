@@ -498,8 +498,7 @@ MENU_CATEGORIES = [
         "title": "AI & Agent",
         "icon": "[#ffffff][INFO][/#ffffff]",
         "items": [
-            ("AI Partner", "Interactive AI assistant (chat mode)", "ai"),
-            ("Universal Agent", "Autonomous agent - executes tasks end-to-end", "universal"),
+            ("AI Partner", "Interactive AI assistant (chat mode)", "hack"),
             ("Autonomous", "Fully autonomous scan with AI decision-making", "autonomous"),
         ],
     },
@@ -719,15 +718,22 @@ def prompt_choice(options: List[str]) -> int:
 
 
 def confirm(message: str, default: bool = False) -> bool:
-    """Display a yes/no confirmation prompt."""
+    """Display a yes/no confirmation prompt.
+
+    Falls back to ``default`` when the input stream closes (EOF) so piped/
+    scripted runs degrade gracefully instead of raising a traceback.
+    """
     default_text = "Y/n" if default else "y/N"
-    response = (
-        console.input(
-            f"[bold #ffffff]{message}[/bold #ffffff] [dim #ffffff]({default_text})[/dim #ffffff]: "
+    try:
+        response = (
+            console.input(
+                f"[bold #ffffff]{message}[/bold #ffffff] [dim #ffffff]({default_text})[/dim #ffffff]: "
+            )
+            .lower()
+            .strip()
         )
-        .lower()
-        .strip()
-    )
+    except EOFError:
+        return default
 
     if not response:
         return default
