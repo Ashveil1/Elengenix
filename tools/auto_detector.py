@@ -401,6 +401,5 @@ class CommandSimplifier:
     [cyan]check[/cyan] <target>  ->  [green]scan --phase recon[/green]   (Quick recon)
     [cyan]test[/cyan] <target>   ->  [green]scan --phase waf[/green]     (WAF detection)
     [cyan]recon[/cyan] <target>  ->  [green]scan --phase recon[/green]   (Reconnaissance)
-    [cyan]hack[/cyan] <target>   ->  [green]ai[/green]                   (AI chat mode)
     [cyan]red[/cyan]             ->  [green]evasion[/green]              (Red team)
 """

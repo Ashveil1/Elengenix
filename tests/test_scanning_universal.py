@@ -229,14 +229,16 @@ class TestBuildBugBountyPrompt:
             "scan", "Now", "target", mock_client, mock_governance, mock_skill_registry
         )
 
-        assert "PHASE 1: RECONNAISSANCE" in prompt
-        assert "PHASE 2: CONTENT DISCOVERY" in prompt
-        assert "PHASE 3: VULNERABILITY SCANNING" in prompt
-        assert "PHASE 4: EXPLOITATION" in prompt
-        assert "PHASE 5: REPORTING" in prompt
+        # Autonomy contract: no phase script — the AI decides its own
+        # strategy; the prompt must state this explicitly.
+        assert "no fixed phases" in prompt
+        assert "FULL autonomy" in prompt
+        assert "ask_user" in prompt
 
     def test_contains_full_capabilities(self):
-        """Should list full capabilities."""
+        """Every canonical action type must be advertised in the prompt."""
+        from elengenix.scanning.universal import UNIVERSAL_ACTION_TYPES
+
         mock_registry = Mock()
         mock_registry.list_available_tools.return_value = {}
         mock_skill_registry = Mock()
@@ -249,13 +251,8 @@ class TestBuildBugBountyPrompt:
             "scan", "Now", "target", mock_client, mock_governance, mock_skill_registry
         )
 
-        assert "Full shell access" in prompt
-        assert "File editing" in prompt
-        assert "Package installation" in prompt
-        assert "Web search" in prompt
-        assert "CVE database" in prompt
-        assert "GitHub code search" in prompt
-        assert "JS analysis" in prompt
+        for action in UNIVERSAL_ACTION_TYPES:
+            assert action in prompt, f"action `{action}` missing from prompt"
 
 
 class TestBuildGeneralPrompt:

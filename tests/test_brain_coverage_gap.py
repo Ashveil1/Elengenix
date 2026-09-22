@@ -139,12 +139,25 @@ class TestExecuteTool:
 
 
 class TestHandleAskUser:
-    """Covers elengenix.chat.brain:249."""
+    """Covers elengenix.chat.brain:262-274 — routes through the real interaction bridge.
 
-    def test_returns_prompt(self):
+    The bridge must actually obtain an operator answer (line-mode prompt), not
+    echo the question back. Closed stdin (headless) yields the polite no-answer
+    marker instead of hanging.
+    """
+
+    @patch("elengenix.chat.user_interaction.UserInteractionBridge.ask",
+           return_value="yes, go ahead")
+    def test_returns_operator_answer(self, mock_ask):
         result = handle_ask_user({"question": "Proceed?"})
-        assert "Proceed?" in result
-        assert "User response needed" in result
+        assert result == "yes, go ahead"
+        assert "Proceed?" in mock_ask.call_args.args[0]
+
+    @patch("elengenix.chat.user_interaction.UserInteractionBridge.ask",
+           return_value="[no operator answer]")
+    def test_headless_no_answer_marker(self, mock_ask):
+        result = handle_ask_user({"question": "Proceed?"})
+        assert result == "[no operator answer]"
 
 
 class TestExecuteToolRegistry:
@@ -526,7 +539,9 @@ class TestProcessQueryScanEdgeCases:
     @patch("elengenix.chat.brain.get_context_for_ai", return_value="")
     @patch("elengenix.chat.brain._get_now_context", return_value="now")
     def test_scan_unknown_action(self, mock_now, mock_context):
-        """Unknown action -> treated as finish (line 914-918)."""
+        """Unknown action -> the loop tells the AI it is unsupported and keeps
+        iterating (autonomy contract: unknown actions are never silently
+        treated as finish)."""
         from collections import namedtuple
 
         ChatResp = namedtuple("ChatResp", "content")
@@ -537,7 +552,10 @@ class TestProcessQueryScanEdgeCases:
         )
         agent.max_steps = 1
         result = agent.process_query("do something", target="x")
-        assert "Task finished" in result
+        # the run halts at max steps with the correction recorded — the AI
+        # gets a chance to pick a supported action next iteration
+        assert "Task finished" not in result
+        assert any("unsupported action" in r for r in agent._last_responses)
 
 
 # ======================================================================

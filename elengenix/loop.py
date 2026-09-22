@@ -203,18 +203,29 @@ class TrueAgenticLoop:
 
         # Execute via Tool Registry
         try:
-            result = await self.tools.execute(
-                tool_name=action.tool,
+            tool = self.tools.get_tool(action.tool or "")
+            if tool is None:
+                return {
+                    "success": False,
+                    "error": (
+                        f"Tool '{action.tool}' is not registered. Available: "
+                        f"{', '.join(sorted(self.tools.list_tools())) or '(none)'}"
+                    ),
+                }
+            result = await tool.execute(
                 target=action.target,
-                parameters=action.parameters
+                parameters=action.parameters or {},
             )
 
+            errors = list(getattr(result, "errors", []) or [])
+            if getattr(result, "error_message", None):
+                errors.append(result.error_message)
             return {
                 "success": result.success,
                 "output": result.output,
                 "findings": result.findings,
-                "error": result.error_message,
-                "duration": result.duration
+                "error": "; ".join(errors) if errors else None,
+                "duration": result.duration,
             }
         except Exception as e:
             logger.error(f"Execution error: {e}")
@@ -297,9 +308,8 @@ class TrueAgenticLoop:
 
         # Generate new plan
         new_plan = await self.brain.planner.replan(
-            failure_reason="replan_triggered",
-            current_context=self.mission_context,
-            current_plan=self.cognitive_state.active_plan
+            failure={"reason": "replan_triggered"},
+            context=self.mission_context,
         )
 
         self.cognitive_state.active_plan = new_plan

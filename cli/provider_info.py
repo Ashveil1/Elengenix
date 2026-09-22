@@ -35,7 +35,7 @@ def render_provider_status_panel(info: Dict[str, Any] | None = None) -> bool:
         return False
 
     active = info.get("active") or ""
-    model = info.get("model") or "(default)"
+    model = info.get("model") or "(not set)"
     key_set = bool(info.get("key_set"))
     key_source = info.get("key_source", "none (not set)")
     ok = bool(info.get("ok"))

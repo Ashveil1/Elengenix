@@ -48,17 +48,32 @@ LOGO_LINES: List[str] = [
 ]
 
 
+_STATUS_CACHE: Dict[str, Any] = {}
+_STATUS_CACHE_TS: float = 0.0
+
+
 def get_system_status() -> Dict[str, Any]:
     """Get system status information for the welcome screen.
+
+    Cached for 5s and non-blocking (psutil interval=None) so the welcome
+    screen never stalls the TUI on slow disks.
 
     Returns:
         Dictionary containing system status info.
     """
+    import sys as _sys
+    import time as _time
+
+    global _STATUS_CACHE, _STATUS_CACHE_TS
+    if _STATUS_CACHE and (_time.monotonic() - _STATUS_CACHE_TS) < 5.0:
+        return dict(_STATUS_CACHE)
     status = {
         "cpu_percent": 0.0,
         "memory_percent": 0.0,
         "disk_percent": 0.0,
-        "python_version": f"{os.sys.version_info.major}.{os.sys.version_info.minor}.{os.sys.version_info.micro}",
+        "python_version": (
+            f"{_sys.version_info.major}.{_sys.version_info.minor}.{_sys.version_info.micro}"
+        ),
         "tools_installed": 0,
         "last_scan": "Never",
     }
@@ -66,7 +81,7 @@ def get_system_status() -> Dict[str, Any]:
     try:
         import psutil
 
-        status["cpu_percent"] = psutil.cpu_percent(interval=0.1)
+        status["cpu_percent"] = float(psutil.cpu_percent(interval=None))
         mem = psutil.virtual_memory()
         status["memory_percent"] = mem.percent
         disk = psutil.disk_usage("/")
@@ -87,11 +102,18 @@ def get_system_status() -> Dict[str, Any]:
     # Check last scan
     reports_dir = get_reports_path()
     if reports_dir.exists():
-        scan_files = sorted(reports_dir.glob("*.html"), key=os.path.getmtime, reverse=True)
-        if scan_files:
-            last_scan_time = os.path.getmtime(scan_files[0])
-            status["last_scan"] = datetime.fromtimestamp(last_scan_time).strftime("%Y-%m-%d %H:%M")
+        try:
+            scan_files = sorted(reports_dir.glob("*.html"), key=os.path.getmtime, reverse=True)
+            if scan_files:
+                last_scan_time = os.path.getmtime(scan_files[0])
+                status["last_scan"] = datetime.fromtimestamp(last_scan_time).strftime(
+                    "%Y-%m-%d %H:%M"
+                )
+        except OSError:
+            pass
 
+    _STATUS_CACHE = dict(status)
+    _STATUS_CACHE_TS = _time.monotonic()
     return status
 
 
@@ -480,12 +502,30 @@ class WelcomeScreen(Container):
         background: #0d0d0d;
         width: 100%;
         height: 100%;
+        overflow-y: auto;
     }
     WelcomeScreen #welcome-header {
         height: auto;
     }
     WelcomeScreen #welcome-body {
         height: 1fr;
+        layout: vertical;
+    }
+    WelcomeScreen #welcome-row-top {
+        height: auto;
+        min-height: 8;
+    }
+    WelcomeScreen #welcome-row-bottom {
+        height: 1fr;
+        min-height: 8;
+    }
+    WelcomeScreen #welcome-briefing,
+    WelcomeScreen #welcome-quickstart,
+    WelcomeScreen #welcome-activity,
+    WelcomeScreen #welcome-sysstatus {
+        width: 1fr;
+        height: auto;
+        min-width: 20;
     }
     WelcomeScreen #welcome-footer {
         height: 3;
@@ -513,13 +553,19 @@ class WelcomeScreen(Container):
         self._timer = None
 
     def compose(self):
-        """Compose the welcome layout."""
+        """Compose the welcome layout (responsive 2x2 grid + footer)."""
+        from textual.containers import Vertical
+
         # Header (logo)
         yield Static(id="welcome-header")
-        # Body (briefing + quick-start + activity)
-        with Horizontal(id="welcome-body"):
-            yield Static(id="welcome-briefing")
-            yield Static(id="welcome-quickstart")
+        # Body: top row (briefing + quick-start), bottom row (activity + sysstatus)
+        with Vertical(id="welcome-body"):
+            with Horizontal(id="welcome-row-top"):
+                yield Static(id="welcome-briefing")
+                yield Static(id="welcome-quickstart")
+            with Horizontal(id="welcome-row-bottom"):
+                yield Static(id="welcome-activity")
+                yield Static(id="welcome-sysstatus")
         # Footer (status)
         yield Static(id="welcome-footer")
 
@@ -636,13 +682,29 @@ class WelcomeScreen(Container):
         theme = get_theme(self.theme_name)
         primary = theme.get("primary", "#ff2222")
         muted = theme.get("muted", "#888888")
-        widget = self._activity_panel()
-        if widget is not None:
+        try:
+            widget = self.query_one("#welcome-activity", Static)
             widget.update(self._activity.render(primary=primary, muted=muted))
+        except Exception:
+            pass
+        self._refresh_sysstatus()
+
+    def _refresh_sysstatus(self) -> None:
+        try:
+            widget = self.query_one("#welcome-sysstatus", Static)
+        except Exception:
+            return
+        theme = get_theme(self.theme_name)
+        widget.update(
+            render_system_status(
+                primary=theme.get("primary", "#ff2222"),
+                text_color=theme.get("text", "#ffffff"),
+                muted=theme.get("muted", "#888888"),
+            )
+        )
 
     def _activity_panel(self) -> Optional[Static]:
-        # Activity is rendered inside the body - it lives in a separate panel
-        # that we lazily create if missing.
+        # Kept for backward compat; the panel is now always composed.
         try:
             return self.query_one("#welcome-activity", Static)
         except Exception:

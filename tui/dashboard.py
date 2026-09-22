@@ -165,7 +165,7 @@ class ThreatDashboard(Container):
         self.scans: List[Scan] = []
         self.hosts: List[Host] = []
         self.markers: List[ThreatMarker] = []
-        self.stats = SystemStats(timestamp=time.time())
+        self.stats = SystemStats(timestamp=0.0)
         self._threatmap_w = 40
         self._threatmap_h = 14
         self._topology_w = 30
@@ -175,6 +175,9 @@ class ThreatDashboard(Container):
         self._max_markers = 16
         self._max_scans = 6
         self._current_layout: str = "default"
+        self._dirty: set = {"header", "gauge", "threatmap", "scans", "findings", "stats", "topology"}
+        self._stats_live_until: float = 0.0
+        self._auto_threatmap: bool = True
 
     # -- Compose ------------------------------------------------------------
 
@@ -226,6 +229,34 @@ class ThreatDashboard(Container):
             return
 
         self._current_layout = layout_name
+        # Actually apply visibility: compact hides threatmap/topology,
+        # focus enlarges findings, wide hides stats/threatmap extras.
+        try:
+            hide_map = {
+                "default": set(),
+                "compact": {"threatmap-panel", "topology-panel"},
+                "wide": {"stats-panel"},
+                "focus": {"stats-panel", "topology-panel", "scans-panel"},
+            }
+            for pid in (
+                "gauge-panel",
+                "threatmap-panel",
+                "scans-panel",
+                "findings-panel",
+                "stats-panel",
+                "topology-panel",
+            ):
+                try:
+                    widget = self.query_one(f"#{pid}", Static)
+                    if pid in hide_map.get(layout_name, set()):
+                        widget.styles.display = "none"
+                    else:
+                        widget.styles.display = "block"
+                except Exception:
+                    continue
+        except Exception as e:
+            logger.debug("Layout apply failed: %s", e)
+        self._dirty.update({"header", "gauge", "threatmap", "scans", "findings", "stats", "topology"})
         self._refresh_all()
         logger.info(f"Dashboard layout changed to: {layout_name}")
 
@@ -272,7 +303,13 @@ class ThreatDashboard(Container):
         )
         if len(self.findings) > self._max_findings * 2:
             self.findings = self.findings[-self._max_findings :]
-        self._refresh_findings()
+        self._dirty.add("findings")
+        self._dirty.add("gauge")
+        try:
+            self._refresh_findings()
+            self._refresh_gauge()
+        except Exception:
+            pass
 
     def add_threat(
         self,
@@ -315,7 +352,11 @@ class ThreatDashboard(Container):
     ) -> None:
         """Add a host to the topology view."""
         self.hosts.append(Host(ip=ip, hostname=hostname, role=role, risk=risk))
-        self._refresh_topology()
+        self._dirty.add("topology")
+        try:
+            self._refresh_topology()
+        except Exception:
+            pass
 
     def update_stats(self, cpu: float, memory: float, net_in: float, net_out: float) -> None:
         """Update the system stats panel."""
@@ -379,9 +420,22 @@ class ThreatDashboard(Container):
                 self.add_threat(severity=random.choice(["info", "medium", "high"]))
 
     def _tick(self) -> None:
-        """Per-frame simulation tick."""
-        # Advance scan progress.
+        """Per-frame tick: dynamic panels every frame, static ones only when dirty."""
+        demo = bool(os.environ.get("ELENGENIX_DEMO"))
         now = time.time()
+        # Responsive threatmap: shrink on narrow terminals.
+        if self._auto_threatmap:
+            try:
+                import shutil as _shutil
+
+                cols = _shutil.get_terminal_size((120, 30)).columns
+                # 3 panels share the row; leave room for borders/padding.
+                self._threatmap_w = max(20, min(40, cols // 3 - 4))
+                self._threatmap_h = 14 if cols >= 100 else 10
+            except Exception:
+                pass
+        # Advance scan progress.
+        scans_changed = False
         for s in self.scans:
             if s.status != "running":
                 continue
@@ -390,31 +444,53 @@ class ThreatDashboard(Container):
             s.eta = max(0.0, s.eta - 0.25)
             if s.progress >= 1.0:
                 s.status = "done"
-        self._refresh_scans()
+            scans_changed = True
+        if scans_changed:
+            self._refresh_scans()
 
-        # Advance marker pulse, expire old ones.
+        # Advance marker pulse. Random ambient markers only in demo mode —
+        # real scans feed markers via add_threat().
         for m in self.markers:
             m.pulse = (m.pulse + 0.08) % 1.0
-        # Drop markers randomly over time to feel alive.
-        if random.random() < 0.10 and len(self.markers) < self._max_markers:
+        if demo and random.random() < 0.10 and len(self.markers) < self._max_markers:
             self.add_threat(severity=random.choice(["info", "info", "medium", "high", "critical"]))
-        self._refresh_threatmap()
-
-        # Drift system stats for a live feel.
-        if self.stats.timestamp > 0:
-            self.stats.cpu = max(5.0, min(95.0, self.stats.cpu + random.uniform(-4, 4)))
-            self.stats.memory = max(10.0, min(95.0, self.stats.memory + random.uniform(-2, 2)))
-            self.stats.net_in = max(0.0, self.stats.net_in + random.uniform(-50, 50))
-            self.stats.net_out = max(0.0, self.stats.net_out + random.uniform(-50, 50))
         else:
-            self.stats = SystemStats(
-                cpu=random.uniform(20, 60),
-                memory=random.uniform(40, 70),
-                net_in=random.uniform(50, 200),
-                net_out=random.uniform(30, 150),
-                timestamp=now,
-            )
-        self._refresh_stats()
+            self._refresh_threatmap()
+
+        # System stats: prefer real update_stats() feed; drift only when stale
+        # (>5s) or in demo mode so the panel never looks dead.
+        stale = (now - self.stats.timestamp) > 5.0 if self.stats.timestamp else True
+        if demo or stale:
+            if self.stats.timestamp > 0:
+                self.stats.cpu = max(5.0, min(95.0, self.stats.cpu + random.uniform(-4, 4)))
+                self.stats.memory = max(
+                    10.0, min(95.0, self.stats.memory + random.uniform(-2, 2))
+                )
+                self.stats.net_in = max(0.0, self.stats.net_in + random.uniform(-50, 50))
+                self.stats.net_out = max(0.0, self.stats.net_out + random.uniform(-50, 50))
+            else:
+                self.stats = SystemStats(
+                    cpu=random.uniform(20, 60),
+                    memory=random.uniform(40, 70),
+                    net_in=random.uniform(50, 200),
+                    net_out=random.uniform(30, 150),
+                    timestamp=now,
+                )
+            self._refresh_stats()
+        elif "stats" in self._dirty:
+            self._refresh_stats()
+            self._dirty.discard("stats")
+
+        # Dirty-gated static panels (findings/topology/gauge update on data).
+        if "findings" in self._dirty:
+            self._refresh_findings()
+            self._dirty.discard("findings")
+        if "topology" in self._dirty:
+            self._refresh_topology()
+            self._dirty.discard("topology")
+        if "gauge" in self._dirty:
+            self._refresh_gauge()
+            self._dirty.discard("gauge")
 
         # Update clock.
         self.clock = datetime.now().strftime("%H:%M:%S")
@@ -430,6 +506,7 @@ class ThreatDashboard(Container):
         self._refresh_findings()
         self._refresh_stats()
         self._refresh_topology()
+        self._dirty.clear()
 
     def _refresh_header(self) -> None:
         widget = self.query_one("#dash-header", Static)

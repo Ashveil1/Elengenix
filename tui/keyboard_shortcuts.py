@@ -259,17 +259,21 @@ class KeyboardShortcutManager:
         )
 
 
-# Default shortcuts for Elengenix TUI
+# Default shortcuts for Elengenix TUI (mirrors cli/textual.py BINDINGS;
+# no duplicate Ctrl+D: dashboard owns it, scrolling uses Ctrl+U/J/K).
 DEFAULT_SHORTCUTS = [
     # Navigation
     ("Ctrl+N", "Next item", "next", ShortcutCategory.NAVIGATION),
-    ("Ctrl+P", "Previous item", "previous", ShortcutCategory.NAVIGATION),
+    ("Ctrl+P", "Model selector", "show_model", ShortcutCategory.NAVIGATION),
     ("Tab", "Next field", "next_field", ShortcutCategory.NAVIGATION),
     ("Shift+Tab", "Previous field", "prev_field", ShortcutCategory.NAVIGATION),
     ("Up", "Move up", "move_up", ShortcutCategory.NAVIGATION),
     ("Down", "Move down", "move_down", ShortcutCategory.NAVIGATION),
     ("Left", "Move left", "move_left", ShortcutCategory.NAVIGATION),
     ("Right", "Move right", "move_right", ShortcutCategory.NAVIGATION),
+    ("Ctrl+U", "Scroll up", "scroll_up", ShortcutCategory.NAVIGATION),
+    ("Ctrl+J", "Scroll down", "scroll_down", ShortcutCategory.NAVIGATION),
+    ("Ctrl+K", "Scroll up (alt)", "scroll_up", ShortcutCategory.NAVIGATION),
     # Actions
     ("Enter", "Select/Confirm", "select", ShortcutCategory.ACTION),
     ("Escape", "Cancel/Back", "cancel", ShortcutCategory.ACTION),
@@ -277,15 +281,21 @@ DEFAULT_SHORTCUTS = [
     ("Ctrl+Z", "Undo", "undo", ShortcutCategory.ACTION),
     ("Ctrl+Y", "Redo", "redo", ShortcutCategory.ACTION),
     ("Delete", "Delete item", "delete", ShortcutCategory.ACTION),
+    ("p", "Pause scan", "pause_scan", ShortcutCategory.ACTION),
+    ("c", "Cancel scan", "cancel_scan", ShortcutCategory.ACTION),
+    ("y", "Copy row", "copy_row", ShortcutCategory.ACTION),
+    ("e", "Export row", "export_row", ShortcutCategory.ACTION),
     # View
     ("F1", "Show help", "help", ShortcutCategory.VIEW),
+    ("?", "Show help (alt)", "help", ShortcutCategory.VIEW),
     ("F5", "Refresh view", "refresh", ShortcutCategory.VIEW),
     ("F11", "Toggle fullscreen", "fullscreen", ShortcutCategory.VIEW),
     ("Ctrl+F", "Search/Filter", "search", ShortcutCategory.VIEW),
-    ("Ctrl+G", "Go to", "goto", ShortcutCategory.VIEW),
+    ("Ctrl+G", "Help overlay", "show_help", ShortcutCategory.VIEW),
+    ("Ctrl+D", "Toggle dashboard", "toggle_dashboard", ShortcutCategory.VIEW),
     # System
     ("Ctrl+Q", "Quit", "quit", ShortcutCategory.SYSTEM),
-    ("Ctrl+C", "Copy", "copy", ShortcutCategory.SYSTEM),
+    ("Ctrl+C", "Copy / Exit", "copy", ShortcutCategory.SYSTEM),
     ("Ctrl+V", "Paste", "paste", ShortcutCategory.SYSTEM),
     ("Ctrl+Shift+P", "Command palette", "command_palette", ShortcutCategory.SYSTEM),
 ]

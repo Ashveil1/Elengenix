@@ -23,12 +23,30 @@ from rich.style import Style
 from rich.text import Text
 
 
-# Minimal Easing class (was in deleted tui/animations.py)
+# Easing helpers (unified with tui/motion.py; kept here for backward compat).
+# Supports both short names ("ease_in_out") and CSS-style names
+# ("ease_in_out_cubic") used by ThemeManager callers.
 class Easing:
     LINEAR = "linear"
     EASE_IN = "ease_in"
     EASE_OUT = "ease_out"
     EASE_IN_OUT = "ease_in_out"
+    EASE_IN_OUT_CUBIC = "ease_in_out_cubic"
+    SMOOTHSTEP = "smoothstep"
+    SPRING = "spring"
+
+    @staticmethod
+    def _normalize(name: str) -> str:
+        n = (name or "linear").strip().lower().replace("-", "_")
+        aliases = {
+            "ease_in_out_cubic": "ease_in_out",
+            "easeinout": "ease_in_out",
+            "easein": "ease_in",
+            "easeout": "ease_out",
+            "cubic_bezier": "ease_in_out",
+            "smooth": "smoothstep",
+        }
+        return aliases.get(n, n)
 
     @staticmethod
     def apply(easing_type: str, t: float, start: float, end: float) -> float:
@@ -43,21 +61,47 @@ class Easing:
         Returns:
             Interpolated value.
         """
-        t = max(0.0, min(1.0, t))
+        import math as _math
 
-        if easing_type == Easing.LINEAR:
-            return start + (end - start) * t
-        elif easing_type == Easing.EASE_IN:
-            return start + (end - start) * (t * t)
-        elif easing_type == Easing.EASE_OUT:
-            return start + (end - start) * (1 - (1 - t) * (1 - t))
-        elif easing_type == Easing.EASE_IN_OUT:
+        t = max(0.0, min(1.0, t))
+        kind = Easing._normalize(easing_type)
+
+        if kind == Easing.LINEAR:
+            eased = t
+        elif kind == Easing.EASE_IN:
+            eased = t * t
+        elif kind == Easing.EASE_OUT:
+            eased = 1 - (1 - t) * (1 - t)
+        elif kind in (Easing.EASE_IN_OUT, Easing.EASE_IN_OUT_CUBIC):
             if t < 0.5:
-                return start + (end - start) * (2 * t * t)
+                eased = 2 * t * t
             else:
-                return start + (end - start) * (1 - (-2 * t + 2) ** 2 / 2)
+                eased = 1 - (-2 * t + 2) ** 2 / 2
+        elif kind == Easing.SMOOTHSTEP:
+            eased = t * t * (3 - 2 * t)
+        elif kind == Easing.SPRING:
+            eased = 1 - _math.exp(-6 * t) * _math.cos(8 * t)
         else:
-            return start + (end - start) * t
+            eased = t
+        return start + (end - start) * eased
+
+
+def animations_enabled() -> bool:
+    """True unless the operator disabled motion (accessibility / CI / pipes)."""
+    import os as _os
+
+    if _os.environ.get("ELENGENIX_NO_ANIMATION", "") == "1":
+        return False
+    if _os.environ.get("NO_COLOR", "") == "1":
+        return False
+    if _os.environ.get("ELENGENIX_REDUCED_MOTION", "") == "1":
+        return False
+    return True
+
+
+def should_reduce_motion() -> bool:
+    """Alias for accessibility checks: True when motion must be minimal."""
+    return not animations_enabled()
 
 
 logger = logging.getLogger("elengenix.tui.themes")
@@ -887,6 +931,62 @@ def get_theme(name: str) -> Dict[str, str]:
     return dict(THEMES[name])
 
 
+def resolve_theme_name(name: str) -> str:
+    """Resolve legacy/alias theme names to canonical tui/themes.py keys.
+
+    Maps the old cli/tui_design.py names (midnight/aurora/blood-moon/solar)
+    and case variants to the 12 canonical themes. DEFAULT is the fallback.
+    """
+    if not name:
+        return "DEFAULT"
+    key = name.strip().lower()
+    aliases = {
+        "midnight": "DEFAULT",
+        "dark": "DEFAULT",
+        "aurora": "ARCTIC",
+        "light": "ARCTIC",
+        "blood-moon": "DEFAULT",
+        "blood_moon": "DEFAULT",
+        "hunt": "DEFAULT",
+        "solar": "ARCTIC",
+        "high-contrast": "ARCTIC",
+        "high_contrast": "ARCTIC",
+        "chill": "DEFAULT",
+    }
+    if key in aliases:
+        return aliases[key]
+    upper = name.strip().upper()
+    if upper in THEMES:
+        return upper
+    return "DEFAULT"
+
+
+def to_textual_theme(name: str = "DEFAULT"):
+    """Build a textual.theme.Theme from a canonical theme dict.
+
+    Imported lazily so Rich-only environments don't require Textual.
+    White/Black/Red identity is preserved: primary=red, background=black.
+    """
+    from textual.theme import Theme as _TextualTheme
+
+    canonical = resolve_theme_name(name)
+    t = get_theme(canonical)
+    return _TextualTheme(
+        name=canonical.lower(),
+        primary=t.get("primary", "#ff2222"),
+        secondary=t.get("secondary", "#888888"),
+        accent=t.get("accent", "#ffffff"),
+        background=t.get("bg_dark", "#000000"),
+        surface=t.get("bg_panel", "#0d0d0d"),
+        panel=t.get("bg_card", "#1a1a1a"),
+        foreground=t.get("text", "#ffffff"),
+        error=t.get("error", "#ff2222"),
+        success=t.get("success", "#81c784"),
+        warning=t.get("warning", "#ffb300"),
+        dark=True,
+    )
+
+
 __all__ = [
     "THEMES",
     "THEME_TOKENS",
@@ -905,6 +1005,10 @@ __all__ = [
     "ThemeManager",
     "get_manager",
     "get_theme",
+    "resolve_theme_name",
+    "to_textual_theme",
+    "animations_enabled",
+    "should_reduce_motion",
     "lerp_color",
     "gradient_stops",
 ]

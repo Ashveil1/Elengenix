@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import logging
 import os
+import queue
 import sys
 import time
 import warnings
@@ -54,6 +55,62 @@ try:
     logger.addHandler(_fh)
 except OSError:
     pass
+
+
+# ── Console-logging mute ───────────────────────────────────────────────
+# While the Textual TUI owns the terminal, ANY raw write to stdout/stderr
+# (logging StreamHandlers, Python warnings) paints over the screen — most
+# visibly around the input line where the cursor sits. So on mount we mute
+# every handler bound to the live console; file handlers keep working, and
+# everything is restored on exit. Idempotent: safe to call per message send
+# in case an SDK attaches a stderr handler lazily mid-session.
+_muted_handlers: list = []
+
+
+def _is_console_handler(handler: logging.Handler) -> bool:
+    try:
+        if isinstance(handler, logging.FileHandler):
+            return False
+        if not isinstance(handler, logging.StreamHandler):
+            return False
+        stream = getattr(handler, "stream", None)
+        if stream in (sys.stdout, sys.stderr):
+            return True
+        # Textual swaps sys.stdout/sys.stderr while running, so identity
+        # checks fail mid-session — fall back to fd numbers (1/2 = console).
+        try:
+            return getattr(stream, "fileno", lambda: None)() in (1, 2)
+        except Exception:
+            return False
+    except Exception:
+        return False
+
+
+def mute_console_logging() -> None:
+    """Block log records from reaching the terminal (file logs unaffected)."""
+    try:
+        for lg in [logging.getLogger()] + [logging.getLogger(n) for n in list(logging.Logger.manager.loggerDict)]:
+            for handler in list(getattr(lg, "handlers", [])):
+                if _is_console_handler(handler) and handler.level <= logging.CRITICAL:
+                    _muted_handlers.append((handler, handler.level))
+                    handler.setLevel(logging.CRITICAL + 1)
+        logging.captureWarnings(True)  # route warnings via logging (file), not raw stderr
+    except Exception as e:
+        logger.debug("Console log mute failed: %s", e)
+
+
+def restore_console_logging() -> None:
+    """Restore console log handlers muted by mute_console_logging()."""
+    try:
+        for handler, level in _muted_handlers:
+            try:
+                handler.setLevel(level)
+            except Exception:
+                continue
+        _muted_handlers.clear()
+        logging.captureWarnings(False)
+    except Exception as e:
+        logger.debug("Console log restore failed: %s", e)
 
 # ── DUAL THEME: CHILL (white) ──────────────────────────────────────────
 BASE = "#000000"
@@ -136,9 +193,11 @@ HELP_TEXT = """\
 [white]━━━ SHORTCUTS ━━━[/]
   [dim]Ctrl+R[/] Research  [dim]Ctrl+M[/] CHILL/HUNT
   [dim]Ctrl+T[/] Think     [dim]Ctrl+P[/] Model
-  [dim]Ctrl+A[/] Team      [dim]Ctrl+G[/] Help
+  [dim]Ctrl+A[/] Team      [dim]Ctrl+G[/]/[dim]?[/] Help
   [dim]Ctrl+,[/] Settings  [dim]Ctrl+D[/] Dashboard
-  [dim]↑↓[/] History       [dim]/[/] Slash commands"""
+  [dim]Ctrl+Shift+P[/] Commands (palette)
+  [dim]Ctrl+U/J/K[/] Scroll  [dim]↑↓[/] History  [dim]/[/] Slash commands
+  [dim]p[/] pause scan  [dim]c[/] cancel scan (scan view)"""
 
 
 # ── Sidebar ──────────────────────────────────────────────────────────────
@@ -171,6 +230,7 @@ class Sidebar(Container):
         session = d.get("session", "new")
         turns = d.get("turns", 0)
         tokens = d.get("tokens", 0)
+        spark = d.get("spark", "")
         limit = d.get("limit", 128000)
         thinking = d.get("thinking", False)
         target = d.get("target", "")
@@ -232,6 +292,13 @@ class Sidebar(Container):
             else:
                 model_lines.append("  [dim]default[/]")
 
+            context_block = (
+                "[white]CONTEXT[/]\n"
+                f"  {bar}\n"
+                f"  [dim]{tokens}[/dim]/[dim]{limit}[/]  {pct}%\n"
+            )
+            if spark:
+                context_block += f"  [dim]{spark}[/]\n"
             sidebar_text = (
                 "[white]┌ ELENGENIX[/]\n"
                 f"  {dot} {mode_icon}  {slabel}{think_tag}{team_tag}{talk_tag}\n"
@@ -249,10 +316,8 @@ class Sidebar(Container):
                 "[dim]─" + "─" * 28 + "[/]\n"
                 "[white]MODELS[/]\n" + "\n".join(model_lines) + "\n"
                 "[dim]─" + "─" * 28 + "[/]\n"
-                "[white]CONTEXT[/]\n"
-                f"  {bar}\n"
-                f"  [dim]{tokens}[/dim]/[dim]{limit}[/]  {pct}%\n"
-                "[dim]─" + "─" * 28 + "[/]\n"
+                + context_block
+                + "[dim]─" + "─" * 28 + "[/]\n"
                 "[white]SHORTCUTS[/]\n"
                 "  [dim]Ctrl+R[/] Research [dim]Ctrl+M[/] CHILL/HUNT\n"
                 "  [dim]Ctrl+T[/] Think   [dim]Ctrl+P[/] Model\n"
@@ -309,10 +374,14 @@ def _lerp(a: float, b: float, t: float) -> float:
 
 
 def _lerp_color(c1: str, c2: str, t: float) -> str:
+    try:
+        from tui.motion import smooth_approach as _smooth  # noqa: F401 (kept for compat)
+    except Exception:
+        pass
     t = max(0.0, min(1.0, t))
     r1, g1, b1 = int(c1[1:3], 16), int(c1[3:5], 16), int(c1[5:7], 16)
     r2, g2, b2 = int(c2[1:3], 16), int(c2[3:5], 16), int(c2[5:7], 16)
-    return f"#{int(_lerp(r1, r2, t)):02x}{int(_lerp(g1, g2, t)):02x}{int(_lerp(b2, b1, t)):02x}"
+    return f"#{int(_lerp(r1, r2, t)):02x}{int(_lerp(g1, g2, t)):02x}{int(_lerp(b1, b2, t)):02x}"
 
 
 # ── Status & Progress Bars ─────────────────────────────────────────────
@@ -359,24 +428,27 @@ CUSTOM_URL_INPUT_CSS = """
 
 class SettingsOverlayWidget(Widget, can_focus=True):
     DEFAULT_CSS = f"""
-    SettingsOverlayWidget {{ layer: overlay; align: center middle; width: 100%; height: 100%; display: none; }}
+    SettingsOverlayWidget {{ layer: overlay; align: center middle; width: 100%; height: 100%; display: none; background: rgba(0, 0, 0, 0.25); }}
     SettingsOverlayWidget.visible {{ display: block; }}
-    #settings_panel {{ width: 72; height: auto; max-height: 80%; min-height: 20;
-        background: {BASE}; border: solid {DIM}; padding: 0; }}
+    #settings_panel {{ width: 74; height: auto; max-height: 78%; min-height: 20;
+        background: {BASE}; border: heavy {WHITE}; padding: 0; }}
     #settings_header {{ width: 1fr; height: 1; content-align: center middle;
-        background: {BASE}; color: {WHITE}; text-style: bold; border-bottom: solid {DIM}; }}
-    #settings_content {{ width: 1fr; height: auto; background: transparent; padding: 1 2; }}
+        background: {MANTLE}; color: {WHITE}; text-style: bold; border-bottom: solid {WHITE}; }}
+    #settings_content {{ width: 1fr; height: auto; background: transparent; padding: 0 1; }}
     #settings_footer {{ width: 1fr; height: 1; content-align: center middle; color: {MUTED}; background: {CRUST}; }}
     {CUSTOM_URL_INPUT_CSS}
     """
 
     def compose(self) -> ComposeResult:
         with Vertical(id="settings_panel"):
-            yield Static("  SETTINGS  ", id="settings_header")
+            yield Static("  ● SETTINGS  ", id="settings_header")
             yield Static("", id="settings_content", markup=True)
             with Horizontal(id="custom_url_row"):
                 yield Input(placeholder="Enter API base URL...", id="custom_url_input")
-            yield Static("  ↑↓ Navigate  ⏎ Select  Esc Close  S Save", id="settings_footer")
+            yield Static(
+                "  ↑↓ Navigate   │   Enter Select   │   S Save   │   Esc Close ",
+                id="settings_footer",
+            )
 
     def on_mount(self) -> None:
         self._overlay = None
@@ -406,6 +478,14 @@ class SettingsOverlayWidget(Widget, can_focus=True):
         w = self.query_one("#settings_content", Static)
         if self._overlay:
             w.update(self._overlay.render())
+            try:
+                crumbs = self._overlay._breadcrumb()
+                trail = " › ".join(crumbs)
+                self.query_one("#settings_header", Static).update(
+                    Text.from_markup(f"  [bold white]●[/bold white]  [bold white]{trail}[/bold white]  ")
+                )
+            except Exception as e:
+                logger.debug("Failed to update settings header: %s", e)
         else:
             w.update(Panel("[dim]Unavailable. Esc to close.[/]", border_style=DIM))
 
@@ -525,10 +605,10 @@ class HelpOverlayWidget(Widget, can_focus=True):
     """Modal overlay for displaying help — Esc to close."""
 
     DEFAULT_CSS = f"""
-    HelpOverlayWidget {{ layer: overlay; align: center middle; width: 100%; height: 100%; display: none; }}
+    HelpOverlayWidget {{ layer: overlay; align: center middle; width: 100%; height: 100%; display: none; background: rgba(0, 0, 0, 0.25); }}
     HelpOverlayWidget.visible {{ display: block; }}
-    #help_panel {{ width: 68; height: auto; max-height: 80%; min-height: 14;
-        background: {BASE}; border: solid {DIM}; padding: 0; overflow-y: auto; }}
+    #help_panel {{ width: 64; height: auto; max-height: 76%; min-height: 14;
+        background: {BASE}; border: heavy {WHITE}; padding: 0; overflow-y: auto; }}
     #help_header {{ width: 1fr; height: 1; content-align: center middle;
         background: {BASE}; color: {WHITE}; text-style: bold; border-bottom: solid {DIM}; }}
     #help_body {{ width: 1fr; height: auto; background: transparent; padding: 1 2; }}
@@ -569,6 +649,57 @@ class HelpOverlayWidget(Widget, can_focus=True):
             self.hide()
 
 
+# ── Command Palette Provider ─────────────────────────────────────────
+try:
+    from textual.command import DiscoveryHit, Hit, Provider
+
+    _COMMAND_ENTRIES = [
+        ("Toggle HUNT/CHILL mode", "switch scan mode", "toggle_mode"),
+        ("Toggle dashboard", "show threat dashboard", "toggle_dashboard"),
+        ("Open settings", "providers theme models", "show_settings"),
+        ("Open help", "shortcuts", "show_help"),
+        ("Toggle research", "web search mode", "toggle_research"),
+        ("Toggle thinking", "show reasoning", "toggle_think"),
+        ("Toggle team", "multi-agent", "toggle_team"),
+        ("Show model", "active provider", "show_model"),
+    ]
+
+    class ElengenixCommands(Provider):
+        """Every major command searchable via Ctrl+Shift+P (was advertised, missing)."""
+
+        async def startup(self) -> None:
+            pass
+
+        async def discover(self):  # type: ignore[no-untyped-def]
+            from textual.command import DiscoveryHit
+
+            for title, hint, action in _COMMAND_ENTRIES:
+                yield DiscoveryHit(
+                    title,
+                    getattr(self.app, f"action_{action}", lambda: None),
+                    text=title,
+                    help=hint,
+                )
+
+        async def search(self, query: str):  # type: ignore[no-untyped-def]
+            matcher = self.matcher(query)
+            for title, hint, action in _COMMAND_ENTRIES:
+                score = matcher.match(f"{title} {hint}")
+                if score > 0:
+                    yield Hit(
+                        score,
+                        matcher.highlight(title),
+                        getattr(self.app, f"action_{action}", lambda: None),
+                        text=title,
+                        help=hint,
+                    )
+
+    _COMMANDS_AVAILABLE = True
+except ImportError:  # pragma: no cover - old Textual without command API
+    ElengenixCommands = None  # type: ignore
+    _COMMANDS_AVAILABLE = False
+
+
 # ── Main App ───────────────────────────────────────────────────────────
 class ElengenixTextualApp(App):
     # ── Golden ratio layout: φ ≈ 1.618 ───────────────────────────────────
@@ -593,7 +724,7 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
 #chat_area { height: 1fr; background: $background; padding: 1 3 1 3; overflow-y: auto; }
 #input_row { height: auto; margin: 0 3 1 3; background: $background;
     border-top: solid $secondary; border-bottom: solid $secondary;
-    border-left: thick $primary; }
+    border-left: thick $foreground; }
 #user_input { height: 3; border: none; background: $surface; color: $text; padding: 0 3 0 3; }
 #user_input:focus { border: none; }
 #suggest_box { height: auto; max-height: 6; background: $surface; color: $text;
@@ -619,10 +750,15 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
         Binding("ctrl+comma", "show_settings", "Settings", priority=True),
         Binding("ctrl+c", "app_exit", "Exit", priority=True),
         Binding("ctrl+u", "scroll_up", "", show=False, priority=True),
-        Binding("ctrl+d", "scroll_down", "", show=False, priority=True),
+        Binding("ctrl+j", "scroll_down", "", show=False, priority=True),
+        Binding("ctrl+k", "scroll_up", "", show=False, priority=True),
+        Binding("question_mark", "show_help", "", show=False, priority=True),
+        Binding("ctrl+shift+p", "command_palette", "Commands", priority=True),
         Binding("up", "history_up", "", show=False),
         Binding("down", "history_down", "", show=False),
     ]
+
+    COMMANDS = {ElengenixCommands} if _COMMANDS_AVAILABLE else set()
 
     def __init__(self, target: str = "", mode: str = "CHILL", session_id: str = "", **kwargs):
         super().__init__(**kwargs)
@@ -638,6 +774,7 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
         self.history_idx = -1
         self._processing = False
         self._agent = None
+        self._pending_ask: "queue.Queue | None" = None
         self._talk_to = "all"
         self._team_active = False
         self._session_mgr = None
@@ -682,6 +819,30 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
         self._theme_mgr = None
         if _TUI_WIDGETS_AVAILABLE:
             self._theme_mgr = ThemeManager("DEFAULT")
+        # Smooth progress state (declared here so timers never hit missing attrs)
+        self._progress_total: int = 0
+        self._progress_cur: int = 0
+        self._progress_tool: str = ""
+        self._progress_findings: int = 0
+        self._motion_enabled: bool = True
+        self._exit_message: str = ""
+        # ── Liveliness state (header clock, thinking timer, tips, hints) ──
+        self._thinking_since: float | None = None
+        self._token_history: list = []
+        self._tip_idx: int = 0
+        self._status_tips: list = [
+            "Ctrl+Shift+P commands",
+            "Ctrl+D dashboard",
+            "Ctrl+M CHILL/HUNT",
+            "? shortcuts",
+            "/help for commands",
+        ]
+        self._input_hints: list = [
+            "  try it!",
+            "  ask anything…",
+            "  /help for commands",
+            "  name a target to hunt",
+        ]
 
     def compose(self) -> ComposeResult:
         yield Static(self._header_base_text + f"  {self.target or ''}  |  /help", id="header")
@@ -714,6 +875,9 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
         yield HelpOverlayWidget(id="help_overlay")
 
     def on_mount(self) -> None:
+        # The TUI owns the terminal now: keep raw log/warning writes off the
+        # screen (they paint over the input line). File logs keep working.
+        mute_console_logging()
         # Banner is blank at start, animated via boot sequence
         self.query_one("#banner", Static).update("")
         try:
@@ -737,52 +901,101 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
         self._load_agent()
         self._run_boot_sequence()
 
-        # Register custom themes and apply CHILL
-        self.register_theme(
-            Theme(
-                name="chill",
-                primary=WHITE,
-                secondary=GRAY,
-                accent=WHITE,
-                background=BASE,
-                surface=MANTLE,
-                panel=CRUST,
-                foreground=TEXT,
-                error=WHITE,
-                success=WHITE,
-                warning=WHITE,
-                dark=True,
+        # Register unified themes (single source: tui/themes.py, DEFAULT first).
+        # CHILL = DEFAULT white/black/red calm; HUNT = DEFAULT with red accent.
+        try:
+            from tui.themes import to_textual_theme
+
+            chill_theme = to_textual_theme("DEFAULT")
+            chill_theme.name = "chill"
+            self.register_theme(chill_theme)
+            hunt_theme = to_textual_theme("DEFAULT")
+            hunt_theme.name = "hunt"
+            self.register_theme(hunt_theme)
+        except Exception:
+            self.register_theme(
+                Theme(
+                    name="chill",
+                    primary=WHITE,
+                    secondary=GRAY,
+                    accent=WHITE,
+                    background=BASE,
+                    surface=MANTLE,
+                    panel=CRUST,
+                    foreground=TEXT,
+                    error=H_RED,
+                    success="#81c784",
+                    warning="#ffb300",
+                    dark=True,
+                )
             )
-        )
-        self.register_theme(
-            Theme(
-                name="hunt",
-                primary=H_RED,
-                secondary=H_RED,
-                accent=H_BRIGHT,
-                background=BASE,
-                surface=MANTLE,
-                panel=CRUST,
-                foreground=H_RED,
-                error=H_RED,
-                success=H_RED,
-                warning=H_BRIGHT,
-                dark=True,
+            self.register_theme(
+                Theme(
+                    name="hunt",
+                    primary=H_RED,
+                    secondary=H_RED,
+                    accent=H_BRIGHT,
+                    background=BASE,
+                    surface=MANTLE,
+                    panel=CRUST,
+                    foreground=TEXT,
+                    error=H_RED,
+                    success="#81c784",
+                    warning=H_BRIGHT,
+                    dark=True,
+                )
             )
-        )
         self.theme = "chill"
 
-        # ── 30fps animation timers ──────────────────────────────────────
-        self.set_interval(1 / 30, self._animate_frame)
+        # ── Animation timers (single master tick + counter tick) ──────────
+        # Reduced-motion / non-TTY collapses to static updates.
+        try:
+            from tui.themes import animations_enabled
+
+            _motion = animations_enabled()
+        except Exception:
+            _motion = True
+        self._motion_enabled = bool(_motion)
+        self.set_interval(1 / 30 if self._motion_enabled else 1, self._animate_frame)
 
         # Counter animations (update every 60ms = ~16fps, smoother than jump)
-        self.set_interval(1 / 16, self._animate_counters)
+        self.set_interval(1 / 16 if self._motion_enabled else 1, self._animate_counters)
+        # Drive ThemeManager transitions (P0: previously never ticked).
+        self.set_interval(1 / 30 if self._motion_enabled else 1, self._tick_theme)
 
     @work(thread=True)
     def _load_agent(self) -> None:
         try:
             logging.getLogger().setLevel(logging.WARNING)
             self._agent = get_agent()
+            # Wire the AI↔operator interaction bridge so ask_user and
+            # display_in_chat_mode actually reach this TUI.
+            try:
+                import queue as _queue
+
+                from elengenix.chat.user_interaction import (
+                    get_user_interaction_bridge,
+                )
+
+                bridge = get_user_interaction_bridge()
+                app_ref = self
+
+                def _tui_ask(question: str, meta: dict, answer_q: "_queue.Queue") -> None:
+                    app_ref.call_from_thread(
+                        app_ref._chat_write_system,
+                        f"[bold yellow]?[/bold yellow] [bold]AI asks:[/bold] {question}",
+                    )
+                    app_ref._pending_ask = answer_q
+
+                def _tui_display(msg: str, mode: str = "info") -> None:
+                    app_ref.call_from_thread(
+                        app_ref._chat_write_system, f"[dim]{msg}[/dim]"
+                    )
+
+                bridge.register_ui_hook(_tui_ask)
+                bridge.register_display_hook(_tui_display)
+            except Exception as bridge_err:
+                logger.debug("Interaction bridge registration failed: %s", bridge_err)
             if self._agent:
                 _ = self._agent.governance
                 if hasattr(self, "_pending_session") and self._pending_session:
@@ -837,22 +1050,42 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
                 self._game_display(self.game._render_death())
             return
 
-        # Header pulse
-        if self._anim_frame % 60 == 0:
-            self._header_pulse = (self._header_pulse + 1) % 4
-            shades = ["#ffffff", "#cccccc", "#999999", "#cccccc"]
-            try:
-                self.query_one("#header", Static).styles.color = shades[self._header_pulse]
-            except Exception as e:
-                logger.debug("Failed to update header pulse color: %s", e)
+        # Live header clock + heartbeat dot (1s cadence — cheap)
+        if self._anim_frame % 30 == 0:
+            self._update_header_clock()
 
-        # ThinkingWidget tick — 30fps smoothness
+        # Idle status-bar tips rotation (5s cadence, only when idle)
+        if self._anim_frame % 150 == 0 and not self._processing and not self._trans:
+            try:
+                tip = self._status_tips[self._tip_idx % len(self._status_tips)]
+                self._tip_idx += 1
+                self.query_one("#status_bar", StatusBar).show_message(f"tip: {tip}")
+            except Exception as e:
+                logger.debug("Failed to rotate status tip: %s", e)
+
+        # Input hint rotation (10s cadence, only when the box is empty)
+        if self._anim_frame % 300 == 0:
+            try:
+                inp = self.query_one("#user_input", Input)
+                if not inp.value:
+                    inp.placeholder = self._input_hints[
+                        (self._anim_frame // 300) % len(self._input_hints)
+                    ]
+            except Exception as e:
+                logger.debug("Failed to rotate input hint: %s", e)
+
+        # ThinkingWidget tick — spinner + rotating verb + elapsed timer
         if self._processing:
             tw = self.query_one("#thinking_bar", ThinkingWidget)
             try:
                 frames = ["◐", "◓", "◑", "◒"]
+                verbs = ["thinking", "reasoning", "planning", "working"]
                 tw.idx = (self._anim_frame // 8) % 4
-                tw.update(f"[white]{frames[tw.idx]} thinking[/]")
+                verb = verbs[(self._anim_frame // 60) % len(verbs)]
+                elapsed = ""
+                if self._thinking_since is not None:
+                    elapsed = f" {time.monotonic() - self._thinking_since:.0f}s"
+                tw.update(f"[white]{frames[tw.idx]} {verb}[/][dim]{elapsed}[/]")
             except Exception as e:
                 logger.debug("Failed to update thinking widget: %s", e)
 
@@ -908,6 +1141,38 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
 
         if changed:
             self._update_sidebar()
+
+    def _tick_theme(self) -> None:
+        """Advance the shared ThemeManager transition (previously never ticked)."""
+        mgr = getattr(self, "_theme_mgr", None)
+        if mgr is None:
+            return
+        try:
+            still_running = mgr.tick()
+            if still_running:
+                self._update_sidebar(force=True)
+        except Exception as e:
+            logger.debug("Theme tick failed: %s", e)
+
+    def action_command_palette(self) -> None:
+        """Open Textual's command palette (was advertised but missing)."""
+        try:
+            self.run_worker(self._open_palette())
+        except Exception:
+            try:
+                from textual.command import CommandPalette  # type: ignore
+
+                self.push_screen(CommandPalette())
+            except Exception as e:
+                logger.debug("Command palette unavailable: %s", e)
+
+    async def _open_palette(self) -> None:
+        try:
+            from textual.command import CommandPalette  # type: ignore
+
+            await self.push_screen(CommandPalette())
+        except Exception as e:
+            logger.debug("Command palette unavailable: %s", e)
 
     # ── Transition Animation Methods ─────────────────────────────────────
     def _run_transition(self, f: int) -> None:
@@ -1027,6 +1292,19 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
             self.call_from_thread(self._update_banner_text, "\n".join(current_lines))
             time.sleep(0.12)
 
+        # Shimmer sweep across the banner (skipped when motion is reduced).
+        if getattr(self, "_motion_enabled", True):
+            try:
+                from tui.themes import animations_enabled
+
+                if animations_enabled():
+                    for step in range(16):
+                        self.call_from_thread(self._shimmer_banner, step * 4)
+                        time.sleep(0.07)
+                    self.call_from_thread(self._update_banner)
+            except Exception as e:
+                logger.debug("Boot shimmer skipped: %s", e)
+
         sys_logs = [
             "[INFO] Loading security knowledge base...",
             "[INFO] Registering 62 vulnerability detection skills...",
@@ -1040,6 +1318,10 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
         # Proactive provider check: surface "no AI key" immediately at startup
         # instead of letting the first scan fail mid-loop with an opaque error.
         self.call_from_thread(self._check_provider_and_warn)
+        self.call_from_thread(
+            self._chat_write_system,
+            "[bold #81c784][OK] Elengenix online — type /help to begin[/]",
+        )
 
         # Single friendly notification ring on complete boot
         if bell_enabled:
@@ -1110,15 +1392,58 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
         raw = ASCII_BANNER.strip().format(color=color)
         self.query_one("#banner", Static).update(Text.from_markup(raw))
 
+    def _update_header_clock(self) -> None:
+        """Live header: base title + target + heartbeat dot + clock (1s cadence)."""
+        try:
+            beat = (self._anim_frame // 30) % 2 == 0
+            dot_color = "#ff5555" if self.mode == "HUNT" else ("#ffffff" if beat else "#555555")
+            tgt = f"  {self.target}" if self.target else ""
+            clock = time.strftime("%H:%M:%S")
+            self.query_one("#header", Static).update(
+                Text.from_markup(
+                    f"{self._header_base_text}{tgt}  [{dot_color}]●[/] [dim]{clock}[/]"
+                )
+            )
+        except Exception as e:
+            logger.debug("Failed to update header clock: %s", e)
+
+    def _shimmer_banner(self, step: int) -> None:
+        """One frame of a diagonal shimmer sweep across the ASCII banner."""
+        try:
+            import re as _re
+
+            from tui.motion import shimmer_text
+
+            accent = "#ff5555" if self.mode == "HUNT" else "#ffffff"
+            out_lines = []
+            for li, raw_line in enumerate(ASCII_BANNER.strip().split("\n")):
+                plain = _re.sub(r"\[.*?\]", "", raw_line)
+                out_lines.append(shimmer_text(plain, step + li * 3, base="#4a4a4a", hi=accent))
+            from rich.console import Group as _Group
+
+            self.query_one("#banner", Static).update(_Group(*out_lines))
+        except Exception as e:
+            logger.debug("Banner shimmer failed: %s", e)
+
+    def _accent(self) -> str:
+        """Mode-aware accent: red in HUNT, white in CHILL."""
+        return "#ff5555" if self.mode == "HUNT" else "#ffffff"
+
     def _chat_write_user(self, text: str) -> None:
         ts = time.strftime("%H:%M")
+        accent = self._accent()
         self._chat().write(
-            Text.from_markup(f"\n[white]┃[/] [dim]{ts}[/] [white]you[/]\n" f"  [white]{text}[/]")
+            Text.from_markup(
+                f"\n[{accent}]┃[/] [bold {accent}]you[/] [dim]{ts}[/]\n" f"  [white]{text}[/]"
+            )
         )
 
     def _chat_write_agent(self, text: str) -> None:
         ts = time.strftime("%H:%M")
-        self._chat().write(Text.from_markup(f"\n[white]┃[/] [dim]{ts}[/] [white]elengix[/]"))
+        accent = self._accent()
+        self._chat().write(
+            Text.from_markup(f"\n[bold {accent}]● elengix[/] [dim]{ts}[/]")
+        )
         try:
             self._chat().write(Markdown(text))
         except Exception:
@@ -1177,6 +1502,17 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
         self._target_findings = self.findings
         self._target_tokens = tokens
 
+        # Token-usage sparkline history (capped, sampled at sidebar cadence)
+        try:
+            self._token_history.append(tokens)
+            if len(self._token_history) > 30:
+                self._token_history = self._token_history[-30:]
+            from tui.motion import sparkline as _sparkline
+
+            spark = _sparkline(self._token_history)
+        except Exception:
+            spark = ""
+
         try:
             self._sidebar().refresh_data(
                 status="thinking" if self._processing else "ready",
@@ -1186,6 +1522,7 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
                 session=self.session_name,
                 turns=self.turn_count,
                 tokens=self._displayed_tokens,
+                spark=spark,
                 limit=128000,
                 target=self.target,
                 thinking=self.thinking,
@@ -1199,11 +1536,17 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
         except Exception as e:
             logger.debug("Failed to refresh sidebar data: %s", e)
 
+    def on_unmount(self) -> None:
+        restore_console_logging()
+
     @work(thread=True)
     def _send_to_agent(self, text: str, callback=None) -> None:
         if self._processing:
             return
+        # Re-assert the mute: provider SDKs may attach stderr handlers lazily.
+        mute_console_logging()
         self._processing = True
+        self._thinking_since = time.monotonic()
         self.call_from_thread(self._update_sidebar)
         self.call_from_thread(lambda: self.query_one("#thinking_bar", ThinkingWidget).show())
         try:
@@ -1377,6 +1720,7 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
             self.call_from_thread(self._chat_write_error, str(exc))
         finally:
             self._processing = False
+            self._thinking_since = None
             self.call_from_thread(lambda: self.query_one("#thinking_bar", ThinkingWidget).hide())
             self.call_from_thread(self._update_sidebar)
 
@@ -1569,6 +1913,13 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
         if not text:
             return
         event.input.value = ""
+        # AI asked a question: this submit is the operator's answer.
+        if getattr(self, "_pending_ask", None) is not None:
+            answer_q = self._pending_ask
+            self._pending_ask = None
+            self._chat_write_user(text)
+            answer_q.put(text)
+            return
         self._cycling_suggestions = False
         if not self.history or self.history[-1] != text:
             self.history.append(text)
@@ -1801,9 +2152,10 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
     def action_app_exit(self) -> None:
         sid = self._save_session()
         logger.info(f"Session {sid} saved on exit")
-        from cli.ui_components import console
-
-        console.print(f"\n  thank you for using elengenix\n  session: {sid}\n", style="dim")
+        # Print the goodbye line AFTER the app releases the terminal (see
+        # main() below) — printing while mounted paints over the TUI.
+        self._exit_message = f"\n  thank you for using elengenix\n  session: {sid}\n"
+        restore_console_logging()
         self.exit()
 
     def action_toggle_research(self) -> None:
@@ -1815,6 +2167,13 @@ ProgressBar { height: 1; padding: 0 1; background: $surface; display: none; }
         if self._trans:
             return
         new_mode = "HUNT" if self.mode != "HUNT" else "CHILL"
+        # Reduced-motion / non-TTY: instant switch, no flash frames.
+        if not getattr(self, "_motion_enabled", True):
+            self.mode = new_mode
+            self.theme = "hunt" if new_mode == "HUNT" else "chill"
+            self._update_banner()
+            self._update_sidebar(force=True)
+            return
         self._trans_next = new_mode
         self._trans = True
         self._trans_frame = 0
@@ -1951,6 +2310,15 @@ def main(target: str = "", mode: str = "auto", session_id: str = "") -> None:
 
     app = ElengenixTextualApp(target=target, mode=mode, session_id=session_id)
     app.run()
+
+    # Terminal is ours again: console logging was restored on exit.
+    if getattr(app, "_exit_message", ""):
+        try:
+            from cli.ui_components import console as _console
+
+            _console.print(app._exit_message, style="dim")
+        except Exception:
+            print(app._exit_message)
 
     # Stop MCP server on exit
     try:

@@ -2,25 +2,22 @@
 
 Elengenix Autonomous Agent — True Agentic Loop.
 
-Instead of a fixed pipeline, the AI decides what to do next at each
-iteration based on what it has discovered so far:
+There is NO fixed pipeline and NO phase script. At every iteration the
+system hands the AI the live state (findings, assets, history) plus the
+full capability menu, and the AI decides 100% on its own what to do next:
 
   loop:
     1. Build context (findings, assets, history)
-    2. Ask AI: what is the NEXT best action?
+    2. Ask AI: what is the NEXT best action?  (free reasoning, its own plan)
     3. Execute that action
     4. Update state
     5. If action == "done" or max iterations → stop
 
-Available actions the AI can choose:
-  - recon        : Subdomain/DNS/HTTP fingerprinting
-  - http_probe   : Deep probe a specific URL/domain
-  - waf_detect   : WAF detection on a URL
-  - bola_probe   : Unauthenticated BOLA/IDOR surface check
-  - endpoint_fuzz: Common endpoint wordlist discovery
-  - header_audit : Security header analysis
-  - analyze      : AI deep-analysis of current findings
-  - done         : Finished — generate report
+The capability menu is a *menu*, not an order of operations — the AI may
+chain, skip, repeat on new targets, or pivot however its own reasoning
+dictates. Guardrails (not scripts): never repeat the same action on the
+same target, choose "done" when the attack surface is exhausted, and
+auth requests pause for the human operator.
 """
 
 from __future__ import annotations
@@ -1571,7 +1568,10 @@ def _ai_decide_next(ai_client, state: AgentState) -> AgentAction:
     )
 
     available_actions = """
-Available actions (Phase 1 — Intelligence Gathering):
+Capability menu (your full toolkit — NOT an order of operations; you decide
+how and when to use each, in any sequence your reasoning dictates):
+
+Intelligence gathering:
   - recon              : DNS/subdomain discovery, fingerprinting. Params: {"target": "domain.com"}
   - wayback_recon      : Historical URL & parameter discovery from Wayback Machine/OTX. Params: {"target": "domain.com"}
   - github_dork        : Search GitHub for leaked credentials, config files. Params: {"target": "domain.com"}
@@ -1579,7 +1579,7 @@ Available actions (Phase 1 — Intelligence Gathering):
   - vuln_intel         : Real-time vulnerability and exploit intelligence (VulnCheck). Params: {"target": "domain.com"}
   - js_recon           : Extract secrets, API keys, endpoints from JavaScript files. Params: {"target": "https://..."}
 
-Available actions (Phase 2 — Active Probing):
+Active probing:
   - http_probe         : Deep HTTP probe a URL. Params: {"target": "https://..."}
   - waf_detect         : WAF detection. Params: {"target": "https://..."}
   - endpoint_fuzz      : Common path discovery. Params: {"target": "https://..."}
@@ -1588,20 +1588,19 @@ Available actions (Phase 2 — Active Probing):
   - header_audit       : Security header audit. Params: {"target": "https://..."}
   - subdomain_takeover : Check subdomains for cloud resource takeover. Params: {"target": "domain.com"}
 
-Available actions (Phase 2.5 — Authentication):
-  - request_auth       : Ask the human operator for Cookie/Token when you hit
-    401/403 login barriers. Use this BEFORE exploitation if the target
-    requires login. Params: {"target": "https://..."}
+Authentication:
+  - request_auth       : Pause and ask the human operator for Cookie/Token.
+    Use when the target requires login. Params: {"target": "https://..."}
   - auth_test          : Analyze JWT tokens, test OAuth/OIDC
     misconfigurations, check session security flags.
     Params: {"target": "https://..."}
 
-Available actions (Phase 3 — Exploitation):
+Exploitation:
   - injection_test     : Test for XSS, SQLi, SSTI, LFI, Open Redirect. Params: {"target": "https://..."}
   - bola_probe         : BOLA/IDOR vulnerability check with
     GET/POST/PUT/DELETE methods. Params: {"target": "https://..."}
   - waf_bypass         : Adaptive WAF bypass with payload mutation. Params: {"target": "https://..."}
-  - vuln_scan        : Run Python-based vulnerability scanner. Params: {"target": "https://..."}
+  - vuln_scan          : Run Python-based vulnerability scanner. Params: {"target": "https://..."}
   - xss_hunt           : Run Dalfox advanced XSS scanner with smart parameter fuzzing. Params: {"target": "https://..."}
   - ssrf_scan          : Test for SSRF via URL params, cloud metadata
     endpoints, internal IP ranges. Params: {"target": "https://..."}
@@ -1611,7 +1610,7 @@ Available actions (Phase 3 — Exploitation):
   - race_condition     : Test concurrent requests for TOCTOU and race
     window vulnerabilities. Params: {"target": "https://..."}
 
-Available actions (Phase 4 — Advanced / Custom):
+Advanced / custom:
   - zap_active_scan    : Run OWASP ZAP active scan via headless daemon
     (if installed). Falls back gracefully if ZAP is not available.
     Params: {"target": "https://..."}
@@ -1620,7 +1619,7 @@ Available actions (Phase 4 — Advanced / Custom):
     vulnerability. Params: {"target": "https://...",
     "purpose": "description of what the tool should do"}
 
-Available actions (Strategic):
+Strategic / control:
   - threat_model       : Analyze all intel and create a strategic attack plan.
   - analyze            : AI analysis of current findings.
   - done               : Finished scanning, generate report.
@@ -1668,19 +1667,12 @@ Available actions (Strategic):
     content = _ai_call(
         ai_client,
         system=(
-            "You are an autonomous bug bounty hunter AI. "
-            "Decide the single best next action to find high-value vulnerabilities. "
-            "Strategy guidelines:\n"
-            "- Phase 1: Gather intelligence (recon, wayback, github, osint, vuln_intel, js_recon).\n"
-            "- When you have enough intel: use threat_model to create an attack plan.\n"
-            "- Phase 2: Execute active probing based on your plan.\n"
-            "- AUTH: If you encounter HTTP 401/403 or login pages, use"
-            " request_auth to ask the human for credentials BEFORE"
-            " exploitation.\n"
-            "- Phase 3: After auth (if needed), run exploitation tools (injection_test, bola_probe, waf_bypass).\n"
-            "- Phase 4: If existing tools cannot handle a specific CVE or"
-            " unusual target, use create_custom_tool to write a custom"
-            " Python exploit.\n"
+            "You are an autonomous bug bounty hunter AI with FULL autonomy. "
+            "You are the strategist: there is no phase script and no prescribed "
+            "order of operations — you plan, sequence, pivot, and stop entirely "
+            "on your own reasoning. Trust your own judgment about what is the "
+            "single best next action to find high-value vulnerabilities. "
+            "Hard guardrails only (never violated):\n"
             "- CRITICAL RULE: DO NOT repeat the exact same action on the"
             " exact same target URL more than once. Look at the"
             " 'actions_taken' list. If you see"
@@ -1691,8 +1683,11 @@ Available actions (Strategic):
             " targets/subdomains to pivot to, you MUST select the 'done'"
             " action to finish the scan. Do not waste iterations doing"
             " nothing.\n"
-            "- Pivot to new subdomains/endpoints when interesting assets are found.\n"
-            "- Focus on findings with highest bounty potential."
+            "- AUTH: if you hit an auth barrier you cannot reason past,"
+            " request_auth pauses for the human operator.\n"
+            "Beyond those rules, everything — strategy, order, depth, when to"
+            " analyze, when to write custom tooling, when to stop — is YOUR"
+            " call. Think like an expert hunter, not a checklist follower."
         ),
         user=f"""{available_actions}
 

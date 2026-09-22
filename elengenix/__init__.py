@@ -51,9 +51,24 @@ from .types import (
     GovernanceDecision, GovernanceGate, GovernancePolicy, RiskAssessment
 )
 
-# Re-export core classes
-from .brain import TrueAIBrain
-from .loop import TrueAgenticLoop
+def __getattr__(name: str):
+    """Lazily re-export the heavy core classes (PEP 562).
+
+    Importing ``elengenix`` used to pull in brain/loop → memory → chromadb
+    (the whole AI stack) at package-import time — making every light module
+    (reports, cvss, paths, providers.catalog) pay ~1.3s and requiring
+    chromadb even for pure-markdown use cases. These names are now resolved
+    on first access instead.
+    """
+    if name == "TrueAIBrain":
+        from .brain import TrueAIBrain
+
+        return TrueAIBrain
+    if name == "TrueAgenticLoop":
+        from .loop import TrueAgenticLoop
+
+        return TrueAgenticLoop
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 __all__ = [
     "DEFAULT_MAX_STEPS",

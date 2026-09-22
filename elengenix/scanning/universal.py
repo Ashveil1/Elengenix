@@ -912,7 +912,7 @@ Keep it short and conversational. No tools. No emojis."""
 
 Respond with JSON:
 {{"thought": "...",
-"action": {{"type": "shell|run_tool|read_file|write_file|edit_file|search_file|search_web|finish",
+"action": {{"type": "{_ACTION_TYPES_STR}",
 "params": {{...}}}},
 "next_step": "..."}}"""
 
@@ -1150,6 +1150,43 @@ def _append_history(history: List[Dict[str, str]], role: str, content: str) -> N
     history.append({"role": role, "content": content})
 
 
+# ── Universal action menu — single source of truth ──────────────────────
+# Every entry is implemented for real in UniversalExecutor.execute_action
+# (plus "finish", handled by the loop itself). Bidirectional parity between
+# this menu and the executor is locked by tests/test_universal_action_parity.py
+# — advertising an action without an implementation (or hiding one that
+# exists) fails CI, so the AI is never told about a phantom capability and
+# never starved of a real one.
+UNIVERSAL_ACTION_TYPES: tuple = (
+    "shell", "run_tool", "read_file", "write_file", "edit_file",
+    "search_file", "list_dir", "package", "search_web", "web_search",
+    "bounty_intel", "github_search", "cve_lookup", "js_analyze",
+    "check_takeover", "ask_user", "submit_findings", "finish",
+)
+_ACTION_TYPES_STR = "|".join(UNIVERSAL_ACTION_TYPES)
+
+_UNIVERSAL_ACTION_MENU = """\
+- `shell`: run any command. Params: {"command": "...", "timeout": 300, "cwd": "..."}
+- `run_tool`: run a registered security tool. Params: {"tool": "<name>", "target": "<target>", "args": "..."} (or {"tools": ["a","b"]} for parallel)
+- `read_file`: read a file with line numbers. Params: {"path": "...", "offset": 1, "limit": 100}
+- `write_file`: create/overwrite a file. Params: {"path": "...", "content": "...", "overwrite": false}
+- `edit_file`: exact search/replace inside a file. Params: {"path": "...", "old_string": "...", "new_string": "..."}
+- `search_file`: regex search inside a file. Params: {"path": "...", "pattern": "..."}
+- `list_dir`: list a directory tree. Params: {"path": ".", "max_depth": 2}
+- `package`: install/uninstall packages (pip/npm/apt/go). Params: {"manager": "pip", "action": "install", "package": "..."}
+- `search_web`: search the live internet. Params: {"query": "...", "num_results": 5}
+- `web_search`: alias of search_web. Params: {"query": "..."}
+- `bounty_intel`: bug-bounty program intel. Params: {"program": "<domain or program>"}
+- `github_search`: search GitHub code for leaks. Params: {"query": "..."}
+- `cve_lookup`: CVE database lookup. Params: {"cve_id": "CVE-..."} or {"keyword": "..."}
+- `js_analyze`: extract endpoints/secrets from JavaScript files. Params: {"url": "https://..."}
+- `check_takeover`: subdomain takeover check. Params: {"subdomain": "sub.example.com"}
+- `ask_user`: pause and ask the human operator — the real typed answer is returned to you as the action result. Params: {"question": "..."}
+- `submit_findings`: submit your structured findings. Params: {"findings": [...], "target": "..."}
+- `finish`: mission complete — final answer/report. Params: {}
+"""
+
+
 def _build_research_prompt(user_input: str, now_context: str) -> str:
     return f"""You are Elengenix AI in RESEARCH MODE.
 
@@ -1174,9 +1211,10 @@ Research Assistant with LIVE INTERNET ACCESS via DuckDuckGo / Tavily search.
 - NO 5-phase methodology
 - This is simple INFORMATION RETRIEVAL for the user's question
 
-### YOUR CAPABILITIES:
-- `search_web`: Search live internet (DuckDuckGo/Tavily) for current information
-- `finish`: Complete the task and provide the answer
+### YOUR CAPABILITIES (all real, all available):
+{_UNIVERSAL_ACTION_MENU}
+For a simple information request, `search_web` → `finish` is usually all
+you need — but the full toolkit is yours whenever your judgment calls for it.
 
 ### WHEN TO USE search_web:
 - Current events, news, sports scores, weather, stock prices
@@ -1191,7 +1229,7 @@ Research Assistant with LIVE INTERNET ACCESS via DuckDuckGo / Tavily search.
 ### RESPONSE FORMAT:
 Always respond with valid JSON:
 {{"thought": "...",
-"action": {{"type": "search_web|finish",
+"action": {{"type": "{_ACTION_TYPES_STR}",
 "params": {{"query": "..."}}}},
 "next_step": "..."}}"""
 
@@ -1253,57 +1291,23 @@ Additional tools available:
 {"MISSING TOOLS (can request install):" + chr(10) + missing_list if missing_list else ""}
 
 ### TOOL RECOMMENDATION:
-If a tool is missing and would be useful, ask the user with a format like:
-"Tool [name] is useful for [purpose] but not installed. Shall I install it? (Command: [install_command])"
+If a tool is missing and would be useful, use the ask_user action to
+request installation from the operator.
 
-### VULNERABILITY DISCOVERY METHODOLOGY (Apply as needed):
-Think step-by-step which tools fit each phase:
+### HOW YOU WORK (no fixed phases — you are the strategist):
+You have FULL autonomy. There is no prescribed order of operations and no
+phase script: reconnaissance, discovery, scanning, exploitation, and
+reporting are techniques YOU may deploy in ANY sequence your own reasoning
+dictates — skip them, interleave them, iterate, or pivot as the situation
+demands. Your only hard rules: stay in authorized scope, and verify
+impact before reporting a finding.
 
-**PHASE 1: RECONNAISSANCE**
-- DNS enumeration: Use dig, nslookup, or Python DNS libraries
-- HTTP probing: Use curl or Python requests
-- Technology fingerprinting: Analyze response headers and body
-- Choose based on: target size, rate limits, accuracy needs
-
-**PHASE 2: CONTENT DISCOVERY**
-- Directory/path enumeration: Use Python wordlist scanners
-- Parameter discovery: Analyze forms and URLs
-- JS analysis for hidden endpoints
-- Choose based on: time constraints, depth needed
-
-**PHASE 3: VULNERABILITY SCANNING**
-- Use built-in Python scanners: SSRF, SSTI, XXE, Deserialization, GraphQL, CORS, JWT
-- SQL injection testing: Use Python-based testers
-- XSS testing: Use Python-based testers
-- Secret scanning: Check for exposed credentials in responses
-- Choose based on: what was discovered, what's in scope
-
-**PHASE 4: EXPLOITATION**
-- Manual verification of found vulnerabilities
-- Write PoC scripts when needed
-- Understand impact before reporting
-
-**PHASE 5: REPORTING**
-- Document all findings with severity
-- Include CVSS scores
-- Provide reproduction steps
-
-### YOUR FULL CAPABILITIES:
-- Full shell access (any command, script, or tool)
-- File editing (read, write, edit, search)
-- Package installation (pip, npm, apt, go, gem)
-- Web search and research
-- CVE database lookup
-- GitHub code search for leaked credentials
-- JS analysis for hidden endpoints/secrets
-- Subdomain takeover checks
-
-### YOU HAVE THESE CAPABILITIES -- use them as you see fit:
-
+### ACTION MENU — your full toolkit; choose freely, in any order your reasoning dictates:
+{_UNIVERSAL_ACTION_MENU}
 ### RESPONSE FORMAT:
 Always respond with valid JSON:
 {{"thought": "...",
-"action": {{"type": "shell|run_tool|read_file|write_file|edit_file|search_file|search_web|ask_user|finish",
+"action": {{"type": "{_ACTION_TYPES_STR}",
 "params": {{...}}}},
 "next_step": "..."}}"""
 
@@ -1316,25 +1320,12 @@ def _build_general_prompt(user_input: str, now_context: str) -> str:
 ### UNIVERSAL AGENT MODE — GENERAL PURPOSE
 You can help with code, security research, OSINT, system administration, and general tasks.
 
-### AVAILABLE TOOLS (Use as needed):
-- Built-in Python scanners: SSRF, SSTI, XXE, Deserialization, GraphQL, CORS, JWT, Race Conditions
-- General: curl, dig, python, ripgrep, jq
-- Web search, file editing, package management
-
-### YOUR FULL CAPABILITIES:
-- Full shell access (any command, script, or tool)
-- File editing (read, write, edit, search)
-- Package installation (pip, npm, apt, go, gem)
-- Web search and research
-- CVE database lookup
-- GitHub code search
-- JS analysis
-- Security scanning
-
+### ACTION MENU — your full toolkit; choose freely, in any order your reasoning dictates:
+{_UNIVERSAL_ACTION_MENU}
 ### RESPONSE FORMAT:
 Always respond with valid JSON:
 {{"thought": "...",
-"action": {{"type": "shell|run_tool|read_file|write_file|edit_file|search_file|search_web|finish",
+"action": {{"type": "{_ACTION_TYPES_STR}",
 "params": {{...}}}},
 "next_step": "..."}}
 

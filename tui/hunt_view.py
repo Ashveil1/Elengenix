@@ -48,13 +48,23 @@ def render_hunt_dashboard(
     risk_score: float,
     risk_level: str,
     theme_name: str = "DEFAULT",
-    width: int = 140,
+    width: int = 0,
 ) -> Layout:
-    """Render a full hunt results dashboard using integrated TUI components."""
+    """Render a full hunt results dashboard using integrated TUI components.
+
+    width=0 (default) follows the live terminal width, clamped to 80..140.
+    """
     theme = get_theme(theme_name)
     primary = theme.get("primary", "#ff2222")
     text = theme.get("text", "#ffffff")
     muted = theme.get("muted", "#888888")
+    if not width:
+        try:
+            import shutil as _shutil
+
+            width = max(80, min(140, _shutil.get_terminal_size((140, 30)).columns))
+        except Exception:
+            width = 120
 
     layout = Layout()
     layout.split_column(
@@ -311,8 +321,11 @@ def _render_heatmap(findings: List[Any], theme_name: str) -> Panel:
 
 
 def show_hunt_results(target: str, report: Any, theme_name: str = "DEFAULT"):
-    """Show hunt results in beautiful TUI dashboard."""
-    console = Console(width=140)
+    """Show hunt results in beautiful TUI dashboard (responsive width)."""
+    import shutil as _shutil
+
+    width = max(80, min(140, _shutil.get_terminal_size((140, 30)).columns))
+    console = Console(width=width)
     console.clear()
     layout = render_hunt_dashboard(
         target=target,

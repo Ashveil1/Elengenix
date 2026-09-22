@@ -1,11 +1,14 @@
 """
 commands/worldclass.py — World-class security commands for Elengenix.
 
-Registers commands that expose the flagship engines:
-    - zero-day      : advanced zero-day heuristic probing
-    - logic         : business logic vulnerability engine
-    - supply-chain  : SBOM + CVE + typosquatting + dep-confusion analyzer
-    - hypothesis    : AI-driven attack hypothesis generation
+Handlers defined here (NOT registered in the CommandRegistry):
+    - launch        : themed TUI dashboard launcher
+    - hunt          : unified hunt command (recon + smart + zero-day + logic)
+
+`hunt` is dispatched by `main.py`'s built-in elif handler, so a registry
+entry under the same name would be unreachable dead code — same policy as
+api/compliance/dashboard in commands/system.py (one name = one dispatcher).
+`launch` stays registered because main.py has no built-in handler for it.
 """
 
 from __future__ import annotations
@@ -85,18 +88,6 @@ async def cmd_launch(args) -> int:
 # ═══════════════════════════════════════════════════════════════════════════
 
 
-@command(
-    name="hunt",
-    category="world-class",
-    aliases=["h", "scan-all", "find"],
-    help_text="ONE command to find every vulnerability: recon + smart + zero-day + logic",
-    requires_target=True,
-    examples=[
-        "elengenix hunt example.com",
-        "elengenix hunt httpbin.org --quiet",
-        "elengenix h https://target.com",
-    ],
-)
 async def cmd_hunt(args) -> int:
     """Single unified hunt command — runs EVERY engine in optimal order.
 

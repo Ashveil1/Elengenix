@@ -170,10 +170,19 @@ def _check_library(import_name: str, python_executable: Path) -> Tuple[bool, str
 
 
 def _check_config() -> Tuple[bool, str]:
-    """Validate configuration: checks config.yaml, .env file, and environment variables."""
-    config_path = Path("config.yaml")
-    if not config_path.exists():
-        return False, "config.yaml not found"
+    """Validate configuration using the canonical resolvers.
+
+    Config location: ``elengenix.paths.find_config()`` ($ELENGENIX_CONFIG →
+    ``~/.elengenix/config.yaml`` → cwd) — the same order the AI stack uses,
+    so doctor never disagrees with reality.
+    """
+    try:
+        from elengenix.paths import find_config, find_env
+    except ImportError:
+        find_config = find_env = None
+    config_path = find_config() if find_config else Path("config.yaml")
+    if config_path is None or not config_path.exists():
+        return False, "config.yaml not found (run: elengenix configure)"
     try:
         with open(config_path, "r") as f:
             cfg = yaml.safe_load(f)
@@ -182,13 +191,19 @@ def _check_config() -> Tuple[bool, str]:
         provider = cfg["ai"].get("active_provider", "")
 
         # Priority check: ENV var > .env file > config.yaml
-        env_key_name = f"{provider.upper()}_API_KEY"
+        # env key name comes from the provider catalog (canonical spelling,
+        # e.g. replicate uses REPLICATE_API_TOKEN).
+        try:
+            from elengenix.providers.catalog import env_key_for
+        except ImportError:
+            env_key_for = None
+        env_key_name = (env_key_for(provider) if env_key_for else None) or f"{provider.upper()}_API_KEY"
         api_key = os.getenv(env_key_name, "")
 
         # Fallback: check .env file directly if env var is empty
         if not api_key:
-            env_path = Path(".env")
-            if env_path.exists():
+            env_path = find_env() if find_env else Path(".env")
+            if env_path is not None and env_path.exists():
                 for line in env_path.read_text(encoding="utf-8").splitlines():
                     line = line.strip()
                     if line.startswith(f"{env_key_name}="):
@@ -284,9 +299,9 @@ def check_health(interactive: bool = True) -> bool:
         ):
             console.print("\n[grey70]Launching Configuration Wizard...[/grey70]")
             try:
-                import wizard
+                from cli.wizard import main as _wizard_main
 
-                wizard.main()
+                _wizard_main()
                 # Re-check config after wizard
                 cfg_ok, cfg_msg = _check_config()
                 if cfg_ok:

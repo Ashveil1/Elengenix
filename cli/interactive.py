@@ -68,7 +68,7 @@ except OSError as _log_err:
     sys.stderr.write(f"[elengenix] file logging disabled: {_log_err}\n")
 
 # ── AI Disclaimer & Consent Management ─────────────────────────
-CONSENT_FILE = get_data_dir(".ai_consent_accepted")
+CONSENT_FILE = get_data_dir() / ".ai_consent_accepted"
 
 AI_DISCLAIMER_TEXT = """
 [WARNING] AI SYSTEM DISCLAIMER
@@ -116,6 +116,15 @@ def _record_consent() -> None:
     """Record that user has accepted the current disclaimer."""
     try:
         CONSENT_FILE.write_text(_compute_disclaimer_hash(), encoding="utf-8")
+    except IsADirectoryError:
+        # A stray empty directory at the consent path (legacy artifact from an
+        # old build) blocks the write — the user would then be nagged with the
+        # disclaimer on every single session. Remove it and retry once.
+        try:
+            CONSENT_FILE.rmdir()
+            CONSENT_FILE.write_text(_compute_disclaimer_hash(), encoding="utf-8")
+        except OSError as e:
+            logger.warning(f"Failed to write consent file: {e}")
     except Exception as e:
         logger.warning(f"Failed to write consent file: {e}")
 
@@ -698,6 +707,30 @@ def main(mode: str = "auto", target: Optional[str] = None):
         console.print(f"[bold red] Failed to initialize Agent: {e}[/bold red]")
         return
 
+    # Wire the AI↔operator interaction bridge for line mode: ask_user and
+    # display_in_chat_mode prompt on the terminal and read real answers.
+    try:
+        from elengenix.chat.user_interaction import get_user_interaction_bridge
+
+        _bridge = get_user_interaction_bridge()
+
+        def _cli_ask(question: str, meta: dict) -> str:
+            print(f"\n  [?] {question}")
+            for k, v in (meta.get("options") or {}).items():
+                print(f"      {k}: {v}")
+            try:
+                return input("  > ").strip()
+            except (EOFError, KeyboardInterrupt):
+                return "[no operator answer]"
+
+        def _cli_display(msg: str, mode: str = "info") -> None:
+            console.print(f"[dim]{msg}[/dim]")
+
+        _bridge.register_cli_hook(_cli_ask)
+        _bridge.register_display_hook(_cli_display)
+    except Exception as bridge_err:
+        logger.debug("Interaction bridge registration failed: %s", bridge_err)
+
     # Provider pre-flight: show exactly which provider/model/key-source will
     # be used BEFORE any action runs, and warn if nothing usable is set up.
     # Advisory only — never blocks the UI.
@@ -762,9 +795,14 @@ def main(mode: str = "auto", target: Optional[str] = None):
             self._streaming_text = ""
             self._streaming_active = False
             self._streaming_done = False
-            # Scroll state
+            # Scroll state (viewport follows the live terminal height)
             self._scroll_offset = 0
-            self._viewport_lines = 20  # Approximate lines visible in content area
+            try:
+                import shutil as _shutil
+
+                self._viewport_lines = max(10, _shutil.get_terminal_size((80, 30)).lines - 10)
+            except Exception:
+                self._viewport_lines = 20
             self._is_scrolled = False
             # Paste state
             self._paste_buffer = ""  # Store full paste text for sending
@@ -1914,6 +1952,79 @@ def main(mode: str = "auto", target: Optional[str] = None):
     )
     chat.add("           [dim #ffffff]Universal AI & Bug Bounty Agent[/dim #ffffff]", role="system")
     chat.add("           [dim]Type /help for commands[/dim]", role="system")
+
+    def _run_line_mode():
+        """Plain stdin/stdout session for pipes, scripts and CI (no TTY UI).
+
+        The Rich Live layout below requires a real terminal — its raw
+        keyboard reader returns nothing on a pipe, spinning forever. This
+        session exposes the same agent and core commands synchronously:
+        one input line → one response, then the next prompt.
+        """
+        nonlocal target
+        print()
+        print("Elengenix line mode — type a message, /help for commands, /quit to exit.")
+        while True:
+            try:
+                line = input("elengenix> ")
+            except (EOFError, KeyboardInterrupt):
+                print()
+                return
+            cmd = line.strip()
+            if not cmd:
+                continue
+            lower = cmd.lower()
+            if lower in ("/exit", "/quit", "exit", "quit"):
+                return
+            if lower in ("/help", "?"):
+                print(
+                    "Commands: /help  /mode [name]  /target <host>  /clear  /reset  /stats  /quit\n"
+                    "Anything else is sent to the AI agent."
+                )
+                continue
+            if lower.startswith("/target "):
+                target = cmd.split(" ", 1)[1].strip()
+                session_mgr.live.target = target
+                print(f"Target set: {target}")
+                continue
+            if lower == "/mode":
+                print("Modes: auto, research, security_chat, scan, casual — use /mode <name>")
+                continue
+            if lower.startswith("/mode "):
+                val = cmd.split(" ", 1)[1].strip()
+                if val in ("auto", "research", "security_chat", "scan", "casual"):
+                    mode_state[0] = val
+                    session_mgr.live.mode = val
+                    print(f"Mode: {val}")
+                else:
+                    print("Invalid mode. Valid: auto, research, security_chat, scan, casual")
+                continue
+            if lower in ("/clear", "/reset"):
+                if hasattr(agent, "clear_conversation_history"):
+                    agent.clear_conversation_history()
+                print("Conversation cleared.")
+                continue
+            if lower == "/stats":
+                s = session_mgr.live
+                print(f"Session: {s.name} turns={s.turn_count} mode={s.mode} target={s.target}")
+                continue
+            # AI turn — synchronous, one answer per input line.
+            try:
+                resp = agent.process_universal(
+                    cmd, callback=callback, target=target, mode=mode_state[0]
+                )
+                print(resp or "(no response)")
+            except KeyboardInterrupt:
+                print("\n[interrupted]")
+            except Exception as e:
+                print(f"Error: {type(e).__name__}: {e}")
+
+    # UX: without a real terminal the full-screen layout would hang; run
+    # the plain line-mode session instead so piped callers get clean,
+    # parseable output and a guaranteed exit.
+    if not (sys.stdin.isatty() and sys.stdout.isatty()):
+        _run_line_mode()
+        return
 
     with raw:
         layout = Layout()

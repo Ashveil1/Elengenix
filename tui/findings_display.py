@@ -84,7 +84,7 @@ class FindingFilter:
     show_false_positives: bool = False
 
     def matches(self, finding: Finding) -> bool:
-        """Check if a finding matches this filter."""
+        """Check if a finding matches this filter (substring or /regex/)."""
         # Severity filter
         if self.severities and finding.severity.lower() not in [s.lower() for s in self.severities]:
             return False
@@ -93,11 +93,23 @@ class FindingFilter:
         if self.categories and finding.category.lower() not in [c.lower() for c in self.categories]:
             return False
 
-        # Search query
+        # Search query: /regex/ for pattern search, plain text otherwise.
         if self.search_query:
-            query = self.search_query.lower()
-            searchable = f"{finding.title} {finding.description} {finding.location} {finding.category}".lower()
-            if query not in searchable:
+            query = self.search_query
+            searchable = (
+                f"{finding.title} {finding.description} {finding.location} "
+                f"{finding.category} {finding.cve_id} {' '.join(finding.tags)}"
+            )
+            if len(query) >= 2 and query.startswith("/") and query.endswith("/"):
+                import re as _re
+
+                try:
+                    if not _re.search(query[1:-1], searchable, _re.IGNORECASE):
+                        return False
+                except _re.error:
+                    if query[1:-1].lower() not in searchable.lower():
+                        return False
+            elif query.lower() not in searchable.lower():
                 return False
 
         # False positive filter
@@ -142,6 +154,8 @@ class FindingsDisplay(Static):
         self.filter = FindingFilter()
         self.selected_index: int = 0
         self.expanded_index: int = -1
+        self.page: int = 0
+        self.per_page: int = 20
 
     def add_finding(self, finding: Finding) -> None:
         """Add a finding to the display.
@@ -221,6 +235,55 @@ class FindingsDisplay(Static):
 
         return filtered[: self.max_display]
 
+    def update_findings(self, findings: List[Finding]) -> None:
+        """Replace the full list (Textual dashboard live-feed entry point)."""
+        self.findings = list(findings)
+        self.page = 0
+        self.selected_index = 0
+        self.expanded_index = -1
+        try:
+            self.update(self.render())
+        except Exception:
+            pass
+
+    def set_page(self, page: int) -> None:
+        """Clamp and set the visible page for the paginated table."""
+        total_pages = max(1, (len(self.get_filtered_sorted()) + self.per_page - 1) // self.per_page)
+        self.page = max(0, min(page, total_pages - 1))
+
+    def next_page(self) -> None:
+        """Advance one page (clamped)."""
+        self.set_page(self.page + 1)
+
+    def prev_page(self) -> None:
+        """Go back one page (clamped)."""
+        self.set_page(self.page - 1)
+
+    def get_page_items(self) -> List[Finding]:
+        """Current page slice of the filtered+sorted list."""
+        items = self.get_filtered_sorted()
+        start = self.page * self.per_page
+        return items[start : start + self.per_page]
+
+    def export_row(self, index: int) -> Dict[str, Any]:
+        """Copy-friendly dict for one visible row (y=copy, e=export)."""
+        items = self.get_page_items()
+        if 0 <= index < len(items):
+            f = items[index]
+            return {
+                "id": f.id,
+                "title": f.title,
+                "severity": f.severity,
+                "category": f.category,
+                "location": f.location,
+                "cvss": f.cvss_score,
+                "cve": f.cve_id,
+                "description": f.description,
+                "remediation": f.remediation,
+                "tags": list(f.tags),
+            }
+        return {}
+
     def get_statistics(self) -> Dict[str, int]:
         """Get statistics about findings.
 
@@ -258,6 +321,10 @@ class FindingsDisplay(Static):
         """
         filtered = self.get_filtered_sorted()
         stats = self.get_statistics()
+        total_pages = max(1, (len(filtered) + self.per_page - 1) // self.per_page)
+        self.page = max(0, min(self.page, total_pages - 1))
+        page_items = self.get_page_items()
+        page_start = self.page * self.per_page
 
         # Header with statistics
         header = Text()
@@ -271,6 +338,9 @@ class FindingsDisplay(Static):
                 config = SEVERITY_CONFIG[sev]
                 header.append(f" {config['badge']}: ", style=muted)
                 header.append(str(stats[sev]), style=f"bold {config['color']}")
+        if self.filter.search_query:
+            header.append(f"  |  filter: {self.filter.search_query[:24]}", style=muted)
+        header.append(f"  |  page {self.page + 1}/{total_pages}", style=muted)
 
         # Findings table
         if not filtered:
@@ -290,29 +360,45 @@ class FindingsDisplay(Static):
             table.add_column("Location", ratio=2)
             table.add_column("CVSS", width=6, justify="center")
 
-            for i, finding in enumerate(filtered[: self.max_display]):
+            for i, finding in enumerate(page_items):
+                global_idx = page_start + i
                 # Severity badge
                 config = finding.severity_config
                 sev_badge = Text(f" {config['badge']} ", style=f"bold white on {config['color']}")
 
                 # Title with selection indicator
                 title_text = Text()
-                if i == self.selected_index:
+                if global_idx == self.selected_index:
                     title_text.append("> ", style=f"bold {primary}")
-                elif i == self.expanded_index:
+                elif global_idx == self.expanded_index:
                     title_text.append("v ", style=f"bold {primary}")
                 else:
                     title_text.append("  ")
                 title_text.append(
                     finding.title,
-                    style=f"bold {text_color}" if i == self.selected_index else text_color,
+                    style=f"bold {text_color}"
+                    if global_idx == self.selected_index
+                    else text_color,
                 )
 
-                # CVSS score
-                cvss_text = f"{finding.cvss_score:.1f}" if finding.cvss_score > 0 else "-"
+                # CVSS score with severity-tinted color scale
+                if finding.cvss_score >= 9.0:
+                    cvss_style = "bold #ff2222"
+                elif finding.cvss_score >= 7.0:
+                    cvss_style = "bold #ff5555"
+                elif finding.cvss_score >= 4.0:
+                    cvss_style = "bold #ffb300"
+                elif finding.cvss_score > 0:
+                    cvss_style = "bold #81c784"
+                else:
+                    cvss_style = muted
+                cvss_text = Text(
+                    f"{finding.cvss_score:.1f}" if finding.cvss_score > 0 else "-",
+                    style=cvss_style,
+                )
 
                 table.add_row(
-                    str(i + 1),
+                    str(global_idx + 1),
                     sev_badge,
                     title_text,
                     finding.category,
@@ -328,8 +414,13 @@ class FindingsDisplay(Static):
             finding = filtered[self.expanded_index]
             detail_text = self._render_detail(finding, primary, text_color, muted)
 
-        # Assemble
-        parts = [header, Text(""), table_text]
+        # Assemble + keyboard hints footer (no truncation of evidence here;
+        # detail view below shows full wrapped text).
+        footer = Text(
+            "  [/] filter  [n/p] page  [y] copy row  [e] export row  [Enter] expand",
+            style=muted,
+        )
+        parts = [header, Text(""), table_text, footer]
         if detail_text:
             parts.extend([Text(""), detail_text])
 
@@ -387,11 +478,11 @@ class FindingsDisplay(Static):
         table.add_row("Timestamp", finding.timestamp.strftime("%Y-%m-%d %H:%M:%S"))
 
         if finding.description:
-            table.add_row("Description", finding.description[:200])
+            table.add_row("Description", finding.description[:2000])
         if finding.evidence:
-            table.add_row("Evidence", finding.evidence[:200])
+            table.add_row("Evidence", finding.evidence[:2000])
         if finding.remediation:
-            table.add_row("Remediation", finding.remediation[:200])
+            table.add_row("Remediation", finding.remediation[:2000])
         if finding.tags:
             table.add_row("Tags", ", ".join(finding.tags))
 

@@ -3,6 +3,11 @@ tui_design.py — Elengenix Apple-level TUI Design System
 Design tokens, themes, animations, and reusable style primitives.
 Inspired by Apple Human Interface Guidelines + Linear + Raycast aesthetics.
 Version: 1.0.0
+
+NOTE: canonical color themes now live in tui/themes.py (DEFAULT white/black/red
+is the house identity). The Theme dataclasses here are kept for the SAST/HTML
+report path; new TUI code should call tui.themes.get_theme()/to_textual_theme()
+and tui.motion for easing. Use resolve_legacy_theme() to map old names.
 """
 
 from __future__ import annotations
@@ -531,6 +536,20 @@ def get_theme(name: str = "dark") -> Theme:
 def list_themes() -> List[str]:
     """List all available theme names."""
     return list(THEMES.keys())
+
+
+def resolve_legacy_theme(name: str) -> str:
+    """Map legacy tui_design names to canonical tui/themes.py keys.
+
+    midnight/dark -> DEFAULT (white/black/red house identity),
+    aurora/light/solar -> ARCTIC, blood-moon/hunt -> DEFAULT.
+    """
+    try:
+        from tui.themes import resolve_theme_name as _resolve
+
+        return _resolve(name)
+    except Exception:
+        return "DEFAULT"
 
 
 __all__ = [

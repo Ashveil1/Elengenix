@@ -16,7 +16,7 @@ from typing import Dict, List, Optional, Tuple
 
 from rich.align import Align
 from rich.box import ROUNDED
-from rich.console import Console
+from rich.console import Console, Group
 from rich.panel import Panel
 from rich.text import Text
 
@@ -30,6 +30,13 @@ MENU_ITEMS = [
     {"id": "mcp_servers", "label": "MCP Servers", "icon": "[4]"},
     {"id": "mode_settings", "label": "Mode Settings", "icon": "[5]"},
 ]
+
+
+def _catalog():
+    """Lazy provider-catalog import (module body imports heavyweight deps)."""
+    from elengenix.providers import catalog
+
+    return catalog
 
 
 class SettingsOverlay:
@@ -60,34 +67,152 @@ class SettingsOverlay:
         self._items: List[Dict] = []
         self._update_items()
 
-    def render(self) -> Panel:
-        """Render the settings overlay as a Rich Panel."""
-        title = self._get_title()
-        lines = []
+    # ── Render styling ────────────────────────────────────────────
+    # House identity: white / black / red.
 
-        for i, item in enumerate(self._items):
+    _ACCENT = "#ffffff"
+    _SELECT_BG = "#333333"
+    _PARENT_LAYERS = {
+        "sessions": "main",
+        "custom_url": "main",
+        "agent_setup": "main",
+        "api_keys": "main",
+        "rate_limits": "main",
+        "mcp_servers": "main",
+        "mcp_add": "mcp_servers",
+        "mode_settings": "main",
+        "provider_select": "agent_setup",
+        "model_select": "provider_select",
+        "api_key_edit": "api_keys",
+    }
+
+    _LAYER_HINTS = {
+        "main": "\u2191\u2193 navigate \u00b7 Enter open \u00b7 S save \u00b7 Esc close",
+        "model_select": "\u2191\u2193 navigate \u00b7 type to filter \u00b7 Enter select \u00b7 Esc back",
+        "api_key_edit": "type key \u00b7 Enter confirm \u00b7 Esc cancel",
+        "custom_url": "type URL \u00b7 Enter confirm \u00b7 Esc cancel",
+        "mcp_servers": "\u2191\u2193 navigate \u00b7 Space toggle \u00b7 Enter open \u00b7 Esc back",
+        "rate_limits": "Enter on +/\u2212 to adjust \u00b7 Esc back",
+    }
+    _DEFAULT_HINT = "\u2191\u2193/j/k navigate \u00b7 Enter select \u00b7 q/Esc back"
+
+    def _title_for(self, layer: str) -> str:
+        titles = {
+            "main": "SETTINGS",
+            "sessions": "LOAD SESSION",
+            "agent_setup": "AGENT SETUP",
+            "provider_select": "SELECT PROVIDER",
+            "model_select": "SELECT MODEL",
+            "api_keys": "API KEYS",
+            "api_key_edit": "EDIT API KEY",
+            "rate_limits": "RATE LIMITS",
+            "mcp_servers": "MCP SERVERS",
+            "mcp_add": "ADD SERVER",
+            "mode_settings": "MODE SETTINGS",
+            "custom_url": "ENTER API URL",
+        }
+        return titles.get(layer, "SETTINGS")
+
+    def _breadcrumb(self) -> List[str]:
+        """Layer trail from SETTINGS down to the current layer."""
+        chain = [self._current_layer]
+        while chain[-1] != "main":
+            chain.append(self._PARENT_LAYERS.get(chain[-1], "main"))
+        return [self._title_for(layer) for layer in reversed(chain)]
+
+    @staticmethod
+    def _row_kind(label: str) -> str:
+        """Classify a row for styling: section/action/info/item."""
+        s = label.strip()
+        if s.startswith("---"):
+            return "section"
+        if s.startswith(("[SAVE]", "[OK] Confirm", "TYPE MODEL")):
+            return "primary"
+        if s.startswith(("[BACK]", "[B] Back")):
+            return "back"
+        if s.startswith(("[+]", "[*]")):
+            return "accent"
+        if s.startswith("(") or s.startswith("Error") or "start typing" in s:
+            return "info"
+        return "item"
+
+    def _style_row(self, label: str, selected: bool) -> Text:
+        """Style one menu row."""
+        kind = self._row_kind(label)
+        if kind == "section":
+            core = label.strip().strip("-").strip() or " "
+            return Text(f"  \u2500\u2500 {core} \u2500\u2500", style="#666666")
+        base = Text.from_markup(label)
+        if selected:
+            base.stylize(f"bold white on {self._SELECT_BG}")
+            marker = Text("\u25b6 ", style=f"bold {self._ACCENT} on {self._SELECT_BG}")
+            return Text.assemble(marker, base)
+        if kind == "primary":
+            base.stylize(f"bold {self._ACCENT}")
+        elif kind == "accent":
+            base.stylize("bold #cccccc")
+        elif kind == "back":
+            base.stylize("#888888")
+        elif kind == "info":
+            base.stylize("dim #666666")
+        else:
+            base.stylize("#e8e8e8")
+        return Text.assemble(Text("  "), base)
+
+    def render(self) -> Panel:
+        """Render the settings overlay as a Rich Panel.
+
+        Shows a breadcrumb trail, a scroll window with ▲/▼ indicators,
+        a red selection bar, and per-layer key hints.
+        """
+        title = self._get_title()
+        crumbs = self._breadcrumb()
+        total = len(self._items)
+        start = max(0, min(self._scroll_offset, max(0, total - 1)))
+        window = self._items[start : start + self._max_visible]
+
+        body: List[Text] = []
+        if len(crumbs) > 1:
+            trail = Text()
+            for i, crumb in enumerate(crumbs):
+                if i:
+                    trail.append(" \u203a ", style="#666666")
+                trail.append(
+                    crumb,
+                    style=f"bold {self._ACCENT}" if i == len(crumbs) - 1 else "#888888",
+                )
+            body.append(trail)
+            body.append(Text(""))
+
+        if start > 0:
+            body.append(Text(f"  \u25b2 {start} more above", style="dim #555555"))
+
+        shown = 0
+        for idx, item in enumerate(window):
             label = item.get("label", "")
             if not label:
-                lines.append("")
                 continue
+            body.append(self._style_row(label, selected=(start + idx) == self._selected_idx))
+            shown += 1
+        if not shown:
+            body.append(Text("  (no items)", style="dim #666666"))
 
-            # Highlight selected item
-            if i == self._selected_idx:
-                lines.append(f"[bold white on #333333] \u25b6 {label} [/bold white on #333333]")
-            else:
-                lines.append(f"  {label}")
+        remaining = total - (start + len(window))
+        if remaining > 0:
+            body.append(Text(f"  \u25bc {remaining} more below", style="dim #555555"))
 
-        content = "\n".join(lines) if lines else "[dim]No items[/dim]"
+        body.append(Text(""))
+        hint = self._LAYER_HINTS.get(self._current_layer, self._DEFAULT_HINT)
+        body.append(Text(f"  {hint}", style="#777777"))
 
-        from rich.text import Text
-
-        text = Text.from_markup(content)
-
+        pos = min(self._selected_idx + 1, max(total, 1))
         return Panel(
-            text,
-            title=f"[bold]{title}[/bold]",
-            border_style="white",
-            padding=(0, 1),
+            Align.left(Group(*body)),
+            title=f"[bold {self._ACCENT}]\u25cf[/bold {self._ACCENT}] [bold white]{title}[/bold white]",
+            subtitle=f"[dim]{pos}/{total}[/dim]",
+            border_style=self._ACCENT,
+            box=ROUNDED,
+            padding=(1, 2),
         )
 
     def _adjust_scroll(self) -> None:
@@ -111,6 +236,26 @@ class SettingsOverlay:
         if ch == "\x1b[C" or ch == "\x1b[OC":
             return None
         if ch == "\x1b[D" or ch == "\x1b[OD":
+            return None
+
+        # API-key edit layer: free typing (the value row shows progress).
+        if self._current_layer == "api_key_edit":
+            prov = self._editing_provider
+            if ch.isprintable() and len(ch) == 1 and ch not in ("\r", "\n"):
+                self._api_keys_dirty[prov] = self._api_keys_dirty.get(prov, "") + ch
+                self._update_items()
+                return None
+            if ch == "\x7f":
+                cur = self._api_keys_dirty.get(prov, "")
+                if cur:
+                    self._api_keys_dirty[prov] = cur[:-1]
+                    self._update_items()
+                return None
+            if ch in ("\r", "\n"):
+                return self._confirm_api_key()
+            if ch == "\x1b" and len(ch) == 1:
+                self._api_keys_dirty.pop(prov, None)
+                return self._go_back()
             return None
 
         # Custom URL input: capture ALL printable characters FIRST
@@ -166,6 +311,106 @@ class SettingsOverlay:
                 return "exit"
             return self._go_back()
 
+    @staticmethod
+    def _env_keys_for_provider(pid: str) -> List[str]:
+        """Every env var that counts as configuration for a provider id."""
+        from tools.ai_config import OLLAMA_URL_VARS
+
+        if pid == "custom":
+            return ["CUSTOM_API_BASE", "CUSTOM_API_KEY", "CUSTOM_MODEL"]
+        if pid == "ollama":
+            return list(OLLAMA_URL_VARS) + ["OLLAMA_MODEL"]
+        try:
+            env_key = SettingsOverlay._provider_env_key(pid)
+        except Exception:
+            env_key = None
+        if not env_key:
+            return []
+        keys = [env_key]
+        if env_key.endswith("_API_KEY"):
+            keys.append(env_key.replace("_API_KEY", "_MODEL"))
+        elif env_key.endswith("_API_TOKEN"):
+            keys.append(env_key.replace("_API_TOKEN", "_MODEL"))
+        return keys
+
+    def _persist_key(self, pid: str, value: str) -> None:
+        """Write one provider key to the resolved .env + live env + cache."""
+        from elengenix.paths import default_env_file
+        from tools.ai_config import CUSTOM_API_KEY_KEY, refresh_runtime_config
+
+        if pid == "custom":
+            env_key = CUSTOM_API_KEY_KEY
+        else:
+            try:
+                env_key = self._provider_env_key(pid) or ""
+            except Exception:
+                env_key = ""
+        if not env_key:
+            return
+        os.environ[env_key] = value
+        try:
+            env_path = default_env_file()
+            lines = env_path.read_text().splitlines() if env_path.exists() else []
+            lines = [ln for ln in lines if not ln.startswith(f"{env_key}=")]
+            lines.append(f"{env_key}={value}")
+            env_path.write_text("\n".join(lines) + "\n")
+            try:
+                env_path.chmod(0o600)
+            except OSError:
+                pass
+        except Exception as e:
+            logger.debug(f"Key persist skipped: {e}")
+        try:
+            refresh_runtime_config()
+        except Exception:
+            pass
+
+    def _clear_provider_keys(self, pid: str) -> None:
+        """Delete every env var for a provider id (env + file + references)."""
+        from elengenix.paths import default_env_file
+        from tools.ai_config import refresh_runtime_config
+
+        for var in self._env_keys_for_provider(pid):
+            if var in os.environ:
+                del os.environ[var]
+        try:
+            env_path = default_env_file()
+            if env_path.exists():
+                doomed = set(self._env_keys_for_provider(pid))
+                lines = [
+                    ln
+                    for ln in env_path.read_text().splitlines()
+                    if not any(ln.startswith(f"{var}=") for var in doomed)
+                ]
+                env_path.write_text("\n".join(lines) + "\n")
+        except Exception as e:
+            logger.debug(f"Key clear skipped: {e}")
+        # Scrub team/active references so nothing keeps naming the provider.
+        team = [m.strip() for m in os.getenv("ACTIVE_MODELS", "").split(",") if m.strip()]
+        kept = [m for m in team if m.split("/", 1)[0].lower() != pid.lower()]
+        if len(kept) != len(team):
+            if kept:
+                os.environ["ACTIVE_MODELS"] = ",".join(kept)
+            elif "ACTIVE_MODELS" in os.environ:
+                del os.environ["ACTIVE_MODELS"]
+        if os.getenv("ACTIVE_AI_PROVIDER", "").strip().lower() == pid.lower():
+            del os.environ["ACTIVE_AI_PROVIDER"]
+        try:
+            refresh_runtime_config()
+        except Exception:
+            pass
+
+    def _confirm_api_key(self) -> Optional[str]:
+        """Persist the typed key immediately (Confirm & Save)."""
+        prov = self._editing_provider
+        value = self._api_keys_dirty.pop(prov, "").strip()
+        if value:
+            self._persist_key(prov, value)
+        self._current_layer = "api_keys"
+        self._selected_idx = 0
+        self._update_items()
+        return None
+
     def _handle_space(self) -> Optional[str]:
         """Handle Space key - toggle MCP server."""
         if self._current_layer != "mcp_servers":
@@ -206,7 +451,15 @@ class SettingsOverlay:
             return self._save_and_apply()
 
         if action == "save_key":
-            return self._save_api_key()
+            return self._confirm_api_key()
+
+        if action == "clear_key":
+            self._api_keys_dirty.pop(self._editing_provider, None)
+            self._clear_provider_keys(self._editing_provider)
+            self._current_layer = "api_keys"
+            self._selected_idx = 0
+            self._update_items()
+            return None
 
         if action == "back":
             self._go_back()
@@ -422,27 +675,29 @@ class SettingsOverlay:
         items.append({"id": "back_to_main", "label": "[BACK] Back to Settings", "action": "back"})
         return items
 
-    ALL_PROVIDERS = [
-        "openai",
-        "gemini",
-        "anthropic",
-        "groq",
-        "nvidia",
-        "deepseek",
-        "mistral",
-        "openrouter",
-        "together",
-        "perplexity",
-        "cohere",
-        "huggingface",
-        "replicate",
-        "ollama",
-    ]
+    # Derived from the provider catalog (single source of truth:
+    # elengenix/providers/catalog.py) — key-checking loop below uses
+    # f"{id.upper()}_API_KEY", which matches every spec.env_key.
+    ALL_PROVIDERS = _catalog().PROVIDER_IDS
+
+    @staticmethod
+    def _provider_env_key(pid: str):
+        """Env var for a provider id from the catalog (None if key-free).
+
+        The old code guessed ``{ID}_API_KEY``, which broke for replicate
+        (``REPLICATE_API_TOKEN``).
+        """
+        return _catalog().env_key_for(pid)
 
     def _build_provider_items(self):
+        from tools.ai_config import provider_status
+
         items = []
         for prov in self.ALL_PROVIDERS:
-            has_key = bool(os.environ.get(f"{prov.upper()}_API_KEY"))
+            try:
+                has_key = bool(provider_status(prov).get("key_set"))
+            except Exception:
+                has_key = False
             status = "[OK]" if has_key else ""
             items.append({"id": prov, "label": f"{prov.upper()} {status}", "action": ""})
         items.append({"id": "", "label": "", "action": ""})
@@ -488,12 +743,33 @@ class SettingsOverlay:
         )
         return items
 
+    @staticmethod
+    def _mask_key(key_val: str) -> str:
+        if len(key_val) > 4:
+            return "****" + key_val[-4:]
+        return key_val or "(not set)"
+
     def _build_api_key_items(self):
+        from tools.ai_config import CUSTOM_API_BASE_KEY, provider_status
+
         items = []
         for prov in self.ALL_PROVIDERS:
-            key_val = os.environ.get(f"{prov.upper()}_API_KEY", "")
-            masked = "****" + key_val[-4:] if len(key_val) > 4 else "(not set)"
+            env_name = self._provider_env_key(prov)
+            key_val = os.environ.get(env_name, "") if env_name else ""
+            if not key_val:
+                try:
+                    key_val = "key-free" if provider_status(prov).get("key_set") else ""
+                except Exception:
+                    key_val = ""
+            masked = self._mask_key(key_val)
             items.append({"id": f"key_{prov}", "label": f"{prov.upper()}: {masked}", "action": ""})
+        # Custom endpoint key (+ its base URL so status is unambiguous).
+        custom_key = os.environ.get("CUSTOM_API_KEY", "")
+        custom_base = os.environ.get(CUSTOM_API_BASE_KEY, "")
+        custom_label = f"CUSTOM: {self._mask_key(custom_key)}"
+        if custom_base:
+            custom_label += f" @ {custom_base[:40]}"
+        items.append({"id": "key_custom", "label": custom_label, "action": ""})
         items.append({"id": "", "label": "", "action": ""})
         items.append({"id": "back_to_main", "label": "[BACK] Back to Settings", "action": "back"})
         return items
@@ -510,6 +786,7 @@ class SettingsOverlay:
             },
             {"id": "", "label": "", "action": ""},
             {"id": "confirm_save", "label": "[OK] Confirm & Save", "action": "save_key"},
+            {"id": "clear_key", "label": "[DEL] Clear Saved Key", "action": "clear_key"},
             {"id": "cancel_edit", "label": "[BACK] Cancel", "action": "back"},
         ]
 
@@ -755,13 +1032,16 @@ class SettingsOverlay:
             return "error"
 
     def _save_api_key(self) -> Optional[str]:
-        self._current_layer = "api_keys"
-        self._selected_idx = 0
-        self._update_items()
-        return None
+        # Legacy entry point — Confirm & Save persists immediately now.
+        return self._confirm_api_key()
 
     def _save_api_keys_to_env(self) -> None:
-        env_path = Path(".env")
+        from elengenix.paths import default_env_file
+
+        try:
+            env_path = default_env_file()
+        except Exception:
+            env_path = Path(".env")
         existing = {}
         if env_path.exists():
             for line in env_path.read_text().splitlines():
@@ -775,7 +1055,12 @@ class SettingsOverlay:
     def _save_config(self) -> None:
         import yaml
 
-        config_file = Path("config.yaml")
+        from elengenix.paths import default_config_file
+
+        try:
+            config_file = default_config_file()
+        except Exception:
+            config_file = Path("config.yaml")
         if not config_file.exists():
             config = {}
         else:
@@ -861,18 +1146,5 @@ class SettingsOverlay:
             logger.debug(f"Failed to add MCP defaults: {e}")
 
     def _get_title(self) -> str:
-        titles = {
-            "main": "ELENGENIX SETTINGS",
-            "sessions": "LOAD SESSION",
-            "agent_setup": "AGENT SETUP",
-            "provider_select": "SELECT PROVIDER",
-            "model_select": "SELECT MODEL",
-            "api_keys": "API KEYS",
-            "api_key_edit": "EDIT API KEY",
-            "rate_limits": "RATE LIMITS",
-            "mcp_servers": "MCP SERVERS",
-            "mcp_add": "ADD SERVER",
-            "mode_settings": "MODE SETTINGS",
-            "custom_url": "ENTER API URL",
-        }
-        return titles.get(self._current_layer, "SETTINGS")
+        title = self._title_for(self._current_layer)
+        return f"ELENGENIX {title}" if self._current_layer == "main" else title

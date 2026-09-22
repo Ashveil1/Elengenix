@@ -8,6 +8,21 @@ Purpose:
 - One-command setup: configure AI, preferences, defaults
 - Beautiful, minimal, friction-free experience
 
+Persistence (important): choices are saved to the *runtime* config.yaml
+(elengenix.paths.find_config order: $ELENGENIX_CONFIG -> ~/.elengenix/
+-> ./config.yaml) using the schema tools.ai_config reads:
+
+    ai:
+      active_provider: <canonical id>
+      providers:
+        <canonical id>:
+          model: <default model>
+
+plus a `wizard:` section for preferences (default_mode, theme, ...).
+`default_mode` is honored by main.py on bare runs, so what the user picks
+here actually changes behavior. The old .config/elengenix/setup.json was
+a write-only dead end (nothing ever read it) and is no longer written.
+
 Philosophy:
 - Wozniak simplicity: Works perfectly with minimal steps
 - Apple beauty: Clean visuals, delightful micro-interactions
@@ -39,7 +54,10 @@ import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
+
+from elengenix.paths import ELENGENIX_HOME
+from elengenix.providers import catalog
 
 logger = logging.getLogger("elengenix.welcome")
 
@@ -70,42 +88,201 @@ class WelcomeWizard:
     - Context-aware suggestions
     """
 
-    CONFIG_FILE = Path(".config/elengenix/setup.json")
+    # Old write-only locations kept here only so `reset` can sweep them.
+    LEGACY_SETUP_FILES = (
+        Path(".config/elengenix/setup.json"),
+        Path(".config/elengenix"),
+        ELENGENIX_HOME / "setup.json",
+    )
     BANNER_WIDTH = 60
 
+    # Wizard display names -> canonical provider ids (derived from the
+    # catalog; plain ids fall through _canonical_provider unchanged).
+    _PROVIDER_ALIASES = {
+        spec.display.lower(): spec.id for spec in catalog.iter_specs()
+    }
+
+    # Derived from the provider catalog (single source of truth:
+    # elengenix/providers/catalog.py) — free tiers first, then by priority.
+    # Tuple shape (display, env_key, tagline, recommended_model) kept for
+    # the existing menu code.
     AI_PREFERENCES = [
-        ("Gemini (Google)", "GEMINI_API_KEY", "Free, fast", "gemini-3.1-pro"),
-        ("Groq", "GROQ_API_KEY", "Very fast, free tier", "llama-3.3-70b-versatile"),
-        ("NVIDIA", "NVIDIA_API_KEY", "Fast NIM endpoints, free tier", "meta/llama3-70b-instruct"),
-        ("OpenRouter", "OPENROUTER_API_KEY", "Multiple models", "auto"),
-        ("OpenAI", "OPENAI_API_KEY", "Most accurate", "gpt-4.5-turbo"),
-        ("Anthropic", "ANTHROPIC_API_KEY", "Best reasoning", "claude-3-7-sonnet-latest"),
+        (
+            spec.display,
+            spec.env_key or "",
+            spec.tagline,
+            spec.recommended_model or spec.default_model,
+        )
+        for spec in sorted(catalog.iter_specs(), key=lambda s: (not s.is_free, s.priority))
     ]
 
     def __init__(self):
         self.config: Optional[SetupConfig] = None
         self.detected_providers: List[Tuple[str, str, str]] = []
+        # Real runtime config — the same file tools.ai_config loads at startup.
+        # Priority matches elengenix.paths.find_config(): env var > ~/.elengenix/.
+        # Resolved per-instance so $ELENGENIX_CONFIG still works after import.
+        self.CONFIG_FILE = Path(
+            os.environ.get("ELENGENIX_CONFIG", "") or str(ELENGENIX_HOME / "config.yaml")
+        ).expanduser()
+        self.CONFIG_DIR = self.CONFIG_FILE.parent
 
     def _ensure_config_dir(self) -> None:
         """Ensure configuration directory exists."""
-        self.CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
+        self.CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+
+    @staticmethod
+    def _canonical_provider(name: str) -> str:
+        """Map a wizard display name to the canonical provider id."""
+        key = (name or "").strip().lower()
+        return WelcomeWizard._PROVIDER_ALIASES.get(key, key)
+
+    def _read_yaml(self) -> Dict[str, Any]:
+        """Best-effort read of the runtime config ({} when absent/broken)."""
+        if not self.CONFIG_FILE.exists():
+            return {}
+        try:
+            import yaml
+
+            data = yaml.safe_load(self.CONFIG_FILE.read_text(encoding="utf-8"))
+            return data if isinstance(data, dict) else {}
+        except Exception as e:
+            logger.warning(f"Could not parse {self.CONFIG_FILE}: {e}")
+            return {}
+
+    def _maybe_migrate_legacy_setup(self) -> None:
+        """One-time import of the old write-only setup.json.
+
+        Users who ran the old wizard had their choices land in
+        .config/elengenix/setup.json — a file nothing ever read, so they were
+        silently dropped back into the wizard on every run. If that legacy
+        file exists (and config.yaml carries no wizard section yet), lift its
+        preferences into the runtime config.yaml and remove the stale file.
+        """
+        legacy = Path(".config/elengenix/setup.json")
+        try:
+            if not legacy.exists():
+                return
+            data = json.loads(legacy.read_text(encoding="utf-8"))
+        except Exception as e:
+            logger.debug(f"Ignoring unreadable legacy setup.json: {e}")
+            return
+        if not isinstance(data, dict) or not data.get("first_run_complete"):
+            return
+
+        config = SetupConfig(
+            ai_provider=str(data.get("ai_provider") or ""),
+            ai_model=str(data.get("ai_model") or ""),
+            default_mode=str(data.get("default_mode") or "manual"),
+            rate_limit=int(data.get("rate_limit") or 5),
+            theme=str(data.get("theme") or "minimal"),
+            auto_update=bool(data.get("auto_update", True)),
+            telemetry=bool(data.get("telemetry", False)),
+            first_run_complete=True,
+            setup_at=str(data.get("setup_at") or datetime.now(timezone.utc).isoformat()),
+        )
+        self._save_config(config)
+        try:
+            legacy.unlink()
+            parent = legacy.parent
+            if parent.exists() and not any(parent.iterdir()):
+                parent.rmdir()
+                if parent.parent == Path(".config").resolve() and not any(
+                    parent.parent.iterdir()
+                ):
+                    parent.parent.rmdir()
+        except OSError as e:
+            logger.debug(f"Legacy setup cleanup skipped: {e}")
+        logger.info("Migrated legacy setup.json into %s", self.CONFIG_FILE)
 
     def _load_config(self) -> Optional[SetupConfig]:
-        """Load existing configuration."""
-        if not self.CONFIG_FILE.exists():
-            return None
+        """Load wizard preferences from config.yaml.
 
+        Mode/theme live in the `wizard:` section; the chosen provider/model
+        live in the `ai:` section (runtime schema) and are joined back here.
+        """
+        # Import a legacy setup.json (if any) before the first read so the
+        # migrated `ai`/`wizard` sections are visible below.
+        self._maybe_migrate_legacy_setup()
+        data = self._read_yaml()
+        wiz = data.get("wizard", {})
+        wiz = wiz if isinstance(wiz, dict) else {}
+        ai = data.get("ai", {})
+        ai = ai if isinstance(ai, dict) else {}
+        provider = str(ai.get("active_provider") or "")
+        model = ""
+        providers = ai.get("providers")
+        if isinstance(providers, dict):
+            pc = providers.get(provider)
+            if isinstance(pc, dict):
+                model = str(pc.get("model") or "")
+        if not wiz and not provider:
+            # Nothing saved by this wizard AND nothing configured at all
+            # (e.g. empty/new config) → genuinely a first run.
+            return None
+        # A config with a valid ai.active_provider (written by `configure`,
+        # by hand, or by an older wizard) counts as configured: never nag
+        # the user with the wizard again just because the `wizard:` section
+        # is absent. Missing preferences fall back to the same defaults the
+        # wizard itself uses.
         try:
-            data = json.loads(self.CONFIG_FILE.read_text())
-            return SetupConfig(**data)
+            return SetupConfig(
+                ai_provider=provider,
+                ai_model=model,
+                rate_limit=int(wiz.get("rate_limit") or 5),
+                default_mode=str(wiz.get("default_mode") or ""),
+                theme=str(wiz.get("theme") or "minimal"),
+                auto_update=bool(wiz.get("auto_update", True)),
+                telemetry=bool(wiz.get("telemetry", False)),
+                first_run_complete=bool(wiz.get("first_run_complete", True)),
+            )
         except Exception as e:
             logger.debug(f"Failed to load config: {e}")
             return None
 
     def _save_config(self, config: SetupConfig) -> None:
-        """Save configuration."""
+        """Persist setup into the runtime config.yaml (schema of tools.ai_config).
+
+        Only the `ai` and `wizard` keys are managed here; everything else
+        already present in the file is preserved untouched.
+        """
+        provider = self._canonical_provider(config.ai_provider)
+        wizard_section: Dict[str, Any] = {
+            "default_mode": config.default_mode,
+            "rate_limit": config.rate_limit,
+            "theme": config.theme,
+            "auto_update": config.auto_update,
+            "telemetry": config.telemetry,
+            "setup_at": config.setup_at,
+            "first_run_complete": config.first_run_complete,
+        }
+        ai_section: Dict[str, Any] = {
+            "active_provider": provider,
+            "providers": {provider: {"model": config.ai_model}},
+        }
+
+        merged = self._read_yaml()
+        existing_ai = merged.get("ai")
+        if isinstance(existing_ai, dict):
+            providers = ai_section.get("providers", {})
+            old_providers = existing_ai.get("providers")
+            if isinstance(old_providers, dict):
+                providers = {**old_providers, **providers}
+            ai_section = {**existing_ai, **ai_section, "providers": providers}
+        existing_wiz = merged.get("wizard")
+        if isinstance(existing_wiz, dict):
+            wizard_section = {**existing_wiz, **wizard_section}
+        merged.update({"ai": ai_section, "wizard": wizard_section})
+
         self._ensure_config_dir()
-        self.CONFIG_FILE.write_text(json.dumps(config.__dict__, indent=2), encoding="utf-8")
+        try:
+            import yaml
+
+            self.CONFIG_FILE.write_text(
+                yaml.safe_dump(merged, sort_keys=False), encoding="utf-8"
+            )
+        except ImportError:
+            logger.warning("PyYAML not installed — setup not persisted. Run: pip install pyyaml")
 
     def _detect_ai_providers(self) -> List[Tuple[str, str, str]]:
         """
@@ -117,10 +294,11 @@ class WelcomeWizard:
         detected = []
 
         for name, env_key, desc, _ in self.AI_PREFERENCES:
-            if os.getenv(env_key):
-                detected.append((name, env_key, "configured"))
-            else:
-                detected.append((name, env_key, "available"))
+            # One row per provider: "configured" when its key is set, else it
+            # is only a recommendation (no duplicate rows).
+            detected.append(
+                (name, env_key, "configured" if os.getenv(env_key) else "available")
+            )
 
         # Check Ollama (local)
         try:
@@ -186,21 +364,32 @@ class WelcomeWizard:
             return response if response else default
 
     def _show_spinner(self, message: str, duration: float = 1.0) -> None:
-        """Show animated spinner."""
-        import sys
+        """Show animated spinner (Rich status; no raw \\r writes that fight Rich Live)."""
+        import os as _os
 
-        spinner = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
-        end_time = time.time() + duration
+        if _os.environ.get("ELENGENIX_NO_ANIMATION", "") == "1":
+            print(f"  [INFO] {message}")
+            time.sleep(min(0.1, duration))
+            return
+        try:
+            from cli.ui_components import show_spinner as _rich_spinner
 
-        i = 0
-        while time.time() < end_time:
-            sys.stdout.write(f"\r  {spinner[i % len(spinner)]} {message}")
-            sys.stdout.flush()
-            time.sleep(0.1)
-            i += 1
+            with _rich_spinner(f"  {message}"):
+                time.sleep(duration)
+        except Exception:
+            import sys as _sys
 
-        sys.stdout.write(f"\r   {message}{' ' * 20}\n")
-        sys.stdout.flush()
+            from tui.motion import SPINNER_DOTS as _frames
+
+            end_time = time.time() + duration
+            i = 0
+            while time.time() < end_time:
+                _sys.stdout.write(f"\r  {_frames[i % len(_frames)]} {message}")
+                _sys.stdout.flush()
+                time.sleep(0.1)
+                i += 1
+            _sys.stdout.write(f"\r   {message}{' ' * 20}\n")
+            _sys.stdout.flush()
 
     def run_setup(self) -> SetupConfig:
         """
@@ -258,9 +447,11 @@ class WelcomeWizard:
 
         # Show mode-specific tip
         if default_mode == "autonomous":
-            self._print_suggestion("Try: elengenix autonomous https://target.com")
+            self._print_suggestion(
+                "Saved as your default: bare `elengenix` now opens Autonomous mode"
+            )
         elif default_mode == "ai":
-            self._print_suggestion("Try: elengenix hack")
+            self._print_suggestion("Saved as your default: bare `elengenix` now opens AI chat")
 
         # Step 4: Preferences
         self._print_header("Quick Preferences", 4, 4)
@@ -350,8 +541,11 @@ class WelcomeWizard:
         print(f"     export {env_key}=your_key_here")
         print("\n  Or add to .env file in this directory")
 
-        # Ask for key now (optional)
-        key = input(f"\n  Paste {provider_name} API key (or Enter to skip): ").strip()
+        # Ask for key now (optional) — EOF (piped/closed stdin) means skip
+        try:
+            key = input(f"\n  Paste {provider_name} API key (or Enter to skip): ").strip()
+        except EOFError:
+            key = ""
         if key:
             os.environ[env_key] = key
             # Save to .env
@@ -380,8 +574,14 @@ class WelcomeWizard:
         return "auto"
 
     def _save_to_env(self, key: str, value: str) -> None:
-        """Save key to .env file."""
-        env_file = Path(".env")
+        """Save key to the .env file the runtime actually loads.
+
+        elengenix.paths.find_env() looks in ~/.elengenix/ first, then CWD —
+        writing only to CWD hid the key from pip-installed runs.
+        """
+        env_file = ELENGENIX_HOME / ".env"
+        if Path(".env").exists():
+            env_file = Path(".env").resolve()
 
         lines = []
         if env_file.exists():
@@ -405,6 +605,7 @@ class WelcomeWizard:
         print(f"    AI Provider:  {config.ai_provider}")
         print(f"    Default Mode: {config.default_mode}")
         print(f"    Rate Limit:   {config.rate_limit} req/s")
+        print(f"    Saved to:     {self.CONFIG_FILE}")
 
         print("\n" + "─" * 64)
         print("  Quick Start:")
@@ -450,12 +651,33 @@ class WelcomeWizard:
             logger.debug("Setup already complete, skipping wizard")
             return None
 
+        # UX: setup is a Q&A wizard — over a pipe (scripts, CI, `echo … |`)
+        # it would silently eat the caller's input as answers and then
+        # overwrite the config with defaults. Skip politely instead.
+        import sys
+
+        if not (sys.stdin.isatty() and sys.stdout.isatty()):
+            print(
+                "\n[elengenix] First-run setup skipped (non-interactive session).\n"
+                "            Run `elengenix configure` in a terminal to set up later."
+            )
+            return None
+
         return self.run_setup()
 
     def reset_and_rerun(self) -> SetupConfig:
         """Reset configuration and run wizard again."""
-        if self.CONFIG_FILE.exists():
-            self.CONFIG_FILE.unlink()
+        removed = []
+        for path in (self.CONFIG_FILE, *self.LEGACY_SETUP_FILES):
+            try:
+                if path.is_dir() or not path.exists():
+                    continue
+                path.unlink()
+                removed.append(str(path))
+            except OSError as e:
+                logger.debug(f"Could not remove {path}: {e}")
+        if removed:
+            print(f"\n  Removed: {', '.join(removed)}")
 
         print("\n  Configuration reset.")
         return self.run_setup()
@@ -463,6 +685,17 @@ class WelcomeWizard:
     def get_config(self) -> Optional[SetupConfig]:
         """Get current configuration."""
         return self._load_config()
+
+    @classmethod
+    def get_saved_config(cls) -> Optional[SetupConfig]:
+        """Read saved preferences without printing anything.
+
+        Used by main.py to honor the wizard's default_mode on bare runs.
+        """
+        try:
+            return cls()._load_config()
+        except Exception:
+            return None
 
 
 def run_cli():

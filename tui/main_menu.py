@@ -346,8 +346,36 @@ def render_settings_menu(
 # ── Menu Runner ─────────────────────────────────────────────────────────────
 
 
+def _dispatch_action(action: str) -> None:
+    """Dispatch a menu action key to its handler (shared by TUI + fallback)."""
+    if action == "exit":
+        return
+    elif action == "scan":
+        run_scan_menu()
+    elif action == "tools":
+        run_tools_menu()
+    elif action == "settings":
+        run_settings_menu()
+    elif action == "memory":
+        run_memory_menu()
+    elif action == "help":
+        run_help_menu()
+    elif action == "recon":
+        run_recon_menu()
+    elif action == "reports":
+        run_reports_menu()
+
+
 def run_main_menu() -> None:
-    """Run the interactive main menu."""
+    """Run the interactive main menu (Textual native when TTY, questionary fallback)."""
+    # Preferred path: native Textual menu preserves scrollback and keyboard flow.
+    try:
+        from tui.screens import run_textual_menu
+
+        if run_textual_menu(on_select=_dispatch_action):
+            return
+    except Exception:
+        pass
     try:
         import questionary
     except ImportError:
@@ -355,10 +383,7 @@ def run_main_menu() -> None:
         return
 
     while True:
-        # Clear screen
-        os.system("clear" if os.name != "nt" else "cls")
-
-        # Print banner
+        # Print banner (no screen clear: preserves scrollback for operators)
         from tui.welcome import ascii_logo
 
         logo = ascii_logo()
@@ -384,20 +409,8 @@ def run_main_menu() -> None:
 
         if action == "exit":
             break
-        elif action == "scan":
-            run_scan_menu()
-        elif action == "tools":
-            run_tools_menu()
-        elif action == "settings":
-            run_settings_menu()
-        elif action == "memory":
-            run_memory_menu()
-        elif action == "help":
-            run_help_menu()
-        elif action == "recon":
-            run_recon_menu()
-        elif action == "reports":
-            run_reports_menu()
+        elif action:
+            _dispatch_action(action)
 
 
 def run_scan_menu() -> None:

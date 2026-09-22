@@ -18,6 +18,7 @@ Locks in three routing fixes:
 from __future__ import annotations
 
 import ast
+import re
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -136,3 +137,82 @@ class TestApplyToArgs:
         CommandSimplifier.apply_to_args(args)
         assert args.command == "scan"
         assert args.phase == "bola"
+
+
+class TestHelpSurfaceTruthfulness:
+    def test_help_box_only_advertises_routable_names(self):
+        """Every command/shortcut name printed in the help box must actually
+        route: the former `hack -> ai` line advertised a removed command and
+        `elengenix ai` answered 'Unknown command'."""
+        help_text = CommandSimplifier.get_help_text()
+        tokens = set(re.findall(r"\[cyan\]([a-z][a-z0-9-]*)\[/cyan\]", help_text))
+        tokens.discard("elengenix")
+        routable = (
+            _handled_commands() | set(CommandSimplifier.SHORTCUTS) | {"auto", "help", "welcome"}
+        )
+        ghosts = tokens - routable
+        assert not ghosts, f"help box advertises non-routable names: {sorted(ghosts)}"
+
+
+class TestWelcomeWizardPersistsRuntimeConfig:
+    """The wizard used to write .config/elengenix/setup.json — a file nothing
+    ever read. It must now persist into the runtime config.yaml using the
+    exact schema tools.ai_config loads (ai.active_provider + providers).
+    """
+
+    def _make_config(self):
+        from tools.welcome_wizard import SetupConfig
+
+        return SetupConfig(
+            ai_provider="Gemini (Google)",
+            ai_model="gemini-3.1-pro",
+            default_mode="ai",
+            rate_limit=5,
+            theme="minimal",
+            auto_update=True,
+            telemetry=False,
+            first_run_complete=True,
+        )
+
+    def test_saved_config_is_readable_by_ai_config(self, tmp_path, monkeypatch):
+        from tools import ai_config
+        from tools.welcome_wizard import WelcomeWizard
+
+        cfg_file = tmp_path / "config.yaml"
+        monkeypatch.setenv("ELENGENIX_CONFIG", str(cfg_file))
+        try:
+            WelcomeWizard()._save_config(self._make_config())
+            assert cfg_file.exists(), "wizard did not write the runtime config"
+
+            ai_config.reset_config_cache()
+            ai_config.load_config(config_path=cfg_file)
+            assert ai_config.get_active_provider() == "gemini"
+            assert ai_config.get_provider_config("gemini").get("model") == "gemini-3.1-pro"
+        finally:
+            ai_config.reset_config_cache()
+
+    def test_get_saved_config_roundtrip(self, tmp_path, monkeypatch):
+        from tools.welcome_wizard import WelcomeWizard
+
+        monkeypatch.setenv("ELENGENIX_CONFIG", str(tmp_path / "config.yaml"))
+        WelcomeWizard()._save_config(self._make_config())
+
+        saved = WelcomeWizard.get_saved_config()
+        assert saved is not None
+        assert saved.default_mode == "ai"
+        assert saved.ai_provider == "gemini"  # display name canonicalized
+        assert saved.ai_model == "gemini-3.1-pro"
+
+    def test_save_preserves_unrelated_sections(self, tmp_path, monkeypatch):
+        import yaml
+
+        from tools.welcome_wizard import WelcomeWizard
+
+        cfg_file = tmp_path / "config.yaml"
+        monkeypatch.setenv("ELENGENIX_CONFIG", str(cfg_file))
+        cfg_file.write_text(yaml.safe_dump({"other": {"keep": True}}))
+
+        WelcomeWizard()._save_config(self._make_config())
+        data = yaml.safe_load(cfg_file.read_text())
+        assert data["other"] == {"keep": True}
+        assert data["ai"]["active_provider"] == "gemini"

@@ -39,28 +39,67 @@ console.width = max(100, console.width or 120)
 
 
 # ---------------------------------------------------------------------------
-# MONOCHROME COLOR SCHEME - Black & White Minimalist
+# UNIFIED COLOR SCHEME - White / Black / Red (DEFAULT theme)
+# Single source of truth lives in tui/themes.py (DEFAULT); this dict mirrors
+# it for the classic Rich CLI path so both stacks change together.
 # ---------------------------------------------------------------------------
 
 COLORS = {
-    "primary": "#ffffff",  # White
+    "primary": "#ff2222",  # Signature red (DEFAULT theme)
     "secondary": "#888888",  # Gray
     "accent": "#ffffff",  # White
-    "success": "#ffffff",  # White
-    "warning": "#ffffff",  # White
-    "error": "#ffffff",  # White
-    "info": "#ffffff",  # White
+    "success": "#81c784",  # Green
+    "warning": "#ffb300",  # Amber
+    "error": "#ff2222",  # Red
+    "info": "#888888",  # Gray
     "text": "#ffffff",  # White
     "muted": "#555555",  # Dim gray
-    "high": "#ffffff",  # White
-    "medium": "#cccccc",  # Light gray
-    "low": "#81C784",  # Green (Low severity)
-    "border": "#ffffff",  # Crimson (Panel borders)
-    "bg_dark": "#1A1A1A",  # Dark background
-    "bg_card": "#242424",  # Card background
-    "gradient_1": "#ffffff",  # Gradient start
-    "gradient_2": "#ffffff",  # Gradient end
+    "critical": "#ff2222",  # Critical severity
+    "high": "#ff5555",  # High severity
+    "medium": "#cccccc",  # Medium severity (light gray, readable on black)
+    "low": "#81c784",  # Low severity (green)
+    "border": "#444444",  # Panel borders (visible but not glaring)
+    "bg_dark": "#0d0d0d",  # Dark background (matches tui DEFAULT bg_panel)
+    "bg_card": "#1a1a1a",  # Card background
+    "gradient_1": "#888888",  # Gradient start (matches DEFAULT gradient_1)
+    "gradient_2": "#ffffff",  # Gradient mid
+    "gradient_3": "#ff2222",  # Gradient end
 }
+
+
+def get_unified_theme(theme_name: str = "DEFAULT") -> dict:
+    """Return the unified theme dict from tui/themes.py (single source of truth).
+
+    Falls back to the local COLORS mirror when tui.themes is unavailable
+    (e.g. minimal installs). Callers should prefer this over reading COLORS
+    directly so a theme switch propagates to both Rich and Textual stacks.
+    """
+    try:
+        from tui.themes import get_theme as _get_theme
+
+        return _get_theme(theme_name)
+    except Exception:
+        return dict(COLORS)
+
+
+def get_severity_color(severity: str, theme_name: str = "DEFAULT") -> str:
+    """Severity color resolved through the unified theme."""
+    try:
+        from tui.themes import get_theme as _get_theme
+
+        theme = _get_theme(theme_name)
+        key = severity.lower()
+        if key == "critical":
+            return theme.get("critical", "#ff2222")
+        if key == "high":
+            return theme.get("high", "#ff5555")
+        if key == "medium":
+            return theme.get("medium", "#ffb300")
+        if key == "low":
+            return theme.get("low", "#81c784")
+        return theme.get("info", "#888888")
+    except Exception:
+        return severity_color(severity)
 
 
 # ---------------------------------------------------------------------------
@@ -70,15 +109,16 @@ COLORS = {
 STYLES = {
     "title": Style(color="#ffffff", bold=True),
     "subtitle": Style(color="#737373", dim=True),
-    "success": Style(color="#ffffff", bold=True),
-    "error": Style(color="#ffffff", bold=True),
-    "warning": Style(color="#888888", bold=True),
-    "info": Style(color="#ffffff", dim=True),
-    "command": Style(color="#ffffff", bgcolor="#ffffff"),
-    "high": Style(color="#ffffff", bold=True),
-    "medium": Style(color="#888888", bold=True),
-    "low": Style(color="#81C784", bold=True),
-    "accent": Style(color="#ffffff", bold=True),
+    "success": Style(color="#81c784", bold=True),
+    "error": Style(color="#ff2222", bold=True),
+    "warning": Style(color="#ffb300", bold=True),
+    "info": Style(color="#888888", dim=True),
+    "command": Style(color="#ffffff", bgcolor="#1a1a1a"),
+    "critical": Style(color="#ff2222", bold=True),
+    "high": Style(color="#ff5555", bold=True),
+    "medium": Style(color="#ffb300", bold=True),
+    "low": Style(color="#81c784", bold=True),
+    "accent": Style(color="#ff2222", bold=True),
     "heading": Style(color="#ffffff", bold=True, underline=False),
 }
 
@@ -267,16 +307,19 @@ def severity_badge(severity: str) -> str:
     """Return a styled severity badge.
 
     Args:
-        severity: One of 'info', 'high', 'medium', 'low', 'info'.
+        severity: One of 'critical', 'high', 'medium', 'low', 'info'.
     """
     sev = severity.lower()
+    if sev == "informational":
+        sev = "info"
     badge_map = {
-        "info": ("[black on #ffffff] INFO     [/black on #ffffff]", "#ffffff"),
-        "high": ("[black on #ffffff] HIGH     [/black on #ffffff]", "#ffffff"),
-        "medium": ("[black on #888888] MEDIUM   [/black on #888888]", "#888888"),
-        "low": ("[black on #81C784] LOW      [/black on #81C784]", "#81C784"),
+        "critical": ("[white on #ff2222] CRIT     [/white on #ff2222]", "#ff2222"),
+        "high": ("[white on #ff5555] HIGH     [/white on #ff5555]", "#ff5555"),
+        "medium": ("[black on #ffb300] MEDIUM   [/black on #ffb300]", "#ffb300"),
+        "low": ("[black on #81c784] LOW      [/black on #81c784]", "#81c784"),
+        "info": ("[white on #555555] INFO     [/white on #555555]", "#888888"),
     }
-    badge, _ = badge_map.get(sev, ("[black on grey] UNKNOWN [/black on grey]", "grey"))
+    badge, _ = badge_map.get(sev, ("[white on #555555] UNKNOWN  [/white on #555555]", "#888888"))
     return badge
 
 
@@ -284,15 +327,19 @@ def severity_color(severity: str) -> str:
     """Return the color code for a severity level.
 
     Args:
-        severity: One of 'info', 'high', 'medium', 'low', 'info'.
+        severity: One of 'critical', 'high', 'medium', 'low', 'info'.
     """
     color_map = {
-        "high": "#ffffff",
-        "medium": "#888888",
-        "low": "#81C784",
-        "info": "#ffffff",
+        "critical": "#ff2222",
+        "high": "#ff5555",
+        "medium": "#ffb300",
+        "low": "#81c784",
+        "info": "#888888",
     }
-    return color_map.get(severity.lower(), "#ffffff")
+    sev = severity.lower()
+    if sev == "informational":
+        sev = "info"
+    return color_map.get(sev, "#888888")
 
 
 # ---------------------------------------------------------------------------
@@ -300,8 +347,8 @@ def severity_color(severity: str) -> str:
 # ---------------------------------------------------------------------------
 
 
-def show_spinner(message: str, spinner_style: str = "#ffffff"):
-    """Return a Rich status context manager with a vibrant spinner.
+def show_spinner(message: str, spinner_style: str = "#ff2222"):
+    """Return a Rich status context manager with a signature-red spinner.
 
     Usage:
         with show_spinner("Scanning..."):
@@ -310,7 +357,7 @@ def show_spinner(message: str, spinner_style: str = "#ffffff"):
     return console.status(f"[bold {spinner_style}]{message}[/bold {spinner_style}]", spinner="dots")
 
 
-def show_progress_bar(total: int, description: str = "Processing", color: str = "#ffffff"):
+def show_progress_bar(total: int, description: str = "Processing", color: str = "#ff2222"):
     """Return a Rich Progress context manager with custom vibrant styling.
 
     Usage:
@@ -337,25 +384,36 @@ def show_progress_bar(total: int, description: str = "Processing", color: str = 
 
 def print_success(message: str):
     """Print a success message with [OK] marker in green."""
-    console.print(f"[bold #ffffff]{MARKERS['ok']} {message}[/bold #ffffff]")
+    safe_msg = _strip_markup(message)
+    console.print(f"[bold #81c784]{MARKERS['ok']} {safe_msg}[/bold #81c784]")
+
+
+def _strip_markup(message: str) -> str:
+    """Remove Rich tags from a message so dynamic content can never be
+    interpreted as markup (e.g. a finding message containing ``[multimodal]``
+    or an exception text with ``[Errno ...]`` would otherwise raise
+    MarkupError instead of printing)."""
+    import re
+
+    return re.sub(r"\[/?[^\]]+\]", "", str(message))
 
 
 def print_error(message: str):
     """Print an error message with [FAIL] marker in red."""
-    import re
-
-    safe_msg = re.sub(r"\[/?[^\]]+\]", "", str(message))  # Strip Rich tags
-    console.print(f"[bold #ffffff]{MARKERS['fail']} {safe_msg}[/bold #ffffff]")
+    safe_msg = _strip_markup(message)
+    console.print(f"[bold #ff2222]{MARKERS['fail']} {safe_msg}[/bold #ff2222]")
 
 
 def print_warning(message: str):
     """Print a warning message with [WARN] marker in orange."""
-    console.print(f"[bold #888888]{MARKERS['warn']} {message}[/bold #888888]")
+    safe_msg = _strip_markup(message)
+    console.print(f"[bold #ffb300]{MARKERS['warn']} {safe_msg}[/bold #ffb300]")
 
 
 def print_info(message: str):
-    """Print an informational message with [INFO] marker in blue."""
-    console.print(f"[bold #ffffff]{MARKERS['info']} {message}[/bold #ffffff]")
+    """Print an informational message with [INFO] marker in gray."""
+    safe_msg = _strip_markup(message)
+    console.print(f"[#888888]{MARKERS['info']} {safe_msg}[/ #888888]")
 
 
 def print_command(command: str):
@@ -441,10 +499,10 @@ def create_doctor_table(checks: List[Dict[str, Any]]) -> Table:
     table.add_column("Details", style="#ffffff")
 
     status_display = {
-        "ok": "[bold #ffffff]OK[/bold #ffffff]",
-        "fail": "[bold #ffffff]FAIL[/bold #ffffff]",
-        "warn": "[bold #888888]WARN[/bold #888888]",
-        "info": "[dim #ffffff]INFO[/dim #ffffff]",
+        "ok": "[bold #81c784]OK[/bold #81c784]",
+        "fail": "[bold #ff2222]FAIL[/bold #ff2222]",
+        "warn": "[bold #ffb300]WARN[/bold #ffb300]",
+        "info": "[dim #888888]INFO[/dim #888888]",
     }
 
     for check in checks:
@@ -894,16 +952,32 @@ def show_toast(message: str, level: str = "info", duration: float = 0.5):
         duration: Display duration in seconds (0 = no auto-hide).
     """
     level_styles = {
-        "success": ("#ffffff", "[OK]"),
-        "error": ("#ffffff", "[FAIL]"),
-        "warning": ("#888888", "[WARN]"),
-        "info": ("#ffffff", "[INFO]"),
+        "success": ("#81c784", "[OK]"),
+        "error": ("#ff2222", "[FAIL]"),
+        "warning": ("#ffb300", "[WARN]"),
+        "info": ("#888888", "[INFO]"),
     }
-    color, marker = level_styles.get(level, ("#ffffff", "[*]"))
+    color, marker = level_styles.get(level, ("#888888", "[*]"))
 
-    console.print(f"[{color}]{marker} {message}[/{color}]")
+    console.print(f"[bold {color}]{marker} {message}[/bold {color}]")
     if duration > 0:
         time.sleep(duration)
+
+
+def notify_toast(message: str, level: str = "info", toast_app=None) -> None:
+    """Non-blocking toast: uses Textual notify() inside apps, falls back to print.
+
+    This is the preferred API for new code — unlike show_toast() it never
+    blocks the event loop with time.sleep(). Pass the active Textual app (or
+    anything exposing .notify) to get a real floating toast.
+    """
+    if toast_app is not None and hasattr(toast_app, "notify"):
+        try:
+            toast_app.notify(message, severity=level)
+            return
+        except Exception:
+            pass
+    show_toast(message, level=level, duration=0)
 
 
 # ---------------------------------------------------------------------------
@@ -966,23 +1040,29 @@ def render_sidebar(
         Rich Panel configured as sidebar.
     """
     token_pct = min(100, int((token_count / token_limit) * 100)) if token_limit > 0 else 0
-    bar_w = width - 6
+    bar_w = max(8, width - 6)
     bar_filled = int((token_pct / 100) * bar_w)
     bar_empty = bar_w - bar_filled
-    bar_color = "#ffffff" if token_pct > 80 else "#ffffff" if token_pct > 50 else "#ffffff"
+    # Traffic-light bar: green -> amber -> red as context fills up.
+    if token_pct >= 80:
+        bar_color = "#ff2222"
+    elif token_pct >= 50:
+        bar_color = "#ffb300"
+    else:
+        bar_color = "#81c784"
     token_bar = f"[bold {bar_color}]{'#' * bar_filled}[/bold {bar_color}][dim #444444]{'.' * bar_empty}[/dim #444444]"
 
     status_ind = {
-        "ready": "[bold #ffffff][OK][/bold #ffffff]",
-        "thinking": "[bold white][RUN][/bold white]",
-        "error": "[bold #ffffff][FAIL][/bold #ffffff]",
+        "ready": "[bold #81c784][OK][/bold #81c784]",
+        "thinking": "[bold #ff2222][RUN][/bold #ff2222]",
+        "error": "[bold #ff2222][FAIL][/bold #ff2222]",
         "idle": "[dim #666666][INFO][/dim #666666]",
     }.get(status, "[dim #666666][INFO][/dim #666666]")
 
     status_label = {
-        "ready": "[bold #ffffff]STANDBY[/bold #ffffff]",
-        "thinking": "[bold white]PROCESSING[/bold white]",
-        "error": "[bold #ffffff]ERROR[/bold #ffffff]",
+        "ready": "[bold #81c784]STANDBY[/bold #81c784]",
+        "thinking": "[bold #ff2222]PROCESSING[/bold #ff2222]",
+        "error": "[bold #ff2222]ERROR[/bold #ff2222]",
         "idle": "[dim #666666]IDLE[/dim #666666]",
     }.get(status, "[dim #666666]IDLE[/dim #666666]")
 
@@ -1065,7 +1145,13 @@ def render_sidebar(
     )
 
     sidebar_text = "\n".join(lines)
-    return Panel(sidebar_text, border_style="#ffffff", box=ASCII, padding=(0, 0), width=width)
+    # Clamp width to the live terminal so narrow SSH sessions don't wrap.
+    try:
+        term_w = console.width or width
+        width = max(30, min(width, term_w - 4))
+    except Exception:
+        pass
+    return Panel(sidebar_text, border_style="#444444", box=ASCII, padding=(0, 0), width=width)
 
 
 # ---------------------------------------------------------------------------
@@ -1098,7 +1184,7 @@ def show_command_execution(
         elapsed: Elapsed time in seconds.
     """
 
-    status_color = "#ffffff" if success else "#ffffff"
+    status_color = "#81c784" if success else "#ff2222"
     status_marker = "[OK]" if success else "[FAIL]"
 
     # Trim output for display - show first 12 lines, then ellipsis
@@ -1126,10 +1212,12 @@ def show_command_execution(
     if output_preview.strip():
         body_parts.append(output_preview)
 
-    border = "#ffffff" if success else "#ffffff"
+    border = "#81c784" if success else "#ff2222"
+    elapsed_tag = f" [dim #666666]{elapsed:.1f}s[/dim #666666]" if elapsed else ""
     title_tag = (
         f"[bold {border}]{status_marker}[/bold {border}]"
         f" [dim #999999]{cmd.split()[0] if cmd.split() else 'shell'}[/dim #999999]"
+        f"{elapsed_tag}"
     )
 
     console.print(
@@ -1195,6 +1283,7 @@ __all__ = [
     "show_findings_summary",
     # Toast
     "show_toast",
+    "notify_toast",
     # Helpers
     "show_key_value",
     "show_bullet_list",
@@ -1209,4 +1298,7 @@ __all__ = [
     "COLORS",
     "STYLES",
     "MARKERS",
+    # Unified theme bridge (single source of truth: tui/themes.py)
+    "get_unified_theme",
+    "get_severity_color",
 ]

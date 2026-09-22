@@ -19,6 +19,9 @@ from typing import Dict, List, Optional
 
 from cli.ui_components import console, print_error, print_info, print_success, print_warning
 
+from elengenix.providers import catalog
+from typing import Dict, List
+
 logger = logging.getLogger(__name__)
 
 
@@ -38,216 +41,37 @@ class AIProviderConfig:
 class ConfigWizard:
     """Interactive configuration wizard."""
 
-    AI_PROVIDERS = [
+    # Provider menu derived from the catalog (single source of truth:
+    # elengenix/providers/catalog.py). One display entry per provider;
+    # the menu-specific "OpenAI (GPT-4)" label is intentionally gone —
+    # the catalog display name is shown instead.
+    AI_PROVIDERS: list = [
         AIProviderConfig(
-            name="NVIDIA",
-            env_key="NVIDIA_API_KEY",
-            base_url="https://integrate.api.nvidia.com/v1",
-            signup_url="https://build.nvidia.com/explore/discover",
-            is_free=True,
-            notes="Fast inference via NVIDIA NIM, 40 RPM persistent free tier for builders (Highly Recommended)",
-            api_type="openai",
-        ),
-        AIProviderConfig(
-            name="Gemini (Google)",
-            env_key="GEMINI_API_KEY",
-            base_url="https://generativelanguage.googleapis.com/v1beta/openai",
-            signup_url="https://aistudio.google.com/app/apikey",
-            is_free=True,
-            notes="Free, fast, good Thai support",
-            api_type="native",
-        ),
-        AIProviderConfig(
-            name="OpenAI (GPT-4)",
-            env_key="OPENAI_API_KEY",
-            base_url="https://api.openai.com/v1",
-            signup_url="https://platform.openai.com/api-keys",
-            is_free=False,
-            notes="Most accurate but paid, requires credit card",
-            api_type="openai",
-        ),
-        AIProviderConfig(
-            name="Anthropic (Claude)",
-            env_key="ANTHROPIC_API_KEY",
-            base_url="https://api.anthropic.com/v1",
-            signup_url="https://console.anthropic.com/settings/keys",
-            is_free=False,
-            notes="Excellent reasoning, Claude 3.5 Sonnet",
-            api_type="native",
-        ),
-        AIProviderConfig(
-            name="Groq",
-            env_key="GROQ_API_KEY",
-            base_url="https://api.groq.com/openai/v1",
-            signup_url="https://console.groq.com/keys",
-            is_free=True,
-            notes="Very fast, Llama 3.1 free",
-            api_type="openai",
-        ),
-        AIProviderConfig(
-            name="Cohere",
-            env_key="COHERE_API_KEY",
-            base_url="https://api.cohere.ai/v1",
-            signup_url="https://dashboard.cohere.com/api-keys",
-            is_free=True,
-            notes="Free tier available, good for text generation",
-            api_type="native",
-        ),
-        AIProviderConfig(
-            name="Hugging Face",
-            env_key="HUGGINGFACE_API_KEY",
-            base_url="https://api-inference.huggingface.co",
-            signup_url="https://huggingface.co/settings/tokens",
-            is_free=True,
-            notes="Free inference for many models",
-            api_type="native",
-        ),
-        AIProviderConfig(
-            name="Together AI",
-            env_key="TOGETHER_API_KEY",
-            base_url="https://api.together.xyz/v1",
-            signup_url="https://api.together.xyz/settings/api-keys",
-            is_free=True,
-            notes="Free tier, fast inference",
-            api_type="openai",
-        ),
-        AIProviderConfig(
-            name="Replicate",
-            env_key="REPLICATE_API_TOKEN",
-            base_url="https://api.replicate.com/v1",
-            signup_url="https://replicate.com/account/api-tokens",
-            is_free=True,
-            notes="Pay-as-you-go, many open-source models",
-            api_type="native",
-        ),
-        AIProviderConfig(
-            name="Mistral",
-            env_key="MISTRAL_API_KEY",
-            base_url="https://api.mistral.ai/v1",
-            signup_url="https://console.mistral.ai/api-keys",
-            is_free=True,
-            notes="Free tier, Mistral 7B/8x7B",
-            api_type="openai",
-        ),
-        AIProviderConfig(
-            name="DeepSeek",
-            env_key="DEEPSEEK_API_KEY",
-            base_url="https://api.deepseek.com/v1",
-            signup_url="https://platform.deepseek.com/api_keys",
-            is_free=True,
-            notes="Very affordable, strong performance",
-            api_type="openai",
-        ),
-        AIProviderConfig(
-            name="Perplexity",
-            env_key="PERPLEXITY_API_KEY",
-            base_url="https://api.perplexity.ai",
-            signup_url="https://www.perplexity.ai/settings/api",
-            is_free=True,
-            notes="Free tier, good for research",
-            api_type="openai",
-        ),
-        AIProviderConfig(
-            name="OpenRouter",
-            env_key="OPENROUTER_API_KEY",
-            base_url="https://openrouter.ai/api/v1",
-            signup_url="https://openrouter.ai/keys",
-            is_free=True,
-            notes="Access to many models via one API",
-            api_type="openai",
-        ),
-        AIProviderConfig(
-            name="Ollama (Local)",
-            env_key="",
-            base_url="http://localhost:11434/v1",
-            signup_url="https://ollama.com/download",
-            is_free=True,
-            notes="No API key needed, runs locally",
-        ),
+            name=spec.display,
+            env_key=spec.env_key or "",
+            base_url=spec.base_url,
+            signup_url=spec.signup_url,
+            is_free=spec.is_free,
+            notes=spec.tagline,
+        )
+        for spec in catalog.iter_specs()
     ]
 
+    # Curated model menu per display name (from the catalog).
     DEFAULT_MODELS: Dict[str, List[str]] = {
-        "Gemini (Google)": [
-            "gemini-3.1-flash-lite-preview",
-            "gemini-3.1-pro",
-            "gemini-3.1-flash",
-            "gemini-3.0-pro",
-            "gemini-2.0-flash",
-            "gemini-1.5-pro",
-            "gemini-1.5-flash",
-        ],
-        "OpenAI (GPT-4)": [
-            "gpt-4.5-turbo",
-            "gpt-4o",
-            "gpt-4o-mini",
-            "o2-preview",
-            "o1-preview",
-            "o1-mini",
-        ],
-        "Anthropic (Claude)": [
-            "claude-3-7-sonnet-latest",
-            "claude-3-5-sonnet-latest",
-            "claude-3-5-haiku-latest",
-            "claude-3-opus-latest",
-        ],
-        "Groq": ["llama-3.3-70b-versatile", "llama-3.1-70b-versatile", "llama-3.1-8b-instant"],
-        "DeepSeek": ["deepseek-chat", "deepseek-reasoner"],
-        "Mistral": ["mistral-large-latest", "mistral-small-latest", "open-mixtral-8x7b"],
-        "Together AI": [
-            "meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo",
-            "mistralai/Mixtral-8x7B-Instruct-v0.1",
-        ],
-        "OpenRouter": [
-            "meta-llama/llama-3.3-70b-instruct",
-            "google/gemini-2.0-flash-exp:free",
-            "auto",
-        ],
-        "Perplexity": ["llama-3.1-sonar-large-128k-online", "llama-3.1-sonar-small-128k-online"],
-        "NVIDIA": [
-            "nvidia/nemotron-3-super-120b-a12b",
-            "qwen/qwen2.5-coder-32b-instruct",
-            "meta/llama3-70b-instruct",
-            "mistralai/mixtral-8x22b-instruct-v0.1",
-            "deepseek-ai/deepseek-r1",
-        ],
-        "Ollama (Local)": ["llama3.2", "llama3.1:8b", "mistral:7b", "codellama:7b"],
+        spec.display: list(spec.models) for spec in catalog.iter_specs()
     }
 
-    # Priority order used by AIClientManager (index 0 = highest priority)
-    PRIORITY_ORDER = [
-        "nvidia",
-        "gemini",
-        "openai",
-        "anthropic",
-        "groq",
-        "deepseek",
-        "mistral",
-        "openrouter",
-        "together",
-        "perplexity",
-        "cohere",
-        "huggingface",
-        "replicate",
-        "ollama",
-    ]
+    # Fallback priority used by AIClientManager (index 0 = highest).
+    PRIORITY_ORDER: list = list(catalog.priority_order())
 
-    # Maps provider display name → manager key
-    _PROVIDER_KEY_MAP = {
-        "Gemini (Google)": "gemini",
-        "OpenAI (GPT-4)": "openai",
-        "Anthropic (Claude)": "anthropic",
-        "Groq": "groq",
-        "NVIDIA": "nvidia",
-        "DeepSeek": "deepseek",
-        "Mistral": "mistral",
-        "OpenRouter": "openrouter",
-        "Together AI": "together",
-        "Perplexity": "perplexity",
-        "Cohere": "cohere",
-        "Hugging Face": "huggingface",
-        "Replicate": "replicate",
-        "Ollama (Local)": "ollama",
+    # Maps provider display name -> catalog id.
+    _PROVIDER_KEY_MAP: dict = {
+        spec.display: spec.id for spec in catalog.iter_specs()
     }
+
+    #: Module-level mirror of the menu for backwards compatibility.
+    AI_PROVIDERS = AI_PROVIDERS
 
     INTEGRATIONS = [
         {
@@ -323,20 +147,40 @@ class ConfigWizard:
             else:
                 print_warning("Please select 0-8")
 
+    # Synthetic row for any OpenAI-compatible endpoint (not in the catalog).
+    CUSTOM_PROVIDER = AIProviderConfig(
+        name="Custom (OpenAI-compatible)",
+        env_key="CUSTOM_API_KEY",
+        base_url="",
+        signup_url="",
+        is_free=False,
+        notes="Any OpenAI-compatible endpoint",
+    )
+
+    def _provider_rows(self) -> list:
+        """Table rows: catalog providers plus the Custom endpoint."""
+        return list(self.AI_PROVIDERS) + [self.CUSTOM_PROVIDER]
+
     def _manage_all_providers(self) -> None:
         """Multi-provider manager — show all providers in one table."""
         from rich.table import Table
 
+        from tools.ai_config import provider_status
+
         while True:
-            # Detect which providers currently have keys
+            # Honest status from the single source of truth (no phantom
+            # "Ready", no "(default)" models, deletes reflected immediately).
+            rows = self._provider_rows()
             active_keys: Dict[str, bool] = {}
             active_models: Dict[str, str] = {}
-            for p in self.AI_PROVIDERS:
-                env_key = p.env_key
-                has_key = bool(os.getenv(env_key, "")) if env_key else True  # Ollama = always
-                active_keys[p.name] = has_key
-                model_env = env_key.replace("_API_KEY", "_MODEL") if env_key else "OLLAMA_MODEL"
-                active_models[p.name] = os.getenv(model_env, "") or "(default)"
+            for p in rows:
+                pkey = self._PROVIDER_KEY_MAP.get(p.name, "custom")
+                try:
+                    st = provider_status(pkey)
+                except Exception:
+                    st = {"key_set": False, "model": ""}
+                active_keys[p.name] = bool(st.get("key_set"))
+                active_models[p.name] = st.get("model") or "(not set)"
 
             # Detect active provider from AIClientManager
             active_provider_key = "none"
@@ -394,9 +238,9 @@ class ConfigWizard:
             table.add_column("Model", width=36)
             table.add_column("Notes", width=36, style="dim")
 
-            for i, provider in enumerate(self.AI_PROVIDERS, 1):
+            for i, provider in enumerate(rows, 1):
                 has_key = active_keys[provider.name]
-                pkey = self._PROVIDER_KEY_MAP.get(provider.name, provider.name.lower())
+                pkey = self._PROVIDER_KEY_MAP.get(provider.name, "custom")
                 priority_rank = ""
                 if pkey in self.PRIORITY_ORDER:
                     priority_rank = str(self.PRIORITY_ORDER.index(pkey) + 1)
@@ -482,7 +326,7 @@ class ConfigWizard:
 
             elif choice == "a":
                 # Configure all providers that already have keys
-                for p in self.AI_PROVIDERS:
+                for p in rows:
                     if active_keys[p.name]:
                         console.print(f"\n[bold]Updating: {p.name}[/bold]")
                         self._configure_provider(p)
@@ -492,15 +336,31 @@ class ConfigWizard:
                 del_choice = console.input("Enter number to delete key: ").strip()
                 try:
                     idx = int(del_choice) - 1
-                    if 0 <= idx < len(self.AI_PROVIDERS):
-                        p = self.AI_PROVIDERS[idx]
-                        if p.env_key:
+                    if 0 <= idx < len(rows):
+                        p = rows[idx]
+                        pkey = self._PROVIDER_KEY_MAP.get(p.name, "custom")
+                        if pkey == "custom":
+                            for var in (
+                                "CUSTOM_API_BASE",
+                                "CUSTOM_API_KEY",
+                                "CUSTOM_MODEL",
+                            ):
+                                self._remove_env_var(var)
+                        elif p.env_key:
                             self._remove_env_var(p.env_key)
                             model_env = p.env_key.replace("_API_KEY", "_MODEL")
                             self._remove_env_var(model_env)
-                            print_success(f"Cleared keys for {p.name}")
                         else:
-                            print_warning(f"{p.name} has no key to delete")
+                            # Key-free local (ollama): clear the endpoint vars.
+                            from tools.ai_config import OLLAMA_URL_VARS
+
+                            for var in OLLAMA_URL_VARS:
+                                self._remove_env_var(var)
+                        self._scrub_provider_references(pkey)
+                        from tools.ai_config import refresh_runtime_config
+
+                        refresh_runtime_config()
+                        print_success(f"Cleared keys for {p.name}")
                     else:
                         print_warning("Invalid number")
                 except ValueError:
@@ -509,8 +369,8 @@ class ConfigWizard:
             else:
                 try:
                     idx = int(choice) - 1
-                    if 0 <= idx < len(self.AI_PROVIDERS):
-                        self._configure_provider(self.AI_PROVIDERS[idx])
+                    if 0 <= idx < len(rows):
+                        self._configure_provider(rows[idx])
                     else:
                         print_warning(f"Please select 1-{len(self.AI_PROVIDERS)}")
                 except ValueError:
@@ -562,8 +422,30 @@ class ConfigWizard:
             except ValueError:
                 print_warning("Please enter a number")
 
+    def _scrub_provider_references(self, pkey: str) -> None:
+        """Drop team/active references to a deleted provider.
+
+        Otherwise ACTIVE_MODELS keeps pointing at a provider with no key and
+        every status surface keeps displaying its (phantom) model.
+        """
+        pkey = (pkey or "").lower()
+        if not pkey:
+            return
+        team = [m.strip() for m in os.getenv("ACTIVE_MODELS", "").split(",") if m.strip()]
+        kept = [m for m in team if m.split("/", 1)[0].lower() != pkey]
+        if len(kept) != len(team):
+            if kept:
+                self._save_env_var("ACTIVE_MODELS", ",".join(kept))
+            else:
+                self._remove_env_var("ACTIVE_MODELS")
+        if os.getenv("ACTIVE_AI_PROVIDER", "").strip().lower() == pkey:
+            self._remove_env_var("ACTIVE_AI_PROVIDER")
+
     def _configure_provider(self, provider: AIProviderConfig) -> None:
         """Configure specific provider."""
+        if provider.name == self.CUSTOM_PROVIDER.name:
+            self._configure_custom_provider()
+            return
         console.print(f"\n[bold]{provider.name}[/bold]")
         console.print(f"[dim]Sign up: {provider.signup_url}[/dim]\n")
 
@@ -629,6 +511,107 @@ class ConfigWizard:
                 self._select_model(provider)
             else:
                 print_info("Skipped configuration")
+
+    def _configure_custom_provider(self) -> None:
+        """Configure an arbitrary OpenAI-compatible endpoint (CUSTOM_*)."""
+        from tools.ai_config import (
+            CUSTOM_API_BASE_KEY,
+            CUSTOM_API_KEY_KEY,
+            CUSTOM_MODEL_KEY,
+            refresh_runtime_config,
+        )
+
+        console.print("\n[bold]Custom (OpenAI-compatible)[/bold]")
+        console.print("[dim]Point Elengenix at any /v1 chat-completions server.[/dim]\n")
+
+        cur_base = os.getenv(CUSTOM_API_BASE_KEY, "")
+        cur_key = os.getenv(CUSTOM_API_KEY_KEY, "")
+        cur_model = os.getenv(CUSTOM_MODEL_KEY, "")
+        console.print(f"Current base URL: [dim]{cur_base or '(not set)'}[/dim]")
+        masked = f"{cur_key[:8]}..." if len(cur_key) > 10 else ("(set)" if cur_key else "(not set)")
+        console.print(f"Current API key : [dim]{masked}[/dim]")
+        console.print(f"Current model   : [dim]{cur_model or '(not set)'}[/dim]\n")
+
+        base = console.input("Base URL (e.g. https://host:8000/v1, Enter to keep): ").strip()
+        base = base or cur_base
+        if not base:
+            print_warning("A base URL is required for a custom provider")
+            return
+        key = console.input("API key (Enter to keep, '-' to clear): ").strip()
+        if key == "-":
+            key = ""
+        elif not key:
+            key = cur_key
+
+        self._save_env_var(CUSTOM_API_BASE_KEY, base.rstrip("/"))
+        if key:
+            self._save_env_var(CUSTOM_API_KEY_KEY, key)
+        else:
+            self._remove_env_var(CUSTOM_API_KEY_KEY)
+
+        # Discover models from {base}/models, else manual entry.
+        discovered: List[str] = []
+        console.print("[dim]Discovering models...[/dim]")
+        try:
+            import requests
+
+            headers = {"Authorization": f"Bearer {key}"} if key else {}
+            resp = requests.get(base.rstrip("/") + "/models", headers=headers, timeout=8)
+            if resp.status_code == 200:
+                data = resp.json()
+                raw = data.get("data", data if isinstance(data, list) else [])
+                for item in raw:
+                    mid = item.get("id", "") if isinstance(item, dict) else item
+                    if mid and "embed" not in str(mid).lower():
+                        discovered.append(str(mid))
+                discovered = sorted(set(discovered))
+        except Exception as e:
+            logger.debug(f"Custom model discovery failed: {e}")
+        if discovered:
+            print_success(f"Discovered {len(discovered)} models")
+            for i, m in enumerate(discovered[:30], 1):
+                mark = " [bold white](current)[/bold white]" if m == cur_model else ""
+                console.print(f"  [{i}] {m}{mark}")
+            pick = console.input(
+                f"Select [1-{min(30, len(discovered))}], name, or Enter to keep: "
+            ).strip()
+            model = cur_model
+            if pick:
+                try:
+                    model = discovered[int(pick) - 1]
+                except (ValueError, IndexError):
+                    model = pick
+        else:
+            print_warning("Could not list models, enter manually")
+            model = (
+                console.input(f"Model identifier [{cur_model or 'required'}]: ").strip()
+                or cur_model
+            )
+        if not model:
+            print_warning("A model is required for a custom provider")
+            return
+        self._save_env_var(CUSTOM_MODEL_KEY, model)
+
+        # Connection test against /chat/completions.
+        pseudo = AIProviderConfig(
+            name=self.CUSTOM_PROVIDER.name,
+            env_key=CUSTOM_API_KEY_KEY,
+            base_url=base,
+            signup_url="",
+            is_free=False,
+            notes="",
+        )
+        console.print("[dim]Testing connection...[/dim]")
+        if self._test_provider(pseudo, key, model):
+            print_success("Connection successful!")
+        else:
+            print_warning("Connection failed, settings saved anyway — verify the URL/key")
+
+        use = console.input("Use custom as team model now (ACTIVE_MODELS)? [y/N]: ").strip().lower()
+        if use in ("y", "yes"):
+            self._save_env_var("ACTIVE_MODELS", f"custom/{model}")
+            print_success(f"Team model set to custom/{model}")
+        refresh_runtime_config()
 
     def _fetch_remote_models(self, provider: AIProviderConfig, api_key: str) -> List[str]:
         """Fetch models from the provider's /v1/models endpoint."""
@@ -945,38 +928,35 @@ class ConfigWizard:
                 print_warning("Please enter a number")
 
     def _show_status(self) -> None:
-        """Show configuration status."""
+        """Show configuration status (honest: no phantom Ready/models)."""
         from rich.table import Table
+
+        from tools.ai_config import get_active_provider, provider_status
 
         console.print("\n[bold red]Configuration Status[/bold red]")
 
-        # Detect active provider
-        active_provider_key = "none"
-        active_model = ""
-        try:
-            from tools.universal_ai_client import AIClientManager
-
-            mgr = AIClientManager()
-            active_provider_key = mgr.get_active_provider()
-            if mgr.active_client:
-                active_model = mgr.active_client.model
-        except Exception:
-            pass
+        # Detect active provider — live config only, never a cached client.
+        active_provider_key = get_active_provider()
+        active_info = provider_status(active_provider_key) if active_provider_key else {}
+        active_model = (active_info.get("model") or "") if active_info else ""
+        if active_provider_key == "auto":
+            active_provider_key = "none"
 
         # AI Providers table
         table = Table(show_header=True, header_style="bold", border_style="dim")
-        table.add_column("Provider", width=22)
+        table.add_column("Provider", width=26)
         table.add_column("Status", width=10, justify="center")
         table.add_column("Model", width=40)
 
-        for provider in self.AI_PROVIDERS:
-            env_key = provider.env_key
-            key_val = os.getenv(env_key, "") if env_key else "local"
-            model_env = env_key.replace("_API_KEY", "_MODEL") if env_key else "OLLAMA_MODEL"
-            model = os.getenv(model_env, "(default)")
-            pkey = self._PROVIDER_KEY_MAP.get(provider.name, "")
+        for provider in self._provider_rows():
+            pkey = self._PROVIDER_KEY_MAP.get(provider.name, "custom")
+            try:
+                st = provider_status(pkey)
+            except Exception:
+                st = {"key_set": False, "model": ""}
+            model = st.get("model") or "(not set)"
 
-            if key_val:
+            if st.get("key_set"):
                 if pkey == active_provider_key:
                     status = "[bold green]ACTIVE[/bold green]"
                 else:
@@ -990,6 +970,8 @@ class ConfigWizard:
         console.print(f"\n  [bold]Active:[/bold] [bold red]{active_provider_key}[/bold red]")
         if active_model:
             console.print(f"  [bold]Model :[/bold] {active_model}")
+        else:
+            console.print("  [bold]Model :[/bold] [dim](not set)[/dim]")
 
         # Integrations table
         console.print("\n[bold]Integrations:[/bold]")
@@ -1020,15 +1002,29 @@ class ConfigWizard:
 
         check_health()
 
+    def _resolve_env_file(self) -> Path:
+        """Where .env writes must go so the runtime actually reads them.
+
+        The runtime resolves ENV var → ~/.elengenix/.env → cwd; writing
+        blindly to cwd diverges whenever the home file exists.
+        """
+        from elengenix.paths import default_env_file
+
+        try:
+            return default_env_file()
+        except Exception:
+            return self.env_file
+
     def _save_env_var(self, key: str, value: str) -> None:
-        """Save environment variable to .env file."""
+        """Save environment variable to the resolved .env file."""
         # Also set in current session
         os.environ[key] = value
 
+        env_file = self._resolve_env_file()
         # Read existing
         lines = []
-        if self.env_file.exists():
-            lines = self.env_file.read_text().splitlines()
+        if env_file.exists():
+            lines = env_file.read_text().splitlines()
 
         # Remove existing line with same key
         lines = [line for line in lines if not line.startswith(f"{key}=")]
@@ -1037,22 +1033,38 @@ class ConfigWizard:
         lines.append(f"{key}={value}")
 
         # Write back with restricted permissions (owner read/write only)
-        self.env_file.write_text("\n".join(lines) + "\n")
-        self.env_file.chmod(0o600)
+        env_file.write_text("\n".join(lines) + "\n")
+        try:
+            env_file.chmod(0o600)
+        except OSError:
+            pass
+        try:
+            from tools.ai_config import refresh_runtime_config
+
+            refresh_runtime_config()
+        except Exception:
+            pass
 
     def _remove_env_var(self, key: str) -> None:
-        """Remove environment variable from .env file."""
+        """Remove environment variable from the resolved .env file."""
         # Remove from current session
         if key in os.environ:
             del os.environ[key]
 
+        env_file = self._resolve_env_file()
         # Read existing
-        if not self.env_file.exists():
+        if not env_file.exists():
             return
 
-        lines = self.env_file.read_text().splitlines()
+        lines = env_file.read_text().splitlines()
         lines = [line for line in lines if not line.startswith(f"{key}=")]
-        self.env_file.write_text("\n".join(lines) + "\n")
+        env_file.write_text("\n".join(lines) + "\n")
+        try:
+            from tools.ai_config import refresh_runtime_config
+
+            refresh_runtime_config()
+        except Exception:
+            pass
 
     def _load_yaml_config(self) -> dict:
         """Load config.yaml safely."""

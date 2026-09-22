@@ -373,21 +373,21 @@ Return JSON:
         target = getattr(context, "target", "unknown")
         objective = getattr(context, "objectives", ["discover vulnerabilities"])[0]
 
-        prompt = f"""You are a security planning AI. Create an attack plan for a penetration test.
+        prompt = f"""You are the strategist for an autonomous security mission.
+There is NO prescribed phase script: you design the plan structure yourself.
 
 Target: {target}
 Objective: {objective}
 Goal Analysis: {json.dumps(goal_analysis, default=str)}
 
-Generate a prioritized attack plan as JSON:
+Design your own plan — as many or as few steps as your judgment calls for,
+ordered however you see fit. JSON only:
 {{
   "phases": [
-    {{"name": "Reconnaissance", "objective": "...", "tools": ["nmap", "dig"], "risk_level": "low", "actions": [{{"tool": "nmap", "params": {{}}}}]}},
-    {{"name": "Scanning", "objective": "...", "tools": ["curl", "ffuf"], "risk_level": "medium", "actions": [{{"tool": "ffuf", "params": {{}}}}]}},
-    {{"name": "Vulnerability Analysis", "objective": "...", "tools": ["python_scanner"], "risk_level": "medium", "actions": [{{"tool": "scanner", "params": {{}}}}]}}
+    {"name": "your own step name", "objective": "...", "tools": [...], "risk_level": "low|medium|high", "actions": [{{"tool": "...", "params": {{}}}}]}
   ],
-  "risk_assessment": {{"overall": "medium"}},
-  "success_criteria": ["Find at least one confirmed vulnerability"]
+  "risk_assessment": {{"overall": "low|medium|high"}},
+  "success_criteria": ["..."]
 }}"""
 
         response = self._call_llm(prompt)
@@ -546,7 +546,12 @@ class DecisionEngine:
     ) -> "AIAction":
         """AI เป็น Sovereign - ตัดสินใจเอง"""
 
-        # Score each action
+        # Primary path: the LLM decides with full context (true sovereignty).
+        llm_choice = await self._llm_decide(actions, context)
+        if llm_choice is not None:
+            return llm_choice
+
+        # Fallback (no LLM available): heuristic scoring keeps the loop alive.
         scored_actions = []
         for action in actions:
             score = await self._score_action(action, context)
@@ -573,6 +578,71 @@ class DecisionEngine:
             )
 
         return self._create_action(top_choice)
+
+    async def _llm_decide(
+        self,
+        actions: List[Dict],
+        context: "MissionContext"
+    ) -> Optional["AIAction"]:
+        """Ask the LLM to pick the next action with full situational context.
+
+        The menu of available actions is presented as a capability list, not
+        a script — the model reasons and chooses freely. Returns None when no
+        LLM is available or the answer is unparseable, so callers can fall
+        back to heuristic scoring.
+        """
+        menu = json.dumps(actions, default=str)[:4000]
+        target = getattr(context, "target", "unknown")
+        prompt = (
+            "You are the sovereign decision-maker of an autonomous security "
+            "agent. There is no script and no fixed order — you choose the "
+            "single best next action purely on your own reasoning.\n\n"
+            f"Mission target: {target}\n\n"
+            f"Available actions (capability menu):\n{menu}\n\n"
+            "Consider expected information gain, exploit potential, cost and "
+            "risk. Respond with JSON only:\n"
+            "{\"chosen\": <index of the action you choose>,\n"
+            " \"reasoning\": \"why this action now\",\n"
+            " \"params_override\": {}}"
+        )
+        try:
+            from tools.universal_ai_client import AIMessage
+
+            response = self.llm.chat(
+                [AIMessage(role="user", content=prompt)],
+                temperature=0.2,
+            )
+            raw = getattr(response, "content", response)
+            if not isinstance(raw, str):
+                return None  # non-text response → let heuristic fallback decide
+        except Exception as e:
+            logger.debug(f"LLM decision unavailable: {e}")
+            return None
+
+        try:
+            data = json.loads(raw)
+        except (json.JSONDecodeError, TypeError):
+            m = re.search(r"\{[\s\S]*\}", raw)
+            data = {}
+            if m:
+                try:
+                    data = json.loads(m.group(0))
+                except json.JSONDecodeError:
+                    return None
+            else:
+                return None
+
+        idx = data.get("chosen")
+        if not isinstance(idx, int) or not (0 <= idx < len(actions)):
+            return None
+        chosen = dict(actions[idx])
+        override = data.get("params_override")
+        if isinstance(override, dict) and override:
+            params = dict(chosen.get("params") or {})
+            params.update(override)
+            chosen["params"] = params
+        chosen["reasoning"] = data.get("reasoning", chosen.get("reasoning", ""))
+        return self._create_action(chosen)
 
     async def _score_action(self, action: Dict, context: "MissionContext") -> float:
         """Score an action based on multiple factors."""

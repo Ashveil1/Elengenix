@@ -14,6 +14,7 @@ Dependencies:
 """
 
 import logging
+import os
 from pathlib import Path
 from typing import Dict, List
 
@@ -39,6 +40,7 @@ PROVIDERS = [
     "deepseek",
     "perplexity",
     "local",
+    "custom",
     "skip",
 ]
 
@@ -60,9 +62,19 @@ DEFAULT_MODELS: Dict[str, List[str]] = {
 }
 
 
+def _resolve_config_path(config_path: str) -> Path:
+    """Where config reads/writes must go so the runtime agrees (home > cwd)."""
+    try:
+        from elengenix.paths import default_config_file
+
+        return default_config_file()
+    except Exception:
+        return Path(config_path)
+
+
 def _load_config(config_path: str) -> dict:
     """Load and return the YAML configuration file."""
-    path = Path(config_path)
+    path = _resolve_config_path(config_path)
     if not path.exists():
         logger.error("Configuration file not found: %s", config_path)
         console.print(f"[red][FAIL] Configuration file not found: {config_path}[/red]")
@@ -79,10 +91,17 @@ def _load_config(config_path: str) -> dict:
 
 
 def _save_config(config: dict, config_path: str) -> bool:
-    """Write configuration back to YAML file."""
+    """Write configuration back to the resolved YAML file."""
     try:
-        with open(config_path, "w", encoding="utf-8") as f:
+        path = _resolve_config_path(config_path)
+        with open(path, "w", encoding="utf-8") as f:
             yaml.dump(config, f, default_flow_style=False, allow_unicode=True)
+        try:
+            from tools.ai_config import refresh_runtime_config
+
+            refresh_runtime_config()
+        except Exception:
+            pass
         return True
     except Exception as exc:
         logger.error("Failed to save config: %s", exc)
@@ -99,26 +118,98 @@ def _get_models_for_provider(provider: str) -> List[str]:
     return DEFAULT_MODELS.get(provider, ["auto"])
 
 
-def _save_key_to_env(provider: str, api_key: str) -> None:
-    """Append or update the API key in the .env file for secure storage."""
-    env_key = f"{provider.upper()}_API_KEY"
-    env_path = Path(".env")
+def _save_var_to_env(env_key: str, value: str) -> None:
+    """Append or update one variable in the resolved .env file."""
+    try:
+        from elengenix.paths import default_env_file
+
+        env_path = default_env_file()
+    except Exception:
+        env_path = Path(".env")
 
     lines: List[str] = []
     if env_path.exists():
         lines = env_path.read_text(encoding="utf-8").splitlines()
 
-    # Remove any existing entry for this provider
+    # Remove any existing entry for this key
     lines = [line for line in lines if not line.startswith(f"{env_key}=")]
-    lines.append(f"{env_key}={api_key}")
+    lines.append(f"{env_key}={value}")
 
     env_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    try:
+        env_path.chmod(0o600)
+    except OSError:
+        pass
+    os.environ[env_key] = value
+    try:
+        from tools.ai_config import refresh_runtime_config
+
+        refresh_runtime_config()
+    except Exception:
+        pass
+
+
+def _save_key_to_env(provider: str, api_key: str) -> None:
+    """Append or update the API key in the .env file for secure storage."""
+    env_key = f"{provider.upper()}_API_KEY"
+    _save_var_to_env(env_key, api_key)
     logger.info("API key for %s saved to .env", provider)
 
 
 # ---------------------------------------------------------------------------
 # Main Wizard Flow
 # ---------------------------------------------------------------------------
+
+
+def _configure_custom_provider(config: dict, config_path: str) -> None:
+    """Configure an arbitrary OpenAI-compatible endpoint (CUSTOM_*)."""
+    from tools.ai_config import CUSTOM_API_BASE_KEY, CUSTOM_API_KEY_KEY, CUSTOM_MODEL_KEY
+
+    console.print("\n[bold]Custom OpenAI-compatible provider[/bold]")
+    console.print("[dim]Point Elengenix at any /v1 chat-completions server.[/dim]\n")
+
+    cur_base = os.getenv(CUSTOM_API_BASE_KEY, "")
+    cur_key = os.getenv(CUSTOM_API_KEY_KEY, "")
+    cur_model = os.getenv(CUSTOM_MODEL_KEY, "")
+    console.print(f"Current base URL: [dim]{cur_base or '(not set)'}[/dim]")
+    masked = f"{cur_key[:8]}..." if len(cur_key) > 10 else ("(set)" if cur_key else "(not set)")
+    console.print(f"Current API key : [dim]{masked}[/dim]")
+    console.print(f"Current model   : [dim]{cur_model or '(not set)'}[/dim]\n")
+
+    base = (questionary.text("Base URL (e.g. https://host:8000/v1):").ask() or "").strip()
+    base = base or cur_base
+    if not base:
+        console.print("[yellow][WARN] A base URL is required. Skipping.[/yellow]")
+        return
+    key = (questionary.password("API key (Enter to keep, '-' to clear):").ask() or "").strip()
+    if key == "-":
+        key = ""
+    elif not key:
+        key = cur_key
+
+    _save_var_to_env(CUSTOM_API_BASE_KEY, base.rstrip("/"))
+    if key:
+        _save_var_to_env(CUSTOM_API_KEY_KEY, key)
+
+    model = (questionary.text(f"Model identifier [{cur_model or 'required'}]:").ask() or "").strip()
+    model = model or cur_model
+    if not model:
+        console.print("[yellow][WARN] A model is required. Skipping.[/yellow]")
+        return
+    _save_var_to_env(CUSTOM_MODEL_KEY, model)
+
+    config["ai"]["active_provider"] = "custom"
+    config["ai"]["providers"].setdefault("custom", {})["model"] = model
+    if _save_config(config, config_path):
+        console.print(f"\n[bold white][OK] custom configured: {model} @ {base}[/bold white]")
+        try:
+            from cli.provider_info import render_provider_status_panel
+
+            render_provider_status_panel()
+        except Exception:
+            pass
+    else:
+        console.print("[bold red][FAIL] Configuration could not be saved[/bold red]")
 
 
 def main() -> None:
@@ -148,6 +239,10 @@ def main() -> None:
 
     if not provider or provider == "skip":
         console.print("[dim]Configuration skipped[/dim]")
+        return
+
+    if provider == "custom":
+        _configure_custom_provider(config, config_path)
         return
 
     # Step 2: Enter API key (stored in .env, not config.yaml)

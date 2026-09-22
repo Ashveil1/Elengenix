@@ -24,6 +24,8 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from elengenix.paths import find_env, find_config
+from elengenix.providers.catalog import PROVIDER_IDS, PROVIDERS
+from elengenix.providers.catalog import env_key_for as _catalog_env_key_for
 
 logger = logging.getLogger("elengenix.ai_config")
 
@@ -117,7 +119,138 @@ def get_provider_config(provider: str) -> Dict[str, Any]:
 
 # Providers that are usable without an API key (local servers, probed for
 # reachability separately by UniversalAIClient.is_available).
-_KEY_FREE_PROVIDERS = {"ollama"}
+# Derived from the catalog's key_free flag (single source of truth).
+_KEY_FREE_PROVIDERS = {p.id for p in PROVIDERS if p.key_free}
+
+# Local-endpoint env vars (both spellings are honored everywhere so the
+# wizard, the TUI overlay, and this module never disagree about ollama).
+OLLAMA_URL_VARS = ("OLLAMA_BASE_URL", "OLLAMA_URL")
+
+# Custom OpenAI-compatible provider (single source of truth — must match
+# tools/universal_ai_client.py which reads the same three variables).
+CUSTOM_API_BASE_KEY = "CUSTOM_API_BASE"
+CUSTOM_API_KEY_KEY = "CUSTOM_API_KEY"
+CUSTOM_MODEL_KEY = "CUSTOM_MODEL"
+
+
+def _ollama_base() -> str:
+    """Configured ollama endpoint from env or config.yaml ("" when unset)."""
+    for var in OLLAMA_URL_VARS:
+        val = os.getenv(var, "").strip()
+        if val:
+            return val
+    try:
+        pc = get_provider_config("ollama") or {}
+        base = str(pc.get("base_url", "") or "").strip()
+        if base:
+            return base
+    except Exception:
+        pass
+    return ""
+
+
+def provider_status(provider: str) -> Dict[str, Any]:
+    """Honest per-provider status — the single source of truth for ALL UIs.
+
+    `elengenix configure`, the TUI settings overlay, and the startup panel
+    must all call this; hand-rolled ``os.getenv`` checks drifted before
+    (ollama always "Ready", phantom "(default)" models, deletes not
+    reflected). A provider is ``key_set`` only with a real credential:
+
+    - hosted providers: env key from the catalog, or a literal
+      ``api_key`` in config.yaml providers.{name}.
+    - key-free locals (ollama): a configured endpoint (OLLAMA_BASE_URL /
+      OLLAMA_URL or config base_url). Reachability itself is probed
+      separately by ``UniversalAIClient.is_available``.
+    - ``custom``: CUSTOM_API_BASE plus CUSTOM_API_KEY (or a localhost
+      base URL, matching ``is_available`` semantics).
+
+    ``model`` is "" when nothing is configured — callers must render
+    "(not set)", never a phantom default.
+
+    Returns dict: name, key_set, key_source, model, model_source.
+    """
+    name = (provider or "").strip().lower()
+    if name == "custom":
+        base = os.getenv(CUSTOM_API_BASE_KEY, "").strip()
+        key = os.getenv(CUSTOM_API_KEY_KEY, "").strip()
+        model = os.getenv(CUSTOM_MODEL_KEY, "").strip()
+        local_base = base.startswith("http://localhost") or base.startswith(
+            "http://127.0.0.1"
+        )
+        key_set = bool(base) and (bool(key) or local_base)
+        if not base:
+            key_source = "none (not set)"
+        elif key:
+            key_source = f"env:{CUSTOM_API_KEY_KEY}"
+        elif local_base:
+            key_source = "key-free"
+        else:
+            key_source = f"env:{CUSTOM_API_BASE_KEY} (no key)"
+        return {
+            "name": "custom",
+            "key_set": key_set,
+            "key_source": key_source,
+            "model": model,
+            "model_source": f"env:{CUSTOM_MODEL_KEY}" if model else "none (not set)",
+        }
+    if name in _KEY_FREE_PROVIDERS:
+        base = _ollama_base()
+        resolved = resolve_provider_settings(name)
+        model = str(resolved.get("model") or "")
+        model_source = str(resolved.get("sources", {}).get("model", "none (not set)"))
+        return {
+            "name": name,
+            "key_set": bool(base),
+            "key_source": "key-free" if base else "none (not set)",
+            "model": model,
+            "model_source": model_source if model else "none (not set)",
+        }
+    env_name = _default_env_key_for(name)
+    key_val = os.getenv(env_name, "").strip() if env_name else ""
+    key_source = f"env:{env_name}" if key_val else "none (not set)"
+    if not key_val:
+        try:
+            pc = get_provider_config(name) or {}
+            literal = pc.get("api_key", "")
+            if isinstance(literal, str) and literal.strip():
+                key_val = literal.strip()
+                key_source = "config.yaml"
+        except Exception:
+            pass
+    resolved = resolve_provider_settings(name)
+    model = str(resolved.get("model") or "")
+    model_source = str(resolved.get("sources", {}).get("model", "none (not set)"))
+    return {
+        "name": name,
+        "key_set": bool(key_val),
+        "key_source": key_source if key_val else "none (not set)",
+        "model": model,
+        "model_source": model_source if model else "none (not set)",
+    }
+
+
+def refresh_runtime_config() -> None:
+    """Pick up .env / config.yaml edits made after process start.
+
+    Call after every write/delete path (wizard, TUI overlay) so the running
+    process immediately agrees with what it just saved. Only fills in keys
+    that are currently unset (never clobbers real shell-exported vars);
+    deletions are applied directly to os.environ by the caller since a file
+    re-read cannot distinguish "deleted" from "never existed".
+    """
+    reset_config_cache()
+    try:
+        from elengenix.paths import find_env
+        from dotenv import load_dotenv
+
+        env_path = find_env()
+        if env_path:
+            load_dotenv(env_path, override=False)
+    except ImportError:
+        pass
+    except Exception as e:
+        logger.debug(f"Config refresh skipped: {e}")
 
 
 def any_provider_configured() -> bool:
@@ -141,7 +274,7 @@ def any_provider_configured() -> bool:
         return True
     # Active provider explicitly set to a key-free local provider.
     active = get_active_provider()
-    if active in _KEY_FREE_PROVIDERS and os.getenv("OLLAMA_BASE_URL"):
+    if active in _KEY_FREE_PROVIDERS and _ollama_base():
         return True
     return False
 
@@ -279,44 +412,23 @@ def get_provider_order() -> List[str]:
     return [active] + all_providers
 
 
-# ── Internal helpers ────────────────────────────────────────────
+# ── Internal helpers (derived from elengenix.providers.catalog) ──
+#
+# The provider catalog used to be hand-duplicated here (and in four other
+# modules) and drifted — e.g. wizards offered cohere/huggingface/replicate
+# which this runtime set did not know. Now this is the single source:
+# elengenix/providers/catalog.py.
 
-_KNOWN_PROVIDER_PREFIXES = {
-    "openai",
-    "gemini",
-    "anthropic",
-    "groq",
-    "nvidia",
-    "deepseek",
-    "mistral",
-    "openrouter",
-    "together",
-    "perplexity",
-    "opencode",
-    "ollama",
-}
+_KNOWN_PROVIDER_PREFIXES = set(PROVIDER_IDS)
 
 
 def _default_env_key_for(provider: str) -> Optional[str]:
     """Default env var name for a provider's API key.
 
-    Kept in sync with PROVIDER_CONFIGS in universal_ai_client.py
+    Delegates to the provider catalog (single source of truth); kept as a
+    module-level alias for backwards compatibility with existing callers.
     """
-    return {
-        "openai": "OPENAI_API_KEY",
-        "gemini": "GEMINI_API_KEY",
-        "anthropic": "ANTHROPIC_API_KEY",
-        "groq": "GROQ_API_KEY",
-        "nvidia": "NVIDIA_API_KEY",
-        "deepseek": "DEEPSEEK_API_KEY",
-        "mistral": "MISTRAL_API_KEY",
-        "openrouter": "OPENROUTER_API_KEY",
-        "together": "TOGETHER_API_KEY",
-        "perplexity": "PERPLEXITY_API_KEY",
-        "opencode": "OPENCODE_API_KEY",
-        "ollama": None,
-        "custom": "CUSTOM_API_KEY",
-    }.get(provider)
+    return _catalog_env_key_for(provider)
 
 
 def describe_provider_setup() -> Dict[str, Any]:
@@ -343,28 +455,25 @@ def describe_provider_setup() -> Dict[str, Any]:
     """
     active = get_active_provider()
     providers: List[Dict[str, Any]] = []
+    custom = provider_status("custom")
+    providers.append(
+        {
+            "name": "custom",
+            "env_key": CUSTOM_API_KEY_KEY,
+            "key_set": custom["key_set"],
+            "key_source": custom["key_source"],
+            "reachable": None,
+            "active": active == "custom",
+        }
+    )
     for name in sorted(_KNOWN_PROVIDER_PREFIXES):
-        pc = get_provider_config(name) or {}
-        env_name = _default_env_key_for(name)
-        key_val, key_source = "", "none (not set)"
-        if env_name and os.getenv(env_name, "").strip():
-            key_val, key_source = os.getenv(env_name, "").strip(), f"env:{env_name}"
-        elif isinstance(pc.get("api_key"), str) and pc.get("api_key", "").strip():
-            key_val, key_source = pc["api_key"].strip(), "config.yaml"
-        if name in _KEY_FREE_PROVIDERS:
-            base_hint = os.getenv("OLLAMA_BASE_URL", "").strip() or str(
-                pc.get("base_url", "") or ""
-            ).strip()
-            key_set = bool(base_hint)
-            key_source = "key-free" if key_set else "none (not set)"
-        else:
-            key_set = bool(key_val)
+        st = provider_status(name)
         providers.append(
             {
                 "name": name,
-                "env_key": env_name or "",
-                "key_set": key_set,
-                "key_source": key_source,
+                "env_key": _default_env_key_for(name) or "",
+                "key_set": st["key_set"],
+                "key_source": st["key_source"],
                 "reachable": None,  # filled below for active provider only
                 "active": name == active,
             }
@@ -372,20 +481,27 @@ def describe_provider_setup() -> Dict[str, Any]:
 
     ok = any_provider_configured()
 
-    # Model for the active provider
-    resolved = resolve_provider_settings(active) if active else {}
-    active_model = str(resolved.get("model") or "")
+    # Model for the active provider ("" when nothing is configured — the
+    # display layer renders "(not set)", never a phantom default).
+    if active == "custom":
+        active_model = str(custom["model"] or "")
+    else:
+        resolved = resolve_provider_settings(active) if active else {}
+        active_model = str(resolved.get("model") or "")
 
     # Socket-level reachability probe for the active provider only
     active_reachable: Optional[bool] = None
     base_url = ""
-    if active:
+    if active == "custom":
+        base_url = os.getenv(CUSTOM_API_BASE_KEY, "").strip()
+    elif active:
+        resolved = resolve_provider_settings(active)
         base_url = str(resolved.get("base_url") or "")
         if not base_url:
             pc = get_provider_config(active) or {}
             base_url = str(pc.get("base_url") or "")
         if not base_url and active == "ollama":
-            base_url = os.getenv("OLLAMA_BASE_URL", "")
+            base_url = _ollama_base()
     if base_url:
         try:
             from urllib.parse import urlparse

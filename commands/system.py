@@ -1,7 +1,13 @@
 """
 commands/system.py — Enterprise System Commands
 =================================================
-Commands: api, compliance, ml-filter
+Registered commands: ml-filter.
+
+NOTE: `api`, `compliance` and `dashboard` handlers live here but are
+NOT registered in the CommandRegistry: `main.py`'s built-in elif chain
+already dispatches those names, and one command name must have exactly
+one dispatch mechanism (the elif chain wins, so a registry entry for the
+same name is unreachable dead code).
 """
 
 from __future__ import annotations
@@ -11,12 +17,6 @@ import time
 from commands.registry import command
 
 
-@command(
-    name="api",
-    category="enterprise",
-    help_text="Launch the Enterprise REST API server for CI/CD integration",
-    examples=["elengenix api", "elengenix api --port 8443"],
-)
 async def cmd_api(args):
     """Enterprise REST API server with web dashboard, WebSocket, CI/CD webhooks."""
     from cli.ui_components import print_error, print_info, print_success, show_section
@@ -38,16 +38,6 @@ async def cmd_api(args):
         print_error(f"API server error: {e}")
 
 
-@command(
-    name="compliance",
-    category="enterprise",
-    aliases=["audit", "pci", "soc"],
-    help_text="Run compliance assessment against PCI DSS, SOC2, ISO 27001, OWASP",
-    examples=[
-        "elengenix compliance pci_dss",
-        "elengenix compliance soc2 --findings findings.json",
-    ],
-)
 async def cmd_compliance(args):
     """Enterprise compliance assessment across 4 major standards."""
     from cli.ui_components import print_error, print_info, print_success, show_section
@@ -138,13 +128,6 @@ async def cmd_ml_filter(args):
         print_error(f"ML filter error: {e}")
 
 
-@command(
-    name="dashboard",
-    category="enterprise",
-    aliases=["dash", "monitor"],
-    help_text="Launch the world-class TUI security dashboard",
-    examples=["elengenix dashboard", "elengenix dashboard example.com"],
-)
 async def cmd_dashboard(args):
     """Launch the real-time TUI security monitoring dashboard."""
     from cli.ui_components import show_section

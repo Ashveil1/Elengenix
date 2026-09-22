@@ -24,6 +24,11 @@ from typing import Any, Dict, Generator, List, Optional
 
 from elengenix.paths import find_env
 
+try:  # catalog is stdlib-only; degrade gracefully if the package moves
+    from elengenix.providers import catalog
+except ImportError:  # pragma: no cover
+    catalog = None
+
 # Auto-load .env so API keys are available without manual setup
 try:
     from dotenv import load_dotenv
@@ -276,78 +281,20 @@ class UniversalAIClient:
     Works with any provider that supports /v1/chat/completions
     """
 
-    # Default configurations for popular providers
-    PROVIDER_CONFIGS = {
-        "openai": {
-            "base_url": "https://api.openai.com/v1",
-            "env_key": "OPENAI_API_KEY",
-            "default_model": "gpt-4o-mini",
-        },
-        "gemini": {
-            "base_url": "https://generativelanguage.googleapis.com/v1beta/openai",  # OpenAI-compatible endpoint, NO /v1 suffix
-            "env_key": "GEMINI_API_KEY",
-            "default_model": "gemini-2.5-flash",
-        },
-        "anthropic": {
-            "base_url": "https://api.anthropic.com/v1",  # Claude uses different format, needs adapter
-            "env_key": "ANTHROPIC_API_KEY",
-            "default_model": "claude-3-7-sonnet-latest",
-            "custom_format": True,
-        },
-        "ollama": {
-            "base_url": "http://localhost:11434/v1",  # Ollama OpenAI compatibility
-            "env_key": None,  # No key needed for local
-            "default_model": "llama3.2",
-        },
-        "groq": {
-            "base_url": "https://api.groq.com/openai/v1",
-            "env_key": "GROQ_API_KEY",
-            "default_model": "llama-3.3-70b-versatile",
-        },
-        "openrouter": {
-            "base_url": "https://openrouter.ai/api/v1",
-            "env_key": "OPENROUTER_API_KEY",
-            "default_model": "meta-llama/llama-3.3-70b-instruct",
-        },
-        "nvidia": {
-            "base_url": "https://integrate.api.nvidia.com/v1",
-            "env_key": "NVIDIA_API_KEY",
-            "default_model": "nvidia/nemotron-3-super-120b-a12b",
-        },
-        "deepseek": {
-            "base_url": "https://api.deepseek.com/v1",
-            "env_key": "DEEPSEEK_API_KEY",
-            "default_model": "deepseek-chat",
-        },
-        "mistral": {
-            "base_url": "https://api.mistral.ai/v1",
-            "env_key": "MISTRAL_API_KEY",
-            "default_model": "mistral-large-latest",
-        },
-        "together": {
-            "base_url": "https://api.together.xyz/v1",
-            "env_key": "TOGETHER_API_KEY",
-            "default_model": "meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo",
-        },
-        "perplexity": {
-            "base_url": "https://api.perplexity.ai",
-            "env_key": "PERPLEXITY_API_KEY",
-            "default_model": "llama-3.1-sonar-large-128k-online",
-        },
-        "custom": {
-            "base_url": "",
-            "env_key": None,
-            "default_model": "custom-model",
-        },
-        # OpenCode Zen — OpenAI-compatible gateway (https://opencode.ai/zen/v1)
-        # exposing tier-1 models: Claude 5.x/4.x, GPT-5.x, Gemini 3.x, Kimi K3,
-        # DeepSeek V4, Grok, Qwen3.6, GLM-5.x, MiniMax M3 — plus several free tiers.
-        "opencode": {
-            "base_url": "https://opencode.ai/zen/v1",
-            "env_key": "OPENCODE_API_KEY",
-            "default_model": "gpt-5.4-mini",
-        },
-    }
+    # Provider defaults derived from the catalog (single source of truth:
+    # elengenix/providers/catalog.py) — do not hand-edit this mapping.
+    if catalog is not None:
+        PROVIDER_CONFIGS: dict = {
+            spec.id: {
+                "base_url": spec.base_url,
+                "env_key": spec.env_key,
+                "default_model": spec.default_model,
+                **({"custom_format": True} if spec.id == "anthropic" else {}),
+            }
+            for spec in catalog.iter_specs()
+        }
+    else:  # pragma: no cover — catalog unavailable
+        PROVIDER_CONFIGS = {}
 
     def __init__(
         self,
@@ -442,36 +389,23 @@ class UniversalAIClient:
         )
 
     def _detect_provider(self) -> str:
-        """Auto-detect provider from environment variables."""
-        # Priority order
-        if os.getenv("OPENAI_API_KEY"):
-            return "openai"
-        elif os.getenv("GEMINI_API_KEY"):
-            return "gemini"
-        elif os.getenv("ANTHROPIC_API_KEY"):
-            return "anthropic"
-        elif os.getenv("GROQ_API_KEY"):
-            return "groq"
-        elif os.getenv("NVIDIA_API_KEY"):
-            return "nvidia"
-        elif os.getenv("DEEPSEEK_API_KEY"):
-            return "deepseek"
-        elif os.getenv("MISTRAL_API_KEY"):
-            return "mistral"
-        elif os.getenv("OPENROUTER_API_KEY"):
-            return "openrouter"
-        elif os.getenv("TOGETHER_API_KEY"):
-            return "together"
-        elif os.getenv("PERPLEXITY_API_KEY"):
-            return "perplexity"
-        elif os.getenv("OLLAMA_URL") or self._check_ollama():
+        """Auto-detect provider from environment variables.
+
+        Detection order is the catalog's fallback priority (single source of
+        truth). The old hand-written chain covered only 10 providers and
+        silently ignored opencode/cohere/huggingface/replicate keys.
+        """
+        if catalog is None:  # pragma: no cover
+            raise RuntimeError("provider catalog unavailable")
+        for spec in sorted(catalog.iter_specs(), key=lambda s: s.priority):
+            if spec.env_key and os.getenv(spec.env_key):
+                return spec.id
+        if os.getenv("OLLAMA_URL") or self._check_ollama():
             return "ollama"
-        else:
-            # No API key and Ollama not reachable — raise clear error
-            raise ValueError(
-                "No API key configured and Ollama (local) is not available. "
-                "Set a provider API key in ~/.elengenix/.env or start Ollama."
-            )
+        raise ValueError(
+            "No API key configured and Ollama (local) is not available. "
+            "Set a provider API key in ~/.elengenix/.env or start Ollama."
+        )
 
     def _check_ollama(self) -> bool:
         """Check if Ollama is running locally."""

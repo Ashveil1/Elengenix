@@ -224,14 +224,32 @@ def _get_now_context() -> str:
 
 
 def display_in_chat_mode(message: str, mode: str = "info") -> None:
-    """Display a message in the chat interface."""
+    """Display a message in the active chat surface (TUI / line mode).
+
+    Falls back to the activity log when no UI hook is registered (headless).
+    """
+    try:
+        from elengenix.chat.user_interaction import get_user_interaction_bridge
+
+        hook = get_user_interaction_bridge().display_hook
+        if hook is not None:
+            hook(message, mode)
+            return
+    except Exception:
+        pass
     logger.info(f"[{mode.upper()}] {message}")
 
 
 def send_telegram_notification(message: str, **kwargs: Any) -> None:
     """Send a notification to Telegram."""
+    try:
+        from tools.telegram_bot import send_message as _tg_send
+
+        _tg_send(message, **kwargs)
+        return
+    except Exception:
+        pass
     logger.info(f"[TELEGRAM] {message}")
-    # This is a stub — real implementation in tools/telegram_bot.py
 
 
 # Module-level delegation functions (can be patched by tests)
@@ -242,8 +260,18 @@ def execute_tool(action: dict) -> str:
 
 
 def handle_ask_user(question: dict) -> str:
-    """Handle asking user for confirmation."""
-    return f"[User response needed: {question.get('question', '')}]"
+    """Ask the human operator a question and return the real typed answer.
+
+    Routes through the user-interaction bridge: TUI question panel, line-mode
+    prompt, or stdin fallback. Never deadlocks headless runs — closed stdin
+    yields a polite no-answer marker instead.
+    """
+    from elengenix.chat.user_interaction import ask_user
+
+    q = question.get("question", "") if isinstance(question, dict) else str(question)
+    meta = question if isinstance(question, dict) else {}
+    answer = ask_user(q, meta=meta)
+    return answer
 
 
 def execute_tool_registry(tool_name: str, target: str,
@@ -835,10 +863,20 @@ class ElengenixAgent:
             now_context = _get_now_context()
 
             prompt = (
-                "You are Elengenix AI v3.0. "
+                "You are Elengenix AI v3.0, an autonomous security agent with "
+                "FULL autonomy — there is no phase script; you decide each step "
+                "purely on your own reasoning.\n"
                 f"Target: {loop_target or 'unknown'}. "
                 f"Step {self._step_count}/{self.max_steps}.\n\n"
                 f"{now_context}\n\n{past_memories}\n\n"
+                "Actions the system actually supports (all verified):\n"
+                '  {"action": "run_shell", "tool": "<command or tool name>", "target": "..."}\n'
+                '  {"action": "execute_tool", "tool": "...", "target": "..."} (alias of run_shell)\n'
+                '  {"action": "ask_user", "question": "...", "purpose": "why"} — pause and ask the human operator; the real typed answer comes back to you\n'
+                '  {"action": "save_memory", "learning": "...", "category": "..."}\n'
+                '  {"action": "finish", "summary": "..."}\n'
+                "Any strategy, order, and depth is your call.\n\n"
+                "Respond with ONE JSON action object only."
             )
 
             # Call AI
@@ -893,8 +931,23 @@ class ElengenixAgent:
                 display_in_chat_mode(f"Memory saved: {learning[:60]}")
                 continue
 
+            # Ask the human operator — real answer via the interaction bridge
+            if act == "ask_user":
+                question = action.get("question", "")
+                purpose = action.get("purpose", "")
+                answer = handle_ask_user(
+                    {"question": question, "purpose": purpose,
+                     "target": loop_target or ""}
+                )
+                result_str = f"Operator answered: {answer}"
+                self._last_responses.append(result_str)
+                self._activity_log(f"ask_user: {question[:60]} -> {answer[:40]}")
+                display_in_chat_mode(f"[AI asked] {question}", "info")
+                display_in_chat_mode(f"[Operator] {answer}", "info")
+                continue
+
             # Run-shell / execute tool
-            if act in ("run_shell", "execute_tool"):
+            if act in ("run_shell", "execute_tool", "run_tool", "shell"):
                 tool = action.get("tool", action.get("command", ""))
                 target = loop_target or action.get("target", "")
 
@@ -930,11 +983,21 @@ class ElengenixAgent:
                 display_in_chat_mode(f"Executed {tool}")
                 continue
 
-            # Unknown action — treat as finish
-            summary = action.get("summary", raw[:200])
-            self._append_history("user", user_input)
-            self._append_history("assistant", summary)
-            return f"Task finished: {summary}"
+            # Unknown action — do NOT silently finish: tell the AI the action
+            # is unsupported and what is supported, so it can correct course.
+            supported = "run_shell | execute_tool | run_tool | ask_user | save_memory | finish"
+            self._last_responses.append(
+                f"unsupported action '{act}' — supported: {supported}"
+            )
+            self._activity_log(f"Unsupported action from AI: {act}")
+            # Feed the correction back by overriding the user input for the
+            # next iteration (the loop re-prompts with the same goal).
+            user_input = (
+                f"{user_input}\n"
+                f"[system] Action '{act}' is not supported. Supported actions: "
+                f"{supported}. Choose again."
+            )
+            continue
 
         return f"[Task halted: reached max steps ({self.max_steps} steps)]"
 

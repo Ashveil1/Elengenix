@@ -76,7 +76,9 @@ class ScanProgress:
     phases: List[ScanPhase] = field(default_factory=list)
     total_findings: int = 0
     current_phase: str = ""
-    status: str = "running"  # running, paused, completed, failed
+    status: str = "running"  # running, paused, completed, failed, cancelled
+    requests_done: int = 0
+    _prev_eta: float = 0.0
 
     @property
     def overall_progress(self) -> float:
@@ -90,11 +92,29 @@ class ScanProgress:
         return time.time() - self.started_at
 
     @property
+    def throughput(self) -> float:
+        """Requests per second since scan start (0 when unknown)."""
+        elapsed = self.elapsed
+        if elapsed <= 0 or self.requests_done <= 0:
+            return 0.0
+        return self.requests_done / elapsed
+
+    @property
     def eta(self) -> float:
         progress = self.overall_progress
-        if progress <= 0:
+        if progress <= 0.01:
             return 0.0
-        return self.elapsed / progress - self.elapsed
+        try:
+            from tui.motion import ema_eta as _ema_eta
+
+            raw = self.elapsed / max(0.01, progress) - self.elapsed
+            smoothed = _ema_eta(self.elapsed, progress, self._prev_eta or None)
+            self._prev_eta = smoothed
+            return max(0.0, smoothed if smoothed else raw)
+        except Exception:
+            if progress <= 0:
+                return 0.0
+            return self.elapsed / progress - self.elapsed
 
 
 # Phase definitions for a typical security scan
@@ -190,11 +210,31 @@ class ScanProgressWidget(Static):
         # Update total findings
         self.scan.total_findings = sum(p.findings_count for p in self.scan.phases)
 
+    def pause_scan(self) -> None:
+        """Pause the running scan (p key)."""
+        if self.scan and self.scan.status == "running":
+            self.scan.status = "paused"
+
+    def resume_scan(self) -> None:
+        """Resume a paused scan."""
+        if self.scan and self.scan.status == "paused":
+            self.scan.status = "running"
+
+    def cancel_scan(self) -> None:
+        """Cancel the running scan (c key)."""
+        if self.scan and self.scan.status in ("running", "paused"):
+            self.scan.status = "cancelled"
+
+    def record_requests(self, count: int = 1) -> None:
+        """Feed throughput counter for the req/s readout."""
+        if self.scan:
+            self.scan.requests_done += max(0, count)
+
     def complete_scan(self, status: str = "completed") -> None:
         """Mark the scan as completed.
 
         Args:
-            status: Final status (completed or failed).
+            status: Final status (completed, failed, or cancelled).
         """
         if self.scan:
             self.scan.status = status
@@ -249,7 +289,7 @@ class ScanProgressWidget(Static):
         progress_bar.append("\u2591" * empty, style=muted)
         progress_bar.append(f"] {pct:3d}%", style=f"bold {text_color}")
 
-        # Time info
+        # Time info (EMA-smoothed ETA + throughput)
         time_text = Text()
         elapsed = self.scan.elapsed
         time_text.append("  Elapsed: ", style=muted)
@@ -258,6 +298,10 @@ class ScanProgressWidget(Static):
             eta = self.scan.eta
             time_text.append("  ETA: ", style=muted)
             time_text.append(f"{int(eta):d}s", style=f"bold {primary}")
+        throughput = self.scan.throughput
+        if throughput > 0:
+            time_text.append("  Throughput: ", style=muted)
+            time_text.append(f"{throughput:.1f} req/s", style=f"bold {text_color}")
 
         # Findings
         findings_text = Text()
@@ -266,6 +310,8 @@ class ScanProgressWidget(Static):
         if self.scan.current_phase:
             findings_text.append("  Phase: ", style=muted)
             findings_text.append(self.scan.current_phase, style=f"bold {primary}")
+        if self.scan.status in ("running", "paused"):
+            findings_text.append("  [p] pause  [c] cancel", style=muted)
 
         # Phase details table
         phase_table = Table(
@@ -320,7 +366,8 @@ class ScanProgressWidget(Static):
             "running": primary,
             "paused": "#ffb300",
             "completed": "#81C784",
-            "failed": "#ff5500",
+            "failed": "#ff5555",
+            "cancelled": "#888888",
         }.get(self.scan.status, muted)
 
         return Panel(
@@ -374,7 +421,8 @@ def render_scan_progress(
             )
             widget.update_phase(phase_name, phase_progress, phase_findings, status)
 
-    widget.scan.total_findings = findings_total
-    widget.scan.started_at = time.time() - elapsed
+    if widget.scan is not None:
+        widget.scan.total_findings = findings_total
+        widget.scan.started_at = time.time() - elapsed
 
     return widget.render(primary=primary, text_color=text_color, muted=muted)

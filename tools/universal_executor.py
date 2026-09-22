@@ -673,6 +673,33 @@ class UniversalExecutor:
             except Exception as e:
                 return ExecutionResult(False, "", str(e), "run_tool", params)
 
+        elif action_type == "ask_user":
+            """Pause and ask the human operator a question.
+
+            The AI is sovereign — this is how it consults the human when its
+            own reasoning says clarification is worth more than a guess.
+            The real typed answer comes back as the action result.
+            """
+            question = params.get("question", params.get("query", ""))
+            purpose = params.get("purpose", "")
+            if not question:
+                return ExecutionResult(
+                    False, "", "ask_user requires a 'question' param", "ask_user", params
+                )
+            try:
+                from elengenix.chat.user_interaction import ask_user
+
+                answer = ask_user(question, meta={"purpose": purpose})
+                return ExecutionResult(
+                    True,
+                    f"Operator answered: {answer}",
+                    "",
+                    "ask_user",
+                    {"question": question, "answer": answer},
+                )
+            except Exception as e:
+                return ExecutionResult(False, "", f"ask_user failed: {e}", "ask_user", params)
+
         elif action_type == "package":
             return self.package_manager.execute(
                 params.get("manager", "pip"), params.get("action", "install"), params.get("package")
@@ -828,79 +855,6 @@ class UniversalExecutor:
             except Exception as e:
                 return ExecutionResult(False, "", str(e), "check_takeover", params)
 
-        elif action_type == "ask_user":
-            question = params.get("question", "")
-            input_type = params.get("input_type", "confirm")
-
-            if not question:
-                return ExecutionResult(False, "", "No question provided", "ask_user", params)
-
-            # Send Telegram notification first
-            try:
-                from integrations.bot_utils import send_telegram_notification
-
-                send_telegram_notification(f"[ASK_USER] {question}")
-            except Exception:
-                pass  # Telegram optional
-
-            # Check if running in non-interactive mode
-            import sys
-
-            if not sys.stdin.isatty():
-                return ExecutionResult(
-                    False, "", "Non-interactive mode - cannot ask user", "ask_user", params
-                )
-
-            # Format the question for user
-            if input_type == "confirm":
-                prompt = f"\n[?] {question} [y/N]: "
-            elif input_type == "password":
-                import getpass
-
-                prompt = f"\n[?] {question}: "
-                answer = getpass.getpass(prompt)
-                # Save to memory
-                from tools.vector_memory import remember
-
-                remember(f"User provided password for: {question}", "system", "user_input")
-                # Notify via Telegram
-                try:
-                    from integrations.bot_utils import send_telegram_notification
-
-                    send_telegram_notification("[ASK_USER] Password received (hidden)")
-                except Exception:
-                    pass
-                return ExecutionResult(
-                    True, "Password received (hidden)", "", "ask_user", {"question": question}
-                )
-            else:
-                prompt = f"\n[?] {question}: "
-
-            # Get user input
-            try:
-                answer = input(prompt).strip()
-            except EOFError:
-                return ExecutionResult(False, "", "EOF reading input", "ask_user", params)
-            except Exception as e:
-                return ExecutionResult(False, "", f"Input error: {e}", "ask_user", params)
-
-            # Save to memory
-            from tools.vector_memory import remember
-
-            remember(f"User answered: {answer} to question: {question}", "system", "user_input")
-
-            # Notify Telegram of answer
-            try:
-                from integrations.bot_utils import send_telegram_notification
-
-                send_telegram_notification(f"[USER_REPLY] {answer}")
-            except Exception:
-                pass
-
-            return ExecutionResult(
-                True, answer, "", "ask_user", {"question": question, "answer": answer}
-            )
-
         elif action_type == "submit_findings":
             findings = params.get("findings", [])
             target = params.get("target", "")
@@ -954,11 +908,13 @@ You can perform these actions:
 ### File Operations
 - `read_file`: Read file with line numbers
 - `write_file`: Create/edit file content
+- `edit_file`: Edit file with search/replace
 - `search_file`: Search within files using regex
+- `list_dir`: List directory contents
 
 ### Shell & Tools
 - `shell`: Execute any command (respects security restrictions)
-- `run_tool`: Run a security tool from the registry (_ext_recon)
+- `run_tool`: Run a security tool from the registry (e.g. _ext_recon)
 - `package`: Install/uninstall packages via pip, npm, apt, go
 
 ### Web & Intelligence
@@ -966,6 +922,10 @@ You can perform these actions:
 - `bounty_intel`: Look up bug bounty programs (HackerOne)
 - `github_search`: Search GitHub for leaked secrets, credentials, or code
 - `cve_lookup`: Search the local CVE database by CVE ID or keyword
+
+### Human Interaction
+- `ask_user`: Pause and ask the human operator a question; the real typed
+  answer is returned to you. Use when clarification beats guessing.
 
 ### Finish
 - `finish`: Complete the task with a summary

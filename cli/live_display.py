@@ -255,11 +255,14 @@ class LiveDisplay:
         return layout
 
     def run_live(self, duration: Optional[int] = None):
-        """Run live display with updates."""
+        """Run live display with updates (calmer when motion is disabled)."""
+        import os as _os
+
         self.running = True
         start_time = time.time()
+        fps = 1 if _os.environ.get("ELENGENIX_NO_ANIMATION", "") == "1" else 2
 
-        with Live(self.update_display(), console=self.console, refresh_per_second=2) as live:
+        with Live(self.update_display(), console=self.console, refresh_per_second=fps) as live:
             try:
                 while self.running:
                     # Check duration limit

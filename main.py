@@ -104,6 +104,13 @@ logging.basicConfig(
         logging.StreamHandler(sys.stderr),
     ],
 )
+# UX: INFO chatter (MCP startup, tool registration, …) belongs in the log
+# file, not in the user's session. Console (stderr) stays quiet unless the
+# operator asks for verbose output with ELENGENIX_DEBUG=1.
+if os.environ.get("ELENGENIX_DEBUG", "") != "1":
+    for _h in logging.getLogger().handlers:
+        if isinstance(_h, logging.StreamHandler):
+            _h.setLevel(logging.WARNING)
 
 
 # ── Dependency Management ─────────────────────────────────────────────────────
@@ -242,6 +249,19 @@ def main():
         from tools.auto_detector import CommandSimplifier
 
         Console().print(CommandSimplifier.get_help_text())
+        return
+
+    # Fast path: --version/-V prints the app version and exits. (argparse's
+    # separate --version flag is a *target* version for PoC generation and
+    # only applies after a subcommand — as the first argument this is the
+    # standard "show my version" flag.)
+    if sys.argv[1:2] in (["--version"], ["-V"]):
+        try:
+            from elengenix import __version__
+
+            print(f"elengenix {__version__}")
+        except Exception:
+            print("elengenix (version unavailable)")
         return
 
     # Depth guard for recursive profile expansion (max 3 levels)
@@ -404,7 +424,7 @@ def main():
                 pass
 
         try:
-            import ui_components as _ui
+            from cli import ui_components as _ui
 
             _ui.console = _SilentConsole()
         except Exception as e:
@@ -501,8 +521,28 @@ def main():
             return
 
     # If no command or target is specified and it's "auto" (default), run the TUI
+    # — unless the welcome wizard saved a default_mode preference, which then
+    # becomes the real bare-run behavior (autonomous / chat).
     if args.command == "auto" and not args.target:
-        args.command = "tui"
+        default_mode = ""
+        try:
+            from tools.welcome_wizard import WelcomeWizard
+
+            cfg = WelcomeWizard.get_saved_config()
+            default_mode = (getattr(cfg, "default_mode", "") or "") if cfg else ""
+        except Exception:
+            default_mode = ""
+        if default_mode == "autonomous":
+            args.command = "autonomous"
+        elif default_mode == "ai":
+            args.command = "hack"
+        else:
+            args.command = "tui"
+        # UX: a Textual TUI is unusable over a pipe (scripts, CI, `echo … |`).
+        # When stdin/stdout isn't a real terminal, run the line-mode session
+        # instead so piped input gets clean, parseable output.
+        if args.command == "tui" and not (sys.stdin.isatty() and sys.stdout.isatty()):
+            args.command = "hack"
 
     # Bare target (elengenix <anything>) → auto-route to vuln-hunt (TRUE AI agent)
     if (
@@ -571,6 +611,23 @@ def main():
         "soc",
         "bola",
         "waf",
+        # Report commands: with a target they used to be swallowed by
+        # auto-detect ("JSON file detected... starting AI assistant") and
+        # the real generator handlers below were unreachable.
+        "report",
+        "pdf",
+        "pd",
+        "scan-report",
+        # Same protection for every other target-bearing command with a
+        # dedicated handler: `elengenix research CVE-...` / `poc rce` etc.
+        # used to be hijacked into AI-analysis of the "target".
+        "research",
+        "poc",
+        "autonomous",
+        "vuln-hunt",
+        "compliance",
+        "dashboard",
+        "bounty",
     }
     if args.command == "auto" or (
         args.command and args.target and args.command not in explicit_commands
@@ -1004,8 +1061,19 @@ def main():
                 from tools.sast_engine import SASTEngine
 
                 engine = SASTEngine()
-                results = engine.scan(target)
-                all_findings.extend(results.get("findings", []))
+                results = engine.scan_repository(Path(target))
+                # scan_repository returns a report dict; findings live in
+                # "critical_vulnerabilities" (critical/high only).
+                for v in results.get("critical_vulnerabilities", []):
+                    all_findings.append(
+                        {
+                            "message": f"{v.get('type', 'vuln')} (CWE {v.get('cwe', '?')}): {v.get('description', '')[:120]}",
+                            "severity": str(v.get("severity", "medium")).upper(),
+                            "file": v.get("file", ""),
+                            "line": v.get("line", ""),
+                            "snippet": (v.get("code") or "")[:100],
+                        }
+                    )
             except Exception as e:
                 print_info(f"SASTEngine skipped: {e}")
             # Also run multimodal agent code analysis (secret patterns, eval, SQLi, etc.)
@@ -1047,13 +1115,12 @@ def main():
                 print_info(f"Multimodal analysis skipped: {e}")
             for finding in all_findings:
                 sev = finding.get("severity", "info").upper()
-                color = {"CRITICAL": "red", "HIGH": "red", "MEDIUM": "grey70", "LOW": "dim"}.get(
-                    sev, "dim"
-                )
                 msg = finding.get("message", "")
                 f = finding.get("file", "")
                 ln = finding.get("line", "")
-                console.print(f"[{color}][{sev}][/{color}] {msg} [{f}:{ln}]")
+                # markup=False: dynamic finding text may contain bracket
+                # sequences ([multimodal], [Errno ...]) that are not markup.
+                console.print(f"[{sev}] {msg} ({f}:{ln})", markup=False)
             total = len(all_findings)
             print_success(f"SAST scan complete — {total} findings (SASTEngine + Multimodal)")
             if all_findings:
@@ -1113,12 +1180,18 @@ def main():
                 from tools.cloud_scanner import CloudScanner
 
                 scanner = CloudScanner()
-                result = scanner.scan(target)
-                for finding in result.get("findings", []):
-                    sev = finding.get("severity", "info").upper()
-                    color = {"CRITICAL": "red", "HIGH": "red", "MEDIUM": "grey70"}.get(sev, "dim")
-                    console.print(f"[{color}][{sev}][/{color}] {finding.get('message', '')}")
-                total = len(result.get("findings", []))
+                result = scanner.scan_directory(Path(target))
+                if result.get("error"):
+                    print_error(str(result["error"]))
+                    return
+                for finding in result.get("critical_findings", []):
+                    sev = str(finding.get("severity", "info")).upper()
+                    console.print(
+                        f"[{sev}] {finding.get('type', '')} — {finding.get('description', '')} "
+                        f"({finding.get('resource', '')})",
+                        markup=False,
+                    )
+                total = result.get("total_findings", 0)
                 print_success(f"Cloud scan complete — {total} findings")
             except Exception as e:
                 print_error(f"Cloud scan error: {e}")
@@ -1138,12 +1211,20 @@ def main():
                 from tools.mobile_api_tester import MobileAPITester
 
                 tester = MobileAPITester()
-                result = tester.analyze(target)
-                for finding in result.get("findings", []):
+                if target and Path(target).is_file():
+                    endpoints = tester.parse_burp_export(Path(target))
+                    result = tester.run_full_analysis(endpoints)
+                else:
+                    result = tester.run_full_analysis()
+                if result.get("total_endpoints", 0) == 0:
+                    print_info("No endpoints loaded — provide a Burp export file to analyze real endpoints")
+                for finding in result.get("critical_findings", []):
                     console.print(
-                        f"[grey70][-][/grey70] {finding.get('type', '')} — {finding.get('description', '')}"
+                        f"[{str(finding.get('severity', '?')).upper()}] {finding.get('type', '')} — "
+                        f"{finding.get('description', '')} ({finding.get('endpoint', '')})",
+                        markup=False,
                     )
-                total = len(result.get("findings", []))
+                total = result.get("total_findings", 0)
                 print_success(f"Mobile API analysis complete — {total} findings")
             except Exception as e:
                 print_error(f"Mobile API error: {e}")
@@ -1206,12 +1287,21 @@ def main():
                 from tools.soc_analyzer import SOCAnalyzer
 
                 analyzer = SOCAnalyzer()
-                result = analyzer.analyze(target or None)
-                for alert in result.get("alerts", []):
-                    sev = alert.get("severity", "info").upper()
-                    color = {"CRITICAL": "red", "HIGH": "red", "MEDIUM": "grey70"}.get(sev, "dim")
-                    console.print(f"[{color}][{sev}][/{color}] {alert.get('message', '')}")
-                print_success(f"SOC analysis complete — {len(result.get('alerts', []))} alerts")
+                if target:
+                    result = analyzer.analyze_log_file(Path(target))
+                else:
+                    result = {"error": "No log file provided"}
+                if result.get("error"):
+                    print_error(str(result["error"]))
+                    return
+                for alert in result.get("top_priority_alerts", []):
+                    sev = str(alert.get("severity", "info")).upper()
+                    console.print(
+                        f"[{sev}] {alert.get('type', '')} from {alert.get('src_ip', '?')} — "
+                        f"{alert.get('action', '')} (priority {float(alert.get('priority', 0)):.0f})",
+                        markup=False,
+                    )
+                print_success(f"SOC analysis complete — {result.get('total_alerts', 0)} alerts")
             except Exception as e:
                 print_error(f"SOC analyzer error: {e}")
             return
@@ -1718,12 +1808,12 @@ def main():
             return
 
         elif args.command in ("report", "pdf", "pd"):
-            from tools.pdf_report_generator import (
-                PDFReportGenerator,
-                ReportMetadata,
-                format_report_summary,
-            )
             from cli.ui_components import print_error, print_info, print_success, show_section
+            from elengenix.reports.adapters import (
+                findings_to_markdown,
+                render_findings_html,
+                render_findings_pdf,
+            )
 
             show_section("Professional Report Generator")
 
@@ -1740,51 +1830,58 @@ def main():
             try:
                 with open(file_path, "r") as f:
                     data = json.load(f)
+            except Exception as e:
+                print_error(f"Failed to parse JSON: {e}")
+                return
 
-                findings = data if isinstance(data, list) else data.get("findings", [])
-                if not findings:
-                    print_error("No findings found")
-                    return
+            findings = data if isinstance(data, list) else data.get("findings", [])
+            if not findings:
+                print_error("No findings found")
+                return
 
-                print_success(f"Loaded {len(findings)} findings")
+            print_success(f"Loaded {len(findings)} findings")
 
-                # Get metadata with questionary or fallback to input
-                try:
-                    import questionary
+            target = data.get("target", "") if isinstance(data, dict) else ""
+            target = str(target) or file_path.stem
+            title = f"Security Assessment - {target}"
+            author = "Elengenix Security"
+            try:
+                import questionary
 
-                    target = questionary.text("Target name:", default="Unknown Target").ask()
-                    author = questionary.text("Author name:", default="Elengenix Security").ask()
-                    title = questionary.text(
-                        "Report title:", default=f"Security Assessment - {target}"
-                    ).ask()
-                except Exception:
-                    target = console.input("[red]Target name[/red]: ").strip() or "Unknown Target"
-                    author = (
-                        console.input("[red]Author name[/red]: ").strip() or "Elengenix Security"
-                    )
-                    title = (
-                        console.input("[red]Report title[/red]: ").strip()
-                        or f"Security Assessment - {target}"
-                    )
+                target = questionary.text("Target name:", default=target).ask() or target
+                author = questionary.text("Author name:", default=author).ask() or author
+                title = questionary.text("Report title:", default=title).ask() or title
+            except Exception:
+                pass  # non-interactive: keep defaults
 
-                metadata = ReportMetadata(
-                    title=title,
-                    target=target,
-                    author=author,
-                    date=datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),
+            try:
+                import re as _re
+                from datetime import datetime as _dt, timezone as _tz
+
+                from elengenix.paths import get_reports_path
+
+                safe_target = _re.sub(r"[^A-Za-z0-9._-]", "_", target) or "report"
+                stamp = _dt.now(_tz.utc).strftime("%Y%m%d_%H%M%S")
+                out_dir = get_reports_path(safe_target)
+                md_path = out_dir / f"report_{stamp}.md"
+                html_path = out_dir / f"report_{stamp}.html"
+                pdf_path = out_dir / f"report_{stamp}.pdf"
+
+                md_path.write_text(
+                    findings_to_markdown(findings, title=title, target=target, author=author),
+                    encoding="utf-8",
+                )
+                html_path.write_text(
+                    render_findings_html(findings, title=title, target=target, author=author),
+                    encoding="utf-8",
+                )
+                pdf_path.write_bytes(
+                    render_findings_pdf(findings, title=title, target=target, author=author)
                 )
 
-                generator = PDFReportGenerator()
-                report_paths = generator.generate_from_findings(findings, metadata)
-
-                console.print(format_report_summary(report_paths))
-
-                if "pdf" in report_paths:
-                    print_success(f"PDF report ready for submission: {report_paths['pdf']}")
-                else:
-                    print_success(f"HTML report ready: {report_paths['html']}")
-                    print_info("Install weasyprint for PDF: pip install weasyprint")
-
+                print_success(f"Markdown report: {md_path}")
+                print_success(f"HTML report: {html_path}")
+                print_success(f"PDF report ready for submission: {pdf_path}")
             except Exception as e:
                 print_error(f"Report generation failed: {e}")
                 logger.exception("Report generation failed")
@@ -2194,9 +2291,9 @@ def main():
             check_health()
 
 
-# ── D1: list-tools — show all 98 tools by category ──
+# ── D1: list-tools — show the full tool catalog by category ──
 def _cmd_list_tools():
-    """Print the 98-tool catalog grouped by category.
+    """Print the full tool catalog grouped by category.
 
     Tries the live ToolRegistry first (auto-registered base tools).
     ALWAYS also scans tools/*.py for module names + first-line docstring
@@ -2404,7 +2501,7 @@ def _cmd_examples():
         ("[cyan]Update CVE database[/cyan]", "elengenix cve-update"),
         ("[cyan]Health check[/cyan]", "elengenix doctor"),
         ("[cyan]Configure API keys[/cyan]", "elengenix configure"),
-        ("[cyan]List all 98 tools[/cyan]", "elengenix list-tools"),
+        ("[cyan]List all tools[/cyan]", "elengenix list-tools"),
         ("[cyan]Show usage examples[/cyan]", "elengenix examples"),
         ("[cyan]Resume paused mission[/cyan]", "elengenix resume <mission-id>"),
         ("[cyan]Show scan history[/cyan]", "elengenix history list"),
@@ -2489,6 +2586,8 @@ def _cmd_scan_report(args):
     from datetime import datetime, timezone
     from pathlib import Path
 
+    from elengenix.reports.adapters import findings_to_markdown
+    from elengenix.reports.export import render_html
     from tools.report_gen import ExecutiveSummary, FindingReport, ReportFormat, export_report
 
     findings_file = args.target
@@ -2575,34 +2674,49 @@ def _cmd_scan_report(args):
         ),
     )
 
-    # Generate requested formats
-    formats = {
-        "html": ReportFormat.HTML,
-        "md": ReportFormat.MARKDOWN,
-        "markdown": ReportFormat.MARKDOWN,
+    # Generate requested formats.
+    # html/md render through the canonical package (elengenix/reports,
+    # incl. CVSS scoring from metric vectors); sarif/json/txt stay on
+    # tools.report_gen as machine formats.
+    legacy_formats = {
         "sarif": ReportFormat.SARIF,
         "json": ReportFormat.JSON,
         "txt": ReportFormat.TEXT,
         "text": ReportFormat.TEXT,
     }
+    doc_title = f"Security Assessment \u2014 {target}"
+    md_text = findings_to_markdown(findings_raw, title=doc_title, target=str(target))
+    out_path = Path(out)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
 
     if fmt == "all":
         outputs = []
-        for name, rf in formats.items():
-            path = export_report(summary, findings, f"{out}.{name}", rf)
-            outputs.append(path)
+        md_path = out_path.with_suffix(".md")
+        html_path = out_path.with_suffix(".html")
+        md_path.write_text(md_text, encoding="utf-8")
+        html_path.write_text(render_html(md_text), encoding="utf-8")
+        outputs += [md_path, html_path]
+        for name, rf in legacy_formats.items():
+            outputs.append(export_report(summary, findings, f"{out}.{name}", rf))
         console.print(f"[green][OK] Generated {len(outputs)} reports:[/green]")
         for op in outputs:
             console.print(f"  [cyan]{op}[/cyan] ({op.stat().st_size:,} bytes)")
+    elif fmt in ("html", "md", "markdown"):
+        is_html = fmt == "html"
+        path = out_path.with_suffix(".html" if is_html else ".md")
+        path.write_text(render_html(md_text) if is_html else md_text, encoding="utf-8")
+        console.print(f"[green][OK] Report saved:[/green] {path} ({path.stat().st_size:,} bytes)")
+        if is_html:
+            console.print(f"  [dim]Open in browser: file://{path.absolute()}[/dim]")
     else:
-        rf = formats.get(fmt)
+        rf = legacy_formats.get(fmt)
         if not rf:
             console.print(f"[red]Unknown format:[/red] {fmt}. Use: html, md, sarif, json, txt, all")
             return
         path = export_report(summary, findings, f"{out}.{fmt}", rf)
         console.print(f"[green][OK] Report saved:[/green] {path} ({path.stat().st_size:,} bytes)")
-        if rf == ReportFormat.HTML:
-            console.print(f"  [dim]Open in browser: file://{path.absolute()}[/dim]")
+
+    console.print()
 
     console.print()
 
