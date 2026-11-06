@@ -154,6 +154,40 @@ ACTION_TOOLS: List[Dict[str, Any]] = [
     {
         "type": "function",
         "function": {
+            "name": "run_webapp_hunt",
+            "description": (
+                "Run the deterministic web-application vulnerability hunter against a "
+                "web target. It discovers endpoints, detects SQLi, XSS (reflected/stored), "
+                "IDOR/BOLA, mass assignment, SSTI, JWT alg=none, prototype pollution, race "
+                "conditions and path traversal using signal-based probes, and exploits the "
+                "critical ones to PROVE impact (extract flags / dump data). Use this as a "
+                "baseline web pass: it is fast, methodical and returns structured findings "
+                "with evidence. Local/private targets only unless public=true."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "target": {
+                        "type": "string",
+                        "description": "Base URL to hunt (e.g. http://127.0.0.1:5555)",
+                    },
+                    "public": {
+                        "type": "boolean",
+                        "description": "Allow non-local (public) hosts (default false).",
+                    },
+                    "classes": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Optional subset of vuln classes to test (default: all).",
+                    },
+                },
+                "required": ["target"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "ask_user",
             "description": "Ask the user a question or request input",
             "parameters": {

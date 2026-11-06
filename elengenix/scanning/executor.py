@@ -72,6 +72,9 @@ def execute_tool(
         "install": "install_tool",
         "install_package": "install_tool",
         "install_binary": "install_tool",
+        "webapp_hunt": "run_webapp_hunt",
+        "hunt": "run_webapp_hunt",
+        "scan_webapp": "run_webapp_hunt",
     }
     action = _ACTION_ALIASES.get(action, action)
 
@@ -149,11 +152,14 @@ def execute_tool(
     if action == "run_batch":
         return execute_batch(action_data, governance, max_output_len, callback)
 
+    if action == "run_webapp_hunt":
+        return execute_webapp_hunt(action_data, governance, max_output_len, callback)
+
     if action != "run_shell":
         return (
             f"Error: Unknown action '{action}'. "
-            "Use: run_shell, run_batch, write_script, install_tool, ask_user, web_search, "
-            "save_memory, create_ai_tool, run_ai_tool, or finish."
+            "Use: run_shell, run_batch, run_webapp_hunt, write_script, install_tool, "
+            "ask_user, web_search, save_memory, create_ai_tool, run_ai_tool, or finish."
         )
     if not cmd_raw or not isinstance(cmd_raw, str):
         return "Error: Invalid or empty command."
@@ -166,6 +172,91 @@ def execute_tool(
         purpose=action_data.get("purpose", ""),
         thought=action_data.get("thought", ""),
     )
+
+
+def execute_webapp_hunt(
+    action_data: Dict[str, Any],
+    governance: Governance,
+    max_output_len: int = 100000,
+    callback: Optional[Callable] = None,
+) -> str:
+    """Run the deterministic web-app vulnerability hunter against a target.
+
+    This is the agent's *hacking muscle*: it discovers endpoints, detects the
+    canonical web vulnerability classes with signal-based (canary / flag /
+    auth-bypass) probes, and exploits the critical ones to prove impact. It
+    runs in-process and is scoped to the supplied target host only.
+
+    Action params:
+        target / command: base URL to hunt (either is accepted).
+        public: bool — allow non-local (public) hosts. Default False.
+        classes: optional list of vuln classes to run (default: all).
+
+    Returns a JSON blob with findings + summary so the decision engine and
+    reasoning phase can consume the structured results.
+    """
+    target = (action_data.get("target") or action_data.get("command") or "").strip()
+    if not target:
+        return "Error: run_webapp_hunt requires a 'target' base URL."
+
+    try:
+        # Scope validation is the agent's duty (per AGENTS.md). Local/private
+        # targets (127.0.0.1, 10.x, 192.168.x, .local) are always allowed; a
+        # public host requires the caller to opt in via public=True AND pass
+        # the configured scope check.
+        from elengenix.scope import is_in_scope, normalize_target
+
+        allow_public = bool(action_data.get("public", False))
+        if allow_public:
+            norm = normalize_target(target)
+            if not is_in_scope(norm):
+                return (
+                    f"[DENIED] {norm} is not within the configured scope. "
+                    "Add it to scope or set public=False for local targets."
+                )
+
+        from tools.webapp_hunter import WebAppHunter
+
+        classes = action_data.get("classes") or None
+        if isinstance(classes, str):
+            classes = [c.strip() for c in classes.split(",") if c.strip()]
+
+        hunter = WebAppHunter(
+            target,
+            allow_public=allow_public,
+            concurrent=int(action_data.get("concurrent", 10) or 10),
+            max_words=action_data.get("max_words"),
+            timeout=float(action_data.get("timeout", 8.0) or 8.0),
+        )
+        result = hunter.hunt(classes=classes)
+
+        if callback:
+            try:
+                callback(
+                    f"\n[WebAppHunter] {len(result.findings)} findings, "
+                    f"impact proven: {result.impact_proven or 'none'} "
+                    f"in {result.duration:.1f}s\n"
+                )
+            except Exception:
+                pass
+
+        payload = {
+            "tool": "run_webapp_hunt",
+            "target": hunter.base_url,
+            "success": result.error is None,
+            "endpoints_discovered": len(result.endpoints),
+            "endpoint_paths": [e.path for e in result.endpoints],
+            "findings": result.findings,
+            "impact_proven": result.impact_proven,
+            "duration_sec": round(result.duration, 1),
+            "summary": result.summary(),
+            "error": result.error,
+        }
+        out = json.dumps(payload, indent=2, default=str)
+        return out[:max_output_len]
+    except Exception as e:
+        logger.error("run_webapp_hunt failed: %s", e)
+        return f"Error executing run_webapp_hunt: {e}"
 
 
 def execute_shell_command(

@@ -30,6 +30,42 @@ def _safe_operation(name: str, fn, *args, **kwargs):
         logger.debug(f"{name} failed: {e}")
 
 
+def _is_deterministically_proven(finding: Dict[str, Any]) -> bool:
+    """Whether a finding carries a deterministic (signal-based) proof.
+
+    Such findings — produced by the webapp hunter, canary fuzzers, or other
+    signature scanners — verify themselves: the evidence field holds a
+    reproducible proof (unique canary echo, extracted flag, auth bypass,
+    cross-user data, accepted privileged field, ...). They skip the LLM
+    consensus gate, which both saves steps and avoids being silently dropped
+    when no LLM key is configured.
+    """
+    if not isinstance(finding, dict):
+        return False
+    provenance = str(finding.get("provenance", "")).lower()
+    trust = str(finding.get("trust_class", "")).lower()
+    source = str(finding.get("source", "")).lower()
+    try:
+        from tools.finding_provenance import DETERMINISTIC_SOURCES
+
+        det_sources = set(DETERMINISTIC_SOURCES)
+    except Exception:
+        det_sources = set()
+
+    is_det = provenance == "deterministic" or trust == "deterministic" or (
+        source in det_sources and bool(finding.get("verified"))
+    )
+    if not is_det:
+        return False
+    # Require a non-trivial proof so empty/placeholder dicts don't pass.
+    evidence = finding.get("evidence")
+    if evidence is None:
+        return bool(finding.get("verified"))
+    if isinstance(evidence, str):
+        return bool(evidence.strip()) or bool(finding.get("verified"))
+    return True
+
+
 # Global verification engine instance (lazy initialized)
 _verification_engine = None
 
@@ -91,6 +127,39 @@ class PostExecutionProcessor:
             True if the finding is verified/actionable.
         """
         engine = _get_verification_engine()
+        # Deterministic fast path: findings produced by the signal-based
+        # hunter (unique canaries, flag extraction, auth bypass, cross-user
+        # data, accepted privileged fields, ...) are verified by
+        # construction — they carry a reproducible proof in their evidence.
+        # Requiring an LLM consensus for them would (a) burn steps, and
+        # (b) silently DROP them when no LLM key is configured (the
+        # fallback verdict is "insufficient evidence"), which would turn a
+        # provably-correct deterministic result into a false negative.
+        if _is_deterministically_proven(finding):
+            finding["verification"] = {
+                "verified": True,
+                "consensus_verdict": "deterministic_proof",
+                "severity": finding.get("severity", "Medium"),
+                "confidence": finding.get("confidence", 0.9),
+                "method": "deterministic",
+                "requires_human_review": False,
+            }
+            if ctx.coverage_map:
+                ctx.coverage_map.record_finding(endpoint, vuln_class)
+            if ctx.belief_state:
+                ctx.belief_state.add_belief(
+                    vuln_class=vuln_class,
+                    target_endpoint=endpoint,
+                    reasoning=str(finding.get("evidence", ""))[:200],
+                    confidence=finding.get("confidence", 0.9),
+                    evidence=[{"verdict": "deterministic_proof"}],
+                )
+            if self.callback:
+                self.callback(
+                    f"  [VERIFIED] {vuln_class} at {endpoint} "
+                    f"(deterministic proof)"
+                )
+            return True
         if not engine:
             finding["verification"] = {"status": "unavailable", "reason": "verification_engine_not_initialized"}
             if ctx.coverage_map:

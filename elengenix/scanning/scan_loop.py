@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 from collections import Counter
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional
@@ -69,6 +70,7 @@ class ScanLoop:
         callback: Optional[Callable] = None,
         client: Any = None,
         replan_every: int = 5,
+        run_baseline_hunt: Optional[bool] = None,
     ):
         self.decision_engine = decision_engine
         self.post_processor = post_processor
@@ -76,6 +78,17 @@ class ScanLoop:
         self.loop_threshold = loop_threshold
         self.cot_logger = cot_logger
         self.callback = callback
+
+        # Deterministic baseline hunt (tools.webapp_hunter): a methodical,
+        # LLM-independent web pass that discovers endpoints, detects the
+        # canonical vuln classes and proves impact. It runs ONCE at mission
+        # start so the agent always has full coverage — the AI then reasons
+        # on top of (and can re-run/extend) it. Set run_baseline_hunt=False
+        # or ELENGENIX_NO_BASELINE=1 to disable.
+        if run_baseline_hunt is None:
+            run_baseline_hunt = os.environ.get("ELENGENIX_NO_BASELINE", "") not in ("1", "true", "yes")
+        self.run_baseline_hunt = bool(run_baseline_hunt)
+        self._baseline_done = False
 
         # Lazy LLM client for the reasoning phase. Without this the
         # "autonomous AI reasoning" falls back to regex heuristics.
@@ -101,6 +114,106 @@ class ScanLoop:
         # strategies on the next mission / step.
         self._strategic_memory = None
 
+    def _run_baseline_hunt(self, ctx: "ScanContext", user_input: str) -> None:
+        """Run the deterministic web-app hunt once at mission start.
+
+        Best-effort and safe: any failure is logged and swallowed so it can
+        never break the AI reasoning loop. Findings are routed through the
+        standard post-processor so they are coverage-tracked, verified
+        (deterministic fast path) and recorded like any other tool output.
+        """
+        self._baseline_done = True
+        base = getattr(ctx, "base_url", "")
+        if not isinstance(base, str) or not base.startswith(("http://", "https://")):
+            # Not a real web target (e.g. a bare host, or a mock in unit
+            # tests) — the deterministic web pass does not apply.
+            return
+        try:
+            from tools.webapp_hunter import WebAppHunter
+
+            target = base
+            if self.callback:
+                try:
+                    self.callback(
+                        f"\n[Baseline] Running deterministic web-app hunt on {target} "
+                        f"(endpoint discovery + vuln detection + impact proof)...\n"
+                    )
+                except Exception:
+                    pass
+
+            hunter = WebAppHunter(
+                target,
+                concurrent=int(getattr(ctx, "rate_limit", 5) or 5) * 2,
+                timeout=10.0,
+            )
+            result = hunter.hunt()
+
+            if self.callback:
+                try:
+                    self.callback(
+                        f"[Baseline] {len(result.findings)} findings in "
+                        f"{result.duration:.1f}s; impact proven: "
+                        f"{', '.join(result.impact_proven) if result.impact_proven else 'none'}\n"
+                    )
+                except Exception:
+                    pass
+
+            if not result.findings:
+                return
+
+            # Surface the findings through the normal pipeline (coverage,
+            # deterministic verification, learning memory).
+            for f in result.findings:
+                self.post_processor._verify_finding(
+                    ctx, f,
+                    f.get("url") or f.get("endpoint") or target,
+                    str(f.get("type", "unknown")).lower(),
+                    "webapp_hunter",
+                )
+                if self.post_processor and ctx:
+                    pass
+            # _verify_finding above records coverage/beliefs but does not
+            # append to ctx.all_findings (that's process()'s job), so append
+            # the verified ones directly.
+            verified = [
+                f for f in result.findings
+                if f.get("verified", True)
+                and not (isinstance(f.get("verification"), dict) and f["verification"].get("verified") is False)
+            ]
+            for f in verified:
+                ctx.add_finding(f)
+            self._record_baseline_memory(ctx, result)
+            logger.info(
+                "baseline hunt: %d findings, impact=%s on %s",
+                len(verified), result.impact_proven, target,
+            )
+        except Exception as e:
+            logger.debug(f"baseline hunt skipped: {e}")
+
+    def _record_baseline_memory(self, ctx: "ScanContext", result: Any) -> None:
+        """Store baseline-hunt findings to the cross-session learning engines."""
+        try:
+            from tools.learning_engine import LearningEngine, ExploitRecord
+
+            engine = LearningEngine()
+            tech_stack = ["web"]
+            for finding in result.findings:
+                engine.remember(
+                    ExploitRecord(
+                        target=getattr(ctx, "target", ""),
+                        tech_stack=tech_stack,
+                        vuln_class=finding.get("type", "unknown"),
+                        tool="webapp_hunter",
+                        payload=str(finding.get("payload", ""))[:500],
+                        success=True,
+                        confidence=float(finding.get("confidence", 0.5) or 0.5),
+                        severity=finding.get("severity", "unknown"),
+                        notes=f"Baseline hunt: {finding.get('title', '')[:150]}",
+                    )
+                )
+        except Exception as e:
+            logger.debug(f"baseline memory store failed: {e}")
+
     async def run(
         self,
         ctx: "ScanContext",
@@ -125,6 +238,14 @@ class ScanLoop:
             ScanResult with summary, findings, and stats.
         """
         action_history: List[str] = []
+
+        # Phase -1: Deterministic baseline hunt.
+        # Before the AI starts planning, run the methodical web pass once so
+        # the mission starts with full endpoint coverage + verified findings
+        # (and proven impact). The AI keeps full authority to re-run, extend
+        # or override — the baseline only guarantees a strong floor.
+        if self.run_baseline_hunt and not self._baseline_done:
+            self._run_baseline_hunt(ctx, user_input)
 
         for step in range(ctx.max_steps):
             # Phase 1: Decide

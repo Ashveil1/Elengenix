@@ -118,6 +118,17 @@ class VulnerableAppServer:
         if not VULN_APP_PATH.exists():
             raise FileNotFoundError(f"Vulnerable app not found at {VULN_APP_PATH}")
 
+        # Clear stale per-run artifacts so the app's flag file (which it only
+        # writes if absent) always reflects THIS run's FLAG. Without this, a
+        # second run on the same host would plant the previous run's flag and
+        # the grader would (correctly) not count it as impact proven.
+        for stale in ("/tmp/elengenix_flag.txt", "/tmp/elengenix_vuln.db"):
+            try:
+                if os.path.exists(stale):
+                    os.remove(stale)
+            except OSError:
+                pass
+
         env = os.environ.copy()
         env["PORT"] = str(self.port)
         # Difficulty tier + per-run impact flag. Stealth is the benchmark
