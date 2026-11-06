@@ -11,6 +11,7 @@ Extracted from agent_brain.py process_query() lines 1046-1181.
 from __future__ import annotations
 
 import logging
+import os
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional
 
@@ -263,6 +264,11 @@ class DecisionEngine:
 
         # Allow callers to disable the think phase if they want to skip
         # the extra LLM call (e.g. tight token budget). Default: enabled.
+        # ELENGENIX_NO_REACT_THINK=1 disables it globally — useful with slow
+        # local providers (e.g. a small Ollama model on CPU) where the extra
+        # call per step would double the wall-clock time.
+        if os.environ.get("ELENGENIX_NO_REACT_THINK", "") in ("1", "true", "yes"):
+            return None
         if not getattr(self, "enable_react_think", True):
             return None
 

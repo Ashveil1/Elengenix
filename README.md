@@ -158,6 +158,30 @@ Elengenix uses **VulnAgent** — a genuine autonomous AI agent with **free will*
 - **Cross-session Memory** — Remembers what worked (ChromaDB + Skills JSON store)
 - **MCP Auto-start** — MCP server boots in background with every command
 
+### Deterministic Hunt Baseline (the "hacking muscle")
+
+A senior pentester never relies on the LLM alone. Elengenix pairs the AI brain
+with a **methodical, LLM-independent web hunt** (`tools/webapp_hunter.py`) that
+runs once at the start of every web mission. It:
+
+- **Discovers** endpoints (crawls the entry point + probes a curated wordlist
+  and common API / id-suffixed resource paths) — so even a stealth target with
+  an opaque index gets full coverage,
+- **Detects** the canonical web vulnerability classes using signal-based
+  (canary / flag / auth-bypass) probes — not naive substring matching: SQL
+  injection, reflected & stored XSS, IDOR/BOLA, mass assignment, SSTI, JWT
+  `alg=none`, prototype pollution, race conditions (TOCTOU), and path
+  traversal,
+- **Exploits** the critical ones to *prove impact* — dumping DB rows, reading
+  the planted flag via traversal / SQLi / SSTI, forging an `alg=none` admin
+  token, creating a real self-elevated account, and demonstrating cross-user
+  data access.
+
+The AI keeps full authority to re-run, focus, or extend the hunt (via the
+`run_webapp_hunt` action) and to add its own creative findings on top. The
+baseline is what makes the benchmark score stable: it guarantees a strong,
+reproducible floor regardless of which LLM is plugged in.
+
 ### Memory & Skills
 
 Elengenix maintains two persistent stores:

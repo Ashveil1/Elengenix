@@ -17,6 +17,7 @@ Migrated from agents/scan_context.py
 from __future__ import annotations
 
 import logging
+import re
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -174,13 +175,63 @@ class ScanContext:
             self.consecutive_no_findings += 1
             self.cycle_findings_count = 0
 
+    def _finding_dedup_key(self, finding: Dict[str, Any]) -> str:
+        """Stable identity of a finding instance for dedup.
+
+        Pentest reporting convention: ONE finding per (vuln class, endpoint
+        instance). Two different parameters of the same class on the same
+        endpoint are one finding; the same class on different endpoints are
+        distinct. Object-id suffixes are normalized away (/api/user/1 and
+        /api/user/2 are the same instance, /api/user/).
+        """
+        ftype = str(finding.get("type") or finding.get("vuln_class") or "").lower().strip()
+        url = str(
+            finding.get("url")
+            or finding.get("target_endpoint")
+            or finding.get("endpoint")
+            or ""
+        ).strip()
+        path = url
+        if "://" in url:
+            try:
+                from urllib.parse import urlparse
+
+                path = urlparse(url).path
+            except Exception:
+                pass
+        path = path.strip("/")
+        # Normalize a trailing object id: /api/user/1 -> /api/user
+        path = re.sub(r"/\d+$", "", path)
+        # Findings without a vuln class are unidentifiable for dedup — keep
+        # them all (unique key per finding) so legacy/untyped findings are
+        # never collapsed.
+        if not ftype:
+            return f"__unique__::{id(finding)}"
+        return f"{ftype}::{path}"
+
     def add_finding(self, finding: Dict[str, Any]) -> None:
-        """Add a single finding to the accumulated list."""
+        """Add a single finding to the accumulated list (deduplicated).
+
+        Duplicates (same vuln class on the same endpoint instance) are
+        skipped so the report — and any downstream grading of it — holds at
+        most one finding per vuln instance, no matter which tool or agent
+        turn reported it.
+        """
+        key = self._finding_dedup_key(finding)
+        for existing in self.all_findings:
+            if self._finding_dedup_key(existing) == key:
+                # Keep the first (earlier) report; note the extra source so
+                # the report can show the finding was corroborated.
+                existing.setdefault("corroborated_by", []).append(
+                    finding.get("source") or finding.get("discovered_by") or "unknown"
+                )
+                return
         self.all_findings.append(finding)
 
     def add_findings(self, findings: List[Dict[str, Any]]) -> None:
-        """Add multiple findings to the accumulated list."""
-        self.all_findings.extend(findings)
+        """Add multiple findings to the accumulated list (deduplicated)."""
+        for f in findings:
+            self.add_finding(f)
 
     def add_result(self, result: Any) -> None:
         """Add a tool execution result to history."""

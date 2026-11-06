@@ -162,24 +162,19 @@ class ScanLoop:
                 return
 
             # Surface the findings through the normal pipeline (coverage,
-            # deterministic verification, learning memory).
+            # deterministic verification, learning memory). _verify_finding
+            # records coverage/beliefs; it does NOT append to all_findings
+            # (that's process()'s job), so we append the verified ones below.
+            verified: List[Dict[str, Any]] = []
             for f in result.findings:
-                self.post_processor._verify_finding(
+                ok = self.post_processor._verify_finding(
                     ctx, f,
                     f.get("url") or f.get("endpoint") or target,
                     str(f.get("type", "unknown")).lower(),
                     "webapp_hunter",
                 )
-                if self.post_processor and ctx:
-                    pass
-            # _verify_finding above records coverage/beliefs but does not
-            # append to ctx.all_findings (that's process()'s job), so append
-            # the verified ones directly.
-            verified = [
-                f for f in result.findings
-                if f.get("verified", True)
-                and not (isinstance(f.get("verification"), dict) and f["verification"].get("verified") is False)
-            ]
+                if ok:
+                    verified.append(f)
             for f in verified:
                 ctx.add_finding(f)
             self._record_baseline_memory(ctx, result)

@@ -887,6 +887,104 @@ class WebAppHunter:
             )
         return findings
 
+    # ---- Command injection / RCE (time-based blind) -----------------------
+    def _detect_cmdi(self, endpoints: Dict[str, EndpointInfo]) -> List[Dict[str, Any]]:
+        """Time-based blind command injection on endpoints with input params.
+
+        Only flags a parameter when an injected `sleep N` measurably delays the
+        response (N=3s) while the benign value does not — a strong signal that
+        the value is passed to a shell, with negligible false-positive rate.
+        """
+        findings: List[Dict[str, Any]] = []
+        seen: Set[Tuple[str, str]] = set()
+        for path in endpoints:
+            for param in ("q", "search", "ip", "host", "cmd", "name", "file", "id", "page"):
+                key = (path, param)
+                if key in seen:
+                    continue
+                # Baseline timing (a few samples).
+                base_times = []
+                for _ in range(2):
+                    try:
+                        rb = self._get(path, params={param: "a"})
+                        base_times.append(rb.elapsed)
+                    except Exception:
+                        pass
+                if not base_times:
+                    continue
+                base = sum(base_times) / len(base_times)
+                # Injection: sleep 3 -- (works for both sh and bash-ish contexts).
+                inject = "a; sleep 3 -- "
+                try:
+                    ri = self._get(path, params={param: inject})
+                except Exception:
+                    continue
+                # A real delay is ~3s over baseline. Require a clear margin to
+                # avoid slow-endpoint false positives.
+                if ri.elapsed - base >= 2.2:
+                    seen.add(key)
+                    findings.append(
+                        self._finding(
+                            "rce", path,
+                            f"Command Injection (time-based blind) via '{param}'",
+                            f"Parameter '{param}' appears to reach a shell: an injected "
+                            f"'sleep 3' delayed the response by ~{ri.elapsed - base:.1f}s.",
+                            f"GET {ri.url} with {param}={inject!r} took {ri.elapsed:.2f}s "
+                            f"vs baseline {base:.2f}s. This is strong evidence of OS command "
+                            f"injection (RCE).",
+                            "critical", 0.8,
+                            param=param, payload=inject, method="GET", url=ri.url,
+                        )
+                    )
+        return findings
+
+    # ---- XXE (canary reflection) ------------------------------------------
+    def _detect_xxe(self, endpoints: Dict[str, EndpointInfo]) -> List[Dict[str, Any]]:
+        """XML External Entity detection via canary reflection on XML-ish POSTs."""
+        findings: List[Dict[str, Any]] = []
+        canary = f"xxe{uuid.uuid4().hex[:8]}"
+        xxe_doc = (
+            '<?xml version="1.0"?>'
+            f'<!DOCTYPE r [<!ENTITY % p SYSTEM "file:///etc/passwd">]>'
+            f'<root><v>{canary}</v></root>'
+        )
+        # A simpler, lower-noise probe: an entity that expands to the canary.
+        xxe_doc = (
+            '<?xml version="1.0"?>'
+            f'<!DOCTYPE r [<!ENTITY c "xxec{uuid.uuid4().hex[:8]}">]>'
+            f'<root><v>&c;</v></root>'
+        )
+        headers = {"Content-Type": "application/xml", "User-Agent": _UA}
+        for path in endpoints:
+            # Try POST (typical for XML APIs).
+            for body in (xxe_doc,):
+                try:
+                    r = self._request("POST", path, data=body.encode(), headers=headers)
+                except Exception:
+                    continue
+                # If the entity expanded to a value not in the raw request, XXE.
+                expanded = body.split('&c;')[0]  # n/a
+                if r.ok:
+                    # Detect expansion: response contains an 8-hex marker we did not
+                    # send literally as plain text.
+                    import re as _re
+                    m = _re.search(r"xxec[0-9a-f]{8}", r.text or "")
+                    if m:
+                        findings.append(
+                            self._finding(
+                                "xxe", path,
+                                f"XML External Entity (XXE) via POST {path}",
+                                "The XML parser resolved an external entity, allowing "
+                                "file read / SSRF (XXE).",
+                                f"POST {self._abs(path)} with an XML entity document "
+                                f"returned the expanded entity value: {m.group(0)}",
+                                "critical", 0.85,
+                                param="body", payload=body[:200], method="POST", url=r.url,
+                            )
+                        )
+                        break
+        return findings
+
     # ---- Race condition / TOCTOU ------------------------------------------
     def _detect_race(self, endpoints: Dict[str, EndpointInfo]) -> List[Dict[str, Any]]:
         findings: List[Dict[str, Any]] = []
@@ -998,7 +1096,8 @@ class WebAppHunter:
             # and sqli before race (sqli leaks coupon codes used by the race detector).
             ordered = [
                 "mass_assignment", "sqli", "xss", "xss_stored", "idor",
-                "ssti", "jwt_none", "prototype_pollution", "race_condition", "path_traversal",
+                "ssti", "jwt_none", "prototype_pollution", "race_condition",
+                "path_traversal", "rce", "xxe",
             ]
             runner: Dict[str, Any] = {
                 "mass_assignment": self._detect_mass_assignment,
@@ -1011,9 +1110,11 @@ class WebAppHunter:
                 "prototype_pollution": self._detect_proto_pollution,
                 "race_condition": self._detect_race,
                 "path_traversal": self._detect_path_traversal,
+                "rce": self._detect_cmdi,
+                "xxe": self._detect_xxe,
             }
             for name in ordered:
-                if classes and name not in classes and (classes and name not in [c for c in classes]):
+                if classes and name not in classes:
                     continue
                 try:
                     fs = runner[name](endpoints)

@@ -16,6 +16,7 @@ Env/config lookup order: `$ELENGENIX_ENV`/`$ELENGENIX_CONFIG` → `~/.elengenix/
 
 - Entry: `main.py` (CLI router) → `commands/`, `cli/`, `tui/`.
 - Live code: `elengenix/scanning/` (ScanLoop, planner, decision engine, prompt builder, verification) and `elengenix/agent/` (VulnAgent + memory/skills).
+- **`tools/webapp_hunter.py`** — deterministic web-app vulnerability engine (LLM-independent). Runs once at mission start as a baseline (`ScanLoop._run_baseline_hunt`) and is exposed to the AI as the `run_webapp_hunt` action. It discovers endpoints, detects the canonical web vuln classes with signal-based probes, and exploits critical ones to prove impact. Disable the baseline with `ELENGENIX_NO_BASELINE=1`.
 - `elengenix/providers/` is the preferred LLM path (`Provider` Protocol: `call`/`call_ex`/`call_with_tools`); `tools/universal_ai_client.py` is the legacy fallback. `elengenix/scanning/provider_bridge.py` prefers Stack A, falls back to Stack B.
 - **Do not extend `agents/` or `core/`** — both are deprecated shims re-exporting from `elengenix.*` with `DeprecationWarning` (pytest config ignores it). Keep them working, don't add modules there.
 - `mcp/` is a compact JSON-RPC 2.0 implementation (stdio + HTTP); use it for new external tools.
