@@ -43,9 +43,11 @@ class TestObbyGameInit:
         mock_app = Mock()
         game = ObbyGame(mock_app)
 
-        # Terrain length may vary slightly due to generation loop
+        # The generation loop fills up to TERRAIN_SEGMENTS=400, but the final
+        # platform extends past 400 by at most plat_len-1 tiles. Measured
+        # range over 20k seeds: [400, 407].
         assert len(game.terrain) >= 400
-        assert len(game.terrain) <= 405
+        assert len(game.terrain) <= 407
         # First 12 should be safe ground
         assert all(t == "█" for t in game.terrain[:12])
 
