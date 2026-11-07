@@ -242,6 +242,50 @@ what makes the score stable and the agent genuinely strong regardless of model.
     floor if the LLM is absent, slow, or down (a live 503 outage mid-mission
     was absorbed). The agent is strong regardless of which model is plugged
     in — that model-independence is the actual capability.
+- **Beyond the saturated 10-vuln set: a "discrimination under noise"
+  benchmark** (commit 62611cc). The canonical 10-vuln benchmark measures
+  *completeness* (did it find all 10?). It saturates at 100% and cannot
+  measure whether an agent that "finds everything" is actually precise or
+  just over-reporting. So a *harder, noisier* target was added to measure
+  the other half of the superlative — **precision under noise + novel
+  classes the 10-vuln set never exercised**:
+  - **2 new real-world hunter classes (15 -> 17)**, both canary/signal-based
+    and FP-safe on the canonical target:
+    * `host_header_injection` — a unique canary `Host` reflected into the
+      response body or a redirect `Location` (password-reset / absolute-URL
+      poisoning, cache poisoning).
+    * `jwt_weak_secret` — only probes a JWT endpoint that REJECTS alg=none,
+      then forges an admin token with a bounded weak-secret list; the proof
+      is a forged token the server ACCEPTS as valid (deterministic, ~zero FP).
+      A far-future `iat` is rejected by strict JWT libs, so the forgery uses
+      `iat=now`.
+  - **A noisier stealth target** (`tests/vulnerable_target/hard_target.py`):
+    the 2 real vulns (host-header on `/reset`, weak-secret `supersecret` on
+    `/api/jwt/verify` that rejects alg=none) plus **3 decoys** a naive
+    substring scanner false-positives on but the canary detectors resist:
+    `/search` (reflected but HTML-escaped -> not XSS), `/download` (echoed but
+    no traversal -> not LFI), `/api/config` (leaks a STRONG random JWT secret
+    -> not weak-secret).
+  - **A new metric, `decoy_resistance`** = 1 - (decoys false-positived /
+    decoys), graded alongside precision/recall/F1 in
+    `benchmark/hard_benchmark.py` (`run_hard_benchmark`, `--hunter` for the
+    fast model-independent path).
+  - **Verified (hunter-only):** Precision 100% (2/2), Recall 100%, F1 1.0,
+    **0 false positives, decoy resistance 100% (3/3)**, ~15s, exit 0. The
+    "Impact proven: 0/3" in the grader summary line is *expected* — no
+    flag-eligible class (sqli/ssti/path_traversal) exists on the hard target;
+    the exit logic uses recall + FP only. 5 new hermetic hunter tests + 5
+    hard-benchmark tests; the 5 integration tests still pass with **0 false
+    positives on the canonical 10-vuln target** (precision stays 1.0).
+  - **Full regression gate (after this batch): 2050 passed, 5 failed —
+    exactly the 5 known pre-existing failures, zero regressions** (+9 new
+    tests from this batch all pass; up from 2041 at the prior gate).
+  - **Canonical autonomous-loop run on the hard target** (cloud model):
+    in progress — `/tmp/opencode/hard_benchmark_canonical.log`. The
+    deterministic baseline already found BOTH real vulns in 14s with 0 decoy
+    FPs; the loop is now making distinct autonomous steps (curl recon,
+    robots.txt, bulk endpoint discovery) and has already survived a live 503
+    mid-mission. Recorded once it completes.
 - Formatting: this checkout is not black-clean at base (several untouched
   files reformat under black 25.x) and CI runs **no lint job** (pytest only;
   pre-commit not installed here), so code was left un-reformatted to keep
