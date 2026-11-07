@@ -7,7 +7,8 @@ that, given a web base URL, will
      common API-nesting patterns), then
   2. DETECT the canonical web vulnerability classes (SQLi, reflected/stored
      XSS, IDOR/BOLA, mass assignment, SSTI, JWT alg=none, prototype pollution,
-     race condition/TOCTOU, path traversal), and
+     race condition/TOCTOU, path traversal, command injection/RCE, XXE,
+      open redirect), and
   3. EXPLOIT the critical ones to *prove impact* — extracting whatever
      sensitive data / flag is reachable, and embedding that proof into the
      finding's evidence.
@@ -52,6 +53,7 @@ import ipaddress
 import json
 import logging
 import re
+import threading
 import time
 import uuid
 from dataclasses import dataclass, field
@@ -985,6 +987,157 @@ class WebAppHunter:
                         break
         return findings
 
+    # ---- SSRF (loopback canary listener) ----------------------------------
+    def _detect_ssrf(self, endpoints: Dict[str, EndpointInfo]) -> List[Dict[str, Any]]:
+        """Server-Side Request Forgery via a loopback canary listener.
+
+        Spins up a tiny HTTP listener on 127.0.0.1:<ephemeral> and feeds its
+        URL into URL-ish parameters. If the *server* fetches it, the canary
+        (with an embedded src= marker identifying endpoint|param) arrives —
+        a deterministic proof with near-zero false-positive rate, because a
+        benign app has no code path that fetches user-supplied URLs.
+        """
+        findings: List[Dict[str, Any]] = []
+        from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+        from urllib.parse import quote, urlparse, parse_qs
+
+        canary = f"ssrfc{uuid.uuid4().hex[:10]}"
+        hits: List[Dict[str, str]] = []
+
+        class _Handler(BaseHTTPRequestHandler):
+            def log_message(self, *args: Any) -> None:  # silence
+                pass
+
+            def _record(self) -> None:
+                hits.append({
+                    "path": self.path or "",
+                    "method": self.command,
+                    "host": self.headers.get("Host", ""),
+                    "ua": self.headers.get("User-Agent", ""),
+                })
+                try:
+                    self.send_response(200)
+                    self.send_header("Content-Type", "text/plain")
+                    self.end_headers()
+                    self.wfile.write(b"ok")
+                except Exception:
+                    pass
+
+            do_GET = _record  # type: ignore[assignment]
+            do_POST = _record  # type: ignore[assignment]
+
+        try:
+            server = ThreadingHTTPServer(("127.0.0.1", 0), _Handler)
+        except Exception:
+            return findings
+        port = server.server_address[1]
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+
+        url_params = (
+            "url", "uri", "link", "src", "image", "image_url", "file",
+            "file_url", "fetch", "target", "callback", "webhook", "feed",
+            "doc", "xml", "source", "dest", "remote", "page",
+        )
+        probed = 0
+        max_probes = 24
+        try:
+            for path in list(endpoints):
+                if probed >= max_probes:
+                    break
+                for param in url_params:
+                    if probed >= max_probes:
+                        break
+                    probed += 1
+                    # Embed endpoint|param in the query string so the canary
+                    # hit maps back to the exact probe that triggered it.
+                    payload = f"http://127.0.0.1:{port}/{canary}?src={quote(f'{path}|{param}', safe='')}"
+                    try:
+                        self._get(path, params={param: payload})
+                    except Exception:
+                        pass
+                    try:
+                        self._post(path, data={param: payload})
+                    except Exception:
+                        pass
+            time.sleep(0.3)  # allow in-flight server-side fetches to land
+        finally:
+            try:
+                server.shutdown()
+                server.server_close()
+            except Exception:
+                pass
+            thread.join(timeout=2)
+
+        seen: Set[Tuple[str, str]] = set()
+        for h in hits:
+            p = urlparse(h["path"])
+            qs = parse_qs(p.query or "")
+            src = (qs.get("src") or [""])[0]
+            if canary not in (p.path or ""):
+                continue
+            ep, _, param = src.partition("|")
+            ep = ep or "?"
+            if (ep, param) in seen:
+                continue
+            seen.add((ep, param))
+            findings.append(
+                self._finding(
+                    "ssrf", ep,
+                    f"Server-Side Request Forgery via '{param}'",
+                    f"Parameter '{param}' on {ep} triggers a server-side HTTP "
+                    f"request to an attacker-controlled URL (proven via a "
+                    f"loopback canary the server fetched).",
+                    f"Sent {param}=http://127.0.0.1:{port}/{canary}?src=... and the "
+                    f"target's server-side code issued a {h['method']} request to our "
+                    f"canary (path={h['path']!r}, Host={h['host']!r}). An attacker can "
+                    f"point this at internal services / cloud metadata (169.254.169.254).",
+                    "high", 0.9,
+                    param=param, payload=f"http://127.0.0.1:{port}/{canary}",
+                    method="GET/POST", url=self._abs(ep),
+                )
+            )
+        return findings
+
+    # ---- Open redirect (external-canary Location) --------------------------
+    def _detect_open_redirect(self, endpoints: Dict[str, EndpointInfo]) -> List[Dict[str, Any]]:
+        """Open redirect: a parameter value reflected into a 3xx Location
+        pointing at an attacker-controlled host (unique canary subdomain)."""
+        findings: List[Dict[str, Any]] = []
+        redirect_params = (
+            "next", "redirect", "redirect_uri", "redirect_url", "returnUrl",
+            "return_to", "returnTo", "return", "url", "uri", "link", "dest",
+            "destination", "continue", "goto", "forward", "r", "redir",
+        )
+        for path in list(endpoints):
+            host = f"oredir{uuid.uuid4().hex[:10]}.example"
+            for param in redirect_params:
+                for payload in (f"https://{host}/", f"//{host}/"):
+                    try:
+                        r = self._get(path, params={param: payload}, allow_redirects=False)
+                    except Exception:
+                        continue
+                    loc = r.headers.get("Location") or r.headers.get("location") or ""
+                    if loc and host in loc and not self._host_ok(loc):
+                        findings.append(
+                            self._finding(
+                                "open_redirect", path,
+                                f"Open Redirect via '{param}'",
+                                f"Parameter '{param}' on {path} is reflected into the "
+                                f"redirect Location, allowing a jump to an arbitrary "
+                                f"external host (phishing / OAuth code theft).",
+                                f"GET {r.url} with {param}={payload!r} returned "
+                                f"{r.status} Location: {loc[:200]}",
+                                "medium", 0.95,
+                                param=param, payload=payload, method="GET", url=r.url,
+                            )
+                        )
+                        break  # one param proven on this endpoint is enough
+                else:
+                    continue
+                break  # one finding per endpoint
+        return findings
+
     # ---- Race condition / TOCTOU ------------------------------------------
     def _detect_race(self, endpoints: Dict[str, EndpointInfo]) -> List[Dict[str, Any]]:
         findings: List[Dict[str, Any]] = []
@@ -1097,7 +1250,7 @@ class WebAppHunter:
             ordered = [
                 "mass_assignment", "sqli", "xss", "xss_stored", "idor",
                 "ssti", "jwt_none", "prototype_pollution", "race_condition",
-                "path_traversal", "rce", "xxe",
+                "path_traversal", "rce", "xxe", "ssrf", "open_redirect",
             ]
             runner: Dict[str, Any] = {
                 "mass_assignment": self._detect_mass_assignment,
@@ -1112,6 +1265,8 @@ class WebAppHunter:
                 "path_traversal": self._detect_path_traversal,
                 "rce": self._detect_cmdi,
                 "xxe": self._detect_xxe,
+                "ssrf": self._detect_ssrf,
+                "open_redirect": self._detect_open_redirect,
             }
             for name in ordered:
                 if classes and name not in classes:

@@ -132,6 +132,112 @@ class TestHuntResult:
 
 
 # ===================================================================
+# Local sink servers (hermetic, no external network)
+# ===================================================================
+
+
+@pytest.fixture()
+def sink_server():
+    """A tiny local web app with exactly two intentional sinks:
+
+    - GET /fetch?url=...  -> the server fetches the URL (SSRF sink)
+    - GET /go?next=...    -> 302 Location: next (open-redirect sink)
+
+    Everything else 404s, so the hunter's SSRF / open-redirect detectors
+    must fire on exactly those two endpoints and nowhere else.
+    """
+    import threading
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+    from urllib.parse import parse_qs, urlparse
+
+    class Handler(BaseHTTPRequestHandler):
+        def log_message(self, *a):  # silence
+            pass
+
+        def _send(self, code, body=b"", headers=None):
+            self.send_response(code)
+            for k, v in (headers or {}).items():
+                self.send_header(k, v)
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            if body:
+                self.wfile.write(body)
+
+        def do_GET(self):
+            p = urlparse(self.path)
+            q = parse_qs(p.query or {})
+            if p.path == "/":
+                self._send(200, b'<html><body><a href="/fetch">f</a>'
+                               b'<a href="/go">g</a></body></html>',
+                           {"Content-Type": "text/html"})
+            elif p.path == "/fetch":
+                url = (q.get("url") or [""])[0]
+                if url.startswith(("http://", "https://")):
+                    # SSRF sink: server-side fetch of the supplied URL.
+                    try:
+                        urllib.request.urlopen(url, timeout=3)
+                        self._send(200, b"fetched ok")
+                    except Exception as e:
+                        self._send(200, f"fetch failed: {e}".encode())
+                else:
+                    self._send(200, b"no url")
+            elif p.path == "/go":
+                nxt = (q.get("next") or [""])[0]
+                if nxt:
+                    self._send(302, b"", {"Location": nxt})  # open-redirect sink
+                else:
+                    self._send(200, b"nowhere to go")
+            else:
+                self._send(404, b"not found")
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    port = server.server_address[1]
+    t = threading.Thread(target=server.serve_forever, daemon=True)
+    t.start()
+    yield f"http://127.0.0.1:{port}"
+    try:
+        server.shutdown()
+        server.server_close()
+    except Exception:
+        pass
+    t.join(timeout=2)
+
+
+class TestNewDetectors:
+    """SSRF + open-redirect detectors against a real local sink app."""
+
+    def test_ssrf_detected(self, sink_server):
+        h = WebAppHunter(sink_server, timeout=3, max_words=0)
+        res = h.hunt(classes=["ssrf"])
+        ssrf = [f for f in res.findings if f["type"] == "ssrf"]
+        assert ssrf, f"expected an SSRF finding, got: {[f['type'] for f in res.findings]}"
+        f = ssrf[0]
+        assert f["endpoint"] == "/fetch"
+        assert f["parameter"] == "url"
+        assert f["provenance"] == "deterministic" and f["verified"] is True
+
+    def test_open_redirect_detected(self, sink_server):
+        h = WebAppHunter(sink_server, timeout=3, max_words=0)
+        res = h.hunt(classes=["open_redirect"])
+        orr = [f for f in res.findings if f["type"] == "open_redirect"]
+        assert orr, f"expected an open-redirect finding, got: {[f['type'] for f in res.findings]}"
+        f = orr[0]
+        assert f["endpoint"] == "/go"
+        assert f["parameter"] == "next"
+
+    def test_no_false_positives_on_sink_server(self, sink_server):
+        """The sink app has no other vuln sinks: hunting only the two new
+        classes must yield exactly one finding each, no extras."""
+        h = WebAppHunter(sink_server, timeout=3, max_words=0)
+        res = h.hunt(classes=["ssrf", "open_redirect"])
+        by_type = {}
+        for f in res.findings:
+            by_type.setdefault(f["type"], []).append(f)
+        assert {f["endpoint"] for f in by_type.get("ssrf", [])} == {"/fetch"}
+        assert {f["endpoint"] for f in by_type.get("open_redirect", [])} == {"/go"}
+
+
+# ===================================================================
 # Integration: live vulnerable target (stealth + random flag)
 # ===================================================================
 

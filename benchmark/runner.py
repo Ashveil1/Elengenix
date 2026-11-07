@@ -285,7 +285,8 @@ def run_elengenix_benchmark(
 
     try:
         findings, steps_taken, ttf, scan_error = _run_canonical_scan(
-            target_url, max_steps, callback, model=model, provider=provider
+            target_url, max_steps, callback, model=model, provider=provider,
+            time_limit=time_limit,
         )
         time_to_first_finding = ttf
     finally:
@@ -363,6 +364,7 @@ def _run_canonical_scan(
     callback: Optional[Callable],
     model: Optional[str] = None,
     provider: Optional[str] = None,
+    time_limit: Optional[int] = None,
 ) -> tuple:
     """Run the canonical ScanLoop against the target.
 
@@ -371,6 +373,12 @@ def _run_canonical_scan(
     ``model``/``provider`` are passed straight to UniversalAIClient's
     constructor (the existing config mechanism: param > config.yaml > env >
     default), letting a per-model sweep select the model for the run.
+
+    ``time_limit`` is a hard wall-clock deadline for the scan: when the
+    budget is exceeded the mission is cancelled and whatever findings it
+    already proved are returned (graded on partial progress) instead of the
+    run continuing unbounded — essential with slow local models, where a
+    single decision call can take minutes.
 
     Previously this returned ``([], 0, 0.0)`` on ANY import failure or
     exception — making a broken environment indistinguishable from "agent
@@ -462,10 +470,55 @@ def _run_canonical_scan(
         _orig_add_finding(finding)
     ctx.add_finding = _timed_add_finding
 
-    try:
-        result = asyncio.run(loop.run(ctx, f"Find vulnerabilities in {target_url}", interactive=True))
-        return result.findings, result.steps_taken, ttf or 0.0, None
-    except Exception as e:
-        error = f"canonical scan failed: {type(e).__name__}: {e}"
-        logger.error(error)
-        return [], 0, 0.0, error
+    objective = f"Find vulnerabilities in {target_url}"
+    if time_limit:
+        # Hard wall-clock deadline. The scan's AI calls are blocking
+        # (synchronous HTTP), so they block the event loop and
+        # asyncio.wait_for cannot fire; the only reliable deadline is to run
+        # the scan in a worker thread and stop waiting after ``time_limit``.
+        # Python cannot kill a thread, so the scan thread keeps running in the
+        # background (it will hit connection errors once the target server is
+        # stopped in the caller's finally) — but we no longer block on it, and
+        # we return whatever findings it already proved (partial progress).
+        import threading
+
+        holder: Dict[str, Any] = {}
+
+        def _scan_worker() -> None:
+            try:
+                holder["result"] = asyncio.run(loop.run(ctx, objective, interactive=True))
+            except BaseException as exc:  # noqa: BLE001 — surfaced below
+                holder["error"] = exc
+
+        # Daemon on purpose: if the deadline fires mid-scan the worker keeps
+        # running (its blocking LLM call cannot be interrupted), but it must
+        # not hold the process open after we return the graded result.
+        worker = threading.Thread(target=_scan_worker, daemon=True)
+        worker.start()
+        worker.join(timeout=time_limit)
+        if not worker.is_alive():
+            if "error" in holder:
+                e = holder["error"]
+                error = f"canonical scan failed: {type(e).__name__}: {e}"
+                logger.error(error)
+                return [], 0, 0.0, error
+            result = holder["result"]
+            return result.findings, result.steps_taken, ttf or 0.0, None
+        # Deadline hit: return partial progress (the baseline findings are
+        # already in ctx when the hunt has completed).
+        findings = list(getattr(ctx, "all_findings", []) or [])
+        steps = int(getattr(ctx, "step_count", 0) or 0)
+        err = (
+            f"time limit of {time_limit}s exceeded; returning {len(findings)} "
+            f"partial findings from {steps} steps"
+        )
+        logger.warning(err)
+        return findings, steps, ttf or 0.0, err
+    else:
+        try:
+            result = asyncio.run(loop.run(ctx, objective, interactive=True))
+            return result.findings, result.steps_taken, ttf or 0.0, None
+        except Exception as e:
+            error = f"canonical scan failed: {type(e).__name__}: {e}"
+            logger.error(error)
+            return [], 0, 0.0, error

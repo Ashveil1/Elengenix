@@ -170,8 +170,9 @@ runs once at the start of every web mission. It:
 - **Detects** the canonical web vulnerability classes using signal-based
   (canary / flag / auth-bypass) probes — not naive substring matching: SQL
   injection, reflected & stored XSS, IDOR/BOLA, mass assignment, SSTI, JWT
-  `alg=none`, prototype pollution, race conditions (TOCTOU), and path
-  traversal,
+  `alg=none`, prototype pollution, race conditions (TOCTOU), path traversal,
+  command injection (RCE, time-based blind), XXE, SSRF (loopback canary
+  listener), and open redirect,
 - **Exploits** the critical ones to *prove impact* — dumping DB rows, reading
   the planted flag via traversal / SQLi / SSTI, forging an `alg=none` admin
   token, creating a real self-elevated account, and demonstrating cross-user
