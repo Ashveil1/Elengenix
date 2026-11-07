@@ -1138,6 +1138,74 @@ class WebAppHunter:
                 break  # one finding per endpoint
         return findings
 
+    # ---- CORS misconfiguration (canary origin) ----------------------------
+    def _detect_cors(self, endpoints: Dict[str, EndpointInfo]) -> List[Dict[str, Any]]:
+        """CORS misconfiguration: the server echoes an attacker-controlled
+        Origin into ``Access-Control-Allow-Origin`` (possibly with
+        ``Allow-Credentials: true``).
+
+        A unique canary origin is sent with both preflight (OPTIONS) and
+        direct GET/POST requests; the flag only fires when the *response*
+        reflects the exact canary (or its ``*``-style mirror) in
+        ``Access-Control-Allow-Origin``. A correct server either omits the
+        header or returns its own static origin — never the canary — so the
+        false-positive rate is near zero.
+        """
+        findings: List[Dict[str, Any]] = []
+        canary = f"corssrc{uuid.uuid4().hex[:10]}.example"
+        origin = f"https://{canary}"
+        # Only probe JSON-ish endpoints (CORS matters where a browser would
+        # read the cross-origin response body).
+        for path, info in endpoints.items():
+            ctype = (info.ctype or "").lower()
+            if "json" not in ctype and "api" not in path and not path.startswith("/api"):
+                continue
+            headers = {
+                "Origin": origin,
+                "Referer": origin + "/",
+                "User-Agent": _UA,
+            }
+            for method, probe in (
+                ("OPTIONS", None),
+                ("GET", None),
+                ("POST", {}),
+            ):
+                try:
+                    if method == "OPTIONS":
+                        r = self._request("OPTIONS", path, headers=headers)
+                    elif method == "GET":
+                        r = self._request("GET", path, headers=headers)
+                    else:
+                        r = self._request("POST", path, json_body=probe, headers=headers)
+                except Exception:
+                    continue
+                acao = (r.headers or {}).get("Access-Control-Allow-Origin", "") or ""
+                acac = (r.headers or {}).get("Access-Control-Allow-Credentials", "") or ""
+                # Exact reflection of the canary origin (not a whitelist match).
+                if acao and canary in acao:
+                    cred = " (with Access-Control-Allow-Credentials: true)" if acac.strip().lower() == "true" else ""
+                    findings.append(
+                        self._finding(
+                            "cors_misconfiguration", path,
+                            f"CORS Misconfiguration via {method} {path}",
+                            "The server reflects an arbitrary Origin into "
+                            "Access-Control-Allow-Origin, letting any website "
+                            "read cross-origin responses in the victim's "
+                            "browser session." + (
+                                " Combined with credentials this allows reading "
+                                "authenticated responses cross-site." if cred else ""
+                            ),
+                            f"{method} {self._abs(path)} with Origin: {origin!r} "
+                            f"returned Access-Control-Allow-Origin: {acao!r}"
+                            + (f" and Allow-Credentials: {acac!r}" if acac else ""),
+                            "high" if cred else "medium",
+                            0.9 if cred else 0.8,
+                            param="Origin", payload=origin, method=method, url=r.url,
+                        )
+                    )
+                    break  # one proven method per endpoint is enough
+        return findings
+
     # ---- Race condition / TOCTOU ------------------------------------------
     def _detect_race(self, endpoints: Dict[str, EndpointInfo]) -> List[Dict[str, Any]]:
         findings: List[Dict[str, Any]] = []
@@ -1251,6 +1319,7 @@ class WebAppHunter:
                 "mass_assignment", "sqli", "xss", "xss_stored", "idor",
                 "ssti", "jwt_none", "prototype_pollution", "race_condition",
                 "path_traversal", "rce", "xxe", "ssrf", "open_redirect",
+                "cors",
             ]
             runner: Dict[str, Any] = {
                 "mass_assignment": self._detect_mass_assignment,
@@ -1267,6 +1336,7 @@ class WebAppHunter:
                 "xxe": self._detect_xxe,
                 "ssrf": self._detect_ssrf,
                 "open_redirect": self._detect_open_redirect,
+                "cors": self._detect_cors,
             }
             for name in ordered:
                 if classes and name not in classes:

@@ -172,7 +172,8 @@ runs once at the start of every web mission. It:
   injection, reflected & stored XSS, IDOR/BOLA, mass assignment, SSTI, JWT
   `alg=none`, prototype pollution, race conditions (TOCTOU), path traversal,
   command injection (RCE, time-based blind), XXE, SSRF (loopback canary
-  listener), and open redirect,
+  listener), open redirect, and CORS misconfiguration (canary-origin
+  reflection),
 - **Exploits** the critical ones to *prove impact* — dumping DB rows, reading
   the planted flag via traversal / SQLi / SSTI, forging an `alg=none` admin
   token, creating a real self-elevated account, and demonstrating cross-user

@@ -138,13 +138,15 @@ class TestHuntResult:
 
 @pytest.fixture()
 def sink_server():
-    """A tiny local web app with exactly two intentional sinks:
+    """A tiny local web app with exactly three intentional sinks:
 
     - GET /fetch?url=...  -> the server fetches the URL (SSRF sink)
     - GET /go?next=...    -> 302 Location: next (open-redirect sink)
+    - */api/data          -> reflects a unique Origin into
+      Access-Control-Allow-Origin (CORS misconfiguration sink)
 
-    Everything else 404s, so the hunter's SSRF / open-redirect detectors
-    must fire on exactly those two endpoints and nowhere else.
+    Everything else 404s, so the hunter's SSRF / open-redirect / CORS
+    detectors must fire on exactly those endpoints and nowhere else.
     """
     import threading
     from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -168,7 +170,8 @@ def sink_server():
             q = parse_qs(p.query or {})
             if p.path == "/":
                 self._send(200, b'<html><body><a href="/fetch">f</a>'
-                               b'<a href="/go">g</a></body></html>',
+                               b'<a href="/go">g</a><a href="/api/data">a</a>'
+                               b'</body></html>',
                            {"Content-Type": "text/html"})
             elif p.path == "/fetch":
                 url = (q.get("url") or [""])[0]
@@ -187,6 +190,14 @@ def sink_server():
                     self._send(302, b"", {"Location": nxt})  # open-redirect sink
                 else:
                     self._send(200, b"nowhere to go")
+            elif p.path == "/api/data":
+                # CORS sink: reflect the supplied Origin back (misconfig).
+                origin = self.headers.get("Origin") or ""
+                hdrs = {"Content-Type": "application/json"}
+                if origin:
+                    hdrs["Access-Control-Allow-Origin"] = origin
+                    hdrs["Access-Control-Allow-Credentials"] = "true"
+                self._send(200, b'{"ok": true}', hdrs)
             else:
                 self._send(404, b"not found")
 
@@ -225,16 +236,26 @@ class TestNewDetectors:
         assert f["endpoint"] == "/go"
         assert f["parameter"] == "next"
 
+    def test_cors_detected(self, sink_server):
+        h = WebAppHunter(sink_server, timeout=3, max_words=0)
+        res = h.hunt(classes=["cors"])
+        cors = [f for f in res.findings if f["type"] == "cors_misconfiguration"]
+        assert cors, f"expected a CORS finding, got: {[f['type'] for f in res.findings]}"
+        f = cors[0]
+        assert f["endpoint"] == "/api/data"
+        assert f["provenance"] == "deterministic" and f["verified"] is True
+
     def test_no_false_positives_on_sink_server(self, sink_server):
-        """The sink app has no other vuln sinks: hunting only the two new
+        """The sink app has no other vuln sinks: hunting only the new
         classes must yield exactly one finding each, no extras."""
         h = WebAppHunter(sink_server, timeout=3, max_words=0)
-        res = h.hunt(classes=["ssrf", "open_redirect"])
+        res = h.hunt(classes=["ssrf", "open_redirect", "cors"])
         by_type = {}
         for f in res.findings:
             by_type.setdefault(f["type"], []).append(f)
         assert {f["endpoint"] for f in by_type.get("ssrf", [])} == {"/fetch"}
         assert {f["endpoint"] for f in by_type.get("open_redirect", [])} == {"/go"}
+        assert {f["endpoint"] for f in by_type.get("cors_misconfiguration", [])} == {"/api/data"}
 
 
 # ===================================================================
