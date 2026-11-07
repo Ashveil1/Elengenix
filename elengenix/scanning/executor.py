@@ -9,7 +9,9 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 import subprocess
+import sys
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
@@ -431,7 +433,33 @@ def _prompt_approval(
     Returns:
         Tuple (approved: bool, enable_auto: bool).
         enable_auto is True only when the user selects Allow Auto.
+
+    Non-interactive behavior (headless / benchmark / CI runs):
+      - ``ELENGENIX_AUTO_APPROVE=1`` — an explicit, auditable operator opt-in
+        that auto-approves PRIVILEGED commands for the session. DESTRUCTIVE
+        commands stay blocked unconditionally by the governance gate, so this
+        can never become a data-loss path. Without it, a capable LLM that
+        actually runs shell commands can never progress past the first
+        approval in a headless run.
+      - Otherwise, when stdin is not a TTY there is no human to ask: fail
+        safe (deny) instead of blocking on ``input()`` forever.
     """
+    if os.environ.get("ELENGENIX_AUTO_APPROVE", "").strip() in ("1", "true", "yes"):
+        logger.info(
+            "[OK] Auto-approve (ELENGENIX_AUTO_APPROVE) granted PRIVILEGED "
+            "command: %s",
+            cmd[:200],
+        )
+        return True, True
+
+    if not sys.stdin.isatty():
+        logger.warning(
+            "[SKIP] PRIVILEGED command denied (no interactive session; "
+            "set ELENGENIX_AUTO_APPROVE=1 for autonomous runs): %s",
+            cmd[:200],
+        )
+        return False, False
+
     from rich.panel import Panel
 
     from cli.ui_components import console

@@ -560,11 +560,18 @@ class TestExecuteShellCommand:
 
 
 class TestPromptApproval:
-    """Test the interactive approval prompt."""
+    """Test the interactive approval prompt.
+
+    The guard at the top of ``_prompt_approval`` fails safe when stdin is
+    not a TTY (headless runs); these tests exercise the *interactive*
+    branch, so ``sys.stdin.isatty`` is pinned to True.
+    """
 
     @patch("builtins.input", return_value="y")
     @patch("cli.ui_components.console")
-    def test_approve_y(self, mock_console, mock_input, governance):
+    @patch("sys.stdin", create=True)
+    def test_approve_y(self, mock_stdin, mock_console, mock_input, governance):
+        mock_stdin.isatty.return_value = True
         """'y' returns (True, False)."""
         approved, enable_auto = _prompt_approval(
             cmd="apt install nmap",
@@ -578,7 +585,9 @@ class TestPromptApproval:
 
     @patch("builtins.input", return_value="a")
     @patch("cli.ui_components.console")
-    def test_approve_auto(self, mock_console, mock_input, governance):
+    @patch("sys.stdin", create=True)
+    def test_approve_auto(self, mock_stdin, mock_console, mock_input, governance):
+        mock_stdin.isatty.return_value = True
         """'a' returns (True, True)."""
         approved, enable_auto = _prompt_approval(
             cmd="pip install requests",
@@ -590,7 +599,9 @@ class TestPromptApproval:
 
     @patch("builtins.input", return_value="n")
     @patch("cli.ui_components.console")
-    def test_deny_n(self, mock_console, mock_input, governance):
+    @patch("sys.stdin", create=True)
+    def test_deny_n(self, mock_stdin, mock_console, mock_input, governance):
+        mock_stdin.isatty.return_value = True
         """'n' returns (False, False)."""
         approved, enable_auto = _prompt_approval(
             cmd="rm -rf /", risk_level="DESTRUCTIVE", governance=governance,
@@ -600,7 +611,9 @@ class TestPromptApproval:
 
     @patch("builtins.input", side_effect=EOFError)
     @patch("cli.ui_components.console")
-    def test_eof_error_defaults_to_n(self, mock_console, mock_input, governance):
+    @patch("sys.stdin", create=True)
+    def test_eof_error_defaults_to_n(self, mock_stdin, mock_console, mock_input, governance):
+        mock_stdin.isatty.return_value = True
         """EOFError defaults to deny."""
         approved, enable_auto = _prompt_approval(
             cmd="danger", risk_level="PRIVILEGED", governance=governance,
@@ -610,7 +623,9 @@ class TestPromptApproval:
 
     @patch("builtins.input", side_effect=KeyboardInterrupt)
     @patch("cli.ui_components.console")
-    def test_keyboard_interrupt_defaults_to_n(self, mock_console, mock_input, governance):
+    @patch("sys.stdin", create=True)
+    def test_keyboard_interrupt_defaults_to_n(self, mock_stdin, mock_console, mock_input, governance):
+        mock_stdin.isatty.return_value = True
         """KeyboardInterrupt defaults to deny."""
         approved, enable_auto = _prompt_approval(
             cmd="danger", risk_level="PRIVILEGED", governance=governance,
@@ -620,7 +635,9 @@ class TestPromptApproval:
 
     @patch("builtins.input", return_value="y")
     @patch("cli.ui_components.console")
-    def test_thought_and_purpose_displayed(self, mock_console, mock_input, governance):
+    @patch("sys.stdin", create=True)
+    def test_thought_and_purpose_displayed(self, mock_stdin, mock_console, mock_input, governance):
+        mock_stdin.isatty.return_value = True
         """Purpose and thought are passed to console."""
         _prompt_approval(
             cmd="cmd",
@@ -633,10 +650,36 @@ class TestPromptApproval:
 
     @patch("builtins.input", return_value="y")
     @patch("cli.ui_components.console")
-    def test_label_color_red_for_non_privileged(self, mock_console, mock_input, governance):
+    @patch("sys.stdin", create=True)
+    def test_label_color_red_for_non_privileged(self, mock_stdin, mock_console, mock_input, governance):
+        mock_stdin.isatty.return_value = True
         """Risk level other than PRIVILEGED uses red color."""
         _prompt_approval(cmd="cmd", risk_level="DESTRUCTIVE", governance=governance)
         assert mock_console.print.called
+
+
+class TestPromptApprovalNonInteractive:
+    """Headless / autonomous-run behavior of the approval prompt."""
+
+    def test_auto_approve_env_grants_and_enables_auto(self, governance, monkeypatch):
+        """ELENGENIX_AUTO_APPROVE=1 approves without prompting (and sticks
+        for the session) — the operator opt-in for autonomous missions."""
+        monkeypatch.setenv("ELENGENIX_AUTO_APPROVE", "1")
+        with patch("builtins.input", side_effect=AssertionError("must not prompt")):
+            approved, enable_auto = _prompt_approval(cmd="apt install nmap")
+        assert approved is True
+        assert enable_auto is True
+
+    def test_headless_without_flag_denies(self, governance, monkeypatch):
+        """No TTY + no auto-approve flag: fail safe (deny) instead of
+        blocking on input() forever in a background run."""
+        monkeypatch.delenv("ELENGENIX_AUTO_APPROVE", raising=False)
+        with patch("sys.stdin", create=True) as mock_stdin:
+            mock_stdin.isatty.return_value = False
+            with patch("builtins.input", side_effect=AssertionError("must not prompt")):
+                approved, enable_auto = _prompt_approval(cmd="apt install nmap")
+        assert approved is False
+        assert enable_auto is False
 
 
 # ===================================================================

@@ -109,6 +109,12 @@ class Governance:
         "/sys",
     )
 
+    # /dev/null (and the std*/tty passthrough nodes) are discard/pipe nodes,
+    # not writable system paths. The universal `2>/dev/null` stderr-
+    # suppression idiom must never be classified as a system write — it is
+    # the single most common token in harmless recon commands.
+    _BENIGN_DEV_NODES = frozenset({"null", "stdout", "stderr", "tty"})
+
     # ── Patterns: if matched → DESTRUCTIVE (requires approval) ──────────
     _DESTRUCTIVE = re.compile(
         r"\brm\b[^\n;&|]*(?:-[^\n;&|]*[rf][^\n;&|]*)[^\n;&|]*(?:\s|=)(/|/\*|\*|/etc|/boot|/usr|/var|/lib|/bin|/sbin|/sys|/proc|/dev)(?:\s|$)"
@@ -147,8 +153,9 @@ class Governance:
         r"|gem\s+install"
         r"|curl\s+.*\|\s*(ba?sh|sh|zsh|python3?|ruby|perl)"
         r"|wget\s+.*\|\s*(ba?sh|sh|zsh|python3?|ruby|perl)"
-        r"|(?:^|[\s;&|])(?:tee|cat|echo|printf|cp|mv|install)\b[^\n]*(?:>\s*)?/(?:etc|usr|bin|sbin|boot|dev|proc|sys)(?:/|\s|$)"
-        r"|(?:>|>>)\s*/(?:etc|usr|bin|sbin|boot|dev|proc|sys)(?:/|\s|$)",
+        r"|(?:^|[\s;&|])(?:tee|cat|echo|printf|cp|mv|install)\b[^\n]*(?:>\s*)?/(?:etc|usr|bin|sbin|boot|proc|sys)(?:/|\s|$)"
+        r"|(?:>|>>)\s*/(?:etc|usr|bin|sbin|boot|proc|sys)(?:/|\s|$)"
+        r"|(?:>|>>)\s*/dev/(?!null(?:/|\s|$)|stdout(?:/|\s|$)|stderr(?:/|\s|$)|tty(?:/|\s|$))\S*",
         re.IGNORECASE,
     )
 
@@ -321,6 +328,11 @@ class Governance:
 
     def _is_system_write_path(self, value: str) -> bool:
         candidate = value.strip()
+        # `/dev/null` (and friends) are discard nodes, not system paths.
+        if candidate.startswith("/dev/"):
+            node = candidate[len("/dev/"):].split("/", 1)[0]
+            if node in self._BENIGN_DEV_NODES:
+                return False
         return any(
             candidate == path or candidate.startswith(f"{path}/")
             for path in self._SYSTEM_WRITE_PATHS
