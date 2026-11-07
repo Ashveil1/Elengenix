@@ -21,6 +21,12 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger("elengenix.decision_engine")
 
+# Output budget for AI decision calls. A chosen action serializes to a few
+# dozen tokens at most; the old 4096 default let a slow local model ramble for
+# minutes before the client timeout fired. Cap it (overridable via env) so a
+# decision call on a small CPU model stays within a sane wall-clock budget.
+_DECISION_MAX_TOKENS: int = int(os.getenv("ELENGENIX_DECISION_MAX_TOKENS", "200"))
+
 
 @dataclass
 class Reflection:
@@ -325,6 +331,7 @@ class DecisionEngine:
                     AIMessage(role="user", content=think_prompt),
                 ],
                 temperature=0.2,
+                max_tokens=_DECISION_MAX_TOKENS,
             )
             text = (think_response.content or "").strip()
             if not text:
@@ -536,12 +543,14 @@ class DecisionEngine:
                     response = self.ai_client.chat(
                         messages,
                         temperature=0.3,  # Slightly higher temp for creative strategy
+                        max_tokens=_DECISION_MAX_TOKENS,  # an action JSON is tiny; big budgets burn wall-clock on slow local models
                         tools=ACTION_TOOLS,
                     )
             except ImportError:
                 response = self.ai_client.chat(
                     messages,
                     temperature=0.3,
+                    max_tokens=_DECISION_MAX_TOKENS,
                     tools=ACTION_TOOLS,
                 )
 
@@ -565,6 +574,23 @@ class DecisionEngine:
 
         except Exception as e:
             logger.error(f"AI dynamic planning failed: {e}")
+            # Graceful degradation: an LLM failure (timeout, 404, bad JSON)
+            # must not kill the mission. Fall back to the pre-planned attack
+            # tree so the agent keeps probing deterministically. Only when
+            # there is no tree step left (or the tree has been exhausted) do
+            # we end the run — with the error in the summary for reporting.
+            try:
+                step = getattr(ctx, "step_count", 0) or 0
+                if ctx.attack_tree and 0 <= step < len(ctx.attack_tree.steps):
+                    fb = self._follow_attack_tree(ctx, step)
+                    fb.reasoning = (
+                        f"AI planning failed ({e}); continuing via attack tree. "
+                        f"{fb.reasoning}"
+                    )
+                    fb.source = "fallback"
+                    return fb
+            except Exception as tree_err:  # noqa: BLE001 — last-resort finish
+                logger.debug(f"attack-tree fallback unavailable: {tree_err}")
             return Decision(
                 action_data={"action": "finish", "summary": f"AI planning error: {e}"},
                 reasoning=f"AI planning failed: {e}",

@@ -102,7 +102,11 @@ def _get_relevant_few_shots(ctx: "ScanContext", max_traces: int = 3) -> List[Dic
     # From attack tree
     if ctx.attack_tree and ctx.attack_tree.steps:
         for step in ctx.attack_tree.steps:
-            vtype = step.metadata.get("vuln_type") if step.metadata else None
+            # AttackStep has no guaranteed ``metadata`` field (it is an
+            # optional carrier); read defensively so a populated tree never
+            # crashes prompt building.
+            meta = getattr(step, "metadata", None)
+            vtype = meta.get("vuln_type") if meta else None
             if vtype:
                 vuln_types.add(vtype.lower())
 

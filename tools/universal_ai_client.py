@@ -159,10 +159,11 @@ ACTION_TOOLS: List[Dict[str, Any]] = [
                 "Run the deterministic web-application vulnerability hunter against a "
                 "web target. It discovers endpoints, detects SQLi, XSS (reflected/stored), "
                 "IDOR/BOLA, mass assignment, SSTI, JWT alg=none, prototype pollution, race "
-                "conditions and path traversal using signal-based probes, and exploits the "
-                "critical ones to PROVE impact (extract flags / dump data). Use this as a "
-                "baseline web pass: it is fast, methodical and returns structured findings "
-                "with evidence. Local/private targets only unless public=true."
+                "conditions, path traversal, command injection/RCE, XXE, SSRF and open "
+                "redirect using signal-based probes, and exploits the critical ones to PROVE "
+                "impact (extract flags / dump data). Use this as a baseline web pass: it is "
+                "fast, methodical and returns structured findings with evidence. "
+                "Local/private targets only unless public=true."
             ),
             "parameters": {
                 "type": "object",
@@ -359,6 +360,15 @@ class UniversalAIClient:
         # Late import to avoid circular dep
         from tools.ai_config import resolve_provider_settings
 
+        # Timeout: ELENGENIX_AI_TIMEOUT overrides the default — slow local
+        # models (small Ollama on CPU) need far more than 150s per call, while
+        # cloud models are fine with the default.
+        env_timeout = os.getenv("ELENGENIX_AI_TIMEOUT", "").strip()
+        if env_timeout:
+            try:
+                timeout = int(float(env_timeout))
+            except ValueError:
+                pass
         self.timeout = timeout
         self.max_retries = max_retries
 
@@ -380,6 +390,12 @@ class UniversalAIClient:
         self.base_url = resolved["base_url"] or config.get("base_url", "")
         if provider == "custom" and not self.base_url:
             self.base_url = os.getenv("CUSTOM_API_BASE", "")
+        # Ollama speaks OpenAI-compatible at {server}/v1, but the OLLAMA_URL /
+        # OLLAMA_BASE_URL env convention (and most docs) point at the bare
+        # server root (http://host:11434). Normalize here so /chat/completions
+        # resolves instead of 404-ing on the native Ollama routes.
+        if provider == "ollama" and self.base_url and not self.base_url.rstrip("/").endswith("/v1"):
+            self.base_url = self.base_url.rstrip("/") + "/v1"
         # model: param > config.yaml > env > PROVIDER_CONFIGS default
         self.model = (
             resolved["model"]
@@ -580,6 +596,13 @@ class UniversalAIClient:
                 elif attempt < self.max_retries - 1:
                     time.sleep(2**attempt)  # Exponential backoff
                     continue
+                raise
+            except requests.exceptions.ReadTimeout:
+                # The server was still generating the response (common with
+                # slow local models). Retrying would re-issue the same
+                # multi-minute inference and double the wall-clock cost, so
+                # surface the timeout to the caller (which falls back to its
+                # non-AI path) instead of burning more time.
                 raise
             except Exception:
                 if attempt < self.max_retries - 1:
