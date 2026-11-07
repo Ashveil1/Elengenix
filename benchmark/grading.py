@@ -207,6 +207,21 @@ class BenchmarkResult:
         return 2 * p * r / (p + r) if (p + r) > 0 else 0.0
 
     def summary(self) -> str:
+        if self.error and self.total_reported > 0:
+            # A timed-out run that already proved findings (the runner's
+            # time-limit path returns partial progress) must still show the
+            # real numbers — reporting "findings are empty" would hide a
+            # 10/10 partial result and mislead the reader.
+            return "\n".join(
+                [
+                    "═══ BENCHMARK RESULT ═══",
+                    "Status: PARTIAL (run hit its time limit / error before completing)",
+                    f"Error: {self.error}",
+                    "Findings below are the partial progress proven before the deadline:",
+                    "",
+                ]
+                + self._metric_lines()
+            )
         if self.error:
             return "\n".join(
                 [
@@ -216,8 +231,10 @@ class BenchmarkResult:
                     "No precision/recall measured — findings are empty because the run failed, not because the agent found nothing.",
                 ]
             )
+        return "\n".join(self._metric_lines())
+
+    def _metric_lines(self) -> List[str]:
         lines = [
-            "═══ BENCHMARK RESULT ═══",
             f"Precision:  {self.precision():.1%} ({len(self.true_positives)} TP / {self.total_reported} reported)",
             f"Recall:     {self.recall():.1%} ({len(self.true_positives)} TP / {self.total_ground_truth} known)",
             f"F1 Score:   {self.f1():.1%}",
@@ -243,7 +260,7 @@ class BenchmarkResult:
             lines.append("\nFALSE POSITIVES:")
             for fp in self.false_positives:
                 lines.append(f"  - {fp.canonical_class} at {fp.reported_endpoint}")
-        return "\n".join(lines)
+        return lines
 
     def to_dict(self) -> Dict[str, Any]:
         return {
