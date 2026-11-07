@@ -171,7 +171,7 @@ def sink_server():
             if p.path == "/":
                 self._send(200, b'<html><body><a href="/fetch">f</a>'
                                b'<a href="/go">g</a><a href="/api/data">a</a>'
-                               b'</body></html>',
+                               b'<a href="/ping">p</a></body></html>',
                            {"Content-Type": "text/html"})
             elif p.path == "/fetch":
                 url = (q.get("url") or [""])[0]
@@ -198,6 +198,17 @@ def sink_server():
                     hdrs["Access-Control-Allow-Origin"] = origin
                     hdrs["Access-Control-Allow-Credentials"] = "true"
                 self._send(200, b'{"ok": true}', hdrs)
+            elif p.path == "/ping":
+                # CRLF sink: reflect the value into a response header
+                # without sanitising CR/LF (http.server sends raw bytes).
+                val = (q.get("msg") or [""])[0]
+                self.send_response(200)
+                self.send_header("Content-Type", "text/plain")
+                if val:
+                    self.send_header("X-Note", val)  # vulnerable reflection
+                self.send_header("Content-Length", "2")
+                self.end_headers()
+                self.wfile.write(b"ok")
             else:
                 self._send(404, b"not found")
 
@@ -245,17 +256,27 @@ class TestNewDetectors:
         assert f["endpoint"] == "/api/data"
         assert f["provenance"] == "deterministic" and f["verified"] is True
 
+    def test_crlf_detected(self, sink_server):
+        h = WebAppHunter(sink_server, timeout=3, max_words=0)
+        res = h.hunt(classes=["crlf"])
+        crlf = [f for f in res.findings if f["type"] == "crlf_injection"]
+        assert crlf, f"expected a CRLF finding, got: {[f['type'] for f in res.findings]}"
+        f = crlf[0]
+        assert f["endpoint"] == "/ping"
+        assert f["provenance"] == "deterministic" and f["verified"] is True
+
     def test_no_false_positives_on_sink_server(self, sink_server):
         """The sink app has no other vuln sinks: hunting only the new
         classes must yield exactly one finding each, no extras."""
         h = WebAppHunter(sink_server, timeout=3, max_words=0)
-        res = h.hunt(classes=["ssrf", "open_redirect", "cors"])
+        res = h.hunt(classes=["ssrf", "open_redirect", "cors", "crlf"])
         by_type = {}
         for f in res.findings:
             by_type.setdefault(f["type"], []).append(f)
         assert {f["endpoint"] for f in by_type.get("ssrf", [])} == {"/fetch"}
         assert {f["endpoint"] for f in by_type.get("open_redirect", [])} == {"/go"}
         assert {f["endpoint"] for f in by_type.get("cors_misconfiguration", [])} == {"/api/data"}
+        assert {f["endpoint"] for f in by_type.get("crlf_injection", [])} == {"/ping"}
 
 
 # ===================================================================

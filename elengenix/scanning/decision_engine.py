@@ -490,17 +490,31 @@ class DecisionEngine:
                 source="fallback",
             )
 
-        # Build the prompt with enhanced strategy context
-        full_prompt = self._build_strategy_prompt(ctx, user_input, reflection)
+        # Build the prompt with enhanced strategy context.
+        #
+        # Compact mode (ELENGENIX_COMPACT_DECISION=1): on a slow local model
+        # the *full* strategy prompt (~2-3k tokens) makes a single decision
+        # call infeasible — measured prefill ~5 tok/s and generation ~0.1
+        # tok/s, so prefill + a 60-token answer already exceeds any sane
+        # per-call timeout and the AI step never completes (it always ends
+        # as a read-timeout + fallback). The compact prompt keeps only what
+        # a decision actually needs (target, velocity, last findings, action
+        # list) so even ~0.1 tok/s hardware can finish a real AI step.
+        if os.environ.get("ELENGENIX_COMPACT_DECISION", "").strip() in ("1", "true", "yes"):
+            full_prompt = self._build_compact_prompt(ctx, user_input, reflection)
+        else:
+            full_prompt = self._build_strategy_prompt(ctx, user_input, reflection)
 
         # ── Interactive mode: show last command output at the TOP ──
         # This makes the AI see the most recent shell output immediately,
         # like a human typing commands in a terminal.
         if ctx.last_output:
+            compact = os.environ.get("ELENGENIX_COMPACT_DECISION", "").strip() in ("1", "true", "yes")
+            out_slice = ctx.last_output[:600] if compact else ctx.last_output[:4000]
             interactive_section = "\n\n### LAST COMMAND OUTPUT (you just ran this):\n"
             interactive_section += f"Command: `{ctx.last_command}`\n"
             interactive_section += f"Success: {'Yes' if ctx.last_command_success else 'No'}\n"
-            interactive_section += f"Output:\n```\n{ctx.last_output[:4000]}\n```\n"
+            interactive_section += f"Output:\n```\n{out_slice}\n```\n"
             interactive_section += "\nBased on this output, decide your next move.\n"
             full_prompt = interactive_section + full_prompt
         if guidance:
@@ -596,6 +610,54 @@ class DecisionEngine:
                 reasoning=f"AI planning failed: {e}",
                 source="fallback",
             )
+
+    def _build_compact_prompt(
+        self, ctx: "ScanContext", user_input: str, reflection=None
+    ) -> str:
+        """Minimal decision prompt for slow local models (compact mode).
+
+        Keeps only what a decision actually needs — target, mission
+        velocity, the findings so far, the suggested attack-tree step, the
+        reflection status, and the EXACT action list — so the prefill stays
+        a few hundred tokens instead of ~2-3k. The hunter is already running
+        as the deterministic baseline, so the prompt only has to let the
+        model decide the next incremental move or finish.
+        """
+        from elengenix.scanning.prompt_builder import _KNOWN_ACTIONS
+
+        lines: List[str] = []
+        lines.append("You are Elengenix, an AI penetration-testing agent. Decide the next action.")
+        lines.append(f"Target: {ctx.target}")
+        lines.append(f"Mission: {user_input[:200]}")
+        lines.append("")
+        lines.append(f"Velocity: step {ctx.step_count}/{ctx.max_steps}, "
+                     f"{ctx.consecutive_no_findings} steps without new findings.")
+        if ctx.has_findings:
+            lines.append(f"Findings so far ({ctx.finding_count} total):")
+            for f in ctx.all_findings[-8:]:
+                lines.append(
+                    f"- [{f.get('severity', 'unknown')}] {f.get('type', 'unknown')} "
+                    f"at {f.get('endpoint', '?')}"
+                )
+        else:
+            lines.append("Findings so far: none.")
+        if ctx.attack_tree and ctx.attack_tree.steps:
+            remaining = ctx.attack_tree.steps[ctx.step_count :]
+            if remaining:
+                step = remaining[0]
+                phase_name = step.phase.value if hasattr(step.phase, "value") else str(step.phase)
+                lines.append(f"Suggested next step (you may override): "
+                             f"[{phase_name}] {step.tool_name}: {step.purpose[:150]}")
+        if reflection and reflection.status and reflection.status != "on_track":
+            lines.append(f"Reflection: {reflection.status}"
+                         + (f" — {reflection.recommendation[:150]}" if reflection.recommendation else ""))
+        lines.append("")
+        lines.append(f'Your "action" MUST be EXACTLY one of: {_KNOWN_ACTIONS}. Do not invent other names.')
+        lines.append('Return ONLY JSON: {"action": "<one of the above>", '
+                     '"purpose": "<why, one line>", "command": "...", "target": "...", '
+                     '"findings": [{"type": "...", "endpoint": "...", "evidence": "..."}], '
+                     '"summary": "..."}')
+        return "\n".join(lines)
 
     def _build_strategy_prompt(self, ctx: "ScanContext", user_input: str, reflection=None) -> str:
         """Build a strategy-focused prompt for AI decision making.

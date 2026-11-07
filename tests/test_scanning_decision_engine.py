@@ -323,6 +323,87 @@ class TestBuildStrategyPrompt:
         prompt_builder.build_scan_prompt.assert_called_once()
 
 
+class TestBuildCompactPrompt:
+    """Compact decision prompt (ELENGENIX_COMPACT_DECISION) — small enough
+    for a slow local model to finish within a per-call timeout."""
+
+    def test_is_small(self, engine, ctx):
+        """The compact prompt must stay an order of magnitude below the
+        full strategy prompt (prefill dominates wall-clock on CPU models)."""
+        ctx.has_findings = False
+        ctx.all_findings = []
+        ctx.attack_tree = None
+        prompt = engine._build_compact_prompt(ctx, "scan test.local")
+        assert len(prompt) // 4 < 400  # rough token estimate
+
+    def test_enumerates_full_action_space(self, engine, ctx):
+        """Same hallucination guard as the full planning prompt."""
+        prompt = engine._build_compact_prompt(ctx, "scan test.local")
+        for action in (
+            "run_shell", "run_webapp_hunt", "run_ai_tool", "write_script",
+            "install_tool", "run_batch", "web_search", "submit_findings",
+            "save_memory", "ask_user", "finish",
+        ):
+            assert action in prompt
+        assert "MUST be EXACTLY one of" in prompt
+        assert "Do not invent other names" in prompt
+
+    def test_includes_target_and_velocity(self, engine, ctx):
+        ctx.step_count = 2
+        ctx.max_steps = 5
+        prompt = engine._build_compact_prompt(ctx, "scan test.local")
+        assert "http://test.local" in prompt
+        assert "step 2/5" in prompt
+
+    def test_includes_findings(self, engine, ctx):
+        ctx.has_findings = True
+        ctx.finding_count = 1
+        ctx.all_findings = [
+            {"severity": "critical", "type": "sqli", "endpoint": "/login"}
+        ]
+        prompt = engine._build_compact_prompt(ctx, "scan test.local")
+        assert "[critical] sqli at /login" in prompt
+
+    def test_includes_attack_tree_step(self, engine, ctx):
+        step = MagicMock()
+        step.phase.value = "exploitation"
+        step.tool_name = "run_webapp_hunt"
+        step.purpose = "Hunt the target"
+        tree = MagicMock()
+        tree.steps = [step]
+        ctx.attack_tree = tree
+        ctx.step_count = 0
+        prompt = engine._build_compact_prompt(ctx, "scan test.local")
+        assert "run_webapp_hunt" in prompt
+        assert "[exploitation]" in prompt
+
+    def test_ai_dynamic_planning_uses_compact_when_enabled(
+        self, engine, ctx, ai_client, prompt_builder, monkeypatch
+    ):
+        """When the env flag is set the compact prompt (not the full one)
+        is sent to the model."""
+        import json
+
+        monkeypatch.setenv("ELENGENIX_COMPACT_DECISION", "1")
+        ai_msg = MagicMock()
+        ai_msg.content = json.dumps({"action": "finish", "summary": "done"})
+        ai_msg.tool_calls = []
+        ai_client.chat.return_value = ai_msg
+        ctx.last_output = None
+        ctx.last_command = ""
+
+        decision = engine._ai_dynamic_planning(ctx, "scan test.local")
+
+        assert decision.source == "ai_dynamic"
+        call_args = ai_client.chat.call_args
+        messages = call_args[0][0] if call_args[0] else call_args.kwargs.get("messages")
+        system_content = next(
+            m.content for m in messages if getattr(m, "role", "") == "system"
+        )
+        assert "Decide the next action" in system_content
+        prompt_builder.build_scan_prompt.assert_not_called()
+
+
 # -------------------------------------------------------------------
 # _extract_json()
 # -------------------------------------------------------------------

@@ -1301,6 +1301,70 @@ class WebAppHunter:
                 break
         return findings
 
+    # ---- CRLF injection (response header splitting) ------------------------
+    def _detect_crlf(self, endpoints: Dict[str, EndpointInfo]) -> List[Dict[str, Any]]:
+        """CRLF / HTTP response splitting: a parameter value containing a
+        CR LF is decoded and reflected into a response header, letting an
+        attacker inject arbitrary headers.
+
+        A real CRLF character is URL-encoded by the HTTP client into the
+        query string; a sink that decodes and reflects it into a header
+        produces our unique canary header on the wire. The canary is a
+        random 12-hex marker no benign server would ever emit, so the
+        false-positive rate is near zero. Only a header-level reflection is
+        flagged (a body echo is not header injection).
+        """
+        findings: List[Dict[str, Any]] = []
+        canary = f"crlf{uuid.uuid4().hex[:12]}"
+        # Real CR/LF characters: the client percent-encodes them (%0D%0A),
+        # the server decodes them once — a vulnerable sink reflects CRLF.
+        payload = f"x\r\nX-{canary}: pwned"
+        # Params that commonly end up in headers / redirects / paths.
+        params = (
+            "url", "uri", "link", "next", "redirect", "redirect_uri",
+            "return", "returnTo", "return_to", "dest", "destination",
+            "path", "location", "page", "msg", "ref",
+        )
+        probed = 0
+        # Cover every endpoint x param (the CRLF sink is usually a late
+        # parameter like msg/ref); keep a hard cap so a large endpoint set
+        # cannot blow the hunt budget.
+        max_probes = min(len(params) * max(len(endpoints), 1), 300)
+        for path in list(endpoints):
+            if probed >= max_probes:
+                break
+            for param in params:
+                if probed >= max_probes:
+                    break
+                probed += 1
+                try:
+                    r = self._get(path, params={param: payload})
+                except Exception:
+                    continue
+                for hname, hval in (r.headers or {}).items():
+                    if canary in hname or canary in hval:
+                        findings.append(
+                            self._finding(
+                                "crlf_injection", path,
+                                f"CRLF Injection (response splitting) via '{param}'",
+                                f"Parameter '{param}' on {path} is reflected into the "
+                                f"response headers, allowing injection of arbitrary "
+                                f"headers (response splitting, cache poisoning, "
+                                f"XSS via injected Set-Cookie/Location).",
+                                f"GET {self._abs(path)} with {param}="
+                                f"{payload!r} returned the injected canary "
+                                f"header: {hname}: {hval[:120]}",
+                                "high", 0.9,
+                                param=param, payload=payload.replace("\r", "\\r").replace("\n", "\\n"),
+                                method="GET", url=r.url,
+                            )
+                        )
+                        break
+                else:
+                    continue
+                break  # one finding per endpoint is enough
+        return findings
+
     # ====================================================================== #
     # 3. ORCHESTRATION
     # ====================================================================== #
@@ -1319,7 +1383,7 @@ class WebAppHunter:
                 "mass_assignment", "sqli", "xss", "xss_stored", "idor",
                 "ssti", "jwt_none", "prototype_pollution", "race_condition",
                 "path_traversal", "rce", "xxe", "ssrf", "open_redirect",
-                "cors",
+                "cors", "crlf",
             ]
             runner: Dict[str, Any] = {
                 "mass_assignment": self._detect_mass_assignment,
@@ -1337,6 +1401,7 @@ class WebAppHunter:
                 "ssrf": self._detect_ssrf,
                 "open_redirect": self._detect_open_redirect,
                 "cors": self._detect_cors,
+                "crlf": self._detect_crlf,
             }
             for name in ordered:
                 if classes and name not in classes:
