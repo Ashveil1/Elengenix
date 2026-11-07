@@ -153,9 +153,9 @@ class Governance:
         r"|gem\s+install"
         r"|curl\s+.*\|\s*(ba?sh|sh|zsh|python3?|ruby|perl)"
         r"|wget\s+.*\|\s*(ba?sh|sh|zsh|python3?|ruby|perl)"
-        r"|(?:^|[\s;&|])(?:tee|cat|echo|printf|cp|mv|install)\b[^\n]*(?:>\s*)?/(?:etc|usr|bin|sbin|boot|proc|sys)(?:/|\s|$)"
+        r"|(?:^|[\s;&|])(?:tee|cp|mv|install)\b[^\n]*(?:>\s*)?/(?:etc|usr|bin|sbin|boot|proc|sys)(?:/|\s|$)"
         r"|(?:>|>>)\s*/(?:etc|usr|bin|sbin|boot|proc|sys)(?:/|\s|$)"
-        r"|(?:>|>>)\s*/dev/(?!null(?:/|\s|$)|stdout(?:/|\s|$)|stderr(?:/|\s|$)|tty(?:/|\s|$))\S*",
+        r"|(?:>|>>)\s*/dev/(?!null(?![\w-])|stdout(?![\w-])|stderr(?![\w-])|tty(?![\w-]))\S*",
         re.IGNORECASE,
     )
 
@@ -330,7 +330,9 @@ class Governance:
         candidate = value.strip()
         # `/dev/null` (and friends) are discard nodes, not system paths.
         if candidate.startswith("/dev/"):
-            node = candidate[len("/dev/"):].split("/", 1)[0]
+            tail = candidate[len("/dev/"):]
+            node = tail.split("/", 1)[0]
+            node = re.sub(r"[^A-Za-z0-9_.-]+$", "", node)  # drop trailing punctuation
             if node in self._BENIGN_DEV_NODES:
                 return False
         return any(
