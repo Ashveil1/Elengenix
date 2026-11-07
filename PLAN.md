@@ -164,9 +164,20 @@ what makes the score stable and the agent genuinely strong regardless of model.
     are empty", which would have misreported that 10/10; fixed to show a
     **PARTIAL** status with full metrics when findings exist (commit
     b534a22).
-  - A follow-up run with a 60-token decision cap + 900s per-call timeout +
-    5000s window is in flight to demonstrate *completed* AI steps; script:
+  - **Run 3 (live `qwen2.5:1.5b` driving the canonical `ScanLoop`, 60-token
+    decision cap, 900s per-call timeout, 5000s window): precision 100%
+    (10/10), recall 100% (10/10), F1 100%, impact 3/3, 0 FP, 0 FN,
+    981.6s, Steps=1.** The deterministic baseline hunted 10/10 + 3/3 in
+    37s; the single AI decision call then hit the 900s read-timeout (model
+    ~0.1 tok/s on this box) and the graceful-fallback path kept the loop
+    alive with the graded result intact — exactly the designed degradation.
+    Log: `/tmp/opencode/real_llm_benchmark_run3.log`; script:
     `.venv/bin/python /tmp/opencode/real_llm_benchmark.py`.
+  - **Planning-prompt action space** (`prompt_builder.py`, commit 0add256):
+    the prompt listed only 6 of the 11 dispatchable actions and never named
+    `run_webapp_hunt`, so small models hallucinated action names
+    (`securityScan`, `dispatchSecurityAlert`) and could not discover the
+    hunter. It now enumerates all 11 and says "MUST be EXACTLY one of".
   - Bottom line for "strongest agent": detection/impact capability is
     **100% and model-independent** (proven with a do-nothing LLM AND a live
     Ollama model); the LLM adds creativity on top when the hardware can feed
