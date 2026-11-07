@@ -173,7 +173,9 @@ runs once at the start of every web mission. It:
   `alg=none`, prototype pollution, race conditions (TOCTOU), path traversal,
   command injection (RCE, time-based blind), XXE, SSRF (loopback canary
   listener), open redirect, CORS misconfiguration (canary-origin
-  reflection), and CRLF injection (header-splitting canary),
+  reflection), CRLF injection (header-splitting canary), host header
+  injection (canary Host reflection), and weak/hardcoded JWT secret
+  (forged-admin proof via a bounded weak-secret dictionary),
 - **Exploits** the critical ones to *prove impact* — dumping DB rows, reading
   the planted flag via traversal / SQLi / SSTI, forging an `alg=none` admin
   token, creating a real self-elevated account, and demonstrating cross-user

@@ -138,15 +138,24 @@ class TestHuntResult:
 
 @pytest.fixture()
 def sink_server():
-    """A tiny local web app with exactly three intentional sinks:
+    """A tiny local web app with intentional sinks + decoys:
 
     - GET /fetch?url=...  -> the server fetches the URL (SSRF sink)
     - GET /go?next=...    -> 302 Location: next (open-redirect sink)
     - */api/data          -> reflects a unique Origin into
       Access-Control-Allow-Origin (CORS misconfiguration sink)
+    - GET /ping?msg=...   -> reflects msg into a response header
+      (CRLF / header-splitting sink)
+    - GET /reset          -> builds a reset link from the Host header
+      (host-header-injection sink)
+    - POST /api/jwt/verify -> HS256 JWTs verified with the weak secret
+      "supersecret"; alg=none is REJECTED (weak-secret sink — the
+      alg=none detector must NOT fire here)
+    - GET /search?q=...   -> reflects q but HTML-ESCAPES it (DECOY:
+      looks like reflected XSS, is not — no FP allowed)
 
-    Everything else 404s, so the hunter's SSRF / open-redirect / CORS
-    detectors must fire on exactly those endpoints and nowhere else.
+    Everything else 404s, so the detectors must fire on exactly the
+    vulnerable endpoints and nowhere else.
     """
     import threading
     from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -165,13 +174,61 @@ def sink_server():
             if body:
                 self.wfile.write(body)
 
+        def do_POST(self):
+            p = urlparse(self.path)
+            if p.path == "/api/jwt/verify":
+                self._jwt_verify()
+            else:
+                self._send(404, b"not found")
+
+        def _jwt_verify(self):
+            # weak-secret JWT sink: HS256 verified with the weak secret
+            # "supersecret"; alg=none is REJECTED (so the alg=none
+            # detector must not fire here, only the weak-secret one).
+            import base64
+            import hashlib
+            import hmac
+            import json as _json
+
+            try:
+                length = int(self.headers.get("Content-Length") or 0)
+                body = self.rfile.read(length) if length else b"{}"
+                tok = (_json.loads(body or b"{}") or {}).get("token", "")
+            except Exception:
+                tok = ""
+            out = {"valid": False, "error": "invalid token"}
+            if isinstance(tok, str) and tok.count(".") == 2:
+                try:
+                    h, pp, s = tok.split(".")
+                    signing_input = f"{h}.{pp}".encode()
+                    pad = "=" * (-len(s) % 4)
+                    sig = base64.urlsafe_b64decode(s + pad)
+                    exp = hmac.new(b"supersecret", signing_input, hashlib.sha256).digest()
+                    if hmac.compare_digest(sig, exp):
+                        header = _json.loads(
+                            base64.urlsafe_b64decode(h + "=" * (-len(h) % 4))
+                        )
+                        if header.get("alg") == "HS256":
+                            out = {"valid": True}
+                        else:
+                            out = {"valid": False, "error": "invalid algorithm"}
+                except Exception as e:
+                    out = {"valid": False, "error": str(e)[:80]}
+            self._send(
+                200 if out.get("valid") else 401,
+                _json.dumps(out).encode(),
+                {"Content-Type": "application/json"},
+            )
+
         def do_GET(self):
             p = urlparse(self.path)
             q = parse_qs(p.query or {})
             if p.path == "/":
                 self._send(200, b'<html><body><a href="/fetch">f</a>'
                                b'<a href="/go">g</a><a href="/api/data">a</a>'
-                               b'<a href="/ping">p</a></body></html>',
+                               b'<a href="/ping">p</a><a href="/reset">r</a>'
+                               b'<a href="/api/jwt/verify">j</a>'
+                               b'<a href="/search">s</a></body></html>',
                            {"Content-Type": "text/html"})
             elif p.path == "/fetch":
                 url = (q.get("url") or [""])[0]
@@ -209,6 +266,26 @@ def sink_server():
                 self.send_header("Content-Length", "2")
                 self.end_headers()
                 self.wfile.write(b"ok")
+            elif p.path == "/reset":
+                # host-header-injection sink: build the reset link from the
+                # attacker-controlled Host header.
+                host = self.headers.get("Host") or "example.com"
+                body = (
+                    f"Your password reset link: http://{host}/api/password/reset?token=t-abc123"
+                ).encode()
+                self._send(200, body, {"Content-Type": "text/html"})
+            elif p.path == "/api/jwt/verify":
+                # Exists but only accepts POST (discovery treats 405 as
+                # "exists, wrong method" and probes POST).
+                self._send(405, b"method not allowed")
+            elif p.path == "/search":
+                # DECOY: looks like a reflected XSS sink but HTML-escapes
+                # the value -> no FP allowed.
+                from html import escape
+
+                val = (q.get("q") or [""])[0]
+                body = f"<html><body><p>Results for: {escape(val)}</p></body></html>".encode()
+                self._send(200, body, {"Content-Type": "text/html"})
             else:
                 self._send(404, b"not found")
 
@@ -265,11 +342,48 @@ class TestNewDetectors:
         assert f["endpoint"] == "/ping"
         assert f["provenance"] == "deterministic" and f["verified"] is True
 
-    def test_no_false_positives_on_sink_server(self, sink_server):
-        """The sink app has no other vuln sinks: hunting only the new
-        classes must yield exactly one finding each, no extras."""
+    def test_host_header_injection_detected(self, sink_server):
         h = WebAppHunter(sink_server, timeout=3, max_words=0)
-        res = h.hunt(classes=["ssrf", "open_redirect", "cors", "crlf"])
+        res = h.hunt(classes=["host_header"])
+        hh = [f for f in res.findings if f["type"] == "host_header_injection"]
+        assert hh, f"expected a host-header finding, got: {[f['type'] for f in res.findings]}"
+        assert hh[0]["endpoint"] == "/reset"
+        assert hh[0]["provenance"] == "deterministic" and hh[0]["verified"] is True
+
+    def test_jwt_weak_secret_detected(self, sink_server):
+        h = WebAppHunter(sink_server, timeout=3, max_words=0)
+        res = h.hunt(classes=["jwt_weak_secret"])
+        weak = [f for f in res.findings if f["type"] == "jwt_weak_secret"]
+        assert weak, f"expected a weak-secret finding, got: {[f['type'] for f in res.findings]}"
+        assert weak[0]["endpoint"] == "/api/jwt/verify"
+        assert weak[0].get("weak_secret") == "supersecret"
+        # Forged-ADMIN proof: the evidence must show the accepted forgery.
+        assert "admin" in weak[0]["evidence"]
+
+    def test_jwt_none_does_not_fire_on_weak_secret_sink(self, sink_server):
+        """The /api/jwt/verify sink REJECTS alg=none, so the alg=none
+        detector must stay silent on it (no double-reporting, no FP)."""
+        h = WebAppHunter(sink_server, timeout=3, max_words=0)
+        res = h.hunt(classes=["jwt_none"])
+        assert not [f for f in res.findings if f["type"] == "jwt_none"]
+
+    def test_escaped_reflection_is_not_xss(self, sink_server):
+        """The /search decoy reflects its param HTML-ESCAPED — the XSS
+        detector must not flag it (naive substring scanners FP here)."""
+        h = WebAppHunter(sink_server, timeout=3, max_words=0)
+        res = h.hunt(classes=["xss", "xss_stored"])
+        xss = [f for f in res.findings if f["type"] in ("xss", "xss_stored")]
+        assert not xss, f"escaped reflection was false-positived: {xss}"
+
+    def test_no_false_positives_on_sink_server(self, sink_server):
+        """The sink app has no other vuln sinks: hunting all the new
+        classes must yield exactly one finding each on the vulnerable
+        endpoints, and NOTHING on the /search decoy."""
+        h = WebAppHunter(sink_server, timeout=3, max_words=0)
+        res = h.hunt(classes=[
+            "ssrf", "open_redirect", "cors", "crlf",
+            "host_header", "jwt_weak_secret", "xss",
+        ])
         by_type = {}
         for f in res.findings:
             by_type.setdefault(f["type"], []).append(f)
@@ -277,6 +391,10 @@ class TestNewDetectors:
         assert {f["endpoint"] for f in by_type.get("open_redirect", [])} == {"/go"}
         assert {f["endpoint"] for f in by_type.get("cors_misconfiguration", [])} == {"/api/data"}
         assert {f["endpoint"] for f in by_type.get("crlf_injection", [])} == {"/ping"}
+        assert {f["endpoint"] for f in by_type.get("host_header_injection", [])} == {"/reset"}
+        assert {f["endpoint"] for f in by_type.get("jwt_weak_secret", [])} == {"/api/jwt/verify"}
+        # the /search escaped-reflection decoy must produce no XSS finding
+        assert not [f for f in res.findings if f["endpoint"] == "/search"]
 
 
 # ===================================================================

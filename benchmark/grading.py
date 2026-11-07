@@ -79,6 +79,8 @@ _CANONICAL_KEYS = [
     ("ssrf", ["ssrf", "server_side_request_forgery", "server-side request forgery"]),
     ("open_redirect", ["open_redirect", "open redirect", "redirect"]),
     ("xxe", ["xxe", "xml_external_entity", "xml external entity"]),
+    ("host_header_injection", ["host_header_injection", "host header injection", "host_header", "host header"]),
+    ("jwt_weak_secret", ["jwt_weak_secret", "weak_secret", "weak secret", "jwt weak secret", "weak jwt secret", "hardcoded jwt secret"]),
 ]
 
 

