@@ -214,16 +214,34 @@ what makes the score stable and the agent genuinely strong regardless of model.
     - **model re-hunted until deadlock**: prompts now tell the model the
       baseline ALREADY RAN with N verified findings — escalate/chain/
       test-elsewhere instead of re-running `run_webapp_hunt`.
+  - **Run 8 (autonomous mission, full fixed stack, full strategy prompt +
+    ReAct think):** baseline hunted 10/10 + 3/3 in 37s, then the cloud LLM
+    completed **6 distinct autonomous AI steps** — not just re-hunting:
+    a port/health check, bulk endpoint discovery (api/admin/debug/graphql/
+    swa...), and method probing (`OPTIONS /login`, `POST /login` empty
+    body). The **verification council now makes judgment calls** — it
+    rejected `api_abuse` as a genuine `false_positive` (3×) instead of the
+    old provider-failure discard, which is the precision guard working. The
+    run also **survived a live provider 503 outage** mid-mission (the loop
+    fell back and kept the 10/10) — resilience as designed. Graded
+    100/100/100 + 3/3, 0 FP, 0 FN, 2226s, Steps=6. Log:
+    `/tmp/opencode/real_llm_benchmark_run8.log`; script:
+    `.venv/bin/python /tmp/opencode/real_llm_benchmark8.py`.
   - **Planning-prompt action space** (`prompt_builder.py`, commit 0add256):
     the prompt listed only 6 of the 11 dispatchable actions and never named
     `run_webapp_hunt`, so small models hallucinated action names
     (`securityScan`, `dispatchSecurityAlert`) and could not discover the
     hunter. It now enumerates all 11 and says "MUST be EXACTLY one of".
   - Bottom line for "strongest agent": detection/impact capability is
-    **100% and model-independent** (proven with a do-nothing LLM AND a live
-    Ollama model); the LLM adds creativity on top when the hardware can feed
-    it tokens. On faster hardware (GPU / bigger model / no swap pressure) the
-    same loop reasons normally.
+    **100% and model-independent** (proven with a do-nothing LLM, a slow
+    live local model, and a fast cloud model). The AI agent loop itself now
+    genuinely drives the mission end-to-end (decide → execute → observe →
+    decide): with a fast cloud model (Runs 7-8) it makes *distinct*
+    autonomous pentest actions and the council verifies/rejects hypotheses
+    for real, while the deterministic baseline still guarantees the 100%
+    floor if the LLM is absent, slow, or down (a live 503 outage mid-mission
+    was absorbed). The agent is strong regardless of which model is plugged
+    in — that model-independence is the actual capability.
 - Formatting: this checkout is not black-clean at base (several untouched
   files reformat under black 25.x) and CI runs **no lint job** (pytest only;
   pre-commit not installed here), so code was left un-reformatted to keep
