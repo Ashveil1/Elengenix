@@ -404,6 +404,66 @@ class TestBuildCompactPrompt:
         prompt_builder.build_scan_prompt.assert_not_called()
 
 
+class TestBaselineHuntAwareness:
+    """The decision prompt must tell the model the deterministic baseline
+    already hunted, so it does not waste a step re-running the hunter with
+    the same scope (observed: model re-ran run_webapp_hunt until the
+    repeat-action deadlock detector terminated the mission)."""
+
+    @staticmethod
+    def _ctx_with_baseline_findings():
+        ctx = MagicMock()
+        ctx.has_findings = True
+        ctx.finding_count = 2
+        ctx.all_findings = [
+            {"type": "sqli", "endpoint": "/login", "provenance": "deterministic",
+             "source": "webapp_hunt", "severity": "critical"},
+            {"type": "xss", "endpoint": "/search", "provenance": "deterministic",
+             "source": "webapp_hunt", "severity": "high"},
+        ]
+        ctx.action_history = []
+        return ctx
+
+    def test_detects_baseline_findings(self, engine):
+        assert engine._baseline_hunt_ran(self._ctx_with_baseline_findings()) is True
+
+    def test_detects_hunt_action_in_history(self, engine):
+        ctx = MagicMock()
+        ctx.all_findings = []
+        ctx.action_history = [{"action": "run_webapp_hunt", "target": "http://x"}]
+        assert engine._baseline_hunt_ran(ctx) is True
+
+    def test_false_when_no_baseline(self, engine):
+        ctx = MagicMock()
+        ctx.all_findings = [
+            {"type": "xss", "endpoint": "/s", "provenance": "ai", "source": "agent"}
+        ]
+        ctx.action_history = [{"action": "run_shell", "command": "curl http://x"}]
+        assert engine._baseline_hunt_ran(ctx) is False
+
+    def test_compact_prompt_mentions_no_rerun(self, engine):
+        ctx = self._ctx_with_baseline_findings()
+        ctx.target = "http://127.0.0.1:1"
+        ctx.step_count = 1
+        ctx.max_steps = 5
+        ctx.consecutive_no_findings = 0
+        ctx.attack_tree = None
+        prompt = engine._build_compact_prompt(ctx, "scan it")
+        assert "ALREADY RAN" in prompt
+        assert "Do NOT re-run" in prompt
+
+    def test_strategy_prompt_mentions_no_rerun(self, engine, prompt_builder):
+        prompt_builder.build_scan_prompt.return_value = "base"
+        ctx = self._ctx_with_baseline_findings()
+        ctx.attack_tree = None
+        ctx.step_count = 1
+        ctx.max_steps = 5
+        ctx.consecutive_no_findings = 0
+        prompt = engine._build_strategy_prompt(ctx, "scan it")
+        assert "ALREADY RAN" in prompt
+        assert "Do NOT re-run" in prompt
+
+
 # -------------------------------------------------------------------
 # _extract_json()
 # -------------------------------------------------------------------

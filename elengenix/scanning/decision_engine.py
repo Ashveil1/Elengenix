@@ -611,6 +611,36 @@ class DecisionEngine:
                 source="fallback",
             )
 
+    @staticmethod
+    def _baseline_hunt_ran(ctx: "ScanContext") -> bool:
+        """True if the deterministic web-app baseline hunt has already
+        produced results this mission.
+
+        Baseline findings are tagged ``provenance="deterministic"`` /
+        ``source="webapp_hunter"`` by the hunter; a ``run_webapp_hunt``
+        action the model itself ran also counts. Used to tell the model it
+        should not waste a step re-hunting the same target with the same
+        scope (observed failure mode: it re-ran the hunter until the
+        repeat-action deadlock detector terminated the mission).
+        """
+        try:
+            for f in list(getattr(ctx, "all_findings", []) or []):
+                if not isinstance(f, dict):
+                    continue
+                if f.get("provenance") == "deterministic" or f.get("source") == "webapp_hunt":
+                    return True
+            for a in list(getattr(ctx, "action_history", []) or []):
+                name = ""
+                if isinstance(a, dict):
+                    name = str(a.get("action") or a.get("tool") or "")
+                elif isinstance(a, str):
+                    name = a
+                if "webapp_hunt" in name:
+                    return True
+        except Exception:
+            return False
+        return False
+
     def _build_compact_prompt(
         self, ctx: "ScanContext", user_input: str, reflection=None
     ) -> str:
@@ -632,6 +662,17 @@ class DecisionEngine:
         lines.append("")
         lines.append(f"Velocity: step {ctx.step_count}/{ctx.max_steps}, "
                      f"{ctx.consecutive_no_findings} steps without new findings.")
+        # Tell the model the deterministic baseline already hunted so it does
+        # not waste a step re-running the same hunter with identical results
+        # (observed deadlock: model re-ran run_webapp_hunt until repeat-kill).
+        if self._baseline_hunt_ran(ctx):
+            n = ctx.finding_count if ctx.has_findings else 0
+            lines.append(
+                f"A deterministic web hunt ALREADY RAN at mission start and found "
+                f"{n} verified vulnerabilities (see FINDINGS). Do NOT re-run "
+                "run_webapp_hunt — it will return the same results. Instead "
+                "escalate/chain a finding, test an untested endpoint, or finish."
+            )
         if ctx.has_findings:
             lines.append(f"Findings so far ({ctx.finding_count} total):")
             for f in ctx.all_findings[-8:]:
@@ -703,6 +744,13 @@ class DecisionEngine:
         # Add findings context
         if ctx.has_findings:
             strategy_context += f"### FINDINGS SO FAR ({ctx.finding_count} total):\n"
+            if self._baseline_hunt_ran(ctx):
+                strategy_context += (
+                    "NOTE: a deterministic web hunt ALREADY RAN at mission start and "
+                    "produced these verified findings. Do NOT re-run run_webapp_hunt "
+                    "with the same scope — it will return the same results. Escalate, "
+                    "chain, or test an untested endpoint instead.\n"
+                )
             severity_count = {}
             for f in ctx.all_findings:
                 sev = f.get("severity", "unknown")

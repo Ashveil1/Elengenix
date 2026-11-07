@@ -400,6 +400,12 @@ def get_provider_order() -> List[str]:
       1. active_provider from config.yaml
       2. ACTIVE_AI_PROVIDER from env (if not "custom" sentinel)
       3. All known providers (fallback chain)
+      4. ``custom`` last — a user-configured OpenAI-compatible endpoint is a
+         last-resort fallback. It is only ever *active* when its env
+         (CUSTOM_API_BASE + CUSTOM_API_KEY) is set, because
+         ``UniversalAIClient.is_available()`` requires both; with no config
+         the client reports unavailable and is skipped by the manager, so
+         adding it here never shadows a real provider.
     """
     ai = get_ai_section()
     active = get_active_provider()
@@ -409,7 +415,13 @@ def get_provider_order() -> List[str]:
     all_providers = list(_KNOWN_PROVIDER_PREFIXES)
     if active in all_providers:
         all_providers.remove(active)
-    return [active] + all_providers
+    order = [active] + all_providers
+    # Append the custom sentinel last so a configured OpenAI-compatible
+    # endpoint is reachable by AIClientManager (e.g. the verification
+    # council / post-processor) without shadowing a real provider.
+    if "custom" not in order:
+        order.append("custom")
+    return order
 
 
 # ── Internal helpers (derived from elengenix.providers.catalog) ──
