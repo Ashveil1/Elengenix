@@ -1197,7 +1197,32 @@ class TestBuildScanPrompt:
         ):
             result = prompt_builder.build_scan_prompt(ctx, "scan example.com")
             assert "Plan your next move." in result
-            assert result.strip().endswith('"purpose": "...", "question": "..."}')
+            assert result.strip().endswith('"purpose": "...", "question": "...", "summary": "..."}')
+
+    def test_planning_instructions_enumerate_full_action_space(self, prompt_builder, ctx):
+        """The planning prompt must list the EXACT dispatchable action set.
+
+        A small local model only discovers tools it is told about. If the
+        prompt under-lists the action space the model either hallucinates
+        action names or never finds the deterministic hunter. Pin the full
+        action list so a future regression is caught.
+        """
+        for action in (
+            "run_shell",
+            "run_webapp_hunt",
+            "run_ai_tool",
+            "write_script",
+            "install_tool",
+            "run_batch",
+            "web_search",
+            "submit_findings",
+            "save_memory",
+            "ask_user",
+            "finish",
+        ):
+            assert action in _PLANNING_INSTRUCTIONS, f"{action} missing from planning prompt"
+        assert "MUST be EXACTLY one of" in _PLANNING_INSTRUCTIONS
+        assert "Do not invent other action names" in _PLANNING_INSTRUCTIONS
 
     def test_calls_all_build_methods(self, prompt_builder, ctx):
         """Every builder method should be called during build_scan_prompt."""

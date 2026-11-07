@@ -708,21 +708,39 @@ Do NOT attempt to run a scan. Respond naturally in the user's language (English 
 
 # -- Planning Instructions (always appended to scan prompts) -----
 
-_PLANNING_INSTRUCTIONS = """
+# The EXACT action space the executor can dispatch (must stay in sync with the
+# ACTION_TOOLS list in tools/universal_ai_client.py and execute_tool in
+# elengenix/scanning/executor.py). Enumerating all of them -- and telling the
+# model to pick ONLY from this list -- is what stops a small local model from
+# hallucinating action names and, importantly, from never discovering the
+# `run_webapp_hunt` deterministic hunter (the most powerful single tool).
+_KNOWN_ACTIONS = (
+    "run_shell, run_webapp_hunt, run_ai_tool, write_script, install_tool, "
+    "run_batch, web_search, submit_findings, save_memory, ask_user, finish"
+)
+
+_PLANNING_INSTRUCTIONS = f"""
 
 Plan your next move. Consider:
 1. What do we know from previous sessions about this target?
 2. What shell command would be most effective now? (Think freely -- use pipes, redirects, scripting)
-3. Do you need to research a vulnerability or tech stack? Use web_search.
-4. Have you found any vulnerabilities? Use submit_findings to report them IMMEDIATELY!
-5. Is a tool missing? Use ask_user to request installation.
-6. Check COVERAGE GAPS above -- are there untested vulnerability classes on known endpoints?
-7. Check ACTIVE HYPOTHESES above -- prioritize testing hypotheses with HIGH confidence.
-8. Check REFLECTION above -- if strategy is stuck, try a completely different approach.
-9. Check PREVIOUSLY TESTED above -- don't repeat the same test on the same endpoint.
-10. When you report a finding submit_findings, include the SPECIFIC endpoint and vulnerability type so coverage tracking can update.
+3. For a WEB target, prefer run_webapp_hunt: it methodically discovers endpoints and
+   detects+exploits the canonical web vuln classes (SQLi, XSS, IDOR, SSTI, JWT,
+   SSRF, ...) to PROVE impact. It is the strongest single tool for web apps.
+4. Do you need to research a vulnerability or tech stack? Use web_search.
+5. Have you found any vulnerabilities? Use submit_findings to report them IMMEDIATELY!
+6. Is a tool missing? Use ask_user to request installation.
+7. Check COVERAGE GAPS above -- are there untested vulnerability classes on known endpoints?
+8. Check ACTIVE HYPOTHESES above -- prioritize testing hypotheses with HIGH confidence.
+9. Check REFLECTION above -- if strategy is stuck, try a completely different approach.
+10. Check PREVIOUSLY TESTED above -- don't repeat the same test on the same endpoint.
+11. When you report a finding submit_findings, include the SPECIFIC endpoint and vulnerability type so coverage tracking can update.
 
-Use JSON format:
-{"action": "run_shell|ask_user|web_search|submit_findings|save_memory|finish",
-"command": "...", "query": "...", "findings": [...],
-"purpose": "...", "question": "..."}"""
+Your "action" MUST be EXACTLY one of: {_KNOWN_ACTIONS}.
+Do not invent other action names.
+
+Return the action as JSON:
+{{"action": "<one of the above>",
+ "command": "...", "target": "...", "query": "...",
+ "findings": [{{"type": "...", "endpoint": "...", "evidence": "..."}}],
+ "purpose": "...", "question": "...", "summary": "..."}}"""
