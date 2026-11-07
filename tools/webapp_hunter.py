@@ -8,7 +8,7 @@ that, given a web base URL, will
   2. DETECT the canonical web vulnerability classes (SQLi, reflected/stored
      XSS, IDOR/BOLA, mass assignment, SSTI, JWT alg=none, prototype pollution,
      race condition/TOCTOU, path traversal, command injection/RCE, XXE,
-      open redirect), and
+     SSRF, open redirect, CORS misconfiguration, CRLF injection), and
   3. EXPLOIT the critical ones to *prove impact* — extracting whatever
      sensitive data / flag is reachable, and embedding that proof into the
      finding's evidence.
