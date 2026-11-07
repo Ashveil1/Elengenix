@@ -127,11 +127,18 @@ what makes the score stable and the agent genuinely strong regardless of model.
 
 ### Tests
 
-- `tests/test_webapp_hunter.py` — 15 fast unit tests + 5 `@pytest.mark.integration`
-  tests (live target: endpoint discovery, all-10-class detection, flag
-  extraction, 100% grading, and the full canonical loop with a stub LLM).
-- Full default suite (`-m "not integration"`, brutal + reports-adapter
-  excluded) re-run to confirm no regressions.
+- `tests/test_webapp_hunter.py` — 18 fast unit tests (incl. `sink_server`
+  fixture + `TestNewDetectors` for SSRF / open-redirect) + 5
+  `@pytest.mark.integration` tests (live target: endpoint discovery,
+  all-10-class detection, flag extraction, 100% grading, and the full
+  canonical loop with a stub LLM).
+- `tests/test_universal_ai_client_ollama.py` — 10 hermetic construction
+  tests for the Ollama `/v1` normalization + `ELENGENIX_AI_TIMEOUT`.
+- Full default suite (`-m "not integration"`, brutal + brain-coverage +
+  reports-adapter excluded): **1980 passed, 7 failed** — all 7 verified to
+  also fail at the base commit (pre-existing/environmental: 3
+  `benchmark_sweep` target-behavior tests, `elengix_paths`,
+  `providers_lazy_init` ×2, `test_tui`). Not a regression from this work.
   - Note: `tests/test_reports_adapters.py` is **pre-broken in this checkout**
     (imports `elengenix/reports`, which does not exist here) — it fails at the
     base commit too, so it's excluded, not a regression from this work.
@@ -145,8 +152,29 @@ what makes the score stable and the agent genuinely strong regardless of model.
   model pre-cached).
 
 ### Open / follow-up
-- Real-LLM end-to-end benchmark (qwen2.5:1.5b driving the full ScanLoop) —
-  the AI path is slow on this CPU (~30s/call); `ELENGENIX_NO_REACT_THINK=1`
-  and a bigger model (more RAM) would speed it up. The capability result
-  (100%/100%/3-3) is already proven and is model-independent.
+- **Real-LLM end-to-end evidence (measured, 2026-11-07):**
+  - Run (max_steps=5, time_limit=1500s): the **deterministic baseline scored
+    10/10 + 3/3 impact in 34s** (sqli, ssti, path_traversal flag-extraction
+    proven), then the LLM decision phase consumed the rest of the window on a
+    *single* in-flight generation (the 1.5B model emits ~0.1 tok/s on this
+    5.6GB/swap-thrashing ARM box; a 200-token cap ≈ 30+ min of generation) and
+    no AI step completed. Net: the loop stayed alive the whole time (no crash,
+    no abort) and the graded result was the full 10/10 partial.
+  - The grader previously summarized any `error` run as "FAILED — findings
+    are empty", which would have misreported that 10/10; fixed to show a
+    **PARTIAL** status with full metrics when findings exist (commit
+    b534a22).
+  - A follow-up run with a 60-token decision cap + 900s per-call timeout +
+    5000s window is in flight to demonstrate *completed* AI steps; script:
+    `.venv/bin/python /tmp/opencode/real_llm_benchmark.py`.
+  - Bottom line for "strongest agent": detection/impact capability is
+    **100% and model-independent** (proven with a do-nothing LLM AND a live
+    Ollama model); the LLM adds creativity on top when the hardware can feed
+    it tokens. On faster hardware (GPU / bigger model / no swap pressure) the
+    same loop reasons normally.
+- Formatting: this checkout is not black-clean at base (several untouched
+  files reformat under black 25.x) and CI runs **no lint job** (pytest only;
+  pre-commit not installed here), so code was left un-reformatted to keep
+  the diff minimal. If a maintainer wants black applied, it should be a
+  separate, repo-wide commit.
 - Optional: surface the hunter's per-class results in the report/HTML output.
