@@ -79,8 +79,10 @@ causes found and fixed:
    measured range over 20k seeds is [400, 407]) — bound widened with the
    measured range documented.
 
-Hunter breadth (`tools/webapp_hunter.py`) — two more canonical classes,
-both signal-based with near-zero FP rate:
+Hunter breadth (`tools/webapp_hunter.py`) — signal-based with near-zero FP
+rate, now **15 classes**: SQLi, reflected & stored XSS, IDOR/BOLA, mass
+assignment, SSTI, JWT `alg=none`, prototype pollution, race/TOCTOU, path
+traversal, command injection (time-based blind), XXE, plus:
 - **SSRF**: spins up a loopback canary HTTP listener and feeds
   `http://127.0.0.1:<port>/<canary>` into URL-ish params (GET+POST). A hit
   on the canary maps endpoint|param exactly — deterministic proof, no
@@ -119,6 +121,14 @@ ground-truth vulns):
 | F1        | 1.0 | 1.0 |
 | False pos / neg | 0 / 0 | 0 / 0 |
 | Impact proven | 3/3 (sqli, ssti, path_traversal) | 3/3 |
+| Autonomous AI steps | n/a (baseline only) | n/a (stub finishes) |
+
+**Run 7 — first fully autonomous cloud-LLM mission** (DeepSeek-V4.1-Flash,
+stealth, `ELENGENIX_AUTO_APPROVE=1`): baseline 10/10 + 3/3 in 61s, then the
+LLM itself completed **3 real AI steps** (chose + executed
+`run_webapp_hunt` 3×, each verified 10 findings). Graded 100/100/100 + 3/3,
+0 FP, 0 FN, 1194s. The agent loop genuinely works end-to-end now:
+decide → execute (governance-gated) → observe → decide.
 
 Key point: the full **canonical `ScanLoop`** reaches 10/10 + 3/3 impact even
 with a **do-nothing LLM** (stub that immediately says "finish") — the
@@ -150,6 +160,12 @@ what makes the score stable and the agent genuinely strong regardless of model.
   `qwen2.5:1.5b` pulled; `~/.elengenix/.env` set to `ollama` + `qwen2.5:1.5b`.
 - Lean venv at `.venv` (core scan + benchmark deps; chromadb ONNX embedding
   model pre-cached).
+- **Cloud LLM (recommended for real missions):** the `custom`
+  OpenAI-compatible provider works with any `/v1/chat/completions`
+  endpoint — set `CUSTOM_API_BASE` + `CUSTOM_API_KEY` (+ `CUSTOM_MODEL`).
+  Verified with `https://api.tokenlab.amd.com/v1` + `DeepSeek-V4.1-Flash`
+  (fast, native tool-calling, ~8-15s per decision). `ELENGENIX_AUTO_APPROVE=1`
+  is required for headless/autonomous runs (see Run 7 notes above).
 
 ### Open / follow-up
 - **Real-LLM end-to-end evidence (measured, 2026-11-07):**
@@ -173,6 +189,31 @@ what makes the score stable and the agent genuinely strong regardless of model.
     alive with the graded result intact — exactly the designed degradation.
     Log: `/tmp/opencode/real_llm_benchmark_run3.log`; script:
     `.venv/bin/python /tmp/opencode/real_llm_benchmark.py`.
+  - **Run 7 (first AUTONOMOUS multi-step mission, cloud model):** the
+    deterministic baseline hunted 10/10 + 3/3 in 61s, then the **cloud
+    LLM completed 3 real AI steps** (it chose and executed
+    `run_webapp_hunt` itself, ×3) — graded 100/100/100 + 3/3, 0 FP, 0 FN,
+    1194s. This is the first run where the AI agent loop itself did
+    meaningful work (runs 3-5 with the local model never completed a
+    single AI step). Two follow-up gaps found & fixed (commits 9e69c02,
+    01b2de9, a389cd1):
+    - **governance false positive**: the model's benign `2>/dev/null`
+      idiom was classified PRIVILEGED (system write) → almost every recon
+      command blocked. `/dev/null`+friends are now exempt (regex +
+      token-level); a regression matrix pins the SAFE/PRIVILEGED/
+      DESTRUCTIVE boundary.
+    - **headless approval hang**: `input()` blocked forever in
+      background runs. Now `ELENGENIX_AUTO_APPROVE=1` is the explicit
+      operator opt-in (DESTRUCTIVE stays blocked unconditionally);
+      non-TTY without the flag fails safe (deny).
+    - **verification council couldn't see the custom endpoint** (it built
+      its own `AIClientManager` whose order excluded `custom`) → it
+      discarded every AI hypothesis. `get_provider_order()` now appends
+      `custom` last (only active when configured — never shadows real
+      providers).
+    - **model re-hunted until deadlock**: prompts now tell the model the
+      baseline ALREADY RAN with N verified findings — escalate/chain/
+      test-elsewhere instead of re-running `run_webapp_hunt`.
   - **Planning-prompt action space** (`prompt_builder.py`, commit 0add256):
     the prompt listed only 6 of the 11 dispatchable actions and never named
     `run_webapp_hunt`, so small models hallucinated action names
