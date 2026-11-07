@@ -280,12 +280,24 @@ what makes the score stable and the agent genuinely strong regardless of model.
   - **Full regression gate (after this batch): 2050 passed, 5 failed —
     exactly the 5 known pre-existing failures, zero regressions** (+9 new
     tests from this batch all pass; up from 2041 at the prior gate).
-  - **Canonical autonomous-loop run on the hard target** (cloud model):
-    in progress — `/tmp/opencode/hard_benchmark_canonical.log`. The
-    deterministic baseline already found BOTH real vulns in 14s with 0 decoy
-    FPs; the loop is now making distinct autonomous steps (curl recon,
-    robots.txt, bulk endpoint discovery) and has already survived a live 503
-    mid-mission. Recorded once it completes.
+  - **Canonical autonomous-loop run on the hard target (cloud model):
+    COMPLETED — clean sweep.** Full AI agent loop (not just the hunter)
+    graded **Precision 100%, Recall 100%, F1 1.0, 0 FP, 0 FN, decoy
+    resistance 100% (3/3)**, 5 distinct autonomous AI steps, 2068s,
+    exit 0. The baseline found both real vulns in 14s; the cloud LLM then
+    made *distinct* steps (curl recon of `/`+robots.txt, bulk endpoint
+    discovery, `/api/config`+`/health` inspection) and the council made
+    genuine **precision judgments** — discarding `sqli`, `auth`,
+    `auth_bypass`, `api_abuse`, `info_disclosure` as `false_positive`
+    (it is discriminating, not over-reporting). Crucially, the run
+    **survived a flaky API that 503'd ~6 times mid-mission** (the loop
+    fell back each time and kept the 2/2 + 0-FP result). Log:
+    `/tmp/opencode/hard_benchmark_canonical.log`.
+    This is the "best" claim made measurable beyond the saturated 10-vuln
+    set: on a noisier surface with real novel classes + decoys, the agent
+    still finds the real vulns, proves the JWT one by forgery, and does
+    NOT false-positive on the decoys — even while the provider is
+    intermittently down.
 - Formatting: this checkout is not black-clean at base (several untouched
   files reformat under black 25.x) and CI runs **no lint job** (pytest only;
   pre-commit not installed here), so code was left un-reformatted to keep
