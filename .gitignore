@@ -28,6 +28,12 @@ elengenix.db
 *.db-wal
 *.db-shm
 
+# Runtime memory store (ChromaDB) — user data, never commit
+data/memory/
+
+# Stray system packages
+*.deb
+
 # Python artifacts
 __pycache__/
 *.py[cod]

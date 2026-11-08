@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from unittest.mock import MagicMock, PropertyMock, patch, call
+from unittest.mock import AsyncMock, MagicMock, PropertyMock, patch, call
 
 import pytest
 
@@ -1399,10 +1399,9 @@ class TestExecuteToolRegistry:
         mock_registry.get_tool.return_value = mock_tool
 
         expected = ToolResult(success=True, tool_name="nmap", category=ToolCategory.RECON, output="direct")
+        mock_tool.execute = AsyncMock(return_value=expected)
 
-        with patch("elengenix.scanning.executor.asyncio.run") as mock_async_run:
-            mock_async_run.return_value = expected
-            result = execute_tool_registry("nmap", "127.0.0.1", tmp_path)
+        result = execute_tool_registry("nmap", "127.0.0.1", tmp_path)
 
         assert result == expected
 
@@ -1636,8 +1635,5 @@ class TestExecuteToolRegistryEdgeCases:
         mock_tool.execute = mock_execute
         mock_registry.get_tool.return_value = mock_tool
         sem = MagicMock()
-        with patch("elengenix.scanning.executor.asyncio.run") as mock_run:
-            expected = ToolResult(success=True, tool_name="nmap", category=ToolCategory.RECON, output="ok")
-            mock_run.return_value = expected
-            result = execute_tool_registry("nmap", "127.0.0.1", tmp_path, semaphore=sem)
-            assert result.success is True
+        result = execute_tool_registry("nmap", "127.0.0.1", tmp_path, semaphore=sem)
+        assert result.success is True

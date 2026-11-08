@@ -262,6 +262,11 @@ def check_health(interactive: bool = True) -> bool:
     """
     from cli.ui_components import confirm, console, print_error, print_success, print_warning
 
+    # Non-interactive stdin (pipes, CI, cron): skip all prompts automatically.
+    if interactive and not sys.stdin.isatty():
+        interactive = False
+        console.print("[dim][INFO] Non-interactive session detected; skipping all prompts.[/dim]")
+
     console.print("\n[bold red]System Health Check[/bold red] [dim]1.0.0[/dim]\n")
     all_ok = True
     runtime_python = _project_python()
@@ -308,7 +313,9 @@ def check_health(interactive: bool = True) -> bool:
                     all_ok = True
                     console.print(f"  [bold white]New config:[/bold white] {cfg_msg}")
             except Exception as e:
-                logger.error(f"Wizard failed: {e}")
+                logger.error(f"Wizard failed: {type(e).__name__}: {e}")
+        elif not cfg_ok:
+            print_warning("Non-interactive session: run 'elengenix configure' to set up API keys.")
     console.print()
 
     # ── Python Libraries ─────────────────────────────────────────────────────────
@@ -397,7 +404,12 @@ def check_health(interactive: bool = True) -> bool:
                     "questionary module missing. Run setup.sh to install core dependencies."
                 )
             except Exception as e:
-                logger.error(f"Error during library installation prompt: {e}")
+                logger.error(f"Error during library installation prompt: {type(e).__name__}: {e}")
+        else:
+            hint = ", ".join(missing_required + missing_optional)
+            print_warning(
+                f"Non-interactive session: install manually with 'pip install {hint}'."
+            )
 
     # ── Note about external tools ───────────────────────────────────────────────
     # Elengenix does NOT bundle or check third-party security tools (scanners, fuzzers, etc.).
