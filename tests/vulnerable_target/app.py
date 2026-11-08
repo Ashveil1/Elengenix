@@ -143,9 +143,18 @@ def login_sqli():
     password = request.form.get("password", "")
     # VULNERABLE: direct string concatenation
     query = f"SELECT * FROM users WHERE username='{username}' AND password='{password}'"
+    row = None
     conn = _db()
-    row = conn.execute(query).fetchone()
-    conn.close()
+    try:
+        row = conn.execute(query).fetchone()
+    except sqlite3.Error:
+        # A malformed injected query (e.g. unbalanced quotes) raises a DB
+        # error. Treat it as a failed login rather than a server crash — the
+        # loud-mode response below still leaks the raw query, which is the
+        # intended hand-holding for this vuln.
+        pass
+    finally:
+        conn.close()
     if row:
         # Set session cookie properly
         session_id = f"session_{row['id']}_{hashlib.md5(username.encode()).hexdigest()[:8]}"

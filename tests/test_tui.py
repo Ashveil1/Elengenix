@@ -31,6 +31,7 @@ _ALL_KEY_ENV = [
     "CUSTOM_API_KEY",
     "CUSTOM_API_BASE",
     "OLLAMA_BASE_URL",
+    "OLLAMA_URL",
 ]
 
 

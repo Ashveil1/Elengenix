@@ -114,16 +114,21 @@ class TestGetToolsPath:
 class TestEnsureDirs:
     def test_ensure_dirs_creates_all_dirs(self):
         with tempfile.TemporaryDirectory() as tmp:
-            with patch("elengenix.paths.ELENGENIX_DIRS", {
+            # ensure_dirs() reads elengenix.paths.ELENGENIX_DIRS at call time,
+            # so we patch that attribute and assert on the SAME dict we patched
+            # (the module-level import bound at the top of this file still
+            # points at the real ~/.elengenix and must not be used here).
+            dirs = {
                 "data": Path(tmp) / ".elengenix" / "data",
                 "tools": Path(tmp) / ".elengenix" / "tools",
                 "reports": Path(tmp) / ".elengenix" / "reports",
                 "scripts": Path(tmp) / ".elengenix" / "scripts",
                 "plugins": Path(tmp) / ".elengenix" / "plugins",
-            }):
+            }
+            with patch("elengenix.paths.ELENGENIX_DIRS", dirs):
                 from elengenix.paths import ensure_dirs
                 ensure_dirs()
-                for d in ELENGENIX_DIRS.values():
+                for d in dirs.values():
                     assert d.exists(), f"{d} was not created"
 
 

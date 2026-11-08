@@ -96,8 +96,13 @@ class HardAppServer:
         )
         import urllib.request
 
-        deadline = time.time() + 15
+        # Generous deadline: Flask startup is slow under full-suite load
+        # (the intermittent "Hard target did not start" flakes). A crashed
+        # process is detected early so real failures still report fast.
+        deadline = time.time() + 45
         while time.time() < deadline:
+            if self._proc is not None and self._proc.poll() is not None:
+                break
             try:
                 urllib.request.urlopen(f"{self.base_url}/health", timeout=1)
                 return

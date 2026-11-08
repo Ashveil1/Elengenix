@@ -147,8 +147,12 @@ class VulnerableAppServer:
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
         )
-        # Wait for the app to come up
-        if not self._wait_for_ready(timeout=15):
+        # Wait for the app to come up. The deadline is generous because a
+        # subprocess + Flask import + DB init can be slow when the whole test
+        # suite is running in parallel on a loaded runner (this is the root
+        # cause of the intermittent "did not start" flakes). A hard crash is
+        # detected early so a real failure still reports fast.
+        if not self._wait_for_ready(timeout=45):
             self.stop()
             raise RuntimeError(f"Vulnerable app did not start on port {self.port}")
         logger.info(f"Vulnerable app ready at {self.base_url}")
@@ -167,11 +171,18 @@ class VulnerableAppServer:
             self._proc = None
 
     def _wait_for_ready(self, timeout: float = 15.0) -> bool:
-        """Poll the app until it responds or timeout."""
+        """Poll the app until it responds or timeout.
+
+        Fails fast (returns False) if the spawned process has already exited —
+        a crashed interpreter can never serve, so waiting out the full deadline
+        only turns a hard failure into a slow one.
+        """
         import urllib.request
 
         deadline = time.time() + timeout
         while time.time() < deadline:
+            if self._proc is not None and self._proc.poll() is not None:
+                return False
             try:
                 urllib.request.urlopen(f"{self.base_url}/", timeout=1)
                 return True

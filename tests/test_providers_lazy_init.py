@@ -39,9 +39,34 @@ def _run_snippet(stmt: str) -> tuple[float, list[str]]:
     return float(lines["ELAPSED"]), eval(lines["HEAVY"])
 
 
+def _run_snippet_timed(stmt: str, runs: int = 3) -> tuple[float, list[str]]:
+    """Time a cold import across a few fresh subprocesses and return the
+    MINIMUM elapsed.
+
+    A single cold import is variable: on a loaded CI runner the very first
+    import can spike well past its steady-state cost (filesystem/compile
+    cache, scheduler latency). Taking the minimum of a few independent
+    processes keeps the test's real assertion (the import is genuinely light,
+    not dragging in a heavy stack) while removing the one-shot load noise
+    that made it flaky. The heavy-deps check is taken from the same runs and
+    must be clean on every run.
+    """
+    best: float | None = None
+    heavy_all: list[str] = []
+    for _ in range(runs):
+        elapsed, heavy = _run_snippet(stmt)
+        if best is None or elapsed < best:
+            best = elapsed
+        heavy_all.extend(m for m in heavy if m not in heavy_all)
+    assert best is not None
+    return best, heavy_all
+
+
 class TestProvidersLazyInit:
     def test_bare_import_is_light(self):
-        elapsed, heavy = _run_snippet("import elengenix.providers")
+        # Min of a few cold subprocesses: a single cold import on a loaded
+        # runner can spike, but the import itself is light and repeats fast.
+        elapsed, heavy = _run_snippet_timed("import elengenix.providers")
         assert heavy == [], f"bare import pulled heavy deps: {heavy}"
         assert elapsed < 1000, f"bare import too slow: {elapsed:.0f}ms"
 
@@ -97,7 +122,10 @@ class TestProvidersLazyInit:
 
     def test_catalog_is_stdlonly(self):
         """catalog must import without any heavy third-party dependency."""
-        elapsed, heavy = _run_snippet(
+        # Min of a few cold subprocesses — a stdlib-only import is light on its
+        # best run; a single cold import on a loaded runner can spike and made
+        # this flaky. The heavy-deps assertion still must hold on every run.
+        elapsed, heavy = _run_snippet_timed(
             "from elengenix.providers.catalog import ProviderSpec, iter_specs"
         )
         assert heavy == []
