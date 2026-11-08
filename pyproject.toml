@@ -98,6 +98,10 @@ dev = [
     "fastapi>=0.100",
     "uvicorn>=0.20",
     "strawberry-graphql>=0.200",
+    # Canonical report renderers (elengenix/reports/) — the reports tests run
+    # in BOTH CI jobs now that the package ships, so PDF/HTML deps live here.
+    "reportlab>=4.0",
+    "pygments>=2.0",
 ]
 api = [
     "fastapi>=0.100",

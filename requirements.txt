@@ -64,5 +64,6 @@ uvicorn>=0.20             # ASGI server for the API
 strawberry-graphql>=0.200 # GraphQL layer (elengenix/graphql/)
 aiosqlite>=0.19.0         # Async SQLite for flows/DB
 
-# ── PDF Report Export (optional extra: pip install -e ".[pdf]") ──
-# reportlab>=4.0
+# ── PDF Report Export (canonical elengenix/reports renderers) ──
+reportlab>=4.0
+pygments>=2.0
