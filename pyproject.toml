@@ -87,6 +87,14 @@ dev = [
     "flake8",
     "mypy",
     "ruff",
+    # Vulnerable benchmark targets (tests/vulnerable_target/{app,hard_target}.py)
+    # are spawned as subprocesses by the benchmark tests, so their deps must be
+    # installed in the test environment — CI installs .[dev] only.
+    "flask>=2.0",
+    "PyJWT>=2.0",
+    # FastAPI form-based endpoints (brutal REST integration tests) require
+    # python-multipart to parse request bodies.
+    "python-multipart>=0.0.7",
     "fastapi>=0.100",
     "uvicorn>=0.20",
     "strawberry-graphql>=0.200",
