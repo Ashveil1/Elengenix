@@ -15,8 +15,9 @@ mcp.json
 !MEMORY.md.example
 !mcp.json.example
 
-# Reports and discovered data
-reports/
+# Reports and discovered data (root-level generated reports only —
+# the elengenix/reports/ source package must stay tracked)
+/reports/
 data/*.db
 data/*.db-wal
 data/*.db-shm
