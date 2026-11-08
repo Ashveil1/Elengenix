@@ -436,7 +436,7 @@ def render_launcher_layout(theme_name="DEFAULT", target="", risk=0):
         build_static_renderable(
             theme_name=theme_name,
             risk=risk,
-            target=target or "demo",
+            target=target or "no target set",
         )
     )
     layout["status"].update(render_status_panel(target, theme_name))
@@ -466,7 +466,10 @@ def run_launcher(target="", theme_name="DEFAULT"):
         target=target or "no target set", scan_status="READY", ai_status="READY"
     )
     console.print(build_welcome_renderable(mission=mission))
-    console.print(render_launcher_layout(theme_name, target, risk=42))
+    # No scan has run yet on this screen, so the risk gauge is genuinely 0 —
+    # a non-zero value would be invented. The real gauge is shown by
+    # show_hunt_results() once a hunt completes.
+    console.print(render_launcher_layout(theme_name, target, risk=0))
 
     console.print(
         "\n[bold cyan]Available themes:[/bold cyan] "

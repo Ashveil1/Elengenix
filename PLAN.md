@@ -304,3 +304,32 @@ what makes the score stable and the agent genuinely strong regardless of model.
   the diff minimal. If a maintainer wants black applied, it should be a
   separate, repo-wide commit.
 - Optional: surface the hunter's per-class results in the report/HTML output.
+- **UX/UI cleanup (2026-11-08): removed ALL fake/simulated data from the
+  UI surface; everything shown is now real.**
+  - `tools/tui_dashboard.py`: the findings table previously seeded 4 FAKE
+    findings (SQLi/XSS/CORS) on launch — removed (shows "No findings yet").
+    `/scan` was misrouted (Orchestrator) and now runs the REAL HuntEngine in
+    a thread with honest per-phase progress via a new `HuntEngine.phase_callback`
+    (additive, default off). The UI now counts/displays only LIVE findings —
+    static "CANDIDATE (not tested)" items no longer masquerade as vulns
+    (verified: dead port -> 0 findings; real target -> 9 live findings).
+    `run_minimal()` shows the real last-scan report instead of 0/0/0.
+    Fixed two pre-existing crash bugs: reactives passed as Static kwargs at
+    compose time, and an invalid rich style (`font-size:24px`).
+  - `tui/dashboard.py`: removed `ELENGENIX_DEMO` seeding (`_seed_demo_data`)
+    and all random simulation — no invented findings/hosts/scans/markers, no
+    random CPU/mem/net drift (stats now read real psutil), no timer-simulated
+    scan progress. The risk gauge is now DERIVED from the real findings
+    (severity-weighted; empty = 0) instead of a fixed/invented number.
+  - `tui/hunt_view.py`: launcher no longer shows a hardcoded risk=42 or
+    target="demo" (pre-scan state is genuinely 0 / "no target set").
+  - `tools/api_server.py` (web dashboard): removed the 6 fake scan-type
+    options (all ran the identical scan) and fixed the scans table that was
+    permanently stuck on "Loading..." (now renders real /scan/all data).
+  - Brand typo `Elenginx` -> `Elengenix` fixed in all 19 UI-visible spots.
+  - Verified headlessly (textual run_test): dashboard boots with 0 findings /
+    0 scans / 0 hosts / 0 markers / risk 0; real findings populate the table
+    and gauge. UI/hunter/benchmark test files: 104 passed (1 known
+    pre-existing env fail). Full-suite gate 4: 2046 passed; failures = the 5
+    known pre-existing + 4 load-flaky subprocess-spawn/timing tests that all
+    pass in isolation (same class as the known ones).

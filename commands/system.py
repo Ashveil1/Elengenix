@@ -132,7 +132,7 @@ async def cmd_dashboard(args):
     """Launch the real-time TUI security monitoring dashboard."""
     from cli.ui_components import show_section
 
-    show_section("Elenginx Security Dashboard")
+    show_section("Elengenix Security Dashboard")
     target = getattr(args, "target", None)
     try:
         from tools.tui_dashboard import run_dashboard, run_minimal

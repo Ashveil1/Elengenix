@@ -1,5 +1,5 @@
 """
-tools/tui_dashboard.py — Elenginx World-Class TUI Dashboard
+tools/tui_dashboard.py — Elengenix World-Class TUI Dashboard
 ============================================================
 A real-time terminal dashboard built on Textual + the Apple-level design system.
 Features multi-panel layout, live scan monitoring, findings browser, themes.
@@ -10,6 +10,8 @@ Design: Apple-level. Linear-inspired. Raycast-speed.
 from __future__ import annotations
 
 import logging
+import os
+import json
 import time
 from datetime import datetime
 from typing import Any, Dict, List, Optional
@@ -108,6 +110,20 @@ RED_ACCENT = "#ff4444"
 GREEN_ACCENT = "#44cc44"
 YELLOW_ACCENT = "#ffcc44"
 
+
+def _is_live_finding(f: Dict[str, Any]) -> bool:
+    """True only for a LIVE, evidenced finding (same honesty rule as the
+    risk scorer). Static "CANDIDATE (not tested)" items, Informational
+    notes, and entries with no URL/evidence are excluded so the UI never
+    presents unverified candidates as confirmed vulnerabilities."""
+    sev = str(f.get("severity", "info") or "info").lower()
+    if sev == "informational" or sev == "info":
+        return False
+    title = str(f.get("title", "") or "")
+    if "candidate" in title.lower() or "not tested" in title.lower():
+        return False
+    return bool(f.get("url") or f.get("details") or f.get("evidence"))
+
 # ═══════════════════════════════════════════════════════════════════════════
 # WIDGETS
 # ═══════════════════════════════════════════════════════════════════════════
@@ -126,7 +142,7 @@ if _HAS_TEXTUAL:
 
             t = Text()
             t.append(f"\n{self.label_text}\n", style="dim " + DARK_MUTED)
-            t.append(f"{self.value}", style=f"bold {self.color} font-size:24px")
+            t.append(f"{self.value}", style=f"bold {self.color}")
             return t
 
         def on_mount(self):
@@ -177,26 +193,28 @@ if _HAS_TEXTUAL:
             self.styles.height = 7
 
     class FindingsTable(DataTable):
-        """Interactive findings data table with sorting and filtering."""
+        """Interactive findings data table with sorting and filtering.
+
+        Shows ONLY real findings — no seeded/sample rows. Before a scan it
+        displays an explicit "no findings yet" state so nothing is mistaken
+        for a real result.
+        """
 
         def on_mount(self):
             self.styles.background = DARK_SURFACE
             self.styles.border = ("solid", DARK_BORDER)
             self.styles.height = "1fr"
             self.add_columns("Severity", "Type", "Title", "URL", "CVSS")
-            self.add_rows(
-                [
-                    ["[red]CRITICAL[/]", "sqli", "SQL Injection in login", "/api/login", "9.3"],
-                    ["[orange]HIGH[/]", "xss", "Stored XSS in profile", "/profile/name", "7.5"],
-                    ["[yellow]MEDIUM[/]", "config", "Missing CORS headers", "/api/*", "5.0"],
-                    ["[green]LOW[/]", "info", "Server version exposed", "/", "2.1"],
-                ]
-            )
+            self.add_rows([["[dim]—[/]", "[dim]—[/]", "[dim]No findings yet — run /scan <target> to start a real scan[/]", "[dim]—[/]", "[dim]—[/]"]])
 
         def update_findings(self, findings: List[Dict[str, Any]]):
             self.clear()
             self.add_columns("Severity", "Type", "Title", "URL", "CVSS")
-            for f in findings or []:
+            rows = findings or []
+            if not rows:
+                self.add_rows([["[dim]—[/]", "[dim]—[/]", "[dim]Scan finished — no findings[/]", "[dim]—[/]", "[dim]—[/]"]])
+                return
+            for f in rows:
                 sev = (f.get("severity", "info") or "info").lower()
                 sev_colors = {
                     "critical": "red",
@@ -208,10 +226,10 @@ if _HAS_TEXTUAL:
                 color = sev_colors.get(sev, "dim")
                 self.add_row(
                     f"[{color}]{sev.upper()}[/]",
-                    f.get("type", "")[:20],
+                    str(f.get("type", "") or f.get("category", ""))[:20],
                     (f.get("title", "") or "")[:40],
-                    (f.get("url", "") or "")[:40],
-                    str(f.get("cvss", "")),
+                    (f.get("url", "") or f.get("target_endpoint", ""))[:40],
+                    str(f.get("cvss", "") or ""),
                 )
 
     class LogPanel(RichLog):
@@ -222,7 +240,7 @@ if _HAS_TEXTUAL:
             self.styles.border = ("solid", DARK_BORDER)
             self.styles.height = 8
             self.styles.margin = (1, 0)
-            self.write("[dim]Elenginx Dashboard ready[/dim]")
+            self.write("[dim]Elengenix Dashboard ready[/dim]")
             self.write("[dim]Type /help for commands[/dim]")
 
         def log(self, message: str, style: str = "white"):
@@ -230,9 +248,9 @@ if _HAS_TEXTUAL:
             self.write(f"[dim]{ts}[/] [{style}]{message}[/]")
 
     class DashboardApp(App):
-        """Elenginx World-Class Terminal Dashboard."""
+        """Elengenix World-Class Terminal Dashboard."""
 
-        TITLE = "Elenginx Security Dashboard"
+        TITLE = "Elengenix Security Dashboard"
         CSS = """
         Screen {
             background: #0a0a0f;
@@ -310,13 +328,13 @@ if _HAS_TEXTUAL:
 
         def compose(self) -> ComposeResult:
             yield Container(
-                Static("Elenginx Security Dashboard", id="header-panel"),
+                Static("Elengenix Security Dashboard", id="header-panel"),
                 Horizontal(
-                    MetricCard(value="0", label_text="Active Scans", color=RED_ACCENT),
-                    MetricCard(value="0", label_text="Total Findings", color=DARK_ACCENT),
-                    MetricCard(value="0", label_text="Critical", color=RED_ACCENT),
-                    MetricCard(value="0", label_text="High", color="#ff8844"),
-                    ScanStatusCard(status="idle", target_text="", findings_count=0),
+                    MetricCard(id="metric-scans"),
+                    MetricCard(id="metric-findings"),
+                    MetricCard(id="metric-critical"),
+                    MetricCard(id="metric-high"),
+                    ScanStatusCard(id="scan-status"),
                     id="metrics-row",
                 ),
                 Horizontal(
@@ -332,6 +350,17 @@ if _HAS_TEXTUAL:
         def on_mount(self) -> None:
             self.log_panel = self.query_one("#log-panel", LogPanel)
             self.log_panel.log("Dashboard initialized", "green")
+            # Metric cards (labels set here, not in the constructor — Static
+            # does not accept reactive kwargs at compose time).
+            self.query_one("#metric-scans", MetricCard).label_text = "Active Scans"
+            self.query_one("#metric-findings", MetricCard).label_text = "Total Findings"
+            self.query_one("#metric-critical", MetricCard).label_text = "Critical"
+            self.query_one("#metric-high", MetricCard).label_text = "High"
+            card = self.query_one("#scan-status", ScanStatusCard)
+            card.status = "idle"
+            target = (self.scan_data or {}).get("target", "")
+            if target:
+                card.target_text = target
 
         def on_input_submitted(self, event: Input.Submitted) -> None:
             cmd = event.value.strip()
@@ -360,49 +389,84 @@ if _HAS_TEXTUAL:
 
         @work(thread=True)
         def start_scan(self, target: str):
-            """Start a scan in a background thread."""
+            """Run a REAL scan (HuntEngine) in a background thread and update
+            the UI with honest per-phase progress — no simulated progress."""
             try:
-                import asyncio
-
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
                 self.call_from_thread(self.log_panel.log, f"Scanning: {target}", "bold green")
                 self.call_from_thread(self._update_scan_status, "running", target, 0)
                 self.call_from_thread(self._update_metric, 0, "1", RED_ACCENT)
 
-                # Import and run orchestrator
-                from main import normalize_target
-                from elengenix.agent.compat import Orchestrator
+                # HuntEngine runs a fixed pipeline (recon -> smart -> zero_day
+                # -> logic -> correlation). The callback below reports each
+                # phase as it really starts/finishes, so the UI shows honest
+                # progress instead of a fabricated percentage.
+                from tools.hunt_engine import HuntEngine
 
-                normalized = normalize_target(target)
-                orch = Orchestrator(normalized)
+                def _phase_cb(engine, phase_name, status, findings, duration):
+                    # Called from the scan thread; hop to the UI thread.
+                    self.call_from_thread(
+                        self.log_panel.log,
+                        f"[{phase_name}] {status}  ({duration:.1f}s, {findings} findings)",
+                        "green" if status == "done" else ("red" if status == "failed" else "dim"),
+                    )
+                    self.call_from_thread(self._set_phase, phase_name, status)
 
-                # Run scan in phases
-                findings = loop.run_until_complete(orch.run_auto_scan())
+                # Build the engine (also gives us the phase list count).
+                import asyncio
 
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                try:
+                    engine = HuntEngine(
+                        target, quiet=True, phase_callback=_phase_cb
+                    )
+                    report = loop.run_until_complete(engine.hunt())
+                finally:
+                    loop.close()
+
+                # Show only LIVE findings in the UI — the same honesty rule the
+                # risk scorer uses. Static "CANDIDATE (not tested)" items and
+                # entries with no evidence are NOT real findings; counting them
+                # would make a clean target look compromised. The full report
+                # (console/JSON) still lists candidates separately.
+                all_f = getattr(report, "findings", None) or []
+                finding_dicts = [
+                    f.to_dict()
+                    for f in all_f
+                    if hasattr(f, "to_dict")
+                    and _is_live_finding(f.to_dict())
+                ] or [
+                    f
+                    for f in all_f
+                    if isinstance(f, dict) and _is_live_finding(f)
+                ]
+                n = len(finding_dicts)
                 self.call_from_thread(
                     self.log_panel.log,
-                    f"Scan complete: {len(findings or [])} findings",
+                    f"Scan complete: {n} findings  (risk {report.risk_score:.0f}/100 {report.risk_level})",
                     "bold green",
                 )
-                self.call_from_thread(
-                    self._update_scan_status, "completed", target, len(findings or [])
-                )
-                self.call_from_thread(self._update_findings, findings or [])
-                self.call_from_thread(self._update_metric, 1, str(len(findings or [])), DARK_ACCENT)
+                self.call_from_thread(self._update_scan_status, "completed", target, n)
+                self.call_from_thread(self._update_findings, finding_dicts)
+                self.call_from_thread(self._update_metric, 1, str(n), DARK_ACCENT)
 
-                # Count severity
-                critical = sum(
-                    1 for f in (findings or []) if f.get("severity", "").lower() == "critical"
-                )
-                high = sum(1 for f in (findings or []) if f.get("severity", "").lower() == "high")
+                critical = sum(1 for f in finding_dicts if str(f.get("severity", "")).lower() in ("critical",))
+                high = sum(1 for f in finding_dicts if str(f.get("severity", "")).lower() in ("high",))
                 self.call_from_thread(self._update_metric, 2, str(critical), RED_ACCENT)
                 self.call_from_thread(self._update_metric, 3, str(high), "#ff8844")
-
-                loop.close()
             except Exception as e:
                 self.call_from_thread(self.log_panel.log, f"Scan error: {e}", "red")
                 self.call_from_thread(self._update_scan_status, "failed", target, 0)
+
+        def _set_phase(self, phase_name: str, status: str):
+            """Show the phase the scan is ACTUALLY in (from the engine's
+            live callback) on the Active Scans card."""
+            try:
+                card = self.query_one("#metric-scans", MetricCard)
+                label = f"Phase: {phase_name}" + ("" if status == "running" else f" ({status})")
+                card.label_text = label
+            except Exception:
+                pass
 
         def _update_metric(self, index: int, value: str, color: str):
             cards = self.query(MetricCard)
@@ -448,7 +512,7 @@ if _HAS_TEXTUAL:
 
 
 def run_dashboard(target: Optional[str] = None) -> None:
-    """Launch the Elenginx dashboard.
+    """Launch the Elengenix dashboard.
 
     Args:
         target: Optional target to start scanning immediately
@@ -476,7 +540,11 @@ def run_with_target(target: str) -> None:
 
 
 def run_minimal():
-    """Render a minimal live-updating dashboard in plain terminal."""
+    """Render a minimal live-updating dashboard in plain terminal.
+
+    Shows the REAL last saved scan report (if any) — no fake numbers. If no
+    scan has run yet it says so explicitly.
+    """
     from rich.console import Console
     from rich.layout import Layout
     from rich.live import Live
@@ -491,20 +559,47 @@ def run_minimal():
         Layout(name="footer", size=3),
     )
 
+    def _last_report():
+        try:
+            from elengenix.paths import get_reports_path
+
+            reports = get_reports_path()
+            if not reports.exists():
+                return None
+            files = sorted(reports.glob("*.json"), key=os.path.getmtime, reverse=True)
+            if not files:
+                return None
+            return json.loads(files[0].read_text())
+        except Exception:
+            return None
+
+    rep = _last_report()
+    if rep:
+        fs = rep.get("findings") or []
+        total = len(fs)
+        crit = sum(1 for f in fs if str(f.get("severity", "")).lower() == "critical")
+        high = sum(1 for f in fs if str(f.get("severity", "")).lower() == "high")
+        status_line = f"[dim]Last scan: {rep.get('target', '?')}[/]"
+    else:
+        total = crit = high = 0
+        status_line = "[dim]No scan yet — run a scan to populate real data[/]"
+
     with Live(layout, refresh_per_second=4, screen=True) as live:
         try:
             import signal
 
             signal.signal(signal.SIGINT, lambda s, f: exit(0))
             while True:
-                table = Table(title="Elenginx Security Monitor", border_style="dim")
+                table = Table(title="Elengenix Security Monitor", border_style="dim")
                 table.add_column("Metric", style="bold")
                 table.add_column("Value", style="green")
                 table.add_row("Active Scans", "0")
-                table.add_row("Total Findings", "0")
-                table.add_row("Status", "[dim]Monitoring[/]")
+                table.add_row("Total Findings (last scan)", str(total))
+                table.add_row("Critical", str(crit))
+                table.add_row("High", str(high))
+                table.add_row("Status", status_line)
                 layout["header"].update(
-                    Panel("Elenginx Security Monitor", style="bold white on #1a1a2e")
+                    Panel("Elengenix Security Monitor", style="bold white on #1a1a2e")
                 )
                 layout["body"].update(table)
                 layout["footer"].update(Panel("Press Ctrl+C to quit", style="dim"))

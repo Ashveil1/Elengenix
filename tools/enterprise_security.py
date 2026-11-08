@@ -467,9 +467,9 @@ def generate_sbom(path: str = ".", output_path: Optional[str] = None) -> Dict[st
         "spdxVersion": "SPDX-2.3",
         "dataLicense": "CC0-1.0",
         "SPDXID": "SPDXRef-DOCUMENT",
-        "name": f"Elenginx-SBOM-{Path(path).name}",
+        "name": f"Elengenix-SBOM-{Path(path).name}",
         "creationInfo": {
-            "creators": ["Tool: Elenginx Enterprise Security"],
+            "creators": ["Tool: Elengenix Enterprise Security"],
             "created": now,
         },
         "packages": [],

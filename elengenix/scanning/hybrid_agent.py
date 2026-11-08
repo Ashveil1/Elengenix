@@ -710,7 +710,7 @@ class HybridAgent:
             self._run_analysis(result, tool_name, cycle)
 
     def _run_analysis(self, result: ToolResult, tool_name: str, step: int):
-        """Run Elenginx's 13-analyzer pipeline on a tool result."""
+        """Run Elengenix's 13-analyzer pipeline on a tool result."""
         if not self.mission_state:
             return
         try:

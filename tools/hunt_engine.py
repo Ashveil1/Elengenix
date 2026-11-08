@@ -22,7 +22,7 @@ from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 from elengenix.paths import get_reports_path
 
 logger = logging.getLogger("elengenix.hunt")
@@ -609,11 +609,20 @@ class HuntEngine:
     """
 
     def __init__(
-        self, target: str, *, skip_phases: Optional[List[str]] = None, quiet: bool = False
+        self,
+        target: str,
+        *,
+        skip_phases: Optional[List[str]] = None,
+        quiet: bool = False,
+        phase_callback: Optional[Callable[["HuntEngine", str, str, int, float], None]] = None,
     ) -> None:
         self.target = self._normalize_target(target)
         self.skip_phases = set(skip_phases or [])
         self.quiet = quiet
+        # Optional live-progress hook: (engine, phase_name, status, findings, duration).
+        # status is "running", "done", "failed" or "skipped". Lets a UI show
+        # honest per-phase progress without scraping the console.
+        self.phase_callback = phase_callback
         self._report = HuntReport(
             target=self.target,
             started_at=datetime.now(timezone.utc).isoformat(),
@@ -634,6 +643,15 @@ class HuntEngine:
         if not self.quiet:
             print(msg)
 
+    def _notify_phase(self, phase_name: str, status: str, findings: int, duration: float) -> None:
+        """Invoke the live-progress callback (if any) without failing the scan."""
+        if self.phase_callback is None:
+            return
+        try:
+            self.phase_callback(self, phase_name, status, findings, duration)
+        except Exception:
+            logger.debug("phase_callback failed", exc_info=True)
+
     async def _run_phase(self, name: str, coro_factory) -> List[HuntFinding]:
         """Run one phase with timing and error handling.
 
@@ -644,9 +662,11 @@ class HuntEngine:
         if name in self.skip_phases:
             phase = HuntPhase(name=name, status="skipped")
             self._report.phases.append(phase)
+            self._notify_phase(name, "skipped", 0, 0.0)
             return []
         phase = HuntPhase(name=name, status="running")
         self._report.phases.append(phase)
+        self._notify_phase(name, "running", 0, 0.0)
         start = time.time()
         try:
             self._log(f"  [{name.upper():11s}] starting...")
@@ -659,6 +679,7 @@ class HuntEngine:
             self._log(
                 f"  [{name.upper():11s}] done  ({phase.duration:.1f}s, {len(findings)} findings)"
             )
+            self._notify_phase(name, "done", len(findings), phase.duration)
             return findings
         except Exception as e:
             phase.status = "failed"
@@ -666,6 +687,7 @@ class HuntEngine:
             phase.duration = time.time() - start
             self._log(f"  [{name.upper():11s}] failed ({e})")
             logger.exception("phase %s failed", name)
+            self._notify_phase(name, "failed", 0, phase.duration)
             return []
 
     async def hunt(self) -> HuntReport:

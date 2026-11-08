@@ -20,7 +20,6 @@ The dashboard is designed to be dropped into any Textual app::
 from __future__ import annotations
 
 import logging
-import os
 import random
 import time
 from dataclasses import dataclass, field
@@ -269,9 +268,12 @@ class ThreatDashboard(Container):
         return getattr(self, "_current_layout", "default")
 
     def on_mount(self) -> None:
-        """Start the simulation timer and prime the panels."""
-        if os.environ.get("ELENGENIX_DEMO"):
-            self._seed_demo_data()
+        """Prime the panels and start the tick timer.
+
+        No demo/simulated data is seeded — the dashboard only ever shows what
+        the parent app feeds it via the public API (add_finding/add_threat/
+        add_scan/update_stats). Empty panels render explicit "no data" states.
+        """
         self._refresh_all()
         # 4 FPS is enough for dashboard updates (15 FPS if you want smoother).
         self._tick_timer = self.set_interval(0.25, self._tick)
@@ -305,11 +307,27 @@ class ThreatDashboard(Container):
             self.findings = self.findings[-self._max_findings :]
         self._dirty.add("findings")
         self._dirty.add("gauge")
+        # The risk gauge is a function of the REAL findings only — never a
+        # fixed/invented number. Recompute it from what we actually have.
+        self.risk_score = self._risk_score_from_findings()
         try:
             self._refresh_findings()
             self._refresh_gauge()
         except Exception:
             pass
+
+    def _risk_score_from_findings(self) -> float:
+        """Derive a 0-100 risk score from the real findings present.
+
+        Weighted by severity (critical>high>medium>low>info) and capped. With
+        no findings the score is genuinely 0. This is real (it reflects the
+        actual findings) rather than invented.
+        """
+        weights = {"critical": 25.0, "high": 15.0, "medium": 8.0, "low": 4.0, "info": 1.0}
+        score = 0.0
+        for f in self.findings[-self._max_findings :]:
+            score += weights.get((f.severity or "info").lower(), 1.0)
+        return max(0.0, min(100.0, score))
 
     def add_threat(
         self,
@@ -379,49 +397,13 @@ class ThreatDashboard(Container):
     def watch_theme_name(self, _) -> None:
         self._refresh_all()
 
-    # -- Internal: simulation ---------------------------------------------
-
-    def _seed_demo_data(self) -> None:
-        """Populate the dashboard with demo data so it looks alive."""
-        if not self.findings:
-            demo_findings = [
-                ("Open admin port", "high", ":8080/admin", "Default credentials may be in use"),
-                (
-                    "Reflected XSS in search",
-                    "medium",
-                    "/search?q=",
-                    "User input echoed without sanitisation",
-                ),
-                ("TLS 1.0 enabled", "medium", ":443", "Deprecated protocol version supported"),
-                (
-                    "Verbose error page",
-                    "low",
-                    "/api/items/0",
-                    "Stack trace returned in response body",
-                ),
-                ("CORS wildcard", "info", "global", "Access-Control-Allow-Origin: *"),
-            ]
-            for title, sev, loc, desc in demo_findings:
-                self.add_finding(title, sev, loc, desc)
-        if not self.hosts:
-            for ip, role, risk in [
-                ("10.0.0.1", "gateway", "low"),
-                ("10.0.0.5", "web", "medium"),
-                ("10.0.0.12", "database", "high"),
-                ("10.0.0.20", "auth", "critical"),
-                ("10.0.0.30", "cache", "low"),
-            ]:
-                self.add_host(ip, role=role, risk=risk)
-        if not self.scans:
-            self.add_scan("Recon", duration=120.0)
-            self.add_scan("Vuln scan", duration=300.0)
-        if not self.markers:
-            for _ in range(4):
-                self.add_threat(severity=random.choice(["info", "medium", "high"]))
+    # -- Internal: live tick ----------------------------------------------
+    # No simulation here: panels only change in response to real data fed via
+    # the public API. The tick advances purely-visual animation (marker pulse,
+    # clock) and refreshes the system-stats panel from the OS (psutil).
 
     def _tick(self) -> None:
-        """Per-frame tick: dynamic panels every frame, static ones only when dirty."""
-        demo = bool(os.environ.get("ELENGENIX_DEMO"))
+        """Per-frame tick: visual animation + real OS stats; no fake data."""
         now = time.time()
         # Responsive threatmap: shrink on narrow terminals.
         if self._auto_threatmap:
@@ -434,49 +416,23 @@ class ThreatDashboard(Container):
                 self._threatmap_h = 14 if cols >= 100 else 10
             except Exception:
                 pass
-        # Advance scan progress.
-        scans_changed = False
-        for s in self.scans:
-            if s.status != "running":
-                continue
-            elapsed = now - s.started_at
-            s.progress = min(1.0, elapsed / max(1.0, s.eta))
-            s.eta = max(0.0, s.eta - 0.25)
-            if s.progress >= 1.0:
-                s.status = "done"
-            scans_changed = True
-        if scans_changed:
+
+        # Scans: progress is driven by the parent app (real phases), not by a
+        # timer. We only re-render when a scan's state changed.
+        if any(s.status == "running" for s in self.scans):
             self._refresh_scans()
 
-        # Advance marker pulse. Random ambient markers only in demo mode —
-        # real scans feed markers via add_threat().
+        # Marker pulse is a pure visual effect on REAL markers (no new markers
+        # are ever invented here).
         for m in self.markers:
             m.pulse = (m.pulse + 0.08) % 1.0
-        if demo and random.random() < 0.10 and len(self.markers) < self._max_markers:
-            self.add_threat(severity=random.choice(["info", "info", "medium", "high", "critical"]))
-        else:
+        if self.markers:
             self._refresh_threatmap()
 
-        # System stats: prefer real update_stats() feed; drift only when stale
-        # (>5s) or in demo mode so the panel never looks dead.
-        stale = (now - self.stats.timestamp) > 5.0 if self.stats.timestamp else True
-        if demo or stale:
-            if self.stats.timestamp > 0:
-                self.stats.cpu = max(5.0, min(95.0, self.stats.cpu + random.uniform(-4, 4)))
-                self.stats.memory = max(
-                    10.0, min(95.0, self.stats.memory + random.uniform(-2, 2))
-                )
-                self.stats.net_in = max(0.0, self.stats.net_in + random.uniform(-50, 50))
-                self.stats.net_out = max(0.0, self.stats.net_out + random.uniform(-50, 50))
-            else:
-                self.stats = SystemStats(
-                    cpu=random.uniform(20, 60),
-                    memory=random.uniform(40, 70),
-                    net_in=random.uniform(50, 200),
-                    net_out=random.uniform(30, 150),
-                    timestamp=now,
-                )
-            self._refresh_stats()
+        # System stats: read real OS metrics (psutil) on a 1s cadence. If the
+        # parent app pushed explicit values more recently, prefer those.
+        if (now - self.stats.timestamp) >= 1.0:
+            self._read_real_stats(now)
         elif "stats" in self._dirty:
             self._refresh_stats()
             self._dirty.discard("stats")
@@ -495,6 +451,42 @@ class ThreatDashboard(Container):
         # Update clock.
         self.clock = datetime.now().strftime("%H:%M:%S")
         self._refresh_header()
+
+    def _read_real_stats(self, now: float) -> None:
+        """Populate the stats panel from the real OS (psutil) — no drift, no
+        random. Net counters are best-effort (may be 0 where unsupported)."""
+        try:
+            import psutil
+
+            cpu = float(psutil.cpu_percent(interval=None))
+            memory = float(psutil.virtual_memory().percent)
+            try:
+                net = psutil.net_io_counters()
+                # Use an internal sample so the panel shows a live rate, but
+                # derived from real counters (not invented numbers).
+                if not hasattr(self, "_net_prev") or not hasattr(self, "_net_prev_t"):
+                    self._net_prev = (net.bytes_sent, net.bytes_recv)
+                    self._net_prev_t = now
+                sent, recv = net.bytes_sent, net.bytes_recv
+                dt = max(0.001, now - self._net_prev_t)
+                net_out = max(0.0, (sent - self._net_prev[0]) / dt)
+                net_in = max(0.0, (recv - self._net_prev[1]) / dt)
+                self._net_prev = (sent, recv)
+                self._net_prev_t = now
+            except Exception:
+                net_in = net_out = 0.0
+            self.stats = SystemStats(
+                cpu=max(0.0, min(100.0, cpu)),
+                memory=max(0.0, min(100.0, memory)),
+                net_in=net_in,
+                net_out=net_out,
+                timestamp=now,
+            )
+            self._refresh_stats()
+        except Exception:
+            # psutil unavailable: leave the panel at its last real value (or
+            # empty) rather than inventing numbers.
+            pass
 
     # -- Internal: render helpers ----------------------------------------
 
@@ -940,21 +932,27 @@ class ThreatDashboard(Container):
 
 
 def run_demo() -> None:
-    """Print a one-shot render of the dashboard for manual inspection."""
+    """Print a one-shot render of the dashboard for manual inspection.
+
+    Renders the *empty* state (no findings, no risk) so a manual print never
+    shows invented numbers.
+    """
     from rich.console import Console as _Console
 
     c = _Console(width=140, record=True)
-    c.print(build_static_renderable("DEFAULT", risk=73, target="example.com"))
+    c.print(build_static_renderable("DEFAULT", risk=0, target="no target"))
 
 
 def build_static_renderable(
     theme_name: str = "DEFAULT",
     risk: int = 0,
-    target: str = "demo",
+    target: str = "no target",
 ) -> Group:
     """Build a single Rich ``Group`` rendering the dashboard.
 
-    Useful for screenshot tests or one-off prints.
+    Useful for screenshot tests or one-off prints. Shows only the values it
+    is given — no invented severity counts (an empty dashboard renders as
+    zero until real findings are supplied).
     """
     theme = get_theme(theme_name)
     primary = theme.get("primary", "#ff2222")
@@ -962,7 +960,7 @@ def build_static_renderable(
     muted = theme.get("muted", "#888888")
 
     gauge = RiskGauge(value=risk, max_value=100, label="RISK SCORE").render()
-    chart = SeverityChart(critical=1, high=3, medium=5, low=8, info=12).render()
+    chart = SeverityChart(critical=0, high=0, medium=0, low=0, info=0).render()
     body = Table(show_header=False, box=SIMPLE, padding=(0, 1), expand=True)
     body.add_column("Left")
     body.add_column("Right")
@@ -975,7 +973,7 @@ def build_static_renderable(
             ("  /  ", muted),
             (f"TARGET: {target}", text),
             ("  /  ", muted),
-            (f"RISK: {risk}", "bold #ff003c"),
+            (f"RISK: {risk}", "bold #ff003c" if risk >= 60 else f"bold {primary}"),
         ),
         border_style=primary,
         box=HEAVY,

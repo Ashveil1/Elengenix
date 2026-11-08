@@ -1333,12 +1333,12 @@ def main():
         elif args.command == "dashboard":
             from cli.ui_components import print_error, print_info, print_success, show_section
 
-            show_section("Elenginx Security Dashboard")
+            show_section("Elengenix Security Dashboard")
             target = args.target
             try:
                 from tools.tui_dashboard import run_dashboard, run_minimal
 
-                print_info("Launching Elenginx Security Dashboard...")
+                print_info("Launching Elengenix Security Dashboard...")
                 try:
                     run_dashboard(target)
                 except Exception:

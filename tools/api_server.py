@@ -1,5 +1,5 @@
 """
-tools/api_server.py — Elenginx Enterprise REST API
+tools/api_server.py — Elengenix Enterprise REST API
 ====================================================
 Professional-grade FastAPI REST API for CI/CD integration, web dashboards,
 and enterprise orchestration.
@@ -550,7 +550,7 @@ if _HAS_FASTAPI:
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Elenginx Security Dashboard</title>
+<title>Elengenix Security Dashboard</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -597,18 +597,10 @@ if _HAS_FASTAPI:
 </style>
 </head>
 <body>
-<div class="header"><h1><span>Elenginx</span> Security Dashboard</h1></div>
+<div class="header"><h1><span>Elengenix</span> Security Dashboard</h1></div>
 <div class="content">
   <div class="new-scan">
     <input id="targetInput" placeholder="Target (URL, IP, or domain)" />
-    <select id="scanType">
-      <option value="full">Full Scan</option>
-      <option value="quick">Quick Scan</option>
-      <option value="deep">Deep Scan</option>
-      <option value="stealth">Stealth Scan</option>
-      <option value="web">Web Scan</option>
-      <option value="api">API Scan</option>
-    </select>
     <button class="btn" onclick="startScan()">Start Scan</button>
   </div>
   <div class="stats" id="stats">Loading...</div>
@@ -619,7 +611,7 @@ if _HAS_FASTAPI:
     <div id="scans">Loading...</div>
   </div>
 </div>
-<div class="footer">Elenginx Security Framework v2.0.0 | <span id="wsIndicator" class="ws-status disconnected"></span><span id="wsLabel">Disconnected</span></div>
+<div class="footer">Elengenix Security Framework v2.0.0 | <span id="wsIndicator" class="ws-status disconnected"></span><span id="wsLabel">Disconnected</span></div>
 <script>
 let ws = null; let scanIds = new Set();
 function connectWS() {
@@ -636,10 +628,9 @@ function connectWS() {
 }
 function startScan() {
   const target = document.getElementById('targetInput').value;
-  const type = document.getElementById('scanType').value;
   if (!target) return alert('Enter a target');
   fetch('/scan', { method: 'POST', headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({target, scan_type: type}) })
+    body: JSON.stringify({target, scan_type: 'full'}) })
   .then(r => r.json()).then(data => { refreshScans();
     document.getElementById('targetInput').value = ''; })
   .catch(e => alert('Error: '+e));
@@ -650,18 +641,30 @@ function refreshScans() {
       '<div class="stat-card"><div class="label">Active Scans</div><div class="value">'+h.active_scans+'</div></div>'+
       '<div class="stat-card"><div class="label">Total Scans</div><div class="value">'+h.total_scans+'</div></div>'+
       '<div class="stat-card"><div class="label">Uptime</div><div class="value" style="font-size:20px">'+Math.floor(h.uptime_seconds/3600)+'h</div></div>';
-  });
-  fetch('/findings?limit=5').then(r=>r.json()).then(d => {
-    if(d.findings && d.findings.length) {
-      let c=0,h=0,m=0,l=0;
-      d.findings.forEach(f => { const s=(f.severity||'').toLowerCase();
-        if(s==='critical') c++; else if(s==='high') h++; else if(s==='medium') m++; else if(s==='low') l++; });
+  }).catch(()=>{});
+  // Render the REAL scan list from the server (not a placeholder).
+  fetch('/scan/all?limit=50').then(r=>r.json()).then(d => {
+    const el = document.getElementById('scans');
+    const scans = (d && d.scans) || [];
+    if (!scans.length) {
+      el.innerHTML = '<div class="table-row" style="color:#888"><span>No scans yet — start one above</span><span></span><span></span><span></span><span></span><span></span></div>';
+      return;
     }
-  });
-  fetch('/scan/global').then(r=>r.json()).catch(()=>{});
-  let html = '';
-  fetch('/scan/all').catch(()=>{}).then(()=>{});
-  // Just show health
+    let html = '';
+    scans.forEach(s => {
+      const st = s.status || 'unknown';
+      const cls = (st==='completed') ? 'completed' : (st==='failed' ? 'failed' : 'running');
+      html += '<div class="table-row">'
+        + '<span>' + (s.target || '') + '</span>'
+        + '<span>' + (s.scan_type || '') + '</span>'
+        + '<span><span class="status ' + cls + '">' + st + '</span></span>'
+        + '<span>' + (s.findings_count != null ? s.findings_count : (s.findings ? s.findings.length : 0)) + '</span>'
+        + '<span>' + (s.created_at ? new Date(s.created_at).toLocaleString() : '') + '</span>'
+        + '<span></span>'
+        + '</div>';
+    });
+    el.innerHTML = html;
+  }).catch(()=>{});
 }
 setInterval(refreshScans, 5000); refreshScans(); connectWS();
 </script>
@@ -712,7 +715,7 @@ setInterval(refreshScans, 5000); refreshScans(); connectWS();
 
 
 def run_server(host: str = "0.0.0.0", port: int = 8443, reload: bool = False) -> None:
-    """Launch the Elenginx Enterprise API server.
+    """Launch the Elengenix Enterprise API server.
 
     Args:
         host: Bind address (default: 0.0.0.0)
@@ -724,7 +727,7 @@ def run_server(host: str = "0.0.0.0", port: int = 8443, reload: bool = False) ->
         return
     from cli.ui_components import console, print_info, print_success
 
-    console.print("[bold red]  Elenginx Enterprise API[/bold red]")
+    console.print("[bold red]  Elengenix Enterprise API[/bold red]")
     print_info(f"  Server: http://{host}:{port}")
     print_info(f"  Docs:   http://{host}:{port}/docs")
     print_info(f"  ReDoc:  http://{host}:{port}/redoc")
