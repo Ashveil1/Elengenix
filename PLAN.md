@@ -400,3 +400,8 @@ what makes the score stable and the agent genuinely strong regardless of model.
   - Decision note: if the `elengenix.reports` package is later implemented, the
     88 brutal report tests + `test_reports_adapters.py` (un-ignore in CI) start
     running automatically. Do not re-add a blanket file-ignore.
+- **RESULT: CI is 100% green (GitHub Actions run on main @ 5bbeb7a): all 4
+  jobs pass — test (3.11), test (3.12), test (3.13), brutal. Branch state:
+  local + remote have ONLY `main` (= 5bbeb7a); feat/webapp-hunter deleted
+  locally, remote never carried it. Both goals (green CI + single main
+  branch) are complete.**
