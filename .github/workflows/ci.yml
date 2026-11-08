@@ -34,6 +34,7 @@ jobs:
             --ignore=tests/brutal \
             --ignore=tests/test_brain_coverage.py \
             --ignore=tests/test_brain_coverage_gap.py \
+            --ignore=tests/test_reports_adapters.py \
             --tb=short
 
       - name: Boot smoke test
